@@ -9,7 +9,7 @@
     "build:renderer": "esbuild src/renderer/renderer.js --bundle --outfile=src/renderer/bundle.js --platform=browser --format=iife",
     "start": "npm run build:renderer && electron .",
     "postinstall": "npm run build:renderer",
-    "dist": "npm run build:renderer && electron-builder --win portable"
+    "dist": "npm run build:renderer && electron-builder --win nsis portable"
   },
   "devDependencies": {
     "@coderline/alphatab": "^1.8.4",
@@ -29,7 +29,7 @@
       "package.json"
     ],
     "win": {
-      "target": "portable"
+      "target": ["nsis", "portable"]
     }
   }
 }
