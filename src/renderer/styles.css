@@ -1,0 +1,75 @@
+body {
+    font-family: system-ui, sans-serif;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 1rem 1.5rem 3rem;
+    line-height: 1.5;
+}
+
+#tabpanels ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#tabpanels ul li {
+    padding: 0.15rem 0;
+}
+
+#status:empty {
+    display: none;
+}
+
+#empty-state {
+    border: 1px dashed #888;
+    padding: 1rem;
+}
+
+#tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    border-bottom: 1px solid #888;
+    padding-bottom: 0.25rem;
+}
+
+#tablist button {
+    font-size: 1rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #888;
+    border-bottom: none;
+    background: #eee;
+    cursor: pointer;
+}
+
+#tablist button[aria-selected="true"] {
+    background: #fff;
+    font-weight: bold;
+    border-color: #333;
+}
+
+#tablist button:focus-visible {
+    outline: 2px solid #005fcc;
+    outline-offset: 2px;
+}
+
+#tabpanels section {
+    padding-top: 1rem;
+}
+
+#tabpanels section:focus-visible {
+    outline: 2px solid #005fcc;
+    outline-offset: 2px;
+}
+
+#audio-section {
+    margin-top: 2rem;
+    border-top: 1px solid #888;
+    padding-top: 1rem;
+}
+
+#audio-player {
+    display: block;
+    margin-top: 0.75rem;
+    width: 100%;
+}

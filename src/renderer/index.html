@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; media-src 'self' blob:" />
+    <title>Unstrung </title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <header>
+        <h1>Unstrung Application</h1>
+        <p>Use the File menu, or press Alt then F, to open a song file. Each file opens in its own tab.</p>
+    </header>
+
+    <main>
+        <p id="status" role="status" aria-live="polite"></p>
+
+        <p id="empty-state" tabindex="-1">
+            No files are open. Press Ctrl+T, or choose Open File… from the File menu, to open a song file.
+            Once files are open, switch between tabs with the Left and Right arrow keys or Ctrl+Tab and
+            Ctrl+Shift+Tab, and close the current tab with Ctrl+W.
+        </p>
+
+        <div id="tab-strip" hidden>
+            <div id="tablist" role="tablist" aria-label="Open song files"></div>
+            <div id="tabpanels"></div>
+        </div>
+
+        <section id="audio-section" aria-labelledby="audio-heading" hidden>
+            <h2 id="audio-heading">Audio playback</h2>
+            <p>Plays a synthesized audio rendering of the file open in the active tab.</p>
+            <button type="button" id="play-audio-button">Play Audio</button>
+            <audio id="audio-player" controls hidden></audio>
+        </section>
+    </main>
+
+    <script src="bundle.js"></script>
+</body>
+</html>

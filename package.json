@@ -1,0 +1,19 @@
+{
+  "name": "unstrung",
+  "version": "0.1.0",
+  "description": "Accessible, screen-reader-friendly viewer for song composition files (Guitar Pro and similar formats).",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "build:renderer": "esbuild src/renderer/renderer.js --bundle --outfile=src/renderer/bundle.js --platform=browser --format=iife",
+    "start": "npm run build:renderer && electron .",
+    "postinstall": "npm run build:renderer"
+  },
+  "dependencies": {
+    "@coderline/alphatab": "^1.8.4"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "esbuild": "^0.23.0"
+  }
+}

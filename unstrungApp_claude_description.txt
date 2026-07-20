@@ -1,0 +1,19 @@
+I am totally blind and want an accessible way to use files containing data regarding the composition of a song. For example, Guitar Pro has, among others, .gp5, .gpx, and .gp files. These files contain more than just the time signature and notes. They can be quite complicated with multiple tracks and various comments such as bend a note.
+
+I want to build an electron app very iteratively. The first stage is to simply verify parsing of files and display metadata about its contents. For example, time signature, key, number of tracks, instrument for each track, and other data displayed easily in very simple HTML. 
+
+The javascript module, alphaTab, https://alphatab.net/docs/introduction, has been recommended to me from another claude chat thread. It is broken into 4 modules:
+1. file parsing 
+2. data model 
+3. presentation in HTML canvas
+4. midi audio generation  
+
+Since this application is for blind people using screen readers, the HTML canvas component  is not needed.
+
+I'd like the first iteration of this project to be the the ability to select an input file (type any for now), have the file parsed into the data model, then display some of that data in an HTML document.
+
+For the HTML, I do not want any frameworks, e.g., React, Vu, etc. It should be very simple, semantic, vanilla HTML. And all javascript should be vanilla javascript.
+
+Create the app in the unstrungApp directory using whatever directory structure is considered best current practices for electron applications.
+
+What is displayed and how it is displayed is up to you initially. Remember I only want basic information for now, showing the file was parsed successfully. You choose the HTML elements to use and remeber, make good use of semantic HTML with clarity, usability, and accessibility being the key considerations.
