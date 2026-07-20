@@ -5,5 +5,7 @@ contextBridge.exposeInMainWorld('unstrung', {
     onFileOpenError: (callback) => ipcRenderer.on('tabs:open-file-error', (_event, payload) => callback(payload)),
     onCloseCurrentTab: (callback) => ipcRenderer.on('tabs:close-current', () => callback()),
     onNextTab: (callback) => ipcRenderer.on('tabs:next', () => callback()),
-    onPreviousTab: (callback) => ipcRenderer.on('tabs:previous', () => callback())
+    onPreviousTab: (callback) => ipcRenderer.on('tabs:previous', () => callback()),
+    onAboutOpen: (callback) => ipcRenderer.on('about:open', (_event, payload) => callback(payload)),
+    openExternalLink: (url) => ipcRenderer.send('shell:open-external', url)
 });

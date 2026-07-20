@@ -9,6 +9,10 @@ const tabpanelsElement = document.getElementById('tabpanels');
 const audioSectionElement = document.getElementById('audio-section');
 const playAudioButton = document.getElementById('play-audio-button');
 const audioPlayerElement = document.getElementById('audio-player');
+const aboutDialog = document.getElementById('about-dialog');
+const aboutVersionElement = document.getElementById('about-version');
+const aboutYearElement = document.getElementById('about-year');
+const aboutOkButton = document.getElementById('about-ok-button');
 
 /** @type {{ id: number, fileName: string, buttonEl: HTMLButtonElement, panelEl: HTMLElement, score: object|undefined, audioUrl: string|undefined }[]} */
 const tabs = [];
@@ -376,6 +380,34 @@ playAudioButton.addEventListener('click', async () => {
     }
 });
 
+let aboutDialogOpener = null;
+
+function openAboutDialog({ version }) {
+    aboutVersionElement.textContent = version;
+    aboutYearElement.textContent = String(new Date().getFullYear());
+    aboutDialogOpener = document.activeElement;
+    aboutDialog.showModal();
+    aboutDialog.focus();
+}
+
+aboutOkButton.addEventListener('click', () => aboutDialog.close());
+
+aboutDialog.addEventListener('close', () => {
+    if (aboutDialogOpener && typeof aboutDialogOpener.focus === 'function') {
+        aboutDialogOpener.focus();
+    }
+    aboutDialogOpener = null;
+});
+
+aboutDialog.addEventListener('click', event => {
+    const link = event.target.closest('a');
+    if (!link) return;
+    event.preventDefault();
+    const href = link.href;
+    aboutDialog.close();
+    window.unstrung.openExternalLink(href);
+});
+
 window.unstrung.onFileOpened(handleFileOpened);
 window.unstrung.onFileOpenError(handleFileOpenError);
 window.unstrung.onCloseCurrentTab(() => {
@@ -383,3 +415,4 @@ window.unstrung.onCloseCurrentTab(() => {
 });
 window.unstrung.onNextTab(() => shiftActiveTab(1));
 window.unstrung.onPreviousTab(() => shiftActiveTab(-1));
+window.unstrung.onAboutOpen(openAboutDialog);
