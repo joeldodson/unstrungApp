@@ -141,8 +141,10 @@ const cliArgs = process.argv.slice(app.isPackaged ? 1 : 2);
 const helpRequested = cliArgs.includes('-h') || cliArgs.includes('--help');
 
 if (helpRequested) {
-    console.log(HELP_TEXT);
-    app.exit(0);
+    // Wait for the write to actually complete before exiting: on Windows, when stdout is
+    // a pipe or redirected file, the write is asynchronous, and app.exit()/process.exit()
+    // can tear the process down before it flushes, silently dropping the output.
+    process.stdout.write(HELP_TEXT, () => app.exit(0));
 } else {
     app.whenReady().then(() => {
         // This app is built for screen reader users. Force full Chromium accessibility
