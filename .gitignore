@@ -142,10 +142,13 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-## 
+##
 # Joel's own stuff..
 src/renderer/bundle.js
 musicfiles/
 .claude/settings.local.json
+
+# electron-builder packaged output (release artifacts, not source)
+release/
 
 
