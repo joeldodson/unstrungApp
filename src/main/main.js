@@ -10,7 +10,8 @@ const OPEN_FILE_FILTERS = [
 const ALLOWED_EXTERNAL_URLS = [
     'https://eyesunstrung.vip',
     'https://github.com/joeldodson/unstrungApp',
-    'https://claude.ai'
+    'https://claude.ai',
+    'https://github.com/sfzinstruments/karoryfer.black-and-green-guitars'
 ];
 
 ipcMain.on('shell:open-external', (_event, url) => {
@@ -79,6 +80,106 @@ async function openFileAndCreateTab(window) {
     await openFilePath(window, result.filePaths[0]);
 }
 
+// --- Green Gretsch guitar sample playback (Tools menu) ---
+// Samples are bundled with the app under src/assets/samples/green-gretsch, copied from the
+// Black And Green Guitars pack (https://github.com/sfzinstruments/karoryfer.black-and-green-guitars),
+// preserving that repo's own relative folder structure so its .sfz path resolution rules
+// (sample= paths resolve relative to the Programs/ directory) keep working unmodified.
+const GREEN_GRETSCH_ROOT = path.join(__dirname, '..', 'assets', 'samples', 'green-gretsch');
+const GREEN_GRETSCH_PROGRAMS_DIR = path.join(GREEN_GRETSCH_ROOT, 'Programs');
+const GREEN_ORD_MAP_PATH = path.join(GREEN_GRETSCH_PROGRAMS_DIR, 'modules', 'maps_green', 'ord.sfz');
+
+const NOTE_LETTER_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+function midiKeyToPitchName(midiKey) {
+    const octave = Math.floor(midiKey / 12) - 1;
+    return `${NOTE_LETTER_NAMES[midiKey % 12]}${octave}`;
+}
+
+// Parses <region> blocks, honoring opcodes set on an enclosing <group> header (some .sfz files
+// set lokey/pitch_keycenter/trigger once per group rather than repeating it on every region).
+async function parseSfzRegions(sfzPath) {
+    const text = await fs.readFile(sfzPath, 'utf8');
+    const parts = text.split(/<(region|group)>/);
+
+    const regions = [];
+    let group = {};
+    for (let i = 1; i < parts.length; i += 2) {
+        const headerType = parts[i];
+        const body = parts[i + 1] ?? '';
+        const getOpcode = key => {
+            const match = body.match(new RegExp(`${key}=([^\\s]+)`));
+            return match ? match[1] : undefined;
+        };
+
+        if (headerType === 'group') {
+            group = {
+                lokey: getOpcode('lokey'),
+                pitch_keycenter: getOpcode('pitch_keycenter'),
+                trigger: getOpcode('trigger')
+            };
+            continue;
+        }
+
+        const sample = getOpcode('sample');
+        if (!sample || sample.startsWith('*')) continue;
+        const key = Number(getOpcode('pitch_keycenter') ?? group.pitch_keycenter ?? getOpcode('lokey') ?? group.lokey);
+        if (!Number.isFinite(key)) continue;
+        regions.push({
+            key,
+            sample,
+            trigger: getOpcode('trigger') ?? group.trigger,
+            hivel: Number(getOpcode('hivel') ?? 127)
+        });
+    }
+    return regions;
+}
+
+function resolveSamplePath(resolveBase, sample) {
+    return path.resolve(resolveBase, sample.replace(/\\/g, '/'));
+}
+
+// Green Gretsch "ord" (normal picking) velocity tiers, confirmed directly against the sample
+// filenames (twang_<note>_<p|mf|f>_rr<N>.wav): "p" (soft) always has 2 round-robins; "mf" and
+// "f" have 4 for most notes but only 2 for the ten highest notes in range.
+const VELOCITY_LABELS = ['p', 'mf', 'f'];
+
+let cachedOrdRegionsByKey = null;
+
+async function getOrdRegionsByKey() {
+    if (!cachedOrdRegionsByKey) {
+        const regions = await parseSfzRegions(GREEN_ORD_MAP_PATH);
+        const byKey = new Map();
+        for (const region of regions) {
+            const match = region.sample.match(/_(p|mf|f)_rr\d+\.wav$/i);
+            if (!match) continue;
+            const velocity = match[1].toLowerCase();
+            if (!byKey.has(region.key)) byKey.set(region.key, {});
+            const forKey = byKey.get(region.key);
+            (forKey[velocity] ??= []).push(region);
+        }
+        cachedOrdRegionsByKey = byKey;
+    }
+    return cachedOrdRegionsByKey;
+}
+
+ipcMain.handle('guitar-samples:get-notes', async () => {
+    const byKey = await getOrdRegionsByKey();
+    return [...byKey.keys()].sort((a, b) => a - b).map(key => ({ key, label: midiKeyToPitchName(key) }));
+});
+
+// Picks one random round-robin take for the given note+velocity (the renderer calls this
+// once per round-robin it wants to play, so repeated calls naturally give repeated random picks).
+ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity }) => {
+    if (!VELOCITY_LABELS.includes(velocity)) throw new Error(`Unknown velocity "${velocity}"`);
+    const byKey = await getOrdRegionsByKey();
+    const candidates = byKey.get(key)?.[velocity];
+    if (!candidates || candidates.length === 0) throw new Error(`No "${velocity}" sample for key ${key}`);
+    const region = candidates[Math.floor(Math.random() * candidates.length)];
+    const filePath = resolveSamplePath(GREEN_GRETSCH_PROGRAMS_DIR, region.sample);
+    return new Uint8Array(await fs.readFile(filePath));
+});
+// --- end Green Gretsch guitar sample playback ---
+
 function buildMenu(window) {
     const template = [];
 
@@ -97,10 +198,9 @@ function buildMenu(window) {
             ]
         },
         {
-            label: '&Tabs',
+            label: '&Tools',
             submenu: [
-                { label: '&Next Tab', accelerator: 'Control+Tab', click: () => window.webContents.send('tabs:next') },
-                { label: '&Previous Tab', accelerator: 'Control+Shift+Tab', click: () => window.webContents.send('tabs:previous') }
+                { label: '&Listen to Guitar Samples…', click: () => window.webContents.send('guitar-samples:open') }
             ]
         },
         {

@@ -62,29 +62,20 @@ body {
     outline-offset: 2px;
 }
 
-#audio-section {
-    margin-top: 2rem;
-    border-top: 1px solid #888;
-    padding-top: 1rem;
-}
-
-#audio-player {
-    display: block;
-    margin-top: 0.75rem;
-    width: 100%;
-}
-
-#about-dialog {
+#about-dialog,
+#guitar-samples-dialog {
     max-width: 32rem;
     padding: 1.5rem;
     border: 1px solid #333;
 }
 
-#about-dialog::backdrop {
+#about-dialog::backdrop,
+#guitar-samples-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
 }
 
-#about-dialog button {
+#about-dialog button,
+#guitar-samples-dialog button {
     font-size: 1rem;
     padding: 0.4rem 1.5rem;
     margin-top: 0.5rem;

@@ -6,15 +6,12 @@ const emptyStateElement = document.getElementById('empty-state');
 const tabStripElement = document.getElementById('tab-strip');
 const tablistElement = document.getElementById('tablist');
 const tabpanelsElement = document.getElementById('tabpanels');
-const audioSectionElement = document.getElementById('audio-section');
-const playAudioButton = document.getElementById('play-audio-button');
-const audioPlayerElement = document.getElementById('audio-player');
 const aboutDialog = document.getElementById('about-dialog');
 const aboutVersionElement = document.getElementById('about-version');
 const aboutYearElement = document.getElementById('about-year');
 const aboutOkButton = document.getElementById('about-ok-button');
 
-/** @type {{ id: number, fileName: string, buttonEl: HTMLButtonElement, panelEl: HTMLElement, score: object|undefined, audioUrl: string|undefined }[]} */
+/** @type {{ id: number, fileName: string, buttonEl: HTMLButtonElement, panelEl: HTMLElement, score: object|undefined }[]} */
 const tabs = [];
 let nextTabId = 1;
 let activeTabId = null;
@@ -27,13 +24,6 @@ function updateEmptyState() {
     const hasTabs = tabs.length > 0;
     emptyStateElement.hidden = hasTabs;
     tabStripElement.hidden = !hasTabs;
-    audioSectionElement.hidden = !hasTabs;
-}
-
-function resetAudioPlayer() {
-    audioPlayerElement.pause();
-    audioPlayerElement.hidden = true;
-    audioPlayerElement.removeAttribute('src');
 }
 
 function addSummaryRow(ul, label, value) {
@@ -144,7 +134,7 @@ function createTab(fileName, contentEl, { isError = false, score = undefined } =
     tablistElement.append(button);
     tabpanelsElement.append(panel);
 
-    const tab = { id, fileName, buttonEl: button, panelEl: panel, score, audioUrl: undefined };
+    const tab = { id, fileName, buttonEl: button, panelEl: panel, score };
     tabs.push(tab);
     updateEmptyState();
     return tab;
@@ -162,7 +152,6 @@ function activateTab(id) {
     }
     activeTabId = id;
     tab.buttonEl.focus();
-    resetAudioPlayer();
 }
 
 function closeTab(id) {
@@ -172,8 +161,6 @@ function closeTab(id) {
     const [closed] = tabs.splice(index, 1);
     closed.buttonEl.remove();
     closed.panelEl.remove();
-    if (closed.audioUrl) URL.revokeObjectURL(closed.audioUrl);
-    if (activeTabId === id) resetAudioPlayer();
     updateEmptyState();
 
     if (tabs.length === 0) {
@@ -242,144 +229,6 @@ function handleFileOpenError({ fileName, message }) {
     setStatus(fullMessage);
 }
 
-let cachedSoundFontPromise = null;
-function loadSoundFont() {
-    if (!cachedSoundFontPromise) {
-        cachedSoundFontPromise = fetch('./sonivox.sf2')
-            .then(response => {
-                if (!response.ok) throw new Error(`Failed to load sound font (HTTP ${response.status})`);
-                return response.arrayBuffer();
-            })
-            .then(buffer => new Uint8Array(buffer));
-    }
-    return cachedSoundFontPromise;
-}
-
-function createNoopSynthOutput() {
-    const noopEmitter = { on: () => () => {}, off: () => {} };
-    return {
-        sampleRate: 44100,
-        open() {},
-        play() {},
-        pause() {},
-        destroy() {},
-        addSamples() {},
-        resetSamples() {},
-        activate() {},
-        ready: noopEmitter,
-        samplesPlayed: noopEmitter,
-        sampleRequest: noopEmitter,
-        async enumerateOutputDevices() {
-            return [];
-        },
-        async setOutputDevice() {},
-        async getOutputDevice() {
-            return null;
-        }
-    };
-}
-
-function encodeWav(interleavedFloat32, sampleRate, numChannels) {
-    const bytesPerSample = 2;
-    const blockAlign = numChannels * bytesPerSample;
-    const dataSize = interleavedFloat32.length * bytesPerSample;
-    const buffer = new ArrayBuffer(44 + dataSize);
-    const view = new DataView(buffer);
-
-    const writeString = (offset, text) => {
-        for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
-    };
-
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + dataSize, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bytesPerSample * 8, true);
-    writeString(36, 'data');
-    view.setUint32(40, dataSize, true);
-
-    let offset = 44;
-    for (let i = 0; i < interleavedFloat32.length; i++) {
-        const clamped = Math.max(-1, Math.min(1, interleavedFloat32[i]));
-        view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
-        offset += 2;
-    }
-
-    return new Blob([buffer], { type: 'audio/wav' });
-}
-
-async function renderAudioForScore(score) {
-    const midiFile = new alphaTab.midi.MidiFile();
-    const handler = new alphaTab.midi.AlphaSynthMidiFileHandler(midiFile);
-    const generator = new alphaTab.midi.MidiFileGenerator(score, null, handler);
-    generator.generate();
-
-    const soundFont = await loadSoundFont();
-
-    const options = new alphaTab.synth.AudioExportOptions();
-    options.sampleRate = 44100;
-    options.soundFonts = [soundFont];
-
-    const synth = new alphaTab.synth.AlphaSynth(createNoopSynthOutput(), 100);
-    const exporter = synth.exportAudio(options, midiFile, generator.syncPoints, generator.transpositionPitches);
-
-    const chunks = [];
-    let totalSamples = 0;
-    let chunkCount = 0;
-    let chunk;
-    while ((chunk = exporter.render(500))) {
-        chunks.push(chunk.samples);
-        totalSamples += chunk.samples.length;
-        chunkCount++;
-        if (chunkCount % 10 === 0) {
-            // Yield periodically so a long song doesn't freeze the UI thread while rendering.
-            await new Promise(resolve => setTimeout(resolve, 0));
-        }
-    }
-
-    const interleaved = new Float32Array(totalSamples);
-    let offset = 0;
-    for (const samples of chunks) {
-        interleaved.set(samples, offset);
-        offset += samples.length;
-    }
-
-    return encodeWav(interleaved, options.sampleRate, 2);
-}
-
-playAudioButton.addEventListener('click', async () => {
-    const tab = tabs.find(t => t.id === activeTabId);
-    if (!tab) return;
-
-    if (!tab.score) {
-        setStatus(`No parsed data is available to generate audio for "${tab.fileName}".`);
-        return;
-    }
-
-    playAudioButton.disabled = true;
-    setStatus(`Generating audio for "${tab.fileName}"…`);
-    try {
-        if (!tab.audioUrl) {
-            const blob = await renderAudioForScore(tab.score);
-            tab.audioUrl = URL.createObjectURL(blob);
-        }
-        audioPlayerElement.src = tab.audioUrl;
-        audioPlayerElement.hidden = false;
-        await audioPlayerElement.play();
-        setStatus(`Playing audio for "${tab.fileName}".`);
-    } catch (error) {
-        setStatus(`Could not generate audio for "${tab.fileName}": ${error && error.message ? error.message : error}`);
-    } finally {
-        playAudioButton.disabled = false;
-    }
-});
-
 let aboutDialogOpener = null;
 
 function openAboutDialog({ version }) {
@@ -413,6 +262,156 @@ window.unstrung.onFileOpenError(handleFileOpenError);
 window.unstrung.onCloseCurrentTab(() => {
     if (activeTabId != null) closeTab(activeTabId);
 });
-window.unstrung.onNextTab(() => shiftActiveTab(1));
-window.unstrung.onPreviousTab(() => shiftActiveTab(-1));
 window.unstrung.onAboutOpen(openAboutDialog);
+
+// --- Green Gretsch guitar sample playback (Tools menu) ---
+const guitarSamplesDialog = document.getElementById('guitar-samples-dialog');
+const guitarSamplesVelocitySelect = document.getElementById('guitar-samples-velocity-select');
+const guitarSamplesRoundRobinSelect = document.getElementById('guitar-samples-roundrobin-select');
+const guitarSamplesDurationInput = document.getElementById('guitar-samples-duration-input');
+const guitarSamplesAnnounceCheckbox = document.getElementById('guitar-samples-announce-checkbox');
+const guitarSamplesStatusElement = document.getElementById('guitar-samples-status');
+const guitarSamplesPlayButton = document.getElementById('guitar-samples-play-button');
+const guitarSamplesOkButton = document.getElementById('guitar-samples-ok-button');
+
+const GUITAR_SAMPLES_PLAY_LABEL = 'Play Normal Notes';
+const GUITAR_SAMPLES_STOP_LABEL = 'Stop';
+
+// "p" (soft) only ever has 2 recorded round-robins; "mf"/"f" have up to 4.
+const MAX_ROUND_ROBINS_BY_VELOCITY = { p: 2, mf: 4, f: 4 };
+
+let guitarSampleNotes = null;
+let guitarSamplesDialogOpener = null;
+let guitarSamplesPlaybackToken = 0;
+let guitarSamplesAudio = null;
+
+async function loadGuitarSampleNotesOnce() {
+    if (!guitarSampleNotes) {
+        guitarSampleNotes = await window.unstrung.getGuitarSampleNotes();
+    }
+    return guitarSampleNotes;
+}
+
+function populateRoundRobinOptions() {
+    const max = MAX_ROUND_ROBINS_BY_VELOCITY[guitarSamplesVelocitySelect.value] ?? 4;
+    const previousValue = Number(guitarSamplesRoundRobinSelect.value) || 1;
+    guitarSamplesRoundRobinSelect.replaceChildren();
+    for (let i = 1; i <= max; i++) {
+        const option = document.createElement('option');
+        option.value = String(i);
+        option.textContent = String(i);
+        guitarSamplesRoundRobinSelect.append(option);
+    }
+    guitarSamplesRoundRobinSelect.value = String(Math.min(previousValue, max));
+}
+
+function stopGuitarSamplePlayback() {
+    guitarSamplesPlaybackToken++;
+    if (guitarSamplesAudio) {
+        guitarSamplesAudio.pause();
+        guitarSamplesAudio.src = '';
+        guitarSamplesAudio = null;
+    }
+    guitarSamplesPlayButton.textContent = GUITAR_SAMPLES_PLAY_LABEL;
+    guitarSamplesPlayButton.setAttribute('aria-pressed', 'false');
+}
+
+async function playOneGuitarSample(key, velocity, maxPlayMs, myToken) {
+    const bytes = await window.unstrung.getGuitarSampleAudio(key, velocity);
+    if (myToken !== guitarSamplesPlaybackToken) return;
+
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+    const audio = new Audio(url);
+    guitarSamplesAudio = audio;
+    await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            audio.pause();
+            resolve();
+        }, maxPlayMs);
+        audio.addEventListener('ended', () => { clearTimeout(timer); resolve(); }, { once: true });
+        audio.addEventListener('error', () => { clearTimeout(timer); reject(new Error('playback error')); }, { once: true });
+        audio.play().catch(reject);
+    });
+    URL.revokeObjectURL(url);
+}
+
+async function playGuitarSamples() {
+    const myToken = guitarSamplesPlaybackToken;
+    const velocity = guitarSamplesVelocitySelect.value;
+    const roundRobinCount = Number(guitarSamplesRoundRobinSelect.value) || 1;
+    const durationSeconds = Number(guitarSamplesDurationInput.value) || 1;
+    const maxPlayMs = Math.max(50, durationSeconds * 1000);
+    const announceNoteNames = guitarSamplesAnnounceCheckbox.checked;
+
+    const notes = await loadGuitarSampleNotesOnce();
+
+    for (let i = 0; i < notes.length; i++) {
+        if (myToken !== guitarSamplesPlaybackToken) return;
+        const note = notes[i];
+        for (let take = 0; take < roundRobinCount; take++) {
+            if (myToken !== guitarSamplesPlaybackToken) return;
+            if (announceNoteNames) {
+                guitarSamplesStatusElement.textContent = note.label;
+            }
+            try {
+                await playOneGuitarSample(note.key, velocity, maxPlayMs, myToken);
+            } catch (error) {
+                if (myToken !== guitarSamplesPlaybackToken) return;
+                guitarSamplesStatusElement.textContent = `Error playing ${note.label}: ${error.message}`;
+            }
+        }
+    }
+
+    if (myToken === guitarSamplesPlaybackToken) {
+        guitarSamplesStatusElement.textContent = `Finished playing ${notes.length} notes.`;
+        guitarSamplesPlayButton.textContent = GUITAR_SAMPLES_PLAY_LABEL;
+        guitarSamplesPlayButton.setAttribute('aria-pressed', 'false');
+    }
+}
+
+guitarSamplesVelocitySelect.addEventListener('change', populateRoundRobinOptions);
+
+guitarSamplesPlayButton.addEventListener('click', () => {
+    const wasPlaying = guitarSamplesPlayButton.getAttribute('aria-pressed') === 'true';
+    stopGuitarSamplePlayback();
+
+    if (wasPlaying) {
+        guitarSamplesStatusElement.textContent = 'Stopped.';
+        return;
+    }
+
+    guitarSamplesPlayButton.textContent = GUITAR_SAMPLES_STOP_LABEL;
+    guitarSamplesPlayButton.setAttribute('aria-pressed', 'true');
+    playGuitarSamples();
+});
+
+guitarSamplesOkButton.addEventListener('click', () => guitarSamplesDialog.close());
+
+guitarSamplesDialog.addEventListener('close', () => {
+    stopGuitarSamplePlayback();
+    if (guitarSamplesDialogOpener && typeof guitarSamplesDialogOpener.focus === 'function') {
+        guitarSamplesDialogOpener.focus();
+    }
+    guitarSamplesDialogOpener = null;
+});
+
+guitarSamplesDialog.addEventListener('click', event => {
+    const link = event.target.closest('a');
+    if (!link) return;
+    event.preventDefault();
+    const href = link.href;
+    guitarSamplesDialog.close();
+    window.unstrung.openExternalLink(href);
+});
+
+async function openGuitarSamplesDialog() {
+    guitarSamplesDialogOpener = document.activeElement;
+    populateRoundRobinOptions();
+    guitarSamplesDialog.showModal();
+    guitarSamplesDialog.focus();
+    guitarSamplesStatusElement.textContent = '';
+    await loadGuitarSampleNotesOnce();
+}
+
+window.unstrung.onGuitarSamplesOpen(openGuitarSamplesDialog);
+// --- end Green Gretsch guitar sample playback ---

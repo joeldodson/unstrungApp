@@ -17,21 +17,14 @@
 
         <p id="empty-state" tabindex="-1">
             No files are open. Press Ctrl+T, or choose Open File… from the File menu, to open a song file.
-            Once files are open, switch between tabs with the Left and Right arrow keys or Ctrl+Tab and
-            Ctrl+Shift+Tab, and close the current tab with Ctrl+W.
+            Once files are open, switch between tabs with the Left and Right arrow keys,
+            and close the current tab with Ctrl+W.
         </p>
 
         <div id="tab-strip" hidden>
             <div id="tablist" role="tablist" aria-label="Open song files"></div>
             <div id="tabpanels"></div>
         </div>
-
-        <section id="audio-section" aria-labelledby="audio-heading" hidden>
-            <h2 id="audio-heading">Audio playback</h2>
-            <p>Plays a synthesized audio rendering of the file open in the active tab.</p>
-            <button type="button" id="play-audio-button">Play Audio</button>
-            <audio id="audio-player" controls hidden></audio>
-        </section>
     </main>
 
     <dialog id="about-dialog" aria-labelledby="about-dialog-heading" tabindex="-1">
@@ -72,6 +65,57 @@
         <p>&copy; <span id="about-year"></span> Joel Dodson</p>
 
         <button type="button" id="about-ok-button">OK</button>
+    </dialog>
+
+    <dialog id="guitar-samples-dialog" aria-labelledby="guitar-samples-dialog-heading" tabindex="-1">
+        <h2 id="guitar-samples-dialog-heading">Guitar Samples</h2>
+
+        <p>
+            Plays real recorded notes of a green Gretsch guitar, ascending in pitch, using the Green Gretsch
+            samples bundled with Unstrung.
+        </p>
+
+        <p>
+            Each note was recorded at multiple <strong>velocity layers</strong> — how hard the string was
+            picked (soft, medium, or loud), which genuinely sound different from each other, not just
+            quieter or louder — and several <strong>round robins</strong>: repeat takes of the same note and
+            velocity, so a repeated note doesn't sound identical every time it's played.
+        </p>
+
+        <p>
+            Samples are from the
+            <a href="https://github.com/sfzinstruments/karoryfer.black-and-green-guitars">Black And Green Guitars</a>
+            sample pack by Karoryfer Lecolds.
+        </p>
+
+        <p>
+            <label for="guitar-samples-velocity-select">Velocity layer</label>
+            <select id="guitar-samples-velocity-select">
+                <option value="p">Soft (p)</option>
+                <option value="mf">Medium (mf)</option>
+                <option value="f" selected>Loud (f)</option>
+            </select>
+        </p>
+
+        <p>
+            <label for="guitar-samples-roundrobin-select">Number of round robins to play per note</label>
+            <select id="guitar-samples-roundrobin-select"></select>
+        </p>
+
+        <p>
+            <label for="guitar-samples-duration-input">Duration per sample (seconds)</label>
+            <input type="number" id="guitar-samples-duration-input" min="0.1" max="30" step="0.1" value="1.0" />
+        </p>
+
+        <p>
+            <input type="checkbox" id="guitar-samples-announce-checkbox" />
+            <label for="guitar-samples-announce-checkbox">Announce note names while playing</label>
+        </p>
+
+        <p id="guitar-samples-status" role="status" aria-live="polite"></p>
+
+        <button type="button" id="guitar-samples-play-button" aria-pressed="false">Play Normal Notes</button>
+        <button type="button" id="guitar-samples-ok-button">OK</button>
     </dialog>
 
     <script src="bundle.js"></script>
