@@ -415,3 +415,123 @@ async function openGuitarSamplesDialog() {
 
 window.unstrung.onGuitarSamplesOpen(openGuitarSamplesDialog);
 // --- end Green Gretsch guitar sample playback ---
+
+// --- Settings dialog (File menu) ---
+const settingsDialog = document.getElementById('settings-dialog');
+const settingsDirectoryInput = document.getElementById('settings-default-directory-input');
+const settingsBrowseButton = document.getElementById('settings-browse-button');
+const settingsClearRecentButton = document.getElementById('settings-clear-recent-button');
+const settingsRemoveStaleButton = document.getElementById('settings-remove-stale-button');
+const settingsFilesStatusElement = document.getElementById('settings-files-status');
+const settingsOkButton = document.getElementById('settings-ok-button');
+const settingsTablistElement = document.getElementById('settings-tablist');
+
+const directoryErrorDialog = document.getElementById('directory-error-dialog');
+const directoryErrorMessageElement = document.getElementById('directory-error-message');
+const directoryErrorOkButton = document.getElementById('directory-error-ok-button');
+
+let settingsDialogOpener = null;
+
+const settingsTabs = [
+    { id: 'general', buttonEl: document.getElementById('settings-tab-general'), panelEl: document.getElementById('settings-panel-general') },
+    { id: 'files', buttonEl: document.getElementById('settings-tab-files'), panelEl: document.getElementById('settings-panel-files') }
+];
+
+function activateSettingsTab(id) {
+    for (const tab of settingsTabs) {
+        const isActive = tab.id === id;
+        tab.buttonEl.setAttribute('aria-selected', String(isActive));
+        tab.buttonEl.tabIndex = isActive ? 0 : -1;
+        tab.panelEl.hidden = !isActive;
+    }
+    settingsTabs.find(tab => tab.id === id).buttonEl.focus();
+}
+
+for (const tab of settingsTabs) {
+    tab.buttonEl.addEventListener('click', () => activateSettingsTab(tab.id));
+}
+
+settingsTablistElement.addEventListener('keydown', event => {
+    const currentIndex = settingsTabs.findIndex(tab => tab.buttonEl === document.activeElement);
+    if (currentIndex === -1) return;
+
+    if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        activateSettingsTab(settingsTabs[(currentIndex + 1) % settingsTabs.length].id);
+    } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        activateSettingsTab(settingsTabs[(currentIndex - 1 + settingsTabs.length) % settingsTabs.length].id);
+    } else if (event.key === 'Home') {
+        event.preventDefault();
+        activateSettingsTab(settingsTabs[0].id);
+    } else if (event.key === 'End') {
+        event.preventDefault();
+        activateSettingsTab(settingsTabs[settingsTabs.length - 1].id);
+    }
+});
+
+function showDirectoryErrorDialog(directoryText) {
+    directoryErrorMessageElement.textContent = `Directory "${directoryText}" does not exist.`;
+    directoryErrorDialog.showModal();
+    directoryErrorDialog.focus();
+}
+
+directoryErrorOkButton.addEventListener('click', () => directoryErrorDialog.close());
+
+directoryErrorDialog.addEventListener('close', () => {
+    settingsDirectoryInput.focus();
+});
+
+async function validateAndSaveSettingsDirectory() {
+    const { valid } = await window.unstrung.validateAndSaveSettingsDirectory(settingsDirectoryInput.value);
+    if (!valid) {
+        showDirectoryErrorDialog(settingsDirectoryInput.value);
+    }
+    return valid;
+}
+
+settingsDirectoryInput.addEventListener('blur', () => validateAndSaveSettingsDirectory());
+
+settingsBrowseButton.addEventListener('click', async () => {
+    const chosen = await window.unstrung.chooseSettingsDirectory();
+    if (chosen) {
+        settingsDirectoryInput.value = chosen;
+        await validateAndSaveSettingsDirectory();
+    }
+});
+
+settingsClearRecentButton.addEventListener('click', async () => {
+    const { removedCount } = await window.unstrung.clearRecentFiles();
+    settingsFilesStatusElement.textContent = removedCount === 0
+        ? 'There were no recent files to clear.'
+        : `Cleared ${removedCount} recent file${removedCount === 1 ? '' : 's'}.`;
+});
+
+settingsRemoveStaleButton.addEventListener('click', async () => {
+    const { removedCount } = await window.unstrung.removeStaleRecentFiles();
+    settingsFilesStatusElement.textContent = removedCount === 0
+        ? 'No stale files were found in the recent files list.'
+        : `Removed ${removedCount} stale file${removedCount === 1 ? '' : 's'} from the recent files list.`;
+});
+
+settingsOkButton.addEventListener('click', () => settingsDialog.close());
+
+settingsDialog.addEventListener('close', () => {
+    if (settingsDialogOpener && typeof settingsDialogOpener.focus === 'function') {
+        settingsDialogOpener.focus();
+    }
+    settingsDialogOpener = null;
+});
+
+async function openSettingsDialog() {
+    settingsDialogOpener = document.activeElement;
+    const settings = await window.unstrung.getSettings();
+    settingsDirectoryInput.value = settings.defaultOpenDirectory ?? '';
+    settingsFilesStatusElement.textContent = '';
+    activateSettingsTab('general');
+    settingsDialog.showModal();
+    settingsTabs[0].buttonEl.focus();
+}
+
+window.unstrung.onSettingsOpen(openSettingsDialog);
+// --- end Settings dialog ---

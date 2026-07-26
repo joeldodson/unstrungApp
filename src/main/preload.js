@@ -10,5 +10,13 @@ contextBridge.exposeInMainWorld('unstrung', {
     // Green Gretsch guitar sample playback (Tools menu).
     onGuitarSamplesOpen: (callback) => ipcRenderer.on('guitar-samples:open', () => callback()),
     getGuitarSampleNotes: () => ipcRenderer.invoke('guitar-samples:get-notes'),
-    getGuitarSampleAudio: (key, velocity) => ipcRenderer.invoke('guitar-samples:get-audio', { key, velocity })
+    getGuitarSampleAudio: (key, velocity) => ipcRenderer.invoke('guitar-samples:get-audio', { key, velocity }),
+
+    // Settings (File menu).
+    onSettingsOpen: (callback) => ipcRenderer.on('settings:open', () => callback()),
+    getSettings: () => ipcRenderer.invoke('settings:get'),
+    chooseSettingsDirectory: () => ipcRenderer.invoke('settings:choose-directory'),
+    validateAndSaveSettingsDirectory: (dirPath) => ipcRenderer.invoke('settings:validate-and-save-directory', dirPath),
+    clearRecentFiles: () => ipcRenderer.invoke('settings:clear-recent-files'),
+    removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files')
 });

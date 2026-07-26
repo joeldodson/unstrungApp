@@ -55,23 +55,113 @@ Unstrung's code is almost entirely written by Claude Code
 Copyright (c) ${new Date().getFullYear()} Joel Dodson
 `;
 
+// --- Persisted app state: recently opened files and settings ---
+const APP_STATE_PATH = path.join(app.getPath('userData'), 'app-state.json');
+const MAX_RECENT_FILES = 10;
+
+let appState = { recentFiles: [], defaultOpenDirectory: '' };
+
+async function loadAppState() {
+    try {
+        const parsed = JSON.parse(await fs.readFile(APP_STATE_PATH, 'utf8'));
+        return {
+            recentFiles: Array.isArray(parsed.recentFiles) ? parsed.recentFiles : [],
+            defaultOpenDirectory: typeof parsed.defaultOpenDirectory === 'string' ? parsed.defaultOpenDirectory : ''
+        };
+    } catch {
+        return { recentFiles: [], defaultOpenDirectory: '' };
+    }
+}
+
+async function saveAppState() {
+    await fs.writeFile(APP_STATE_PATH, JSON.stringify(appState, null, 2), 'utf8');
+}
+
+async function addRecentFile(filePath) {
+    appState.recentFiles = [filePath, ...appState.recentFiles.filter(p => p !== filePath)].slice(0, MAX_RECENT_FILES);
+    await saveAppState();
+}
+
+async function isExistingDirectory(dirPath) {
+    try {
+        return (await fs.stat(dirPath)).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+async function pathExists(candidatePath) {
+    try {
+        await fs.stat(candidatePath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+ipcMain.handle('settings:get', () => ({ defaultOpenDirectory: appState.defaultOpenDirectory }));
+
+ipcMain.handle('settings:clear-recent-files', async event => {
+    const removedCount = appState.recentFiles.length;
+    appState.recentFiles = [];
+    await saveAppState();
+    buildMenu(BrowserWindow.fromWebContents(event.sender));
+    return { removedCount };
+});
+
+ipcMain.handle('settings:remove-stale-recent-files', async event => {
+    const checks = await Promise.all(appState.recentFiles.map(async filePath => ({ filePath, exists: await pathExists(filePath) })));
+    const removedCount = checks.filter(c => !c.exists).length;
+    appState.recentFiles = checks.filter(c => c.exists).map(c => c.filePath);
+    await saveAppState();
+    buildMenu(BrowserWindow.fromWebContents(event.sender));
+    return { removedCount };
+});
+
+ipcMain.handle('settings:choose-directory', async event => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(window, {
+        title: 'Choose default folder for Open File',
+        properties: ['openDirectory']
+    });
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+});
+
+ipcMain.handle('settings:validate-and-save-directory', async (_event, dirPath) => {
+    const trimmed = (dirPath ?? '').trim();
+    if (trimmed !== '' && !(await isExistingDirectory(trimmed))) {
+        return { valid: false };
+    }
+    appState.defaultOpenDirectory = trimmed;
+    await saveAppState();
+    return { valid: true };
+});
+// --- end persisted app state ---
+
 async function openFilePath(window, filePath) {
     const fileName = path.basename(filePath);
 
     try {
         const buffer = await fs.readFile(filePath);
         window.webContents.send('tabs:open-file', { fileName, data: new Uint8Array(buffer) });
+        await addRecentFile(filePath);
+        buildMenu(window);
     } catch (error) {
         window.webContents.send('tabs:open-file-error', { fileName, message: error.message });
     }
 }
 
 async function openFileAndCreateTab(window) {
-    const result = await dialog.showOpenDialog(window, {
+    const options = {
         title: 'Choose a song file',
         properties: ['openFile'],
         filters: OPEN_FILE_FILTERS
-    });
+    };
+    if (appState.defaultOpenDirectory && await isExistingDirectory(appState.defaultOpenDirectory)) {
+        options.defaultPath = appState.defaultOpenDirectory;
+    }
+
+    const result = await dialog.showOpenDialog(window, options);
 
     if (result.canceled || result.filePaths.length === 0) {
         return;
@@ -187,12 +277,20 @@ function buildMenu(window) {
         template.push({ label: app.name, submenu: [{ role: 'quit' }] });
     }
 
+    const recentFileItems = appState.recentFiles.map(filePath => ({
+        label: path.basename(filePath),
+        click: () => openFilePath(window, filePath)
+    }));
+
     template.push(
         {
             label: '&File',
             submenu: [
                 { label: '&Open File…', accelerator: 'CmdOrCtrl+T', click: () => openFileAndCreateTab(window) },
                 { label: '&Close Tab', accelerator: 'CmdOrCtrl+W', click: () => window.webContents.send('tabs:close-current') },
+                ...(recentFileItems.length > 0 ? [{ type: 'separator' }, ...recentFileItems] : []),
+                { type: 'separator' },
+                { label: '&Settings…', click: () => window.webContents.send('settings:open') },
                 { type: 'separator' },
                 { label: 'E&xit', role: 'quit' }
             ]
@@ -246,12 +344,13 @@ if (helpRequested) {
     // can tear the process down before it flushes, silently dropping the output.
     process.stdout.write(HELP_TEXT, () => app.exit(0));
 } else {
-    app.whenReady().then(() => {
+    app.whenReady().then(async () => {
         // This app is built for screen reader users. Force full Chromium accessibility
         // support unconditionally instead of relying on Electron's own runtime detection
         // of whether a screen reader is active, since that detection has had real gaps
         // (e.g. https://github.com/electron/electron/issues/48039).
         app.setAccessibilitySupportEnabled(true);
+        appState = await loadAppState();
         createWindow(cliArgs);
     });
 }

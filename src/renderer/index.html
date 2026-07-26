@@ -118,6 +118,44 @@
         <button type="button" id="guitar-samples-ok-button">OK</button>
     </dialog>
 
+    <dialog id="settings-dialog" aria-labelledby="settings-dialog-heading" tabindex="-1">
+        <h2 id="settings-dialog-heading">Settings</h2>
+
+        <div id="settings-tablist" role="tablist" aria-label="Settings categories">
+            <button type="button" id="settings-tab-general" role="tab" aria-selected="true"
+                aria-controls="settings-panel-general" tabindex="0">General</button>
+            <button type="button" id="settings-tab-files" role="tab" aria-selected="false"
+                aria-controls="settings-panel-files" tabindex="-1">Files</button>
+        </div>
+
+        <section id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
+            <p>There are no general settings yet.</p>
+        </section>
+
+        <section id="settings-panel-files" role="tabpanel" aria-labelledby="settings-tab-files" tabindex="0" hidden>
+            <p>
+                <label for="settings-default-directory-input">Default folder for Open File dialog</label>
+                <input type="text" id="settings-default-directory-input" />
+                <button type="button" id="settings-browse-button">Browse…</button>
+            </p>
+
+            <p>
+                <button type="button" id="settings-clear-recent-button">Clear all recent files</button>
+                <button type="button" id="settings-remove-stale-button">Remove stale files from recents</button>
+            </p>
+
+            <p id="settings-files-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <button type="button" id="settings-ok-button">OK</button>
+    </dialog>
+
+    <dialog id="directory-error-dialog" aria-labelledby="directory-error-heading" tabindex="-1">
+        <h2 id="directory-error-heading">Invalid Directory</h2>
+        <p id="directory-error-message"></p>
+        <button type="button" id="directory-error-ok-button">OK</button>
+    </dialog>
+
     <script src="bundle.js"></script>
 </body>
 </html>
