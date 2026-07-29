@@ -103,8 +103,14 @@
         </p>
 
         <p>
-            <label for="guitar-samples-duration-input">Duration per sample (seconds)</label>
+            <label for="guitar-samples-duration-input">Time between notes (seconds)</label>
             <input type="number" id="guitar-samples-duration-input" min="0.1" max="30" step="0.1" value="1.0" />
+        </p>
+
+        <p>
+            This sets how often a new note starts. Each note keeps ringing for about three times
+            that long and fades out underneath the note that follows it, the way a plucked string
+            carries on sounding rather than stopping the moment the next note is played.
         </p>
 
         <p>
@@ -116,6 +122,104 @@
 
         <button type="button" id="guitar-samples-play-button" aria-pressed="false">Play Normal Notes</button>
         <button type="button" id="guitar-samples-ok-button">OK</button>
+    </dialog>
+
+    <!-- The chord library opens as a tab rather than a dialog: it is a place you browse and
+         build up a comparison set in, not a decision you commit or cancel. Cloned into a tab
+         panel on demand, and only ever one instance, so these ids stay unique. -->
+    <template id="chord-library-template">
+        <div class="chord-library">
+            <h2>Chord Library</h2>
+
+            <p>
+                <label for="chords-search-input">Search chords by name</label>
+                <input type="text" id="chords-search-input" role="combobox" aria-expanded="false"
+                    aria-controls="chords-search-listbox" aria-autocomplete="list"
+                    autocomplete="off" />
+            </p>
+            <ul id="chords-search-listbox" role="listbox" aria-label="Matching chord names" hidden></ul>
+
+            <details id="chords-filters">
+                <summary>Filtering options</summary>
+
+                <p>
+                    <label for="chords-level-select">Difficulty</label>
+                    <select id="chords-level-select">
+                        <option value="canonical" selected>Standard shapes only</option>
+                        <option value="common">Add common alternative voicings</option>
+                        <option value="advanced">Add advanced voicings</option>
+                    </select>
+                </p>
+
+                <p>
+                    <label for="chords-root-select">Root note</label>
+                    <select id="chords-root-select"></select>
+                </p>
+
+                <p>
+                    <label for="chords-type-select">Chord type</label>
+                    <select id="chords-type-select"></select>
+                </p>
+
+                <p>
+                    <label for="chords-genre-select">Genre</label>
+                    <select id="chords-genre-select"></select>
+                </p>
+            </details>
+
+            <h3 id="chords-results-heading">Search Results</h3>
+            <ul id="chords-results-list"></ul>
+
+            <p>
+                <button type="button" id="chords-play-button">Play selected chords</button>
+                <button type="button" id="chords-clear-button">Clear selected</button>
+            </p>
+
+            <p id="chords-status" role="status" aria-live="polite"></p>
+        </div>
+    </template>
+
+    <dialog id="frets-dialog" aria-labelledby="frets-dialog-heading" tabindex="-1">
+        <h2 id="frets-dialog-heading">Frets to Chord</h2>
+
+        <p>
+            Set what each string is doing and Unstrung works backwards to the chord name. The
+            result appears under the Identified Chord heading below and updates as you change
+            each string.
+        </p>
+
+        <p>
+            <label for="frets-string-6">String 6, low E</label>
+            <select id="frets-string-6"></select>
+        </p>
+        <p>
+            <label for="frets-string-5">String 5, A</label>
+            <select id="frets-string-5"></select>
+        </p>
+        <p>
+            <label for="frets-string-4">String 4, D</label>
+            <select id="frets-string-4"></select>
+        </p>
+        <p>
+            <label for="frets-string-3">String 3, G</label>
+            <select id="frets-string-3"></select>
+        </p>
+        <p>
+            <label for="frets-string-2">String 2, B</label>
+            <select id="frets-string-2"></select>
+        </p>
+        <p>
+            <label for="frets-string-1">String 1, high E</label>
+            <select id="frets-string-1"></select>
+        </p>
+
+        <h3 id="frets-result-heading">Identified Chord</h3>
+        <ul id="frets-result-list"></ul>
+
+        <p>
+            <button type="button" id="frets-view-button">View in Chord Library</button>
+            <button type="button" id="frets-ok-button">OK</button>
+        </p>
     </dialog>
 
     <dialog id="settings-dialog" aria-labelledby="settings-dialog-heading" tabindex="-1">

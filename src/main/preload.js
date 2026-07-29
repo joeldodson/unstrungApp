@@ -10,7 +10,13 @@ contextBridge.exposeInMainWorld('unstrung', {
     // Green Gretsch guitar sample playback (Tools menu).
     onGuitarSamplesOpen: (callback) => ipcRenderer.on('guitar-samples:open', () => callback()),
     getGuitarSampleNotes: () => ipcRenderer.invoke('guitar-samples:get-notes'),
-    getGuitarSampleAudio: (key, velocity) => ipcRenderer.invoke('guitar-samples:get-audio', { key, velocity }),
+    getGuitarSampleAudio: (key, velocity, maxSeconds) =>
+        ipcRenderer.invoke('guitar-samples:get-audio', { key, velocity, maxSeconds }),
+
+    // Chord library (Tools menu).
+    onChordLibraryOpen: (callback) => ipcRenderer.on('chords:open', () => callback()),
+    onFretsToChordOpen: (callback) => ipcRenderer.on('frets:open', () => callback()),
+    getChordLibrary: () => ipcRenderer.invoke('chords:get-library'),
 
     // Settings (File menu).
     onSettingsOpen: (callback) => ipcRenderer.on('settings:open', () => callback()),

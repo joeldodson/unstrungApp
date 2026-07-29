@@ -218,7 +218,11 @@ async function parseSfzRegions(sfzPath) {
             key,
             sample,
             trigger: getOpcode('trigger') ?? group.trigger,
-            hivel: Number(getOpcode('hivel') ?? 127)
+            hivel: Number(getOpcode('hivel') ?? 127),
+            // Round-robin ordering as the sample pack itself specifies it. A region with no
+            // seq_position is the first step in the cycle.
+            seqPosition: Number(getOpcode('seq_position') ?? 1),
+            seqLength: Number(getOpcode('seq_length') ?? 1)
         });
     }
     return regions;
@@ -228,12 +232,72 @@ function resolveSamplePath(resolveBase, sample) {
     return path.resolve(resolveBase, sample.replace(/\\/g, '/'));
 }
 
+/**
+ * Returns a WAV containing only the first `maxSeconds` of audio.
+ *
+ * The samples on disk run 6 to 7 seconds each so a note can ring for as long as the music
+ * asks. Most playback needs far less than that, and sending the whole file costs both IPC
+ * bandwidth and decode time. This trims per request, so a caller that genuinely needs the
+ * full sustain simply asks for it; nothing is lost from the stored samples.
+ *
+ * Returns the buffer untouched if it isn't a WAV we recognise, or if the requested length
+ * already covers the whole recording, so a bad request degrades to current behaviour.
+ */
+function sliceWavToDuration(buffer, maxSeconds) {
+    if (!Number.isFinite(maxSeconds) || maxSeconds <= 0) return buffer;
+    if (buffer.length < 12) return buffer;
+    if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WAVE') return buffer;
+
+    let byteRate = 0;
+    let blockAlign = 0;
+    let factValueOffset = -1;
+    let dataOffset = -1;
+    let dataSize = 0;
+
+    let offset = 12;
+    while (offset + 8 <= buffer.length) {
+        const chunkId = buffer.toString('ascii', offset, offset + 4);
+        const chunkSize = buffer.readUInt32LE(offset + 4);
+
+        if (chunkId === 'fmt ' && offset + 24 <= buffer.length) {
+            byteRate = buffer.readUInt32LE(offset + 16);
+            blockAlign = buffer.readUInt16LE(offset + 20);
+        } else if (chunkId === 'fact') {
+            factValueOffset = offset + 8;
+        } else if (chunkId === 'data') {
+            dataOffset = offset + 8;
+            dataSize = Math.min(chunkSize, buffer.length - dataOffset);
+            break; // Anything after the audio data is dropped along with the tail we trim.
+        }
+        offset += 8 + chunkSize + (chunkSize % 2);
+    }
+
+    if (dataOffset < 0 || byteRate <= 0 || blockAlign <= 0) return buffer;
+
+    // Keep whole sample frames, otherwise the decoder sees a torn final frame.
+    const wantedBytes = Math.ceil((maxSeconds * byteRate) / blockAlign) * blockAlign;
+    if (wantedBytes >= dataSize) return buffer;
+
+    const out = Buffer.alloc(dataOffset + wantedBytes);
+    buffer.copy(out, 0, 0, dataOffset + wantedBytes);
+    out.writeUInt32LE(out.length - 8, 4);          // RIFF chunk size
+    out.writeUInt32LE(wantedBytes, dataOffset - 4); // data chunk size
+    if (factValueOffset >= 0 && factValueOffset + 4 <= out.length) {
+        out.writeUInt32LE(wantedBytes / blockAlign, factValueOffset); // frame count
+    }
+    return out;
+}
+
 // Green Gretsch "ord" (normal picking) velocity tiers, confirmed directly against the sample
 // filenames (twang_<note>_<p|mf|f>_rr<N>.wav): "p" (soft) always has 2 round-robins; "mf" and
 // "f" have 4 for most notes but only 2 for the ten highest notes in range.
 const VELOCITY_LABELS = ['p', 'mf', 'f'];
 
 let cachedOrdRegionsByKey = null;
+
+// Where each note+velocity has reached in its round-robin cycle. Keyed "<midi>:<velocity>",
+// so every note advances through its own takes independently.
+const roundRobinCursors = new Map();
 
 async function getOrdRegionsByKey() {
     if (!cachedOrdRegionsByKey) {
@@ -247,6 +311,14 @@ async function getOrdRegionsByKey() {
             const forKey = byKey.get(region.key);
             (forKey[velocity] ??= []).push(region);
         }
+        // Play the takes in the order the pack specifies. Note that a cycle can revisit the
+        // same file: several notes alternate two recordings across four sequence positions,
+        // so a "4 round robin" note does not necessarily have four distinct takes.
+        for (const byVelocity of byKey.values()) {
+            for (const candidates of Object.values(byVelocity)) {
+                candidates.sort((a, b) => a.seqPosition - b.seqPosition);
+            }
+        }
         cachedOrdRegionsByKey = byKey;
     }
     return cachedOrdRegionsByKey;
@@ -257,18 +329,43 @@ ipcMain.handle('guitar-samples:get-notes', async () => {
     return [...byKey.keys()].sort((a, b) => a - b).map(key => ({ key, label: midiKeyToPitchName(key) }));
 });
 
-// Picks one random round-robin take for the given note+velocity (the renderer calls this
-// once per round-robin it wants to play, so repeated calls naturally give repeated random picks).
-ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity }) => {
+// Advances this note+velocity to its next round-robin take, cycling in the order the sample
+// pack's seq_position opcodes define. Sequential cycling is the point of round robins: it
+// guarantees a repeated note varies, which random selection cannot, since random draws
+// regularly return the same recording twice in a row.
+// `maxSeconds` is optional: callers that only need a short note get a correspondingly
+// smaller WAV instead of the full sustain.
+ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity, maxSeconds }) => {
     if (!VELOCITY_LABELS.includes(velocity)) throw new Error(`Unknown velocity "${velocity}"`);
     const byKey = await getOrdRegionsByKey();
     const candidates = byKey.get(key)?.[velocity];
     if (!candidates || candidates.length === 0) throw new Error(`No "${velocity}" sample for key ${key}`);
-    const region = candidates[Math.floor(Math.random() * candidates.length)];
+
+    const cursorKey = `${key}:${velocity}`;
+    const next = ((roundRobinCursors.get(cursorKey) ?? -1) + 1) % candidates.length;
+    roundRobinCursors.set(cursorKey, next);
+    const region = candidates[next];
     const filePath = resolveSamplePath(GREEN_GRETSCH_PROGRAMS_DIR, region.sample);
-    return new Uint8Array(await fs.readFile(filePath));
+    const buffer = await fs.readFile(filePath);
+    return new Uint8Array(sliceWavToDuration(buffer, maxSeconds));
 });
 // --- end Green Gretsch guitar sample playback ---
+
+// --- Chord library (Tools menu) ---
+// Generated by scripts/build-chord-library.mjs. Every voicing in it has already been
+// verified against its chord's interval formula at build time, so nothing here re-checks
+// the theory; this just serves the file.
+const CHORD_LIBRARY_PATH = path.join(__dirname, '..', 'assets', 'chords', 'chord-library.json');
+
+let cachedChordLibrary = null;
+
+ipcMain.handle('chords:get-library', async () => {
+    if (!cachedChordLibrary) {
+        cachedChordLibrary = JSON.parse(await fs.readFile(CHORD_LIBRARY_PATH, 'utf8'));
+    }
+    return cachedChordLibrary;
+});
+// --- end chord library ---
 
 function buildMenu(window) {
     const template = [];
@@ -298,6 +395,8 @@ function buildMenu(window) {
         {
             label: '&Tools',
             submenu: [
+                { label: '&Chord Library…', click: () => window.webContents.send('chords:open') },
+                { label: '&Frets to Chord…', click: () => window.webContents.send('frets:open') },
                 { label: '&Listen to Guitar Samples…', click: () => window.webContents.send('guitar-samples:open') }
             ]
         },
