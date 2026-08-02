@@ -12,7 +12,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import {
-    PITCH_CLASSES, PITCH_CLASS_NAMES, QUALITY_LABELS, STANDARD_TUNING_NAMES, STRING_NUMBERS,
+    CHORD_FORMULAS, IDENTIFY_SUFFIXES, PITCH_CLASSES, PITCH_CLASS_NAMES, QUALITY_LABELS,
+    STANDARD_TUNING_MIDI, STANDARD_TUNING_NAMES, STRING_NUMBERS,
     fretToMidi, fretSpan, parseSuffix, verifyVoicing, voicingSoundedNotes
 } from '../src/shared/musicTheory.mjs';
 
@@ -58,6 +59,81 @@ const CANONICAL_MOVABLE_SHAPES = [
     { name: 'A shape major 7th', rootString: 5, offsets: ['optional', 0, 2, 1, 2, 0] }
 ];
 
+// --- Power chords ---------------------------------------------------------------------
+// chords-db carries no power chords at all, yet they are among the first shapes a rock
+// player learns and the score parser names them readily (any bare root-and-fifth beat).
+// They are generated here rather than sourced, because unlike a jazz voicing there is
+// nothing to look up: the shape is fully determined by the intervals. Frets are solved
+// from MIDI rather than written down as offsets, so the awkward string 3 to string 2
+// tuning gap is handled by arithmetic instead of by a table that could be typed wrong.
+const POWER_CHORD_FORMS = [
+    { label: 'root and fifth', intervals: [0, 7], fingers: [1, 3] },
+    { label: 'root, fifth and octave', intervals: [0, 7, 12], fingers: [1, 3, 4] }
+];
+const POWER_CHORD_ROOT_STRINGS = [6, 5, 4];
+const MAX_GENERATED_FRET = 15;
+
+/**
+ * One power chord voicing, or null if any note would fall off the fretboard. The strings
+ * ascend from the root string, so a three-note form on string 4 reaches string 2 and its
+ * octave lands a fret higher than it would anywhere else — solving from MIDI absorbs that.
+ */
+function powerChordVoicing(rootName, rootString, rootFret, form) {
+    const rootMidi = fretToMidi(rootString, rootFret);
+    const used = new Map();
+
+    for (const [i, interval] of form.intervals.entries()) {
+        const stringNumber = rootString - i;
+        if (!STRING_NUMBERS.includes(stringNumber)) return null;
+        const fret = rootMidi + interval - STANDARD_TUNING_MIDI[stringNumber];
+        if (fret < 0 || fret > MAX_GENERATED_FRET) return null;
+        used.set(stringNumber, { fret, finger: form.fingers[i] });
+    }
+
+    const strings = STRING_NUMBERS.map(stringNumber => {
+        const entry = used.get(stringNumber);
+        if (!entry) return { string: stringNumber, play: 'muted' };
+        if (entry.fret === 0) return { string: stringNumber, play: 'open', fret: 0 };
+        return { string: stringNumber, play: 'fretted', fret: entry.fret, finger: entry.finger };
+    });
+
+    const absolute = strings.map(s => (s.play === 'muted' ? -1 : s.fret));
+    return { strings, barres: [], absolute };
+}
+
+/** Every power chord voicing for one root: the open form where one exists, then up the neck. */
+function powerChordVoicingsFor(rootName) {
+    const rootPc = PITCH_CLASSES[rootName];
+    const built = [];
+
+    for (const rootString of POWER_CHORD_ROOT_STRINGS) {
+        // Lowest fret on this string that gives the root, so each string contributes its
+        // most accessible position rather than every octave of the same shape.
+        let rootFret = null;
+        for (let fret = 0; fret <= 12; fret++) {
+            if (fretToMidi(rootString, fret) % 12 === rootPc) { rootFret = fret; break; }
+        }
+        if (rootFret === null) continue;
+
+        for (const form of POWER_CHORD_FORMS) {
+            const voicing = powerChordVoicing(rootName, rootString, rootFret, form);
+            if (!voicing) continue;
+
+            const theory = verifyVoicing(voicing, rootName, '5');
+            if (theory.status !== 'pass') {
+                throw new Error(`generated ${rootName}5 failed verification: ` +
+                    `frets=[${voicing.absolute.join(',')}] notes=${theory.notes.join(' ')}`);
+            }
+
+            const where = rootFret === 0
+                ? `open position, root on string ${rootString}`
+                : `movable, root on string ${rootString} at fret ${rootFret}`;
+            built.push({ voicing, theory, shape: `${where} (${form.label})` });
+        }
+    }
+    return built;
+}
+
 // --- Genres -------------------------------------------------------------------------
 // Our own curation: no source we found tags chords by genre. Deliberately generous,
 // since the point is to help a learner find relevant material, not to be prescriptive.
@@ -79,7 +155,7 @@ const GENRES_BY_SUFFIX = {
     6: ['jazz', 'swing', 'country'], m6: ['jazz', 'swing'], 69: ['jazz', 'swing'], m69: ['jazz'],
     dim: ['jazz', 'classical'], dim7: ['jazz', 'classical'], aug: ['jazz', 'classical'],
     mmaj7: ['jazz'], mmaj9: ['jazz'], 'mmaj7b5': ['jazz'], mmaj11: ['jazz'],
-    add11: ['rock', 'pop']
+    add11: ['rock', 'pop'], sus2sus4: ['rock', 'folk']
 };
 
 function genresFor(suffix) {
@@ -278,7 +354,87 @@ for (const keyName of Object.keys(db.chords)) {
     }
 }
 
+// --- Power chords -------------------------------------------------------------------
+// Marked canonical outright. That is the same claim CANONICAL_OPEN_SHAPES makes: these
+// are not a dataset's opinion to be second-guessed, they are the shape everyone is taught.
+for (const rootName of PITCH_CLASS_NAMES) {
+    const voicings = powerChordVoicingsFor(rootName).map(({ voicing, theory, shape }) => {
+        counts.canonical++;
+        const frets = voicing.absolute.filter(f => f > 0);
+        return {
+            confidence: 'canonical',
+            shape,
+            strings: voicing.strings,
+            barres: [],
+            fretSpan: fretSpan(voicing),
+            lowestFret: frets.length ? Math.min(...frets) : 0,
+            notes: theory.notes,
+            midi: voicingSoundedNotes(voicing).map(n => n.midi),
+            description: describeVoicing(voicing),
+            theory: { status: theory.status, notes: theory.notes, expected: theory.expected }
+        };
+    });
+
+    voicings.sort((a, b) => a.lowestFret - b.lowestFret);
+    chords.push({
+        name: `${rootName}5`,
+        root: rootName,
+        suffix: '5',
+        quality: qualityLabel('5'),
+        genres: genresFor('5'),
+        confidence: 'canonical',
+        voicings
+    });
+}
+const powerChordCount = PITCH_CLASS_NAMES.length;
+
+// --- Coverage backfill ----------------------------------------------------------------
+// A chord the score parser can put in front of the user must be findable here, or the
+// Chord Library contradicts the measure listing. identifyChordFromNotes works from
+// intervals alone, so it can name chords no fingering dataset carries. Those are listed
+// with their notes and an explicit statement that the fingering is not known, which is
+// honest and searchable; inventing a shape to fill the hole would not be.
+const present = new Set(chords.map(c => `${c.root}|${c.suffix}`));
+const unfingered = [];
+
+for (const rootName of PITCH_CLASS_NAMES) {
+    for (const suffix of IDENTIFY_SUFFIXES) {
+        if (present.has(`${rootName}|${suffix}`)) continue;
+
+        const { base } = parseSuffix(suffix);
+        const rootPc = PITCH_CLASSES[rootName];
+        const notes = CHORD_FORMULAS[base].map(i => PITCH_CLASS_NAMES[(rootPc + i) % 12]);
+
+        chords.push({
+            name: displayName(rootName, suffix),
+            root: rootName,
+            suffix,
+            quality: qualityLabel(suffix),
+            genres: genresFor(suffix),
+            confidence: 'unfingered',
+            notes,
+            voicings: [],
+            fingeringNote: 'Fingering unknown at this time.'
+        });
+        unfingered.push(displayName(rootName, suffix));
+    }
+}
+
 chords.sort((a, b) => (PITCH_CLASSES[a.root] - PITCH_CLASSES[b.root]) || a.suffix.localeCompare(b.suffix));
+
+// The invariant the backfill exists to hold. If the identifier ever gains a suffix this
+// loop cannot cover, the build fails here rather than shipping a library that disagrees
+// with what the measure listing will say.
+const covered = new Set(chords.map(c => `${c.root}|${c.suffix}`));
+const gaps = [];
+for (const rootName of PITCH_CLASS_NAMES) {
+    for (const suffix of IDENTIFY_SUFFIXES) {
+        if (!covered.has(`${rootName}|${suffix}`)) gaps.push(`${rootName} ${suffix}`);
+    }
+}
+if (gaps.length) {
+    throw new Error(`chords the parser can name are missing from the library: ${gaps.join(', ')}`);
+}
 
 const library = {
     version: 1,
@@ -288,7 +444,8 @@ const library = {
         version: require('@tombatossals/chords-db/package.json').version,
         url: 'https://github.com/tombatossals/chords-db',
         license: 'MIT',
-        note: 'Every voicing re-verified against its interval formula; failures excluded.'
+        note: 'Every voicing re-verified against its interval formula; failures excluded. ' +
+            'Power chords and coverage entries are generated here, not sourced from chords-db.'
     },
     tuning: {
         name: 'standard',
@@ -297,7 +454,8 @@ const library = {
     confidenceLevels: {
         canonical: 'Matches a standard open-position or CAGED barre shape. What a teacher shows first.',
         common: 'Theory-verified, comfortable to play, but not one of the standard taught shapes.',
-        advanced: 'Theory-verified but sparse or a wide stretch: omits the root or third, or spans over four frets.'
+        advanced: 'Theory-verified but sparse or a wide stretch: omits the root or third, or spans over four frets.',
+        unfingered: 'Listed so it can be looked up, but no fingering is known for it yet.'
     },
     chords
 };
@@ -325,3 +483,9 @@ for (const line of dropped) console.log(`  ${line}`);
 
 const canonicalChords = chords.filter(c => c.confidence === 'canonical').length;
 console.log(`\nchords with at least one canonical voicing: ${canonicalChords}`);
+
+console.log(`\ngenerated power chords: ${powerChordCount} ` +
+    `(${chords.filter(c => c.suffix === '5').reduce((n, c) => n + c.voicings.length, 0)} voicings)`);
+console.log(`listed without a fingering (${unfingered.length}): ${unfingered.join(', ') || 'none'}`);
+console.log(`\nevery chord the parser can name is present: ${PITCH_CLASS_NAMES.length}` +
+    ` roots x ${IDENTIFY_SUFFIXES.length} suffixes = ${PITCH_CLASS_NAMES.length * IDENTIFY_SUFFIXES.length} covered`);

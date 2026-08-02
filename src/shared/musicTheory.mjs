@@ -45,7 +45,9 @@ export const QUALITY_LABELS = {
     5: 'power chord (root and fifth)', 6: 'major 6th', m6: 'minor 6th',
     7: 'dominant 7th', maj7: 'major 7th', m7: 'minor 7th', 'm7b5': 'half-diminished',
     9: 'dominant 9th', maj9: 'major 9th', m9: 'minor 9th',
-    add9: 'added 9th', madd9: 'minor added 9th', mmaj7: 'minor major 7th'
+    add9: 'added 9th', madd9: 'minor added 9th', mmaj7: 'minor major 7th',
+    add11: 'added 11th', maj7sus2: 'major 7th, suspended 2nd',
+    sus2sus4: 'suspended 2nd and 4th'
 };
 
 /** Splits "m9/Ab" into { base: "m9", bass: "Ab" }. A bare "/G" means a major chord. */

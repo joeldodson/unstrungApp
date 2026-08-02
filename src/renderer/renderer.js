@@ -731,6 +731,16 @@ function visibleVoicings(chord) {
     return chord.voicings.filter(v => allowed.includes(v.confidence));
 }
 
+/**
+ * A chord the parser can name in a measure but that no fingering is known for. It is listed
+ * so that looking it up answers the question rather than returning nothing, which is what
+ * used to happen. The difficulty setting cannot hide it, because that setting filters
+ * voicings and there are none to filter.
+ */
+function isUnfingered(chord) {
+    return chord.voicings.length === 0;
+}
+
 function addOption(select, value, label) {
     const option = document.createElement('option');
     option.value = value;
@@ -782,7 +792,7 @@ function matchingChords() {
         if (type !== 'all' && chord.suffix !== type) return false;
         if (genre !== 'all' && !chord.genres.includes(genre)) return false;
         if (prefix && !chord.name.toLowerCase().startsWith(prefix)) return false;
-        return visibleVoicings(chord).length > 0;
+        return isUnfingered(chord) || visibleVoicings(chord).length > 0;
     });
 
     // When searching, put what was actually typed at the top: looking for "Am" should not
@@ -835,6 +845,32 @@ function buildVoicingDetails(chord, voicing) {
 }
 
 /**
+ * The body of a result row for a chord with no known fingering. Its notes are known for
+ * certain, since they come from the chord's interval formula rather than from any dataset,
+ * so those are given along with an explicit statement about the missing fingering.
+ */
+function buildUnfingeredChordRow(chord) {
+    const fragment = document.createDocumentFragment();
+
+    const name = document.createElement('span');
+    name.textContent = `${chord.name} - ${baseQualityLabel(chord)}`;
+
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = chord.fingeringNote ?? 'Fingering unknown at this time.';
+    const list = document.createElement('ul');
+    appendTextItems(list, [
+        `Notes: ${(chord.notes ?? []).join(', ')}`,
+        `Genres: ${chord.genres.join(', ')}`,
+        'No fingering is known for this chord yet, so it cannot be played from here.'
+    ]);
+    details.append(summary, list);
+
+    fragment.append(name, details);
+    return fragment;
+}
+
+/**
  * Builds one complete result row: the chord's own checkbox, then every one of its voicings
  * inside a collapsed <details>.
  *
@@ -849,6 +885,14 @@ function buildChordRow(chord, chordIndex) {
     const voicings = visibleVoicings(chord);
 
     const item = document.createElement('li');
+
+    // Nothing to tick when there is no fingering: a checkbox here would offer a playback
+    // that cannot happen. The row states what the chord is and says the fingering is not
+    // known, which is the whole reason it is listed.
+    if (isUnfingered(chord)) {
+        item.append(buildUnfingeredChordRow(chord));
+        return { item, box: null, voicingBoxes: [] };
+    }
 
     const box = document.createElement('input');
     box.type = 'checkbox';
@@ -1016,12 +1060,16 @@ function queueDefaultChordIfNoneQueued() {
     if (chordsMatches.length === 0) return;
     if ([...chordsSelection.values()].some(set => set.size > 0)) return;
 
-    const shortest = chordsMatches.reduce((best, chord) =>
-        chord.name.length < best.name.length ? chord : best, chordsMatches[0]);
+    // Only chords that can actually be played are worth queueing.
+    const playable = chordsMatches.filter(chord => !isUnfingered(chord));
+    if (playable.length === 0) return;
+
+    const shortest = playable.reduce((best, chord) =>
+        chord.name.length < best.name.length ? chord : best, playable[0]);
     chordsSelection.set(shortest.name, new Set([0]));
 
     const row = chordRowsByName.get(shortest.name);
-    if (row) {
+    if (row?.box) {
         row.box.checked = true;
         if (row.voicingBoxes[0]) row.voicingBoxes[0].checked = true;
     }
