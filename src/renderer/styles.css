@@ -189,3 +189,37 @@ body {
 #frets-result-list li {
     padding: 0.15rem 0;
 }
+
+.audio-track ul {
+    list-style: none;
+    padding: 0;
+}
+
+.audio-track ul li {
+    padding: 0.15rem 0;
+}
+
+.audio-track button {
+    font-size: 1rem;
+    padding: 0.4rem 1.5rem;
+    margin-right: 0.5rem;
+}
+
+.audio-track button[disabled] {
+    opacity: 0.55;
+}
+
+.audio-track details summary {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.audio-track details p {
+    margin-left: 1rem;
+}
+
+#tabpanels details summary {
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0.25rem 0;
+}

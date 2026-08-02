@@ -3,8 +3,10 @@ import { extractScoreMetadata } from '../shared/scoreMetadata.mjs';
 import {
     STANDARD_TUNING_MIDI, STRING_NUMBERS, fretToMidi, identifyChordFromNotes, midiToPitchClassName
 } from '../shared/musicTheory.mjs';
+import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
 
 const statusElement = document.getElementById('status');
+const introElement = document.getElementById('intro');
 const emptyStateElement = document.getElementById('empty-state');
 const tabStripElement = document.getElementById('tab-strip');
 const tablistElement = document.getElementById('tablist');
@@ -27,6 +29,9 @@ function updateEmptyState() {
     const hasTabs = tabs.length > 0;
     emptyStateElement.hidden = hasTabs;
     tabStripElement.hidden = !hasTabs;
+    // Both blocks of guidance are for an empty window. Hiding them once files are open keeps
+    // the path from the top of the document to the tabs and their content short.
+    if (introElement) introElement.hidden = hasTabs;
 }
 
 function addSummaryRow(ul, label, value) {
@@ -35,7 +40,7 @@ function addSummaryRow(ul, label, value) {
     ul.append(li);
 }
 
-function buildSummaryPanel(meta) {
+function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
     const container = document.createElement('div');
 
     const summaryHeading = document.createElement('h2');
@@ -80,23 +85,53 @@ function buildSummaryPanel(meta) {
         addSummaryRow(trackList, 'Capo', track.capo ? `Fret ${track.capo}` : 'None');
         container.append(trackList);
 
-        const measuresHeading = document.createElement('h4');
-        measuresHeading.textContent = `Measures - ${track.measures.length}`;
-        container.append(measuresHeading);
+        // Placed with the track's own details rather than after its measures, so reaching it
+        // does not mean travelling past every bar in the song.
+        if (onCreateAudioTrack) {
+            const actions = document.createElement('p');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Create Audio Track';
+            button.addEventListener('click', () => onCreateAudioTrack(index));
+            actions.append(button);
+            container.append(actions);
+        }
 
-        track.measures.forEach((measure, measureIndex) => {
-            const measureHeading = document.createElement('h5');
-            measureHeading.textContent = `Measure ${measureIndex + 1}`;
-            container.append(measureHeading);
+        // The measures are almost all of a song's content: hundreds of short text lines per
+        // track. They sit behind a collapsed disclosure, and are only built when it is first
+        // opened, for more than tidiness. A screen reader's browse buffer pays a per-text-line
+        // cost walking newly exposed content, so a panel that exposes every beat of every
+        // measure took seconds to enter each time the tab was visited. Collapsed content stays
+        // out of the accessibility tree entirely, so entering the document is immediate and the
+        // cost is only paid if and when the measures are opened.
+        const measuresDetails = document.createElement('details');
+        const measuresSummary = document.createElement('summary');
+        measuresSummary.textContent = `Measures - ${track.measures.length}`;
+        measuresDetails.append(measuresSummary);
 
-            const measureList = document.createElement('ul');
-            for (const beatText of measure.beats) {
-                const li = document.createElement('li');
-                li.textContent = beatText;
-                measureList.append(li);
-            }
-            container.append(measureList);
+        let measuresBuilt = false;
+        measuresDetails.addEventListener('toggle', () => {
+            if (!measuresDetails.open || measuresBuilt) return;
+            measuresBuilt = true;
+
+            track.measures.forEach((measure, measureIndex) => {
+                // h4: the next level under the track's h3, now that the old "Measures" h4
+                // has become the disclosure's summary rather than a heading.
+                const measureHeading = document.createElement('h4');
+                measureHeading.textContent = `Measure ${measureIndex + 1}`;
+                measuresDetails.append(measureHeading);
+
+                const measureList = document.createElement('ul');
+                for (const beatText of measure.beats) {
+                    const li = document.createElement('li');
+                    li.textContent = beatText;
+                    measureList.append(li);
+                }
+                measuresDetails.append(measureList);
+            });
         });
+
+        container.append(measuresDetails);
     });
 
     return container;
@@ -111,7 +146,9 @@ function buildErrorPanel(message) {
     return container;
 }
 
-function createTab(fileName, contentEl, { isError = false, score = undefined, kind = 'file', onClose = undefined } = {}) {
+function createTab(fileName, contentEl, {
+    isError = false, score = undefined, kind = 'file', onClose = undefined, insertAfterTabId = null
+} = {}) {
     const id = nextTabId++;
     const tabElementId = `tab-${id}`;
     const panelElementId = `tabpanel-${id}`;
@@ -124,7 +161,7 @@ function createTab(fileName, contentEl, { isError = false, score = undefined, ki
     button.setAttribute('aria-controls', panelElementId);
     button.tabIndex = -1;
     button.textContent = isError ? `${fileName} (could not be read)` : fileName;
-    button.addEventListener('click', () => activateTab(id));
+    button.addEventListener('click', () => activateTab(id, { focusContent: true }));
 
     const panel = document.createElement('section');
     panel.id = panelElementId;
@@ -134,16 +171,38 @@ function createTab(fileName, contentEl, { isError = false, score = undefined, ki
     panel.hidden = true;
     panel.append(contentEl);
 
-    tablistElement.append(button);
-    tabpanelsElement.append(panel);
-
     const tab = { id, fileName, buttonEl: button, panelEl: panel, score, kind, onClose };
-    tabs.push(tab);
+
+    // An audio track belongs beside the song it came from rather than at the end of the strip.
+    const anchorIndex = insertAfterTabId === null
+        ? -1
+        : tabs.findIndex(existing => existing.id === insertAfterTabId);
+
+    if (anchorIndex >= 0) {
+        tabs[anchorIndex].buttonEl.after(button);
+        tabs[anchorIndex].panelEl.after(panel);
+        tabs.splice(anchorIndex + 1, 0, tab);
+    } else {
+        tablistElement.append(button);
+        tabpanelsElement.append(panel);
+        tabs.push(tab);
+    }
+
     updateEmptyState();
     return tab;
 }
 
-function activateTab(id) {
+/**
+ * Makes a tab current and moves focus.
+ *
+ * `focusContent` puts focus on the panel itself rather than the tab button, which is what a
+ * screen reader needs to drop into its document-reading mode with the cursor at the top of the
+ * content: landing on a non-form-control inside a document does that across screen readers,
+ * with nothing vendor-specific. Every way of reaching a tab uses it except arrowing within the
+ * tab strip, where focus has to stay on the buttons or moving across several tabs would be
+ * impossible.
+ */
+function activateTab(id, { focusContent = false } = {}) {
     const tab = tabs.find(t => t.id === id);
     if (!tab) return;
 
@@ -154,7 +213,8 @@ function activateTab(id) {
         t.panelEl.hidden = !isActive;
     }
     activeTabId = id;
-    tab.buttonEl.focus();
+    if (focusContent) tab.panelEl.focus();
+    else tab.buttonEl.focus();
 }
 
 function closeTab(id) {
@@ -176,15 +236,15 @@ function closeTab(id) {
 
     if (activeTabId === id) {
         const nextIndex = Math.min(index, tabs.length - 1);
-        activateTab(tabs[nextIndex].id);
+        activateTab(tabs[nextIndex].id, { focusContent: true });
     }
 }
 
-function shiftActiveTab(delta) {
+function shiftActiveTab(delta, { focusContent = false } = {}) {
     if (tabs.length === 0) return;
     const currentIndex = tabs.findIndex(t => t.id === activeTabId);
     const newIndex = (currentIndex + delta + tabs.length) % tabs.length;
-    activateTab(tabs[newIndex].id);
+    activateTab(tabs[newIndex].id, { focusContent });
 }
 
 tablistElement.addEventListener('keydown', event => {
@@ -205,15 +265,34 @@ tablistElement.addEventListener('keydown', event => {
     }
 });
 
+// Ctrl+Tab and Ctrl+Shift+Tab cycle tabs from anywhere in the window, not only when focus
+// happens to be in the tab strip. These used to come from menu accelerators on the Tabs menu;
+// that menu is gone, so the renderer owns them now.
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Tab' || !event.ctrlKey || event.altKey || event.metaKey) return;
+    if (tabs.length < 2) return;
+    // A modal dialog owns the keyboard while it is up; switching tabs underneath it would
+    // leave focus somewhere the user cannot see.
+    if (document.querySelector('dialog[open]')) return;
+
+    event.preventDefault();
+    shiftActiveTab(event.shiftKey ? -1 : 1, { focusContent: true });
+});
+
 function handleFileOpened({ fileName, data }) {
     let contentEl;
     let isError = false;
 
     let score;
+    // Resolved when the tab exists, so an audio track can be inserted next to its song.
+    let songTabId = null;
+
     try {
         score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
         const meta = extractScoreMetadata(score);
-        contentEl = buildSummaryPanel(meta);
+        contentEl = buildSummaryPanel(meta, {
+            onCreateAudioTrack: trackIndex => openAudioTrackTab(score, trackIndex, songTabId)
+        });
         setStatus(`Opened "${fileName}". Found ${meta.tracks.length} track${meta.tracks.length === 1 ? '' : 's'}.`);
     } catch (error) {
         isError = true;
@@ -223,13 +302,14 @@ function handleFileOpened({ fileName, data }) {
     }
 
     const tab = createTab(fileName, contentEl, { isError, score });
-    activateTab(tab.id);
+    songTabId = tab.id;
+    activateTab(tab.id, { focusContent: true });
 }
 
 function handleFileOpenError({ fileName, message }) {
     const fullMessage = `Could not open "${fileName}": ${message}`;
     const tab = createTab(fileName, buildErrorPanel(fullMessage), { isError: true });
-    activateTab(tab.id);
+    activateTab(tab.id, { focusContent: true });
     setStatus(fullMessage);
 }
 
@@ -964,15 +1044,15 @@ const CHORD_RESTRIKE_FADE_SECONDS = 0.025; // brief fade as a string is re-struc
 const CHORD_DECAY_FADE_SECONDS = 0.15; // fade at the tail of a note left to ring out
 const CHORD_SEQUENCE_GAP_SECONDS = 2.2; // start of one chord to the next when comparing
 
-let chordAudioContext = null;
+let sharedAudioContext = null;
 let chordMasterGain = null;
 let chordActiveSources = [];
 let chordPlaybackToken = 0;
-const chordSampleCache = new Map();
+const sampleBufferCache = new Map();
 
-function getChordAudioContext() {
-    if (!chordAudioContext) chordAudioContext = new AudioContext();
-    return chordAudioContext;
+function getSharedAudioContext() {
+    if (!sharedAudioContext) sharedAudioContext = new AudioContext();
+    return sharedAudioContext;
 }
 
 function stopChordPlayback() {
@@ -980,8 +1060,8 @@ function stopChordPlayback() {
 
     // Notes may be ringing for several seconds now, so cutting the sources dead would
     // click. Fade the whole strum out instead.
-    if (chordMasterGain && chordAudioContext) {
-        const now = chordAudioContext.currentTime;
+    if (chordMasterGain && sharedAudioContext) {
+        const now = sharedAudioContext.currentTime;
         const gain = chordMasterGain.gain;
         gain.cancelScheduledValues(now);
         gain.setValueAtTime(gain.value, now);
@@ -1060,19 +1140,19 @@ function chordSampleKey(note) {
 
 async function loadChordSample(note) {
     const cacheKey = chordSampleKey(note);
-    if (!chordSampleCache.has(cacheKey)) {
+    if (!sampleBufferCache.has(cacheKey)) {
         const bytes = await window.unstrung.getGuitarSampleAudio(
             note.midi, note.velocity, chordSampleRequestSeconds(note));
         const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-        chordSampleCache.set(cacheKey, await getChordAudioContext().decodeAudioData(arrayBuffer));
+        sampleBufferCache.set(cacheKey, await getSharedAudioContext().decodeAudioData(arrayBuffer));
     }
-    return chordSampleCache.get(cacheKey);
+    return sampleBufferCache.get(cacheKey);
 }
 
 async function playChordSelection(voicings, label) {
     stopChordPlayback();
     const myToken = chordPlaybackToken;
-    const context = getChordAudioContext();
+    const context = getSharedAudioContext();
     if (context.state === 'suspended') await context.resume();
 
     const plan = buildStrumSequence(voicings);
@@ -1219,6 +1299,9 @@ async function openChordLibraryTab() {
     const existing = tabs.find(tab => tab.id === chordsTabId);
     if (existing) {
         activateTab(existing.id);
+        // Same landing as when the tab was first opened: the search field is the first
+        // thing you use here, so returning to the tab puts you straight back on it.
+        chordsUi?.searchInput.focus();
         return;
     }
 
@@ -1445,3 +1528,1167 @@ async function openFretsToChordDialog() {
 
 window.unstrung.onFretsToChordOpen(openFretsToChordDialog);
 // --- end Frets to Chord ---
+
+// --- Audio track playback (Create Audio Track) ---------------------------------------
+// Renders a track from the parsed score into audible guitar samples. Timing, pitch, string
+// and fret all come from the data model, never from the displayed text.
+const AUDIO_TRACK_NOTE_GAIN = 0.4; // headroom: up to six strings can sound at once
+const AUDIO_TRACK_RESTRIKE_FADE_SECONDS = 0.025; // fade as a string is struck again
+const AUDIO_TRACK_DECAY_FADE_SECONDS = 0.15; // fade at the tail of a note left to ring out
+
+let audioTrackPlaybackToken = 0;
+let audioTrackMasterGain = null;
+let audioTrackSources = [];
+let audioTrackEndTimer = null;
+
+function stopAudioTrackPlayback() {
+    audioTrackPlaybackToken++;
+    if (audioTrackMasterGain && sharedAudioContext) {
+        const now = sharedAudioContext.currentTime;
+        const gain = audioTrackMasterGain.gain;
+        gain.cancelScheduledValues(now);
+        gain.setValueAtTime(gain.value, now);
+        gain.linearRampToValueAtTime(0, now + AUDIO_TRACK_RESTRIKE_FADE_SECONDS);
+        // Entries carry their scheduled end so a repeating loop can prune finished ones.
+        for (const entry of audioTrackSources) {
+            try { entry.source.stop(now + AUDIO_TRACK_RESTRIKE_FADE_SECONDS); } catch { /* already done */ }
+        }
+    }
+    audioTrackMasterGain = null;
+    audioTrackSources = [];
+}
+
+/**
+ * Fetches one full recording per distinct pitch and velocity. A single AudioBuffer is reused by
+ * every note of that pitch, so a track of hundreds of notes still only transfers a handful of
+ * samples, and the per-note gain envelope decides how long each one actually sounds.
+ */
+async function loadFullSample(midi, velocity) {
+    const cacheKey = `${midi}:${velocity}:full`;
+    if (!sampleBufferCache.has(cacheKey)) {
+        const bytes = await window.unstrung.getGuitarSampleAudio(midi, velocity, undefined);
+        const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        sampleBufferCache.set(cacheKey, await getSharedAudioContext().decodeAudioData(arrayBuffer));
+    }
+    return sampleBufferCache.get(cacheKey);
+}
+// Practice tempo bounds. A student slows a song down far more often than speeds it up, so the
+// range runs well below a typical written tempo and only a little above it.
+const AUDIO_TRACK_MIN_BPM = 15;
+const AUDIO_TRACK_MAX_BPM = 300;
+
+// One panel per track, so returning to a track finds the settings left as they were.
+// Keyed by song tab and track index, the same way the chord library is a single tab.
+const audioTrackPanels = new Map();
+
+// Timelines already derived, keyed additionally by tempo so stepping a tempo up and down is
+// instant. The parsed score is held on its tab from the moment the file opens, so neither
+// opening a song nor rebuilding a track at a new tempo ever re-reads the file on disk.
+const audioTrackCache = new Map();
+
+function deriveAudioTrack(state) {
+    const cacheKey = `${state.songTabId}:${state.trackIndex}:${state.targetTempo}`;
+    let audioTrack = audioTrackCache.get(cacheKey);
+    if (!audioTrack) {
+        audioTrack = buildAudioTrack(state.score, state.trackIndex, { targetTempo: state.targetTempo });
+        if (audioTrack) {
+            resolveRingLengths(audioTrack.notes);
+            audioTrackCache.set(cacheKey, audioTrack);
+        }
+    }
+    return audioTrack;
+}
+
+function formatMinutesSeconds(totalSeconds) {
+    const rounded = Math.round(totalSeconds);
+    const minutes = Math.floor(rounded / 60);
+    const seconds = String(rounded % 60).padStart(2, '0');
+    return `${minutes}:${seconds} (${rounded} seconds)`;
+}
+
+function describeAudioTrack(state) {
+    const { audioTrack } = state;
+    const rows = [
+        `Notes - ${audioTrack.notes.length}`,
+        `Bars - ${audioTrack.barCount}`,
+        `Length - ${formatMinutesSeconds(audioTrack.totalSeconds)}`,
+        `Tempo - ${audioTrack.tempo} BPM` +
+            (audioTrack.tempo === audioTrack.scoreTempo
+                ? ' (the tempo written in the file)'
+                : ` (the file is written at ${audioTrack.scoreTempo} BPM)`)
+    ];
+    if (state.metronome) {
+        const firstBar = audioTrack.bars[0];
+        const beats = firstBar ? firstBar.beatsPerBar : 4;
+        rows.push(`Metronome - on, ${beats} clicks per measure,` +
+            ' with one measure counting in at the start of the song');
+    }
+    if (audioTrack.skipped.tiedContinuations > 0) {
+        rows.push(`Tied notes held over - ${audioTrack.skipped.tiedContinuations}` +
+            ' (not struck again, left ringing)');
+    }
+    if (audioTrack.completedChords.length > 0) {
+        const names = [...new Set(audioTrack.completedChords.map(c => c.chord))].join(', ');
+        rows.push(`Named chords strummed in full - ${audioTrack.completedChords.length} (${names}),` +
+            ' voiced as the song writes them elsewhere');
+    }
+    return rows;
+}
+
+function refreshAudioTrackSummary(state) {
+    state.ui.summary.replaceChildren();
+    appendTextItems(state.ui.summary, describeAudioTrack(state));
+}
+// --- Transport -----------------------------------------------------------------------
+// Playback is scheduled ahead of time on the audio thread, so there is no running clock to
+// query. Position is tracked by remembering where a scheduling run began and how much context
+// time has passed since, wrapping around the selected measures when they repeat. Pausing
+// captures that position and stops the sources; resuming schedules a fresh run from it.
+//
+// Audio is scheduled through a rolling window rather than all at once (see the scheduler
+// further down): a cursor walks music time, wrapping from the end of the selection back to its
+// start while repeats remain, and a timer tops the schedule up to a fixed lookahead. Windows
+// are anchored to exact context times carried forward, so repeats join sample-accurately.
+
+let audioTrackPassTimer = null;
+
+function clearAudioTrackTimers() {
+    if (audioTrackEndTimer !== null) {
+        clearTimeout(audioTrackEndTimer);
+        audioTrackEndTimer = null;
+    }
+    if (audioTrackPassTimer !== null) {
+        clearTimeout(audioTrackPassTimer);
+        audioTrackPassTimer = null;
+    }
+}
+
+function setAudioTrackPlayingState(state, playing) {
+    state.playing = playing;
+    state.ui.playButton.textContent = playing ? 'Pause' : 'Play Track';
+    state.ui.playButton.setAttribute('aria-pressed', String(playing));
+}
+
+// --- Metronome ------------------------------------------------------------------------
+// The clicks are synthesized rather than recorded, so switching the metronome on costs nothing:
+// no samples to fetch, and the note timeline is untouched. A short sine burst with a fast decay
+// reads as a click, pitched higher and louder on the first beat of the bar so the downbeat is
+// obvious. Gains sit below the note gain, loud enough to follow but not to play over.
+const METRONOME_ACCENT_GAIN = 0.18;
+const METRONOME_BEAT_GAIN = 0.096;
+const METRONOME_CLICK_SECONDS = 0.06;
+
+const metronomeClickBuffers = new Map();
+
+function metronomeClickBuffer(accent) {
+    const cacheKey = accent ? 'accent' : 'beat';
+    if (metronomeClickBuffers.has(cacheKey)) return metronomeClickBuffers.get(cacheKey);
+
+    const context = getSharedAudioContext();
+    const frameCount = Math.ceil(METRONOME_CLICK_SECONDS * context.sampleRate);
+    const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+    const data = buffer.getChannelData(0);
+
+    const frequency = accent ? 1600 : 1000;
+    const decay = accent ? 55 : 75;
+    for (let i = 0; i < frameCount; i++) {
+        const t = i / context.sampleRate;
+        // Starting at zero phase keeps the attack clean; the decay brings it to near silence well
+        // inside the buffer, so the end needs no separate fade.
+        data[i] = Math.sin(2 * Math.PI * frequency * t) * Math.exp(-t * decay);
+    }
+
+    metronomeClickBuffers.set(cacheKey, buffer);
+    return buffer;
+}
+
+/**
+ * One measure of clicks before the music, the way a band counts itself in.
+ *
+ * Only for the first time through: repeats of a selection join without it, and resuming from a
+ * pause or landing on a measure mid-song plays straight away.
+ */
+function audioTrackLeadInSeconds(state, fromSeconds, countIn) {
+    if (!state.metronome || !countIn) return 0;
+    const bar = state.audioTrack.bars[measureIndexAt(state, fromSeconds)];
+    return bar ? bar.endSeconds - bar.startSeconds : 0;
+}
+
+function scheduleMetronomeClick(context, destination, when, accent) {
+    const source = context.createBufferSource();
+    source.buffer = metronomeClickBuffer(accent);
+    const gain = context.createGain();
+    gain.gain.value = accent ? METRONOME_ACCENT_GAIN : METRONOME_BEAT_GAIN;
+    source.connect(gain).connect(destination);
+    source.start(when);
+    return source;
+}
+
+/**
+ * Says something only when the player asked to be told.
+ *
+ * Moving around the track stays silent: a screen reader talking over the music defeats the point
+ * of listening to it. Position and tempo are reported only on the keys that exist to ask for
+ * them, so speech happens when it is wanted and not otherwise.
+ */
+function announceAudioTrack(state, message) {
+    // Re-announce the same text by clearing first, otherwise a repeated value stays silent.
+    state.ui.announce.textContent = '';
+    state.ui.announce.textContent = message;
+}
+
+/** The selected measures as zero-based bar indices and their second boundaries. */
+function audioTrackRange(state) {
+    const bars = state.audioTrack.bars;
+    const firstIndex = Math.min(bars.length - 1, Math.max(0, state.firstMeasure - 1));
+    const lastIndex = Math.min(bars.length - 1, Math.max(firstIndex, state.lastMeasure - 1));
+    return {
+        firstIndex,
+        lastIndex,
+        startSeconds: bars[firstIndex].startSeconds,
+        endSeconds: bars[lastIndex].endSeconds
+    };
+}
+
+/** Passes still to come after the given one; Infinity when repeating until stopped. */
+function remainingPassesAfter(state, passNumber) {
+    if (state.repeatCount === 0) return Infinity;
+    return Math.max(0, state.repeatCount - passNumber);
+}
+
+/**
+ * Where in the track we are, in seconds, whether playing or paused.
+ *
+ * When the selection repeats, elapsed time past the end of the selection wraps back to its
+ * start, so the reported position always lies inside the selected measures.
+ */
+function audioTrackPosition(state) {
+    if (!state.playing || state.anchorContextTime === null || !sharedAudioContext) {
+        return state.anchorSeconds;
+    }
+    const range = audioTrackRange(state);
+    const passDuration = range.endSeconds - range.startSeconds;
+    const elapsed = sharedAudioContext.currentTime - state.anchorContextTime;
+    if (elapsed <= 0) return state.anchorSeconds; // still inside the count-in
+
+    const position = state.anchorSeconds + elapsed;
+    if (position < range.endSeconds || passDuration <= 0) return position;
+
+    const over = position - range.endSeconds;
+    const wraps = 1 + Math.floor(over / passDuration);
+    if (wraps > remainingPassesAfter(state, state.anchorPass)) {
+        return range.endSeconds; // past the final pass; the finish timer lands shortly
+    }
+    return range.startSeconds + (over - (wraps - 1) * passDuration);
+}
+
+/** Which play-through of the selection we are on right now, starting at 1. */
+function currentPassAt(state) {
+    if (!state.playing || state.anchorContextTime === null || !sharedAudioContext) {
+        return state.anchorPass;
+    }
+    const range = audioTrackRange(state);
+    const passDuration = range.endSeconds - range.startSeconds;
+    const elapsed = sharedAudioContext.currentTime - state.anchorContextTime;
+    if (elapsed <= 0 || passDuration <= 0) return state.anchorPass;
+
+    const position = state.anchorSeconds + elapsed;
+    if (position < range.endSeconds) return state.anchorPass;
+    const wraps = 1 + Math.floor((position - range.endSeconds) / passDuration);
+    const pass = state.anchorPass + wraps;
+    return state.repeatCount === 0 ? pass : Math.min(pass, state.repeatCount);
+}
+
+/** Zero-based index of the measure containing a position. */
+function measureIndexAt(state, positionSeconds) {
+    const starts = state.audioTrack.barStartSeconds;
+    let index = 0;
+    for (let i = 0; i < starts.length; i++) {
+        if (starts[i] <= positionSeconds + 1e-6) index = i;
+        else break;
+    }
+    return index;
+}
+
+/**
+ * The selection's notes with ring lengths worked out for looping.
+ *
+ * The rule is the usual one: a note rings until its own string is struck again. Inside a
+ * repeating selection the next strike may be in the next pass, so the ring wraps: the time left
+ * to the end of the selection plus the time from the selection's start to that string's first
+ * strike. On the final pass there is no next strike, so `ringFinal` is used and the last notes
+ * decay naturally.
+ */
+function rangeNotesFor(state) {
+    const range = audioTrackRange(state);
+    const cacheKey = `${state.targetTempo}:${state.firstMeasure}:${state.lastMeasure}`;
+    if (state.rangeCache && state.rangeCache.key === cacheKey) return state.rangeCache.notes;
+
+    const inRange = state.audioTrack.notes.filter(note =>
+        note.startSeconds >= range.startSeconds - 1e-9 && note.startSeconds < range.endSeconds - 1e-9);
+
+    const strikesByString = new Map();
+    for (const note of inRange) {
+        if (!strikesByString.has(note.string)) strikesByString.set(note.string, []);
+        strikesByString.get(note.string).push(note.startSeconds);
+    }
+    for (const strikes of strikesByString.values()) strikes.sort((a, b) => a - b);
+
+    const notes = inRange.map(note => {
+        const strikes = strikesByString.get(note.string);
+        const next = strikes.find(t => t > note.startSeconds + 1e-9);
+        const ringFinal = next !== undefined ? next - note.startSeconds : null;
+        const ringLoop = next !== undefined
+            ? next - note.startSeconds
+            : (range.endSeconds - note.startSeconds) + (strikes[0] - range.startSeconds);
+        return { ...note, ringFinal, ringLoop };
+    });
+
+    state.rangeCache = { key: cacheKey, notes };
+    return notes;
+}
+// The scheduler keeps only a short horizon of audio in the graph. Scheduling a whole track up
+// front puts one source and one gain node per note in the graph at once, and the audio thread
+// visits every scheduled node each render quantum: a dense track's several thousand nodes blow
+// its budget and the missed deadlines are audible as crackling. A rolling window keeps the node
+// count bounded no matter how long or dense the track is.
+const AUDIO_TRACK_LOOKAHEAD_SECONDS = 12;
+const AUDIO_TRACK_TOPUP_INTERVAL_MS = 3000;
+
+/**
+ * Schedules the notes and metronome clicks that begin in [fromSeconds, toSeconds) of the
+ * current pass, anchored so that `fromSeconds` sounds at `baseContext`.
+ *
+ * `includeRinging` also picks up notes that started before the window but are still sounding at
+ * its start, entered partway into their recording. That is wanted only for the first window
+ * after a start or seek: for later windows those notes were scheduled when their own start fell
+ * inside an earlier window.
+ */
+function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, hasNextPass, includeRinging }) {
+    const context = getSharedAudioContext();
+
+    if (state.metronome) {
+        for (const bar of state.audioTrack.bars) {
+            for (const [beatInBar, beatSeconds] of bar.beats.entries()) {
+                if (beatSeconds < fromSeconds - 1e-6 || beatSeconds >= toSeconds - 1e-6) continue;
+                const when = baseContext + (beatSeconds - fromSeconds);
+                audioTrackSources.push({
+                    source: scheduleMetronomeClick(context, audioTrackMasterGain, when, beatInBar === 0),
+                    endsAt: when + METRONOME_CLICK_SECONDS
+                });
+            }
+        }
+    }
+
+    for (const note of rangeNotesFor(state)) {
+        const startsInWindow = note.startSeconds >= fromSeconds - 1e-9 && note.startSeconds < toSeconds - 1e-9;
+        if (!startsInWindow && !(includeRinging && note.startSeconds < fromSeconds)) continue;
+
+        const buffer = sampleBufferCache.get(`${note.midi}:${note.velocity}:full`);
+        if (!buffer) continue;
+
+        const ring = hasNextPass ? note.ringLoop : note.ringFinal;
+        const ringSeconds = Math.min(ring ?? buffer.duration, buffer.duration);
+        const noteEnd = note.startSeconds + ringSeconds;
+        if (noteEnd <= fromSeconds) continue; // finished before this window's starting point
+
+        const intoNote = Math.max(0, fromSeconds - note.startSeconds);
+        const when = baseContext + Math.max(0, note.startSeconds - fromSeconds);
+        const remaining = ringSeconds - intoNote;
+        if (remaining <= 0) continue;
+
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        const gain = context.createGain();
+        const ends = when + remaining;
+        const fade = ring === null
+            ? AUDIO_TRACK_DECAY_FADE_SECONDS
+            : AUDIO_TRACK_RESTRIKE_FADE_SECONDS;
+        gain.gain.setValueAtTime(AUDIO_TRACK_NOTE_GAIN, when);
+        gain.gain.setValueAtTime(AUDIO_TRACK_NOTE_GAIN, Math.max(when, ends - fade));
+        gain.gain.linearRampToValueAtTime(0, ends);
+
+        source.connect(gain).connect(audioTrackMasterGain);
+        source.start(when, intoNote);
+        source.stop(ends + 0.01);
+        audioTrackSources.push({ source, endsAt: ends + 0.01 });
+    }
+}
+
+/**
+ * Fills the schedule up to the lookahead horizon and arms the next top-up.
+ *
+ * The scheduler cursor walks music time, wrapping from the end of the selection to its start
+ * while passes remain, so repeats join sample-accurately: each window is anchored to an exact
+ * context time carried forward from the previous one, never re-derived from a timer. When the
+ * final pass has been fully scheduled, the end timer takes over.
+ */
+function audioTrackTopUp(state, myToken) {
+    if (myToken !== audioTrackPlaybackToken) return;
+    const context = getSharedAudioContext();
+    const sched = state.scheduler;
+    const horizon = context.currentTime + AUDIO_TRACK_LOOKAHEAD_SECONDS;
+
+    while (true) {
+        // A meaningful minimum chunk, not just > 0: a sliver below float resolution would
+        // advance the cursor by nothing and spin this loop forever, freezing the renderer.
+        const available = horizon - sched.cursorContext;
+        if (available < 0.05) break;
+
+        const range = audioTrackRange(state);
+        const hasNextPass = remainingPassesAfter(state, sched.pass) > 0;
+        const chunkEnd = Math.min(range.endSeconds, sched.cursorSeconds + available);
+
+        if (chunkEnd > sched.cursorSeconds + 1e-6) {
+            scheduleAudioTrackChunk(state, {
+                fromSeconds: sched.cursorSeconds,
+                toSeconds: chunkEnd,
+                baseContext: sched.cursorContext,
+                hasNextPass,
+                includeRinging: sched.firstChunk
+            });
+            sched.firstChunk = false;
+            sched.cursorContext += chunkEnd - sched.cursorSeconds;
+            sched.cursorSeconds = chunkEnd;
+        }
+
+        if (sched.cursorSeconds >= range.endSeconds - 1e-9) {
+            if (!hasNextPass) {
+                const remainingMs = (sched.cursorContext - context.currentTime + 2) * 1000;
+                audioTrackEndTimer = setTimeout(() => {
+                    if (myToken !== audioTrackPlaybackToken) return;
+                    state.anchorSeconds = range.startSeconds;
+                    state.anchorContextTime = null;
+                    state.anchorPass = 1;
+                    // A finished run starts over from the top next time: a first play again.
+                    state.countInArmed = true;
+                    setAudioTrackPlayingState(state, false);
+                    announceAudioTrack(state, 'End of track.');
+                }, remainingMs);
+                return;
+            }
+            sched.pass += 1;
+            sched.cursorSeconds = range.startSeconds;
+        }
+    }
+
+    const now = context.currentTime;
+    audioTrackSources = audioTrackSources.filter(entry => entry.endsAt > now);
+    audioTrackPassTimer = setTimeout(
+        () => audioTrackTopUp(state, myToken), AUDIO_TRACK_TOPUP_INTERVAL_MS);
+}
+
+function startAudioTrackPlayback(state, fromSeconds, { countIn = false } = {}) {
+    if (!state.ready) return;
+    stopAudioTrackPlayback();
+    clearAudioTrackTimers();
+
+    const range = audioTrackRange(state);
+    let from = Math.max(range.startSeconds, Math.min(range.endSeconds, fromSeconds));
+    if (from >= range.endSeconds - 1e-3) from = range.startSeconds;
+
+    const myToken = audioTrackPlaybackToken;
+    const context = getSharedAudioContext();
+
+    const masterGain = context.createGain();
+    masterGain.gain.value = 1;
+    masterGain.connect(context.destination);
+    audioTrackMasterGain = masterGain;
+    audioTrackSources = [];
+
+    const leadIn = countIn ? audioTrackLeadInSeconds(state, from, true) : 0;
+    const contextStart = context.currentTime + 0.12;
+
+    if (leadIn > 0) {
+        // One count-in measure of clicks, shaped like the measure we are about to play.
+        const countInBar = state.audioTrack.bars[measureIndexAt(state, from)];
+        for (const beatSeconds of countInBar.beats) {
+            const offset = beatSeconds - countInBar.startSeconds;
+            audioTrackSources.push({
+                source: scheduleMetronomeClick(context, masterGain, contextStart + offset, offset === 0),
+                endsAt: contextStart + offset + METRONOME_CLICK_SECONDS
+            });
+        }
+    }
+
+    state.scheduler = {
+        pass: state.anchorPass,
+        cursorSeconds: from,
+        cursorContext: contextStart + leadIn,
+        firstChunk: true
+    };
+
+    state.anchorSeconds = from;
+    state.anchorContextTime = contextStart + leadIn;
+    state.countInArmed = false; // used up by this run
+    setAudioTrackPlayingState(state, true);
+
+    audioTrackTopUp(state, myToken);
+}
+function pauseAudioTrackPlayback(state) {
+    const position = audioTrackPosition(state);
+    const pass = currentPassAt(state);
+    // Pausing during the count-in never reached the music, so the count-in is owed again.
+    const inLeadIn = state.playing && state.anchorContextTime !== null &&
+        sharedAudioContext && sharedAudioContext.currentTime < state.anchorContextTime;
+
+    stopAudioTrackPlayback();
+    clearAudioTrackTimers();
+    state.anchorSeconds = position;
+    state.anchorContextTime = null;
+    state.anchorPass = pass;
+    if (inLeadIn) state.countInArmed = true;
+    setAudioTrackPlayingState(state, false);
+}
+
+function toggleAudioTrackPlayback(state) {
+    if (state.playing) pauseAudioTrackPlayback(state);
+    // Only a start that was armed by creating the track, finishing a run, restarting, or
+    // changing the selection counts in; resuming after a pause carries straight on.
+    else startAudioTrackPlayback(state, state.anchorSeconds, { countIn: state.countInArmed });
+}
+
+/** Moves the play position within the selection, continuing to play if playing. Says nothing. */
+function seekAudioTrack(state, toSeconds) {
+    const range = audioTrackRange(state);
+    const target = Math.max(range.startSeconds, Math.min(range.endSeconds, toSeconds));
+    if (state.playing) {
+        state.anchorPass = currentPassAt(state); // seeking moves within the same play-through
+        startAudioTrackPlayback(state, target);
+    } else {
+        state.anchorSeconds = target;
+        state.anchorContextTime = null;
+    }
+}
+
+function seekAudioTrackByMeasure(state, delta) {
+    const range = audioTrackRange(state);
+    const current = measureIndexAt(state, audioTrackPosition(state));
+    const target = Math.max(range.firstIndex, Math.min(range.lastIndex, current + delta));
+    seekAudioTrack(state, state.audioTrack.barStartSeconds[target]);
+}
+
+function seekToStartOfCurrentMeasure(state) {
+    const starts = state.audioTrack.barStartSeconds;
+    seekAudioTrack(state, starts[measureIndexAt(state, audioTrackPosition(state))]);
+}
+
+/**
+ * Back to the start of the selection, counting in again, without losing our place in the
+ * repeats: restarting during the third of five plays replays the third, then the remaining two.
+ */
+function restartAudioTrackSelection(state) {
+    const range = audioTrackRange(state);
+    const pass = state.playing ? currentPassAt(state) : state.anchorPass;
+    state.anchorPass = pass;
+
+    if (state.playing) {
+        startAudioTrackPlayback(state, range.startSeconds, { countIn: true });
+    } else {
+        state.anchorSeconds = range.startSeconds;
+        state.anchorContextTime = null;
+        state.countInArmed = true;
+    }
+}
+
+/** Steps the tempo, keeping the music playing from the measure we are in. */
+function stepAudioTrackTempo(state, deltaBpm) {
+    applyAudioTrackTempo(state, state.targetTempo + deltaBpm, { silent: true });
+    announceAudioTrack(state, `${state.targetTempo} BPM`);
+}
+
+function announceCurrentMeasure(state) {
+    const measure = measureIndexAt(state, audioTrackPosition(state)) + 1;
+    let text = `Measure ${measure} of ${state.audioTrack.barCount}`;
+    // When the selection repeats, which play-through we are on matters just as much.
+    if (state.repeatCount !== 1) {
+        const pass = currentPassAt(state);
+        text += state.repeatCount === 0 ? `, play ${pass}` : `, play ${pass} of ${state.repeatCount}`;
+    }
+    announceAudioTrack(state, text);
+}
+
+/**
+ * Turns the metronome on or off, in place.
+ *
+ * Nothing has to be rebuilt: the clicks are synthesized and the note timeline does not change, so
+ * a track that is playing simply carries on from where it is with clicks added or removed.
+ *
+ * Says nothing either way. Whether the clicks are running is audible, and the checkbox reports its
+ * own state when that is how it was changed, so an announcement would only talk over the music.
+ */
+function setAudioTrackMetronome(state, enabled) {
+    state.metronome = enabled;
+    state.ui.metronomeCheckbox.checked = enabled;
+
+    if (state.playing) {
+        const position = audioTrackPosition(state);
+        pauseAudioTrackPlayback(state);
+        startAudioTrackPlayback(state, position);
+    }
+    refreshAudioTrackSummary(state);
+}
+
+/** The audio track panel on the tab currently in view, or null. */
+function activeAudioTrackState() {
+    for (const entry of audioTrackPanels.values()) {
+        if (entry.tabId === activeTabId) return entry.state;
+    }
+    return null;
+}
+
+// How much one press of the tempo keys moves the tempo.
+const AUDIO_TRACK_TEMPO_STEP_BPM = 5;
+
+// Playback shortcuts. These only reach the app while the screen reader is passing keys straight
+// through, which is focus mode in NVDA. No modifier variants are offered: which combinations a
+// screen reader lets through is not consistent between them, so a Ctrl alternative would work in
+// some and not others. The buttons cover the same ground for when you are not in focus mode.
+//
+// `needsTrack` marks the moves that only mean something once the track has been created; tempo
+// can be adjusted before that.
+const AUDIO_TRACK_SHORTCUTS = {
+    ' ': { needsTrack: true, run: state => toggleAudioTrackPlayback(state) },
+    ArrowLeft: { needsTrack: true, run: state => seekAudioTrackByMeasure(state, -1) },
+    ArrowRight: { needsTrack: true, run: state => seekAudioTrackByMeasure(state, 1) },
+    ArrowDown: { needsTrack: true, run: state => seekToStartOfCurrentMeasure(state) },
+    // Back to the top of the selection, counting in again, keeping the repeat count.
+    ArrowUp: { needsTrack: true, run: state => restartAudioTrackSelection(state) },
+    b: { needsTrack: false, run: state => announceCurrentMeasure(state) },
+    m: { needsTrack: false, run: state => setAudioTrackMetronome(state, !state.metronome) },
+    s: { needsTrack: false, run: state => stepAudioTrackTempo(state, -AUDIO_TRACK_TEMPO_STEP_BPM) },
+    f: { needsTrack: false, run: state => stepAudioTrackTempo(state, AUDIO_TRACK_TEMPO_STEP_BPM) }
+};
+
+// Only a field you type into should swallow these keys. A checkbox is an input too, but nothing is
+// being typed there, so the shortcuts must still reach playback: focus sitting on the metronome
+// checkbox should not disable the transport. Space is the exception, since it is how a checkbox is
+// toggled.
+const TEXT_ENTRY_INPUT_TYPES = new Set([
+    'text', 'number', 'search', 'email', 'url', 'tel', 'password',
+    'date', 'time', 'datetime-local', 'month', 'week', 'range', 'color', 'file'
+]);
+
+function eventTargetSwallowsKey(target, key) {
+    const tag = target && target.tagName ? target.tagName.toLowerCase() : '';
+    if (tag === 'select' || tag === 'textarea') return true;
+    if (tag !== 'input') return false;
+
+    const type = (target.type || 'text').toLowerCase();
+    if (TEXT_ENTRY_INPUT_TYPES.has(type)) return true;
+    // Checkbox or radio: let space toggle it, but pass everything else through.
+    return key === ' ';
+}
+
+document.addEventListener('keydown', event => {
+    const shortcut = AUDIO_TRACK_SHORTCUTS[event.key];
+    if (!shortcut || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    if (document.querySelector('dialog[open]')) return;
+
+    // Typing in a field always wins; everywhere else these keys belong to playback. That includes
+    // space while a button has focus: pausing has to be dependable, and Enter still presses the
+    // button.
+    if (eventTargetSwallowsKey(event.target, event.key)) return;
+
+    const state = activeAudioTrackState();
+    if (!state) return;
+    if (shortcut.needsTrack && !state.ready) return;
+
+    event.preventDefault();
+    shortcut.run(state);
+});
+
+/** Measure numbers as compact ranges: "2 to 4, 6, 9 to 12", capped so it never runs long. */
+function summarizeMeasureNumbers(measureNumbers) {
+    const groups = [];
+    let start = null, previous = null;
+    for (const measure of measureNumbers) {
+        if (start === null) { start = previous = measure; continue; }
+        if (measure === previous + 1) { previous = measure; continue; }
+        groups.push(start === previous ? `${start}` : `${start} to ${previous}`);
+        start = previous = measure;
+    }
+    if (start !== null) groups.push(start === previous ? `${start}` : `${start} to ${previous}`);
+    return groups.length > 6 ? groups.slice(0, 6).join(', ') + ', and more' : groups.join(', ');
+}
+
+/** Notes in the current selection whose sample failed to load, i.e. cannot be played. */
+function unplayableSelectionNotes(state) {
+    if (!state.failedSampleKeys || state.failedSampleKeys.size === 0) return [];
+    return rangeNotesFor(state).filter(n => state.failedSampleKeys.has(`${n.midi}:${n.velocity}`));
+}
+
+/**
+ * Puts the panel into its error shape: everything below the buttons goes away so the message
+ * is the next thing after the Create Track button, not buried under controls that cannot be
+ * used and a list of shortcuts that will not work.
+ */
+function showAudioTrackError(state, message) {
+    state.ready = false;
+    state.ui.playButton.disabled = true;
+    for (const button of state.ui.transportButtons) button.disabled = true;
+    state.ui.extraControls.hidden = true;
+    state.ui.status.textContent = '';
+    state.ui.error.textContent = message;
+}
+
+function clearAudioTrackError(state) {
+    state.ui.error.textContent = '';
+    state.ui.extraControls.hidden = false;
+}
+
+/**
+ * Loads every sample the track needs, which is the slow part of getting ready to play.
+ *
+ * The whole track's samples are attempted so that later selection changes stay instant, but
+ * only the selected measures decide success: a track whose low notes have no guitar sample can
+ * still be created for the measures that avoid them.
+ */
+async function prepareAudioTrack(state) {
+    const { ui } = state;
+    const needed = [...new Set(state.audioTrack.notes.map(n => `${n.midi}:${n.velocity}`))];
+
+    ui.createButton.disabled = true;
+    ui.playButton.disabled = true;
+    ui.error.textContent = '';
+    ui.status.textContent = `Creating the track: loading ${needed.length} guitar samples…`;
+
+    const results = await Promise.allSettled(needed.map(key => {
+        const [midi, velocity] = key.split(':');
+        return loadFullSample(Number(midi), velocity);
+    }));
+    ui.createButton.disabled = false;
+
+    state.failedSampleKeys = new Set();
+    results.forEach((result, index) => {
+        if (result.status === 'rejected') state.failedSampleKeys.add(needed[index]);
+    });
+
+    const unplayable = unplayableSelectionNotes(state);
+    if (unplayable.length > 0) {
+        const measures = [...new Set(unplayable.map(n => n.bar + 1))].sort((a, b) => a - b);
+        const selectionSize = rangeNotesFor(state).length;
+        showAudioTrackError(state,
+            `Could not create the track: ${unplayable.length} of the ${selectionSize} notes in the` +
+            ` selected measures have no guitar sample; this track goes outside the range the` +
+            ` bundled samples cover. The first is in measure ${measures[0]}; affected measures are` +
+            ` ${summarizeMeasureNumbers(measures)}. Choose different measures and press Create` +
+            ` Track again.`);
+        return;
+    }
+
+    clearAudioTrackError(state);
+    state.ready = true;
+    state.countInArmed = true; // a fresh track starts from the top, so count it in
+    ui.playButton.disabled = false;
+    for (const button of ui.transportButtons) button.disabled = false;
+
+    let readyText = `Track ready: ${rangeNotesFor(state).length} notes at ` +
+        `${state.audioTrack.tempo} BPM, ${formatMinutesSeconds(state.audioTrack.totalSeconds)}.` +
+        ' Press Play Track, or press space.';
+    if (state.failedSampleKeys.size > 0) {
+        const affectedBars = [...new Set(state.audioTrack.notes
+            .filter(n => state.failedSampleKeys.has(`${n.midi}:${n.velocity}`))
+            .map(n => n.bar + 1))].sort((a, b) => a - b);
+        readyText += ` Note: measures ${summarizeMeasureNumbers(affectedBars)} contain notes with` +
+            ' no guitar sample and cannot be selected.';
+    }
+    ui.status.textContent = readyText;
+}
+
+/**
+ * Rebuilds the timeline at a new tempo, holding our place in the music.
+ *
+ * The same measure falls at a different second once the tempo changes, so the position is carried
+ * across by measure rather than by seconds. If the track was playing it keeps playing from there,
+ * which is what makes nudging the tempo while playing along useful. `silent` suppresses the
+ * written status, for the tempo keys that report through the announcement region instead.
+ */
+function applyAudioTrackTempo(state, requestedTempo, { silent = false } = {}) {
+    // An empty field converts to 0, which would otherwise clamp to the minimum tempo rather than
+    // leaving the setting alone, so anything not a positive number puts the field back.
+    if (!Number.isFinite(requestedTempo) || requestedTempo <= 0) {
+        state.ui.tempoInput.value = String(state.targetTempo);
+        return;
+    }
+    const clamped = Math.min(AUDIO_TRACK_MAX_BPM,
+        Math.max(AUDIO_TRACK_MIN_BPM, Math.round(requestedTempo)));
+
+    const wasPlaying = state.playing;
+    let measure = measureIndexAt(state, audioTrackPosition(state));
+    if (wasPlaying) pauseAudioTrackPlayback(state);
+
+    state.targetTempo = clamped;
+    state.audioTrack = deriveAudioTrack(state);
+    state.rangeCache = null;
+
+    const range = audioTrackRange(state);
+    measure = Math.max(range.firstIndex, Math.min(range.lastIndex, measure));
+    state.anchorSeconds = state.audioTrack.barStartSeconds[measure] ?? range.startSeconds;
+    state.anchorContextTime = null;
+    state.ui.tempoInput.value = String(clamped);
+    refreshAudioTrackSummary(state);
+
+    // The samples needed depend on pitch, not tempo, so a prepared track stays playable.
+    if (wasPlaying && state.ready) startAudioTrackPlayback(state, state.anchorSeconds);
+
+    if (silent) return;
+    state.ui.status.textContent = state.ready
+        ? `Tempo is now ${clamped} BPM, ` +
+          `${formatMinutesSeconds(state.audioTrack.totalSeconds)}, at measure ${measure + 1}.`
+        : `Tempo is now ${clamped} BPM. Press Create Track to prepare it.`;
+}
+
+// --- Measure selection ------------------------------------------------------------------
+function audioTrackSelectionText(state) {
+    const rangeText = state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount
+        ? 'all'
+        : `${state.firstMeasure} to ${state.lastMeasure}`;
+    const repeatText = state.repeatCount === 1
+        ? ''
+        : state.repeatCount === 0 ? ', repeat until stopped' : `, repeat ${state.repeatCount} times`;
+    return `${rangeText}${repeatText}`;
+}
+
+function updateAudioTrackSelectionSummary(state) {
+    state.ui.measuresSummary.textContent = `Measures selected - ${audioTrackSelectionText(state)}`;
+}
+
+/**
+ * Applies the measure-selection fields.
+ *
+ * Values are clamped rather than rejected: the last measure cannot come before the first, and
+ * repeats run 0 (until stopped) to 50. Changing the selection is a fresh start, so playback
+ * stops, the position moves to the start of the new selection, the repeat count goes back to the
+ * first play-through, and the next play counts in again.
+ */
+function applyAudioTrackSelection(state) {
+    const { firstInput, lastInput, repeatInput } = state.ui;
+    const barCount = state.audioTrack.barCount;
+
+    const firstRaw = Number(firstInput.value);
+    const lastRaw = Number(lastInput.value);
+    const repeatRaw = Number(repeatInput.value);
+
+    const first = Number.isFinite(firstRaw) && firstRaw >= 1
+        ? Math.min(barCount, Math.round(firstRaw))
+        : state.firstMeasure;
+    const last = Number.isFinite(lastRaw) && lastRaw >= 1
+        ? Math.max(first, Math.min(barCount, Math.round(lastRaw)))
+        : Math.max(first, state.lastMeasure);
+    const repeat = Number.isFinite(repeatRaw) && repeatRaw >= 0
+        ? Math.min(50, Math.round(repeatRaw))
+        : state.repeatCount;
+
+    if (state.playing) pauseAudioTrackPlayback(state);
+
+    state.firstMeasure = first;
+    state.lastMeasure = last;
+    state.repeatCount = repeat;
+    state.rangeCache = null;
+    state.anchorSeconds = audioTrackRange(state).startSeconds;
+    state.anchorContextTime = null;
+    state.anchorPass = 1;
+    state.countInArmed = true;
+
+    firstInput.value = String(first);
+    lastInput.value = String(last);
+    repeatInput.value = String(repeat);
+    updateAudioTrackSelectionSummary(state);
+
+    // Moving the selection onto notes with no sample must not silently skip them: the track
+    // goes back to needing Create Track, which will explain exactly which measures are wrong.
+    const unplayable = unplayableSelectionNotes(state);
+    if (unplayable.length > 0) {
+        const measures = [...new Set(unplayable.map(n => n.bar + 1))].sort((a, b) => a - b);
+        showAudioTrackError(state,
+            `Measures ${summarizeMeasureNumbers(measures)} contain notes with no guitar sample,` +
+            ' so this selection cannot be played. Choose different measures and press Create' +
+            ' Track again.');
+        return;
+    }
+    if (state.ui.error.textContent !== '' && state.failedSampleKeys) {
+        // A previous error is resolved by this selection; creating again restores the panel.
+        state.ui.error.textContent = '';
+    }
+
+    state.ui.status.textContent =
+        `Measures ${audioTrackSelectionText(state)}. ` +
+        (state.ready ? 'Press Play Track.' : 'Press Create Track to prepare it.');
+}
+
+function buildAudioTrackPanel(state) {
+    const container = document.createElement('div');
+    container.className = 'audio-track';
+
+    const heading = document.createElement('h2');
+    heading.textContent =
+        `Audio Track - ${state.audioTrack.songTitle}, ${state.audioTrack.trackName}`;
+    container.append(heading);
+
+    const settingsHeading = document.createElement('h3');
+    settingsHeading.textContent = 'Playback settings';
+    container.append(settingsHeading);
+
+    const tempoParagraph = document.createElement('p');
+    const tempoLabel = document.createElement('label');
+    tempoLabel.htmlFor = 'audio-track-tempo-input';
+    tempoLabel.textContent =
+        `Tempo in beats per minute, ${AUDIO_TRACK_MIN_BPM} to ${AUDIO_TRACK_MAX_BPM}`;
+    const tempoInput = document.createElement('input');
+    tempoInput.type = 'number';
+    tempoInput.id = 'audio-track-tempo-input';
+    tempoInput.min = String(AUDIO_TRACK_MIN_BPM);
+    tempoInput.max = String(AUDIO_TRACK_MAX_BPM);
+    tempoInput.step = '1';
+    tempoInput.value = String(state.targetTempo);
+    tempoParagraph.append(tempoLabel, tempoInput);
+    container.append(tempoParagraph);
+
+    // Which measures to play, collapsed behind a summary that reads out the current selection.
+    const measuresDetails = document.createElement('details');
+    const measuresSummary = document.createElement('summary');
+    measuresDetails.append(measuresSummary);
+
+    const firstParagraph = document.createElement('p');
+    const firstLabel = document.createElement('label');
+    firstLabel.htmlFor = 'audio-track-first-measure-input';
+    firstLabel.textContent = 'First measure to play';
+    const firstInput = document.createElement('input');
+    firstInput.type = 'number';
+    firstInput.id = 'audio-track-first-measure-input';
+    firstInput.min = '1';
+    firstInput.max = String(state.audioTrack.barCount);
+    firstInput.step = '1';
+    firstInput.value = String(state.firstMeasure);
+    firstParagraph.append(firstLabel, firstInput);
+    measuresDetails.append(firstParagraph);
+
+    const lastParagraph = document.createElement('p');
+    const lastLabel = document.createElement('label');
+    lastLabel.htmlFor = 'audio-track-last-measure-input';
+    lastLabel.textContent = 'Last measure to play';
+    const lastInput = document.createElement('input');
+    lastInput.type = 'number';
+    lastInput.id = 'audio-track-last-measure-input';
+    lastInput.min = '1';
+    lastInput.max = String(state.audioTrack.barCount);
+    lastInput.step = '1';
+    lastInput.value = String(state.lastMeasure);
+    lastParagraph.append(lastLabel, lastInput);
+    measuresDetails.append(lastParagraph);
+
+    const repeatParagraph = document.createElement('p');
+    const repeatLabel = document.createElement('label');
+    repeatLabel.htmlFor = 'audio-track-repeat-input';
+    repeatLabel.textContent = 'Times to play the selection, up to 50; 0 repeats until stopped';
+    const repeatInput = document.createElement('input');
+    repeatInput.type = 'number';
+    repeatInput.id = 'audio-track-repeat-input';
+    repeatInput.min = '0';
+    repeatInput.max = '50';
+    repeatInput.step = '1';
+    repeatInput.value = String(state.repeatCount);
+    repeatParagraph.append(repeatLabel, repeatInput);
+    measuresDetails.append(repeatParagraph);
+
+    container.append(measuresDetails);
+
+    const metronomeParagraph = document.createElement('p');
+    const metronomeCheckbox = document.createElement('input');
+    metronomeCheckbox.type = 'checkbox';
+    metronomeCheckbox.id = 'audio-track-metronome-checkbox';
+    metronomeCheckbox.checked = state.metronome;
+    const metronomeLabel = document.createElement('label');
+    metronomeLabel.htmlFor = metronomeCheckbox.id;
+    metronomeLabel.textContent =
+        'Metronome, with one measure of clicks counting in the first time through';
+    metronomeParagraph.append(metronomeCheckbox, metronomeLabel);
+    container.append(metronomeParagraph);
+
+    const summaryHeading = document.createElement('h3');
+    summaryHeading.textContent = 'Track';
+    container.append(summaryHeading);
+    const summary = document.createElement('ul');
+    container.append(summary);
+
+    const actions = document.createElement('p');
+    const createButton = document.createElement('button');
+    createButton.type = 'button';
+    createButton.textContent = 'Create Track';
+    const playButton = document.createElement('button');
+    playButton.type = 'button';
+    playButton.textContent = 'Play Track';
+    playButton.setAttribute('aria-pressed', 'false');
+    // Nothing to play until the samples are in hand.
+    playButton.disabled = true;
+    actions.append(createButton, playButton);
+    container.append(actions);
+
+    // When creation fails, the message lands right here, straight after the buttons, and
+    // everything below is hidden so the failure is the next thing encountered, not a footnote
+    // beneath controls that cannot be used.
+    const error = document.createElement('p');
+    error.setAttribute('role', 'alert');
+    container.append(error);
+
+    // Everything below the buttons lives in one container so the error state can remove it.
+    const extraControls = document.createElement('div');
+    container.append(extraControls);
+
+    // The same moves the shortcuts make, as buttons, so nothing here is keyboard-only.
+    const transportHeading = document.createElement('h3');
+    transportHeading.textContent = 'Move around the track';
+    extraControls.append(transportHeading);
+
+    const transportParagraph = document.createElement('p');
+    const transportButtons = [];
+    const transportActions = [
+        ['Previous Measure', state2 => seekAudioTrackByMeasure(state2, -1)],
+        ['Next Measure', state2 => seekAudioTrackByMeasure(state2, 1)],
+        ['Start of Measure', state2 => seekToStartOfCurrentMeasure(state2)],
+        ['Restart', state2 => restartAudioTrackSelection(state2)]
+    ];
+    for (const [label, action] of transportActions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.disabled = true;
+        button.addEventListener('click', () => action(state));
+        transportButtons.push(button);
+        transportParagraph.append(button);
+    }
+    extraControls.append(transportParagraph);
+
+    const keysHeading = document.createElement('h3');
+    keysHeading.textContent = 'Keyboard control';
+    extraControls.append(keysHeading);
+
+    const keysNote = document.createElement('p');
+    keysNote.textContent =
+        'These keys only work while your screen reader is passing keystrokes straight through to' +
+        ' Unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
+        ' same things.';
+    extraControls.append(keysNote);
+
+    const keysList = document.createElement('ul');
+    appendTextItems(keysList, [
+        'Space - pause and resume',
+        'Left arrow - back one measure',
+        'Right arrow - forward one measure',
+        'Down arrow - back to the start of the current measure',
+        'Up arrow - restart the selected measures, counting in again;' +
+            ' keeps count of which repeat you are on',
+        'B - say which measure you are in, and which repeat',
+        'M - metronome on or off',
+        `S - slower by ${AUDIO_TRACK_TEMPO_STEP_BPM} BPM`,
+        `F - faster by ${AUDIO_TRACK_TEMPO_STEP_BPM} BPM`
+    ]);
+    extraControls.append(keysList);
+
+    // Moving around stays silent so the music is not talked over. This is where the keys that
+    // exist to ask a question put their answer. Deliberately not role="status", which maps to a
+    // status bar on Windows and reads oddly mid-panel.
+    const announce = document.createElement('p');
+    announce.setAttribute('aria-live', 'polite');
+    announce.setAttribute('aria-atomic', 'true');
+    container.append(announce);
+
+    const status = document.createElement('p');
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.textContent = 'Set a tempo if you want one, then press Create Track.';
+    container.append(status);
+
+    state.ui = {
+        tempoInput, metronomeCheckbox, createButton, playButton, error, extraControls,
+        firstInput, lastInput, repeatInput, measuresSummary,
+        status, announce, summary, transportButtons
+    };
+    refreshAudioTrackSummary(state);
+    updateAudioTrackSelectionSummary(state);
+
+    metronomeCheckbox.addEventListener('change', () =>
+        setAudioTrackMetronome(state, metronomeCheckbox.checked));
+
+    // Committing on change rather than on every keystroke: a number field fires input for each
+    // digit typed, and rebuilding the timeline mid-number would be wasted work.
+    tempoInput.addEventListener('change', () =>
+        applyAudioTrackTempo(state, Number(tempoInput.value)));
+
+    for (const input of [firstInput, lastInput, repeatInput]) {
+        input.addEventListener('change', () => applyAudioTrackSelection(state));
+    }
+
+    createButton.addEventListener('click', () => {
+        stopAudioTrackPlayback();
+        clearAudioTrackTimers();
+        setAudioTrackPlayingState(state, false);
+        state.anchorSeconds = audioTrackRange(state).startSeconds;
+        state.anchorContextTime = null;
+        state.anchorPass = 1;
+        prepareAudioTrack(state);
+    });
+
+    playButton.addEventListener('click', () => toggleAudioTrackPlayback(state));
+
+    return container;
+}
+
+function openAudioTrackTab(score, trackIndex, songTabId) {
+    const panelKey = `${songTabId}:${trackIndex}`;
+
+    // Already open: go to it rather than making a second one, so its settings are preserved.
+    const existing = audioTrackPanels.get(panelKey);
+    if (existing && tabs.some(tab => tab.id === existing.tabId)) {
+        activateTab(existing.tabId, { focusContent: true });
+        setStatus(`Showing the existing audio track for ${existing.state.audioTrack.trackName}.`);
+        return;
+    }
+
+    const state = {
+        score,
+        trackIndex,
+        songTabId,
+        targetTempo: score.tempo || 120,
+        audioTrack: null,
+        ready: false,
+        ui: null,
+        // Transport: where we are in the track, and the context time that position was anchored at.
+        playing: false,
+        anchorSeconds: 0,
+        anchorContextTime: null,
+        metronome: false,
+        countInArmed: false,
+        // Which measures play, how many times, and which play-through we are on.
+        firstMeasure: 1,
+        lastMeasure: 1,
+        repeatCount: 1,
+        anchorPass: 1,
+        rangeCache: null,
+        failedSampleKeys: null
+    };
+    state.audioTrack = deriveAudioTrack(state);
+
+    if (!state.audioTrack || state.audioTrack.notes.length === 0) {
+        setStatus('That track has no playable notes.');
+        return;
+    }
+    state.lastMeasure = state.audioTrack.barCount;
+
+    const container = buildAudioTrackPanel(state);
+    const tab = createTab(`${state.audioTrack.trackName} (audio)`, container, {
+        kind: 'audio-track',
+        insertAfterTabId: songTabId,
+        onClose: () => {
+            stopAudioTrackPlayback();
+            clearAudioTrackTimers();
+            audioTrackPanels.delete(panelKey);
+        }
+    });
+
+    audioTrackPanels.set(panelKey, { tabId: tab.id, state });
+    activateTab(tab.id, { focusContent: true });
+    setStatus(`Opened the audio track settings for ${state.audioTrack.trackName}.`);
+}
+// --- end audio track playback ---

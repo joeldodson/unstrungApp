@@ -9,22 +9,27 @@
 <body>
     <header>
         <h1>Unstrung Application</h1>
-        <p>Use the File menu, or press Alt then F, to open a song file. Each file opens in its own tab.</p>
+        <!-- Guidance for an empty window; hidden once files are open, so reading from the top
+             reaches the tabs and their content without passing through instructions. -->
+        <p id="intro">Use the File menu, or press Alt then F, to open a song file. Each file opens in its own tab.</p>
     </header>
 
     <main>
-        <p id="status" role="status" aria-live="polite"></p>
-
         <p id="empty-state" tabindex="-1">
             No files are open. Press Ctrl+T, or choose Open File… from the File menu, to open a song file.
-            Once files are open, switch between tabs with the Left and Right arrow keys,
-            and close the current tab with Ctrl+W.
+            Once files are open, switch between tabs with Ctrl+Tab and Ctrl+Shift+Tab, or with
+            the Left and Right arrow keys when focus is in the tab strip, and close the current
+            tab with Ctrl+W.
         </p>
 
         <div id="tab-strip" hidden>
             <div id="tablist" role="tablist" aria-label="Open song files"></div>
             <div id="tabpanels"></div>
         </div>
+
+        <!-- Last in reading order, where a status line conventionally lives. It announces itself
+             as a live region, so it does not need to sit in the path to the content. -->
+        <p id="status" role="status" aria-live="polite"></p>
     </main>
 
     <dialog id="about-dialog" aria-labelledby="about-dialog-heading" tabindex="-1">

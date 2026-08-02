@@ -2,6 +2,8 @@
 // JSON-serializable summary that the renderer can display. Kept free of
 // alphaTab imports and DOM access so it can also run standalone for testing.
 
+import { identifyChordFromNotes } from './musicTheory.mjs';
+
 const KEY_SIGNATURE_NAMES = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
 
 // Standard General MIDI instrument program names (program numbers 0-127).
@@ -128,6 +130,54 @@ function describeNotePitch(note, stringCount) {
     return pitchName(note.realValue);
 }
 
+// Chord qualities a player reading a strum would recognise. Identification can technically name
+// any set of notes, but calling six open strings "G69" tells a guitarist less than listing the
+// strings does, so only the everyday qualities stand in for a string-by-string reading.
+const RECOGNIZED_STRUM_SUFFIXES = new Set([
+    'major', 'minor', '5', 'sus2', 'sus4', '7', 'maj7', 'm7', 'm7b5',
+    'dim', 'dim7', 'aug', '6', 'm6', 'add9', 'madd9', '9', 'm9', 'maj9', 'mmaj7'
+]);
+
+/**
+ * Names a beat that strums one unmistakable chord, e.g. "A, up stroke".
+ *
+ * Tablature often writes a strum out string by string, leaving the reader to recognise the shape.
+ * Where the notes spell exactly one everyday chord this says so instead, which is both shorter to
+ * listen to and more useful than five string-and-fret pairs.
+ *
+ * Identification works from the pitches sounded, not from a stored shape, so it is indifferent to
+ * how the chord is fingered: a barred B minor is named the same as any other B minor, and a
+ * capo makes no difference.
+ *
+ * Returns null, leaving the strings listed, when the beat is anything less than unambiguous:
+ * - notes that do not spell a complete chord, such as three strings of a G, which is a genuine
+ *   part-chord the player needs told string by string
+ * - note sets that read as more than one chord, such as the open top four strings, which are
+ *   equally E minor 7 and G 6
+ * - a chord whose root is not the lowest note sounded, since naming an inversion plainly would
+ *   misdescribe what is played
+ * - notes listed in no consistent direction, which is not a sweep of the pick at all; naming it
+ *   without a direction would invite reading it as the unmarked case, a down stroke
+ */
+function describeStrum(beat, stringCount) {
+    if (beat.notes.length < 2 || !stringCount) return null;
+    if (!beat.notes.every(note =>
+        note.isStringed && !note.isDead && typeof note.realValue === 'number')) return null;
+
+    const candidates = identifyChordFromNotes(beat.notes.map(note => note.realValue))
+        .filter(candidate => RECOGNIZED_STRUM_SUFFIXES.has(candidate.suffix) && candidate.rootInBass);
+    if (candidates.length !== 1) return null;
+
+    // The order the file lists the notes in gives the direction of the sweep, the same signal
+    // audio generation uses: low string to high is an up stroke, high to low a down stroke.
+    const strings = beat.notes.map(note => stringCount - note.string + 1);
+    const ascending = strings.every((s, i) => i === 0 || s > strings[i - 1]);
+    const descending = strings.every((s, i) => i === 0 || s < strings[i - 1]);
+    if (!ascending && !descending) return null;
+
+    return `${candidates[0].name}, ${ascending ? 'up stroke' : 'down stroke'}`;
+}
+
 function describeBeat(beat, stringCount) {
     let pitchText;
     if (beat.isRest) {
@@ -135,7 +185,8 @@ function describeBeat(beat, stringCount) {
     } else if (beat.hasChord) {
         pitchText = `chord ${beat.chord.name}`;
     } else {
-        pitchText = beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
+        pitchText = describeStrum(beat, stringCount)
+            ?? beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
     }
 
     const techniques = new Set();
