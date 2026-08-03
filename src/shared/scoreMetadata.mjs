@@ -165,7 +165,7 @@ const RECOGNIZED_STRUM_SUFFIXES = new Set([
  *   break the run: muting a string and strumming through it is exactly how chords like these
  *   are played, so the gap is accounted for.
  */
-function describeStrum(beat, stringCount) {
+function describeStrum(beat, stringCount, terse) {
     if (beat.notes.length < 2 || !stringCount) return null;
     if (!beat.notes.every(note => note.isStringed && typeof note.realValue === 'number')) return null;
 
@@ -228,17 +228,26 @@ function describeStrum(beat, stringCount) {
     const mutedText = muted.length === 0 ? ''
         : `, string${muted.length === 1 ? '' : 's'} ${muted.join(' and ')} muted`;
 
-    return `${chordText}, ${rangeText}, ${ascending ? 'up stroke' : 'down stroke'}${mutedText}`;
+    const directionText = ascending ? 'up stroke' : 'down stroke';
+
+    // A player who knows the shape gets the strings and the mutes from the chord name, so with
+    // terse descriptions those are dropped. The stroke direction stays: it is two syllables and
+    // is not recoverable from the name, unlike everything else being left out here.
+    if (terse) return `${chordText}, ${directionText}`;
+
+    return `${chordText}, ${rangeText}, ${directionText}${mutedText}`;
 }
 
-function describeBeat(beat, stringCount) {
+function describeBeat(beat, stringCount, terse) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
     } else if (beat.hasChord) {
         pitchText = `chord ${beat.chord.name}`;
     } else {
-        pitchText = describeStrum(beat, stringCount)
+        // Only a named strum can be shortened. A beat listed string by string has no name to fall
+        // back on, so terse descriptions leave it exactly as it was.
+        pitchText = describeStrum(beat, stringCount, terse)
             ?? beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
     }
 
@@ -257,13 +266,13 @@ function describeBeat(beat, stringCount) {
 
 // Only the primary voice is described; secondary voices (used for genuinely
 // polyphonic parts, e.g. independent piano hands) are not yet covered.
-function extractMeasures(track) {
+function extractMeasures(track, terse) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
 
     return staff.bars.map(bar => ({
-        beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount))
+        beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount, terse))
     }));
 }
 
@@ -307,7 +316,7 @@ function describeTuning(staff) {
     return { summary, strings, isStandard: comparable && altered.length === 0, label: staff.tuningName || null };
 }
 
-function describeTrack(track) {
+function describeTrack(track, terse) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
 
@@ -319,11 +328,17 @@ function describeTrack(track) {
         tuningName: staff && staff.isStringed ? staff.tuningName : null,
         tuning: describeTuning(staff),
         capo: staff && staff.capo > 0 ? staff.capo : null,
-        measures: extractMeasures(track)
+        measures: extractMeasures(track, terse)
     };
 }
 
-export function extractScoreMetadata(score) {
+/**
+ * @param score an alphaTab Score
+ * @param options.terseBeats  Shorten named strums to the chord and the stroke direction, leaving
+ *   out the string range and any muted strings. For a player who already knows the shapes those
+ *   are recoverable from the name, and every beat is one line a screen reader has to read.
+ */
+export function extractScoreMetadata(score, { terseBeats = false } = {}) {
     const masterBars = score.masterBars || [];
     const firstBar = masterBars.length > 0 ? masterBars[0] : null;
 
@@ -343,6 +358,6 @@ export function extractScoreMetadata(score) {
         timeSignatureVaries,
         keySignature: firstBar ? keySignatureName(firstBar.keySignature) : null,
         keySignatureVaries,
-        tracks: (score.tracks || []).map(describeTrack)
+        tracks: (score.tracks || []).map(track => describeTrack(track, terseBeats))
     };
 }

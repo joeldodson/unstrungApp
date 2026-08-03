@@ -22,6 +22,10 @@ const tabs = [];
 let nextTabId = 1;
 let activeTabId = null;
 
+// Read at startup rather than fetched when needed: a tab can be built before the settings dialog
+// has ever been opened, and the beat descriptions have to be right the first time.
+let screenReaderSettings = { terseBeatDescriptions: false, autoCollapseOnTabChange: true };
+
 function setStatus(message) {
     statusElement.textContent = message;
 }
@@ -210,9 +214,30 @@ function createTab(fileName, contentEl, {
  * tab strip, where focus has to stay on the buttons or moving across several tabs would be
  * impossible.
  */
+/**
+ * Closes every expanded disclosure in a panel.
+ *
+ * Collapsed content is out of the accessibility tree, so this hands a screen reader back a small
+ * panel. Coming back to a tab that still has a track's measures expanded means taking in every
+ * beat again, which can leave the reader unresponsive for seconds -- and it happens even when
+ * returning to the very tab just left, since re-showing the panel is what triggers the re-read.
+ * Collapsing on the way out is what makes returning cheap.
+ */
+function collapseDisclosures(panelEl) {
+    for (const details of panelEl.querySelectorAll('details[open]')) details.open = false;
+}
+
 function activateTab(id, { focusContent = false } = {}) {
     const tab = tabs.find(t => t.id === id);
     if (!tab) return;
+
+    // Collapse before anything is shown or hidden, so the DOM settles in one pass rather than
+    // mutating a panel that a screen reader is already being pointed at.
+    if (screenReaderSettings.autoCollapseOnTabChange) {
+        for (const t of tabs) {
+            if (t.id !== id) collapseDisclosures(t.panelEl);
+        }
+    }
 
     for (const t of tabs) {
         const isActive = t.id === id;
@@ -287,6 +312,27 @@ document.addEventListener('keydown', event => {
     shiftActiveTab(event.shiftKey ? -1 : 1, { focusContent: true });
 });
 
+function buildSongMetadata(score) {
+    return extractScoreMetadata(score, { terseBeats: screenReaderSettings.terseBeatDescriptions });
+}
+
+/**
+ * Rebuilds the summary of every open song tab. Called when the beat-description setting changes,
+ * so the change is visible in files already open rather than only in the next one. Cheap enough to
+ * do outright: extracting the metadata and building the panel measure in fractions of a
+ * millisecond, and the measures themselves are still only built when a disclosure is opened.
+ */
+function rebuildOpenSongPanels() {
+    for (const tab of tabs) {
+        if (!tab.score) continue;
+        const meta = buildSongMetadata(tab.score);
+        const content = buildSummaryPanel(meta, {
+            onCreateAudioTrack: trackIndex => openAudioTrackTab(tab.score, trackIndex, tab.id)
+        });
+        tab.panelEl.replaceChildren(content);
+    }
+}
+
 function handleFileOpened({ fileName, data }) {
     let contentEl;
     let isError = false;
@@ -297,7 +343,7 @@ function handleFileOpened({ fileName, data }) {
 
     try {
         score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
-        const meta = extractScoreMetadata(score);
+        const meta = buildSongMetadata(score);
         contentEl = buildSummaryPanel(meta, {
             onCreateAudioTrack: trackIndex => openAudioTrackTab(score, trackIndex, songTabId)
         });
@@ -595,9 +641,13 @@ const directoryErrorOkButton = document.getElementById('directory-error-ok-butto
 
 let settingsDialogOpener = null;
 
+const settingsTerseBeatsCheckbox = document.getElementById('settings-terse-beats-checkbox');
+const settingsAutoCollapseCheckbox = document.getElementById('settings-auto-collapse-checkbox');
+
 const settingsTabs = [
     { id: 'general', buttonEl: document.getElementById('settings-tab-general'), panelEl: document.getElementById('settings-panel-general') },
-    { id: 'files', buttonEl: document.getElementById('settings-tab-files'), panelEl: document.getElementById('settings-panel-files') }
+    { id: 'files', buttonEl: document.getElementById('settings-tab-files'), panelEl: document.getElementById('settings-panel-files') },
+    { id: 'screenreader', buttonEl: document.getElementById('settings-tab-screenreader'), panelEl: document.getElementById('settings-panel-screenreader') }
 ];
 
 function activateSettingsTab(id) {
@@ -677,6 +727,23 @@ settingsRemoveStaleButton.addEventListener('click', async () => {
         : `Removed ${removedCount} stale file${removedCount === 1 ? '' : 's'} from the recent files list.`;
 });
 
+async function saveScreenReaderSettings() {
+    screenReaderSettings = await window.unstrung.saveScreenReaderSettings({
+        terseBeatDescriptions: settingsTerseBeatsCheckbox.checked,
+        autoCollapseOnTabChange: settingsAutoCollapseCheckbox.checked
+    });
+}
+
+settingsTerseBeatsCheckbox.addEventListener('change', async () => {
+    await saveScreenReaderSettings();
+    // Rebuilt while the dialog is up, so no focus is disturbed: the panels being replaced are
+    // behind the modal, and the user returns to them afterwards.
+    rebuildOpenSongPanels();
+});
+
+// Nothing to rebuild: this one only changes what happens on the next tab switch.
+settingsAutoCollapseCheckbox.addEventListener('change', saveScreenReaderSettings);
+
 settingsOkButton.addEventListener('click', () => settingsDialog.close());
 
 settingsDialog.addEventListener('close', () => {
@@ -690,6 +757,8 @@ async function openSettingsDialog() {
     settingsDialogOpener = document.activeElement;
     const settings = await window.unstrung.getSettings();
     settingsDirectoryInput.value = settings.defaultOpenDirectory ?? '';
+    settingsTerseBeatsCheckbox.checked = settings.terseBeatDescriptions === true;
+    settingsAutoCollapseCheckbox.checked = settings.autoCollapseOnTabChange !== false;
     settingsFilesStatusElement.textContent = '';
     activateSettingsTab('general');
     settingsDialog.showModal();
@@ -697,6 +766,16 @@ async function openSettingsDialog() {
 }
 
 window.unstrung.onSettingsOpen(openSettingsDialog);
+
+// Loaded once at startup so the first file opened is described according to the saved setting,
+// rather than needing the Settings dialog to have been visited first.
+(async () => {
+    const settings = await window.unstrung.getSettings();
+    screenReaderSettings = {
+        terseBeatDescriptions: settings.terseBeatDescriptions === true,
+        autoCollapseOnTabChange: settings.autoCollapseOnTabChange !== false
+    };
+})();
 // --- end Settings dialog ---
 // --- Chord library (Tools menu) ---
 // Lives in a tab, not a dialog. The markup comes from a <template> and is cloned into the

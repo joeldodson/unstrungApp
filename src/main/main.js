@@ -59,26 +59,89 @@ Copyright (c) ${new Date().getFullYear()} Joel Dodson
 const APP_STATE_PATH = path.join(app.getPath('userData'), 'app-state.json');
 const MAX_RECENT_FILES = 10;
 
-let appState = { recentFiles: [], defaultOpenDirectory: '' };
+// Screen reader options. Auto-collapse defaults on because leaving a tab with expanded regions
+// behind can wedge a screen reader for seconds; terse beats default off because the fuller
+// description is the more helpful one until a player knows the shapes.
+const DEFAULT_SCREEN_READER_SETTINGS = { terseBeatDescriptions: false, autoCollapseOnTabChange: true };
+
+let appState = { recentFiles: [], defaultOpenDirectory: '', ...DEFAULT_SCREEN_READER_SETTINGS };
+
+function readBoolean(value, fallback) {
+    return typeof value === 'boolean' ? value : fallback;
+}
 
 async function loadAppState() {
     try {
         const parsed = JSON.parse(await fs.readFile(APP_STATE_PATH, 'utf8'));
         return {
-            recentFiles: Array.isArray(parsed.recentFiles) ? parsed.recentFiles : [],
-            defaultOpenDirectory: typeof parsed.defaultOpenDirectory === 'string' ? parsed.defaultOpenDirectory : ''
+            // Deduped on the way in as well, to repair a list written before paths were resolved.
+            recentFiles: Array.isArray(parsed.recentFiles) ? dedupeRecentFiles(parsed.recentFiles) : [],
+            defaultOpenDirectory: typeof parsed.defaultOpenDirectory === 'string' ? parsed.defaultOpenDirectory : '',
+            // A state file written before these existed must still come back with the defaults,
+            // which for auto-collapse means true rather than the falsy reading of `undefined`.
+            terseBeatDescriptions: readBoolean(parsed.terseBeatDescriptions,
+                DEFAULT_SCREEN_READER_SETTINGS.terseBeatDescriptions),
+            autoCollapseOnTabChange: readBoolean(parsed.autoCollapseOnTabChange,
+                DEFAULT_SCREEN_READER_SETTINGS.autoCollapseOnTabChange)
         };
     } catch {
-        return { recentFiles: [], defaultOpenDirectory: '' };
+        return { recentFiles: [], defaultOpenDirectory: '', ...DEFAULT_SCREEN_READER_SETTINGS };
     }
 }
 
-async function saveAppState() {
-    await fs.writeFile(APP_STATE_PATH, JSON.stringify(appState, null, 2), 'utf8');
+// Writes are queued, and go to a temporary file that replaces the real one only once complete.
+//
+// Two saves used to be able to overlap -- ticking both Screen Reader checkboxes in quick
+// succession is enough -- and because each writeFile truncates and then writes at its own offset,
+// the longer payload could leave bytes past the end of the shorter one. That produced a state file
+// ending in a stray brace, which failed to parse and so silently discarded the recent files list
+// and every setting. Queueing makes the last save win predictably; renaming means a half-written
+// file is never the one on disk, even if the app is killed mid-write.
+let appStateWriteQueue = Promise.resolve();
+
+async function writeAppStateNow() {
+    const temporaryPath = `${APP_STATE_PATH}.tmp`;
+    await fs.writeFile(temporaryPath, JSON.stringify(appState, null, 2), 'utf8');
+    await fs.rename(temporaryPath, APP_STATE_PATH);
+}
+
+function saveAppState() {
+    const write = appStateWriteQueue.then(writeAppStateNow);
+    // The queue must survive a failed write, or one error would wedge every later save. The
+    // caller still sees the rejection.
+    appStateWriteQueue = write.catch(() => {});
+    return write;
+}
+
+/**
+ * Identity of a file for the recent files list.
+ *
+ * One file can arrive spelled more than one way: the Open dialog gives backslashes, but a path
+ * passed on the command line may well use forward slashes, and on Windows the case is not
+ * significant either. Comparing the raw strings let the same song appear twice, so paths are
+ * resolved to one form and, on Windows, compared without regard to case.
+ */
+function recentFileKey(filePath) {
+    const resolved = path.resolve(filePath);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+/** Drops repeats of the same file, keeping the first (most recent) spelling of each. */
+function dedupeRecentFiles(filePaths) {
+    const seen = new Set();
+    return filePaths.filter(filePath => {
+        const key = recentFileKey(filePath);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }
 
 async function addRecentFile(filePath) {
-    appState.recentFiles = [filePath, ...appState.recentFiles.filter(p => p !== filePath)].slice(0, MAX_RECENT_FILES);
+    // Stored resolved, so the list holds one spelling per file however it was opened.
+    const resolved = path.resolve(filePath);
+    appState.recentFiles = dedupeRecentFiles([resolved, ...appState.recentFiles])
+        .slice(0, MAX_RECENT_FILES);
     await saveAppState();
 }
 
@@ -99,7 +162,23 @@ async function pathExists(candidatePath) {
     }
 }
 
-ipcMain.handle('settings:get', () => ({ defaultOpenDirectory: appState.defaultOpenDirectory }));
+ipcMain.handle('settings:get', () => ({
+    defaultOpenDirectory: appState.defaultOpenDirectory,
+    terseBeatDescriptions: appState.terseBeatDescriptions,
+    autoCollapseOnTabChange: appState.autoCollapseOnTabChange
+}));
+
+ipcMain.handle('settings:save-screen-reader', async (_event, settings) => {
+    appState.terseBeatDescriptions = readBoolean(settings?.terseBeatDescriptions,
+        appState.terseBeatDescriptions);
+    appState.autoCollapseOnTabChange = readBoolean(settings?.autoCollapseOnTabChange,
+        appState.autoCollapseOnTabChange);
+    await saveAppState();
+    return {
+        terseBeatDescriptions: appState.terseBeatDescriptions,
+        autoCollapseOnTabChange: appState.autoCollapseOnTabChange
+    };
+});
 
 ipcMain.handle('settings:clear-recent-files', async event => {
     const removedCount = appState.recentFiles.length;

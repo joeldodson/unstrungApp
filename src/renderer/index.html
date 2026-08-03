@@ -240,6 +240,8 @@
                 aria-controls="settings-panel-general" tabindex="0">General</button>
             <button type="button" id="settings-tab-files" role="tab" aria-selected="false"
                 aria-controls="settings-panel-files" tabindex="-1">Files</button>
+            <button type="button" id="settings-tab-screenreader" role="tab" aria-selected="false"
+                aria-controls="settings-panel-screenreader" tabindex="-1">Screen Reader</button>
         </div>
 
         <section id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
@@ -259,6 +261,38 @@
             </p>
 
             <p id="settings-files-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <section id="settings-panel-screenreader" role="tabpanel"
+            aria-labelledby="settings-tab-screenreader" tabindex="0" hidden>
+            <p>
+                These settings will likely be useful if you read Unstrung with a screen reader.
+                Each one reduces how much your screen reader has to read out, so none of them
+                changes what the song is, only how much is said about it.
+            </p>
+
+            <p>
+                <input type="checkbox" id="settings-terse-beats-checkbox" />
+                <label for="settings-terse-beats-checkbox">Shorter beat descriptions</label>
+            </p>
+            <p>
+                When a beat strums a chord Unstrung can name, describe it with just the chord
+                name and the stroke direction, leaving out the range of strings and any muted
+                strings. If you already know the shapes, the name tells you those anyway. Beats
+                that have no chord name are still listed string by string, since there is nothing
+                shorter to say about them. Off by default.
+            </p>
+
+            <p>
+                <input type="checkbox" id="settings-auto-collapse-checkbox" />
+                <label for="settings-auto-collapse-checkbox">Collapse expanded sections when leaving a tab</label>
+            </p>
+            <p>
+                Close any expanded section, such as a track's measures, when you move away from
+                its tab. Coming back to a tab that still has measures expanded can leave a screen
+                reader unresponsive for several seconds while it takes in every beat again. With
+                this on, you reopen only what you want. On by default.
+            </p>
         </section>
 
         <button type="button" id="settings-ok-button">OK</button>

@@ -24,5 +24,6 @@ contextBridge.exposeInMainWorld('unstrung', {
     chooseSettingsDirectory: () => ipcRenderer.invoke('settings:choose-directory'),
     validateAndSaveSettingsDirectory: (dirPath) => ipcRenderer.invoke('settings:validate-and-save-directory', dirPath),
     clearRecentFiles: () => ipcRenderer.invoke('settings:clear-recent-files'),
-    removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files')
+    removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files'),
+    saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings)
 });
