@@ -2,7 +2,7 @@
 // JSON-serializable summary that the renderer can display. Kept free of
 // alphaTab imports and DOM access so it can also run standalone for testing.
 
-import { identifyChordFromNotes } from './musicTheory.mjs';
+import { STANDARD_TUNING_MIDI, identifyChordFromNotes, midiToPitchName } from './musicTheory.mjs';
 
 const KEY_SIGNATURE_NAMES = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
 
@@ -147,35 +147,88 @@ const RECOGNIZED_STRUM_SUFFIXES = new Set([
  *
  * Identification works from the pitches sounded, not from a stored shape, so it is indifferent to
  * how the chord is fingered: a barred B minor is named the same as any other B minor, and a
- * capo makes no difference.
+ * capo or an altered tuning makes no difference.
  *
- * Returns null, leaving the strings listed, when the beat is anything less than unambiguous:
- * - notes that do not spell a complete chord, such as three strings of a G, which is a genuine
- *   part-chord the player needs told string by string
- * - note sets that read as more than one chord, such as the open top four strings, which are
- *   equally E minor 7 and G 6
- * - a chord whose root is not the lowest note sounded, since naming an inversion plainly would
- *   misdescribe what is played
+ * Where the same notes spell a second chord as well, that reading follows in parentheses, e.g.
+ * "Em7 (G6), down stroke".
+ *
+ * Returns null, leaving the strings listed, when naming the beat would say less than the strings do:
+ * - notes that do not spell a complete chord, such as the top three strings of a G, which give
+ *   only G and B: a genuine part-chord the player needs told string by string
+ * - notes that spell only chords outside everyday use, where a name would be more work to
+ *   interpret than the frets it replaced
  * - notes listed in no consistent direction, which is not a sweep of the pick at all; naming it
  *   without a direction would invite reading it as the unmarked case, a down stroke
+ * - notes that leave a gap in the middle, skipping a string the file says nothing about. A pick
+ *   cannot cross a string without sounding it, so those notes were plucked, not strummed, and
+ *   calling them a stroke would be wrong. A string the file explicitly marks muted does not
+ *   break the run: muting a string and strumming through it is exactly how chords like these
+ *   are played, so the gap is accounted for.
  */
 function describeStrum(beat, stringCount) {
     if (beat.notes.length < 2 || !stringCount) return null;
-    if (!beat.notes.every(note =>
-        note.isStringed && !note.isDead && typeof note.realValue === 'number')) return null;
+    if (!beat.notes.every(note => note.isStringed && typeof note.realValue === 'number')) return null;
 
-    const candidates = identifyChordFromNotes(beat.notes.map(note => note.realValue))
-        .filter(candidate => RECOGNIZED_STRUM_SUFFIXES.has(candidate.suffix) && candidate.rootInBass);
-    if (candidates.length !== 1) return null;
+    // Muted strings are part of the sweep but sound no pitch, so they count towards covering
+    // the run of strings and are kept out of the chord identification.
+    const sounding = beat.notes.filter(note => !note.isDead);
+    if (sounding.length < 2) return null;
+
+    const tabString = note => stringCount - note.string + 1;
+    const covered = new Set(beat.notes.map(tabString));
+    if (covered.size !== beat.notes.length) return null;
+    if (Math.max(...covered) - Math.min(...covered) + 1 !== covered.size) return null;
+
+    // Restricted to everyday chord names: an obscure one is worse than concrete frets, since the
+    // point of naming a strum is to be quicker to take in than the strings it replaces.
+    const readings = identifyChordFromNotes(sounding.map(note => note.realValue))
+        .filter(candidate => RECOGNIZED_STRUM_SUFFIXES.has(candidate.suffix));
+    if (readings.length === 0) return null;
+
+    // Readings come ranked with root-in-bass first, so the plainest one leads. Where the same
+    // notes spell a second chord it follows in parentheses rather than being decided silently.
+    const primary = readings[0];
+    const alternative = readings.find(candidate => candidate.name !== primary.name) ?? null;
+
+    // Every name carries its own bass note, including the one in parentheses. The readings all
+    // share a bass, since it is just the lowest string sounding, but leaving it off the
+    // alternative invites reading that name as having its own root at the bottom instead.
+    // Without it at all, "Em7" would be heard as having E lowest when the file says D.
+    const withBass = reading => reading.rootInBass ? reading.name : `${reading.name}/${reading.bass}`;
+    const chordText = withBass(primary) + (alternative ? ` (${withBass(alternative)})` : '');
 
     // The order the file lists the notes in gives the direction of the sweep, the same signal
     // audio generation uses: low string to high is an up stroke, high to low a down stroke.
-    const strings = beat.notes.map(note => stringCount - note.string + 1);
+    const strings = sounding.map(tabString);
     const ascending = strings.every((s, i) => i === 0 || s > strings[i - 1]);
     const descending = strings.every((s, i) => i === 0 || s < strings[i - 1]);
     if (!ascending && !descending) return null;
 
-    return `${candidates[0].name}, ${ascending ? 'up stroke' : 'down stroke'}`;
+    // Which strings to play, which the name only implies. A chord name and its bass do narrow it
+    // down against a shape the player already knows, but the same chord is voiced in more than
+    // one position, so the run is given outright, in the order the pick travels.
+    //
+    // The strings that sound are what bound it. A muted string at either end is struck to no
+    // effect, so it is indistinguishable from not playing that string and is left unsaid: a full
+    // sweep with string 6 deadened is simply strings 1 through 5.
+    const soundingStrings = sounding.map(tabString);
+    const low = Math.min(...soundingStrings);
+    const high = Math.max(...soundingStrings);
+    const [from, to] = ascending ? [low, high] : [high, low];
+    const rangeText = high - low + 1 === 2
+        ? `strings ${from} and ${to}`
+        : `strings ${from} through ${to}`;
+
+    // Only a muted string inside the run needs reporting. There the pick has no choice but to
+    // cross it, so deadening it is deliberate work for the player, often done with a finger
+    // already fretting a neighbouring string.
+    const muted = beat.notes.filter(note => note.isDead).map(tabString)
+        .filter(stringNumber => stringNumber > low && stringNumber < high)
+        .sort((a, b) => a - b);
+    const mutedText = muted.length === 0 ? ''
+        : `, string${muted.length === 1 ? '' : 's'} ${muted.join(' and ')} muted`;
+
+    return `${chordText}, ${rangeText}, ${ascending ? 'up stroke' : 'down stroke'}${mutedText}`;
 }
 
 function describeBeat(beat, stringCount) {
@@ -214,6 +267,46 @@ function extractMeasures(track) {
     }));
 }
 
+/**
+ * What each string is actually tuned to, worked out from the pitches rather than trusting the
+ * file's label.
+ *
+ * The label is optional and frequently just absent: a file can carry a non-standard tuning with
+ * `tuningName` empty, in which case reporting the label alone says nothing is unusual when
+ * something is. Since a wrong assumption of standard tuning makes every fret number in the
+ * listing mean the wrong note, any deviation is called out explicitly and by how much.
+ */
+function describeTuning(staff) {
+    if (!staff || !staff.isStringed || !staff.tuning || staff.tuning.length === 0) return null;
+
+    const stringCount = staff.tuning.length;
+    // alphaTab orders the array highest-pitched first; strings are named the other way round.
+    const strings = [];
+    for (let tabString = stringCount; tabString >= 1; tabString--) {
+        const midi = staff.tuning[tabString - 1];
+        const standard = STANDARD_TUNING_MIDI[tabString];
+        const offset = stringCount === 6 && typeof standard === 'number' ? midi - standard : null;
+        strings.push({ string: tabString, midi, note: midiToPitchName(midi), offset });
+    }
+
+    const altered = strings.filter(s => s.offset !== null && s.offset !== 0);
+    const comparable = stringCount === 6 && strings.every(s => s.offset !== null);
+
+    const semitones = n => `${Math.abs(n)} semitone${Math.abs(n) === 1 ? '' : 's'}`;
+    let summary;
+    if (!comparable) {
+        summary = `${stringCount} strings: ` + strings.map(s => `${s.string} ${s.note}`).join(', ');
+    } else if (altered.length === 0) {
+        summary = 'Standard (E A D G B E)';
+    } else {
+        summary = strings.map(s => s.note.replace(/\d+$/, '')).join(' ') + ', non-standard: ' +
+            altered.map(s => `string ${s.string} is ${s.note}, ` +
+                `${semitones(s.offset)} ${s.offset > 0 ? 'above' : 'below'} standard`).join('; ');
+    }
+
+    return { summary, strings, isStandard: comparable && altered.length === 0, label: staff.tuningName || null };
+}
+
 function describeTrack(track) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
@@ -224,6 +317,7 @@ function describeTrack(track) {
         staffCount: track.staves ? track.staves.length : 0,
         isStringed: !!(staff && staff.isStringed),
         tuningName: staff && staff.isStringed ? staff.tuningName : null,
+        tuning: describeTuning(staff),
         capo: staff && staff.capo > 0 ? staff.capo : null,
         measures: extractMeasures(track)
     };

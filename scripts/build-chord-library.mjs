@@ -12,8 +12,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import {
-    CHORD_FORMULAS, IDENTIFY_SUFFIXES, PITCH_CLASSES, PITCH_CLASS_NAMES, QUALITY_LABELS,
-    STANDARD_TUNING_MIDI, STANDARD_TUNING_NAMES, STRING_NUMBERS,
+    CHORD_FORMULAS, FINGER_NAMES, IDENTIFY_SUFFIXES, PITCH_CLASSES, PITCH_CLASS_NAMES,
+    QUALITY_LABELS, STANDARD_TUNING_MIDI, STANDARD_TUNING_NAMES, STRING_NUMBERS,
     fretToMidi, fretSpan, parseSuffix, verifyVoicing, voicingSoundedNotes
 } from '../src/shared/musicTheory.mjs';
 
@@ -262,8 +262,6 @@ function classify(voicing, key, suffix, theory) {
 // The primary artifact for a screen-reader user: no diagram, just an explicit, ordered
 // account of every string. Strings held only by a barre are called out as such, matching
 // how a player would describe the shape out loud.
-const FINGER_NAMES = { 1: 'index finger', 2: 'middle finger', 3: 'ring finger', 4: 'little finger' };
-
 function describeVoicing(voicing) {
     const lines = [];
     for (const barre of voicing.barres) {

@@ -57,14 +57,47 @@ export function parseSuffix(suffix) {
     return { base: suffix, bass: null };
 }
 
-/** MIDI note number a given string sounds at a given fret (0 = open). */
-export function fretToMidi(stringNumber, fret) {
-    return STANDARD_TUNING_MIDI[stringNumber] + fret;
+/**
+ * MIDI note number a given string sounds at a given fret (0 = open).
+ *
+ * Defaults to standard tuning, which is what the chord library is built in. Anything working
+ * from a song file should not need this at all: alphaTab's `realValue` already accounts for
+ * both tuning and capo.
+ */
+export function fretToMidi(stringNumber, fret, tuning = STANDARD_TUNING_MIDI) {
+    return tuning[stringNumber] + fret;
 }
 
 export function midiToPitchClassName(midi) {
     return PITCH_CLASS_NAMES[((midi % 12) + 12) % 12];
 }
+
+/** Spoken names for fingers, as numbered in tablature fingering data. */
+export const FINGER_NAMES = { 1: 'index finger', 2: 'middle finger', 3: 'ring finger', 4: 'little finger' };
+
+/** Pitch class with octave, e.g. 40 -> "E2". Octaves follow the convention where middle C is C4. */
+export function midiToPitchName(midi) {
+    return `${midiToPitchClassName(midi)}${Math.floor(midi / 12) - 1}`;
+}
+
+/**
+ * Named six-string tunings, as the MIDI pitch of each open string.
+ *
+ * Only tunings a learner is likely to meet by name. Anything else a song uses still works
+ * everywhere it matters, since song handling reads pitches from the file rather than from
+ * this table; the table exists so the reverse-lookup tool can be told what the strings are
+ * when there is no file to ask.
+ */
+export const TUNINGS = [
+    { id: 'standard', name: 'Standard (E A D G B E)', midi: { 6: 40, 5: 45, 4: 50, 3: 55, 2: 59, 1: 64 } },
+    { id: 'drop-d', name: 'Drop D (D A D G B E)', midi: { 6: 38, 5: 45, 4: 50, 3: 55, 2: 59, 1: 64 } },
+    { id: 'dadgad', name: 'DADGAD (D A D G A D)', midi: { 6: 38, 5: 45, 4: 50, 3: 55, 2: 57, 1: 62 } },
+    { id: 'open-g', name: 'Open G (D G D G B D)', midi: { 6: 38, 5: 43, 4: 50, 3: 55, 2: 59, 1: 62 } },
+    { id: 'open-d', name: 'Open D (D A D F# A D)', midi: { 6: 38, 5: 45, 4: 50, 3: 54, 2: 57, 1: 62 } },
+    { id: 'open-e', name: 'Open E (E B E G# B E)', midi: { 6: 40, 5: 47, 4: 52, 3: 56, 2: 59, 1: 64 } },
+    { id: 'half-step-down', name: 'Half step down (Eb Ab Db Gb Bb Eb)', midi: { 6: 39, 5: 44, 4: 49, 3: 54, 2: 58, 1: 63 } },
+    { id: 'drop-c', name: 'Drop C (C G C F A D)', midi: { 6: 36, 5: 43, 4: 48, 3: 53, 2: 57, 1: 62 } }
+];
 
 /** Sounded strings of a voicing, lowest-pitched first, as { string, fret, midi }. */
 export function voicingSoundedNotes(voicing) {

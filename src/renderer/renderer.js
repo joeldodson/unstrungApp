@@ -1,7 +1,8 @@
 import * as alphaTab from '@coderline/alphatab';
 import { extractScoreMetadata } from '../shared/scoreMetadata.mjs';
 import {
-    STANDARD_TUNING_MIDI, STRING_NUMBERS, fretToMidi, identifyChordFromNotes, midiToPitchClassName
+    FINGER_NAMES, QUALITY_LABELS, STANDARD_TUNING_MIDI, STRING_NUMBERS, TUNINGS, fretToMidi,
+    identifyChordFromNotes, midiToPitchClassName, midiToPitchName
 } from '../shared/musicTheory.mjs';
 import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
 
@@ -81,7 +82,14 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
 
         const trackList = document.createElement('ul');
         addSummaryRow(trackList, 'Instrument', track.instrument);
-        addSummaryRow(trackList, 'Tuning', track.tuningName || 'Not applicable');
+        // The file's own tuning label is often empty even when the tuning is unusual, so the
+        // pitches decide what is reported and the label is only extra detail when it exists.
+        const tuningText = track.tuning
+            ? (track.tuning.label && !track.tuning.isStandard
+                ? `${track.tuning.label} - ${track.tuning.summary}`
+                : track.tuning.summary)
+            : 'Not applicable';
+        addSummaryRow(trackList, 'Tuning', tuningText);
         addSummaryRow(trackList, 'Capo', track.capo ? `Fret ${track.capo}` : 'None');
         container.append(trackList);
 
@@ -1427,11 +1435,34 @@ const fretsViewButton = document.getElementById('frets-view-button');
 const fretsOkButton = document.getElementById('frets-ok-button');
 const fretsSelects = new Map(STRING_NUMBERS.map(
     stringNumber => [stringNumber, document.getElementById(`frets-string-${stringNumber}`)]));
+const fretsTuningSelect = document.getElementById('frets-tuning-select');
 
 let fretsDialogOpener = null;
 let fretsIdentifiedName = null;
 
+function fretsTuning() {
+    return TUNINGS.find(t => t.id === fretsTuningSelect.value) ?? TUNINGS[0];
+}
+
+/**
+ * Names each string by the note it actually sounds open, so the labels follow the tuning
+ * instead of asserting standard. Octaves are always given: in most tunings a note letter
+ * appears on more than one string, and "String 6, D2" says which D without the reader having
+ * to work it out.
+ */
+function updateFretStringLabels() {
+    const tuning = fretsTuning();
+    for (const stringNumber of STRING_NUMBERS) {
+        const label = document.getElementById(`frets-string-${stringNumber}-label`);
+        if (label) label.textContent = `String ${stringNumber}, ${midiToPitchName(tuning.midi[stringNumber])}`;
+    }
+}
+
 function populateFretSelects() {
+    if (fretsTuningSelect.options.length === 0) {
+        for (const tuning of TUNINGS) addOption(fretsTuningSelect, tuning.id, tuning.name);
+        fretsTuningSelect.value = TUNINGS[0].id;
+    }
     for (const select of fretsSelects.values()) {
         if (select.options.length > 0) continue;
         addOption(select, '0', 'open');
@@ -1439,6 +1470,7 @@ function populateFretSelects() {
         for (let fret = 1; fret <= FRETS_MAX_FRET; fret++) addOption(select, String(fret), String(fret));
         select.value = '0';
     }
+    updateFretStringLabels();
 }
 
 /** What the selectors currently describe, as absolute frets keyed by string number. */
@@ -1471,14 +1503,35 @@ function findLibraryShapeMatches(selection) {
     return matches;
 }
 
+/**
+ * The names the chord library could be filing a theory reading under.
+ *
+ * The two describe the same chord differently when the root is not the lowest note: theory
+ * reports "Am" and separately that C is in the bass, where the library writes that as "Am/C".
+ * Without treating the slash form as the same reading, the library's own correct entry would
+ * look like a disagreement and its fingering would go uncredited.
+ */
+function libraryNamesFor(candidate) {
+    const names = [candidate.name];
+    if (!candidate.rootInBass && candidate.bass) {
+        const shorthand = candidate.suffix === 'major' ? ''
+            : candidate.suffix === 'minor' ? 'm'
+            : candidate.suffix;
+        names.push(`${candidate.root}${shorthand}/${candidate.bass}`);
+    }
+    return names;
+}
+
 function renderFretsResult() {
     const selection = currentFretSelection();
+    const tuning = fretsTuning();
+    const isStandard = tuning.id === 'standard';
     const sounded = STRING_NUMBERS
         .filter(stringNumber => selection.get(stringNumber) >= 0)
         .map(stringNumber => ({
             string: stringNumber,
             fret: selection.get(stringNumber),
-            midi: fretToMidi(stringNumber, selection.get(stringNumber))
+            midi: fretToMidi(stringNumber, selection.get(stringNumber), tuning.midi)
         }));
 
     fretsResultList.replaceChildren();
@@ -1495,42 +1548,90 @@ function renderFretsResult() {
         `Notes played: ${noteNames.join(', ')}`,
         `Strings sounding: ${sounded.length} of 6`
     ];
+    if (!isStandard) rows.push(`Tuning: ${tuning.name}`);
 
-    const shapeMatches = findLibraryShapeMatches(selection);
+    // The name always comes from the notes. The chord library is a record of which shapes are
+    // conventional and how they are fingered, not an authority on what a set of notes is called:
+    // its voicings are filed under every chord whose formula they do not contradict, so a shape
+    // can sit under a name it only partly spells, and picking the first such entry means picking
+    // by array order. Naming from pitch instead is both defensible and tuning-independent.
+    const candidates = identifyChordFromNotes(sounded.map(n => n.midi));
 
-    if (shapeMatches.length > 0) {
-        const best = shapeMatches[0];
-        fretsIdentifiedName = best.chord.name;
-        fretsResultHeading.textContent = `Identified Chord: ${best.chord.name}`;
-        rows.unshift(`${best.chord.name} - ${best.chord.quality}`);
-        rows.push(`This exact shape is in the chord library as voicing option ${best.index + 1}.`);
-        if (best.voicing.shape) rows.push(`Shape: ${best.voicing.shape}`);
-        rows.push(`Difficulty: ${CONFIDENCE_LABELS[best.voicing.confidence]}`);
-        rows.push(`Genres: ${best.chord.genres.join(', ')}`);
-        if (shapeMatches.length > 1) {
-            const others = shapeMatches.slice(1).map(m => m.chord.name).join(', ');
-            rows.push(`This shape is also filed under: ${others}`);
+    // Library shapes are frets in standard tuning, so in any other tuning the same positions
+    // sound different notes and none of this applies.
+    const shapeMatches = isStandard ? findLibraryShapeMatches(selection) : [];
+
+    // A library entry counts as agreeing only if the notes really do spell the name it is filed
+    // under. Where it agrees, everything it knows is worth having.
+    const aligned = shapeMatches.find(m =>
+        candidates.some(c => libraryNamesFor(c).includes(m.chord.name))) ?? null;
+
+    // Fingering is the exception: it describes the physical shape, which is the same whatever
+    // name the shape is filed under, so it stays useful even when the name does not agree.
+    const fingering = aligned ?? shapeMatches[0] ?? null;
+
+    if (candidates.length === 0) {
+        fretsResultHeading.textContent = 'Identified Chord: no chord matches these notes';
+        rows.push('These notes do not spell a chord Unstrung recognises.');
+        if (fingering) {
+            rows.push(`The chord library files this shape under ${fingering.chord.name}, ` +
+                'but these notes do not spell that chord completely.');
         }
-        rows.push(...best.voicing.description);
     } else {
-        // Nothing in the library has this exact shape, so work it out from the notes instead.
-        const candidates = identifyChordFromNotes(sounded.map(n => n.midi));
-        if (candidates.length === 0) {
-            fretsResultHeading.textContent = 'Identified Chord: no chord matches these notes';
-            rows.push('These notes do not spell a chord Unstrung recognises.');
+        const best = candidates[0];
+        fretsIdentifiedName = best.name;
+        fretsResultHeading.textContent = `Identified Chord: ${best.name}`;
+        // The bass note is already stated in the name, so the quality gives only the quality.
+        const quality = aligned ? baseQualityLabel(aligned.chord)
+            : (QUALITY_LABELS[best.suffix] ?? best.suffix);
+        rows.unshift(`${best.name}${best.rootInBass ? '' : `, with ${best.bass} in the bass`}` +
+            ` - ${quality}`);
+
+        if (aligned) {
+            rows.push(`This is a standard shape: chord library voicing option ${aligned.index + 1}.`);
+            if (aligned.voicing.shape) rows.push(`Shape: ${aligned.voicing.shape}`);
+            rows.push(`Difficulty: ${CONFIDENCE_LABELS[aligned.voicing.confidence]}`);
+            rows.push(`Genres: ${aligned.chord.genres.join(', ')}`);
+        } else if (fingering) {
+            // Which name the library uses is reported below, with the other filings.
+            rows.push('This shape is in the chord library, but not under a name these notes ' +
+                'spell, so it is named from the notes here.');
+        } else if (isStandard) {
+            rows.push('This shape is not in the chord library, but these notes spell it.');
         } else {
-            const best = candidates[0];
-            fretsIdentifiedName = best.name;
-            fretsResultHeading.textContent = `Identified Chord: ${best.name}`;
-            rows.unshift(`${best.name}${best.rootInBass ? '' : `, with ${best.bass} in the bass`}`);
-            rows.push('This exact shape is not in the chord library, but these notes spell it.');
-            if (candidates.length > 1) {
-                rows.push(`Could also be read as: ${candidates.slice(1, 4).map(c => c.name).join(', ')}`);
-            }
+            rows.push('The chord library lists fingerings for standard tuning only, so its ' +
+                'shapes do not apply here.');
         }
+
+        if (candidates.length > 1) {
+            rows.push(`Could also be read as: ${candidates.slice(1, 4).map(c => c.name).join(', ')}`);
+        }
+
+        // Names the library files this shape under that naming from pitch cannot produce. The
+        // useful case is a triad over a bass note outside it: identification always finds some
+        // complete formula, so it reports F G C E as Fmaj7sus2 and can never say C/F, which is
+        // how the shape is more often written. Worth having, but attributed rather than merged.
+        const otherFilings = [...new Set(shapeMatches.map(m => m.chord.name)
+            .filter(name => !candidates.some(c => libraryNamesFor(c).includes(name))))];
+        if (otherFilings.length > 0) {
+            rows.push(`The chord library also files this shape as: ${otherFilings.join(', ')}`);
+        }
+    }
+
+    if (aligned) {
+        rows.push(...aligned.voicing.description);
+    } else {
+        if (fingering) rows.push('Suggested fingering for this shape:');
         for (const stringNumber of STRING_NUMBERS) {
             const fret = selection.get(stringNumber);
-            rows.push(`String ${stringNumber}: ${fret === -1 ? 'not played' : fret === 0 ? 'open' : `fret ${fret}`}`);
+            const suggested = fingering
+                ? fingering.voicing.strings.find(s => s.string === stringNumber)
+                : null;
+            const finger = suggested && suggested.play === 'fretted' && suggested.finger
+                ? `, ${FINGER_NAMES[suggested.finger]}`
+                : '';
+            rows.push(`String ${stringNumber}: ` +
+                (fret === -1 ? 'not played' : fret === 0 ? 'open' : `fret ${fret}${finger}`));
         }
     }
 
@@ -1541,6 +1642,11 @@ function renderFretsResult() {
 for (const select of fretsSelects.values()) {
     select.addEventListener('change', renderFretsResult);
 }
+
+fretsTuningSelect.addEventListener('change', () => {
+    updateFretStringLabels();
+    renderFretsResult();
+});
 
 fretsOkButton.addEventListener('click', () => fretsDialog.close());
 
