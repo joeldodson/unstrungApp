@@ -19,6 +19,7 @@ As an electron app, unstrung should run on Windows, Mac, and Linux.
 I only have a Windows laptop though, so there is only a Windows installer in the 
 [unstrungApp github releases](https://github.com/joeldodson/unstrungApp/releases).
 See the Clone and Run section below to run from source in your environment.
+At some point there will be an installable Mac version, and maybe Linux.
 
 ## What It Does
 
@@ -67,6 +68,42 @@ You can search for a chord in the chord library and hear it strummed.
 You can look up a chord given a description of strings and frets played.
 You can even listen to the guitar samples used to generate the audio tracks.
 There will hopefully be more tools soon.
+
+## Audio Samples
+
+I didn't like the sound of simple MIDI, very basic synthesizer sound.
+I looked into options for generating more realistic sounds using MIDI passed through various tools.
+It was going to introduce more complicated dependencies though which could affect cross platform support.
+So, instead, I found real samples of guitar notes online.
+
+The samples come from
+[Black And Green Guitars](https://github.com/sfzinstruments/karoryfer.black-and-green-guitars),
+a free sample library by Karoryfer Lecolds, recorded by Brian Wood.
+It's released under CC0, so there's nothing to license and nothing to pay.
+That library covers two instruments.
+unstrung ships only the normal picking samples of the green Gretsch Anniversary from it,
+which is 430 recordings covering E2 up to D6.
+There are three volumes of each note, soft, medium and loud,
+and up to four separate recordings of the same note at the same volume.
+Striking the same string twice in a row uses a different recording each time,
+which is why repeated notes sound like someone playing rather than a sound being replayed.
+
+The upside is simply that it's a real guitar.
+Nothing is being modeled or approximated, so it sounds like a guitar without any further work.
+It also needs no plugins, no synthesizer, and no network access at runtime,
+which keeps unstrung to plain web technology and keeps it working the same way on any platform.
+
+The drawbacks are real too.
+The samples are about 266 MB, and they're committed to the repo rather than downloaded on demand,
+so cloning takes a while and the installer is much larger than the code alone would need.
+I decided that was worth it.
+A download step depends on someone else's server still being there years from now,
+and I would rather unstrung just work.
+The other limitation is range.
+Nothing below E2 exists in these samples, and a bass guitar goes a full octave lower,
+so bass tracks cannot be generated yet.
+When you try, unstrung tells you which measures it could not play instead of quietly leaving them out.
+Filling in the bass range is on the list.
 
 ## Screen Reader Settings
 

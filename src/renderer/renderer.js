@@ -2920,6 +2920,19 @@ function buildAudioTrackPanel(state) {
         ' same things.';
     extraControls.append(keysNote);
 
+    // Worth stating outright, because the consequence shows up in a different tab from the cause
+    // and looks like a bug there. Nothing in the page can turn this mode off: a mode the reader
+    // was told to enter stays entered until it is told otherwise, which is the whole point of it
+    // being a manual choice.
+    const keysModeNote = document.createElement('p');
+    keysModeNote.textContent =
+        'You turn that mode on yourself, so you have to turn it off yourself as well. Unstrung' +
+        ' cannot do it for you. If you switch tabs while it is still on, the tab you arrive at will' +
+        ' not be navigable, because your screen reader is still handing every key to Unstrung' +
+        ' instead of using them to move around the document. Turn the mode off and the new tab' +
+        ' behaves normally again.';
+    extraControls.append(keysModeNote);
+
     const keysList = document.createElement('ul');
     appendTextItems(keysList, [
         'Space - pause and resume',
