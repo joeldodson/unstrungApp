@@ -25,5 +25,9 @@ contextBridge.exposeInMainWorld('unstrung', {
     validateAndSaveSettingsDirectory: (dirPath) => ipcRenderer.invoke('settings:validate-and-save-directory', dirPath),
     clearRecentFiles: () => ipcRenderer.invoke('settings:clear-recent-files'),
     removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files'),
-    saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings)
+    saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings),
+
+    // Help documents (Help menu), built from README.md.
+    onHelpOpen: (callback) => ipcRenderer.on('help:open', (_event, payload) => callback(payload)),
+    getReadme: () => ipcRenderer.invoke('help:get-readme')
 });

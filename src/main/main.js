@@ -7,15 +7,28 @@ const OPEN_FILE_FILTERS = [
     { name: 'All files', extensions: ['*'] }
 ];
 
-const ALLOWED_EXTERNAL_URLS = [
-    'https://eyesunstrung.vip',
+const ALLOWED_EXTERNAL_URLS = new Set([
     'https://github.com/joeldodson/unstrungApp',
     'https://claude.ai',
     'https://github.com/sfzinstruments/karoryfer.black-and-green-guitars'
-];
+]);
+
+/**
+ * Allows the links that appear in a document built from README.md.
+ *
+ * The README ships inside the application, so its links are first-party content and no more
+ * trusted than the list above -- but they change as it is edited, and a hardcoded copy would
+ * quietly stop matching. Only http and https are taken, so nothing else can be turned into a
+ * launchable URL by editing prose.
+ */
+function allowUrlsFromMarkdown(markdown) {
+    for (const match of markdown.matchAll(/\]\((https?:\/\/[^)\s]+)\)/g)) {
+        ALLOWED_EXTERNAL_URLS.add(match[1]);
+    }
+}
 
 ipcMain.on('shell:open-external', (_event, url) => {
-    if (ALLOWED_EXTERNAL_URLS.includes(url)) {
+    if (ALLOWED_EXTERNAL_URLS.has(url)) {
         shell.openExternal(url);
     }
 });
@@ -42,9 +55,6 @@ Supported file formats:
   Guitar Pro: .gp, .gpx, .gp5, .gp4, .gp3
   MusicXML: .musicxml, .xml
 
-Unstrung is part of the eyesunstrung project:
-  https://eyesunstrung.vip
-
 Unstrung is free and open source software, released under the MIT
 License. Source code:
   https://github.com/joeldodson/unstrungApp
@@ -54,6 +64,21 @@ Unstrung's code is almost entirely written by Claude Code
 
 Copyright (c) ${new Date().getFullYear()} Joel Dodson
 `;
+
+// README.md is the single source for the Help documents, so what a user reads in the app is the
+// same text as on the repository page and cannot drift from it. It sits at the application root
+// both when running from source and when packaged, so one relative path serves both.
+const README_PATH = path.join(__dirname, '..', '..', 'README.md');
+
+ipcMain.handle('help:get-readme', async () => {
+    try {
+        const markdown = await fs.readFile(README_PATH, 'utf8');
+        allowUrlsFromMarkdown(markdown);
+        return { markdown };
+    } catch (error) {
+        return { markdown: null, error: error.message };
+    }
+});
 
 // --- Persisted app state: recently opened files and settings ---
 const APP_STATE_PATH = path.join(app.getPath('userData'), 'app-state.json');
@@ -482,6 +507,9 @@ function buildMenu(window) {
         {
             label: '&Help',
             submenu: [
+                { label: '&What is Unstrung…', click: () => window.webContents.send('help:open', { topic: 'what-is' }) },
+                { label: '&Feedback…', click: () => window.webContents.send('help:open', { topic: 'feedback' }) },
+                { type: 'separator' },
                 { label: '&About Unstrung', click: () => window.webContents.send('about:open', { version: app.getVersion() }) }
             ]
         }

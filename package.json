@@ -30,7 +30,8 @@
       "src/main/**/*",
       "src/renderer/**/*",
       "src/assets/**/*",
-      "package.json"
+      "package.json",
+      "README.md"
     ],
     "win": {
       "target": [

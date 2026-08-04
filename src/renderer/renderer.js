@@ -5,6 +5,7 @@ import {
     identifyChordFromNotes, midiToPitchClassName, midiToPitchName
 } from '../shared/musicTheory.mjs';
 import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
+import { markdownBodyToHtml, markdownSection } from '../shared/markdown.mjs';
 
 const statusElement = document.getElementById('status');
 const introElement = document.getElementById('intro');
@@ -16,6 +17,9 @@ const aboutDialog = document.getElementById('about-dialog');
 const aboutVersionElement = document.getElementById('about-version');
 const aboutYearElement = document.getElementById('about-year');
 const aboutOkButton = document.getElementById('about-ok-button');
+const feedbackDialog = document.getElementById('feedback-dialog');
+const feedbackBodyElement = document.getElementById('feedback-body');
+const feedbackOkButton = document.getElementById('feedback-ok-button');
 
 /** @type {{ id: number, fileName: string, buttonEl: HTMLButtonElement, panelEl: HTMLElement, score: object|undefined }[]} */
 const tabs = [];
@@ -394,6 +398,118 @@ aboutDialog.addEventListener('click', event => {
     aboutDialog.close();
     window.unstrung.openExternalLink(href);
 });
+
+// --- Help documents (Help menu) ---
+// Both are built from README.md rather than from a copy kept here, so the app and the repository
+// page can never disagree.
+//
+// "What is Unstrung" opens as a tab: it is long, has several links a reader may want to keep to
+// hand while doing something else, and a modal dialog would not allow that. Feedback is a short
+// paragraph and one link, so it is a dialog -- and people look under Help specifically for how to
+// get in touch, which is a moment for an answer, not another tab to close.
+
+const WHAT_IS_TITLE = 'What is Unstrung';
+const FEEDBACK_SECTION = 'Feedback';
+
+let readmeMarkdown = null;
+let whatIsTabId = null;
+
+/** The README source, fetched once and kept. Null if it could not be read. */
+async function loadReadme() {
+    if (readmeMarkdown === null) {
+        const { markdown } = await window.unstrung.getReadme();
+        readmeMarkdown = markdown ?? null;
+    }
+    return readmeMarkdown;
+}
+
+/** Links in help content go to the browser, never into the app window. */
+function wireHelpLinks(container, { onFollow } = {}) {
+    container.addEventListener('click', event => {
+        const link = event.target.closest('a');
+        if (!link) return;
+        event.preventDefault();
+        const href = link.href;
+        onFollow?.();
+        window.unstrung.openExternalLink(href);
+    });
+}
+
+async function openWhatIsTab() {
+    const existing = tabs.find(tab => tab.id === whatIsTabId);
+    if (existing) {
+        activateTab(existing.id, { focusContent: true });
+        setStatus(`Showing ${WHAT_IS_TITLE}.`);
+        return;
+    }
+
+    const markdown = await loadReadme();
+    if (!markdown) {
+        const message = 'Could not read the documentation.';
+        const tab = createTab(WHAT_IS_TITLE, buildErrorPanel(message), { isError: true });
+        activateTab(tab.id, { focusContent: true });
+        setStatus(message);
+        return;
+    }
+
+    const container = document.createElement('div');
+    // The document's own headings start at h2, so the tab gets one h1 to sit under, matching how
+    // every other panel is structured.
+    const heading = document.createElement('h1');
+    heading.textContent = WHAT_IS_TITLE;
+    const body = document.createElement('div');
+    body.innerHTML = markdownBodyToHtml(markdown);
+    container.append(heading, body);
+    wireHelpLinks(container);
+
+    const tab = createTab(WHAT_IS_TITLE, container, {
+        kind: 'help-what-is',
+        onClose: () => { whatIsTabId = null; }
+    });
+    whatIsTabId = tab.id;
+    activateTab(tab.id, { focusContent: true });
+    setStatus(`Opened ${WHAT_IS_TITLE}. Close it with Ctrl+W.`);
+}
+
+let feedbackDialogOpener = null;
+
+feedbackOkButton.addEventListener('click', () => feedbackDialog.close());
+
+feedbackDialog.addEventListener('close', () => {
+    if (feedbackDialogOpener && typeof feedbackDialogOpener.focus === 'function') {
+        feedbackDialogOpener.focus();
+    }
+    feedbackDialogOpener = null;
+});
+
+// Following a link dismisses the dialog first: it is modal, so leaving it up over a browser
+// window that has just taken focus would trap the keyboard here.
+wireHelpLinks(feedbackDialog, { onFollow: () => feedbackDialog.close() });
+
+async function openFeedbackDialog() {
+    const markdown = await loadReadme();
+    const section = markdown ? markdownSection(markdown, FEEDBACK_SECTION) : null;
+
+    feedbackBodyElement.replaceChildren();
+    if (section) {
+        feedbackBodyElement.innerHTML = markdownBodyToHtml(section);
+    } else {
+        const fallback = document.createElement('p');
+        fallback.textContent = 'Please open an issue at ' +
+            'https://github.com/joeldodson/unstrungApp/issues';
+        feedbackBodyElement.append(fallback);
+    }
+
+    feedbackDialogOpener = document.activeElement;
+    feedbackDialog.showModal();
+    feedbackDialog.focus();
+}
+
+window.unstrung.onHelpOpen(({ topic }) => {
+    if (topic === 'feedback') openFeedbackDialog();
+    else openWhatIsTab();
+});
+// --- end Help documents ---
 
 window.unstrung.onFileOpened(handleFileOpened);
 window.unstrung.onFileOpenError(handleFileOpenError);
