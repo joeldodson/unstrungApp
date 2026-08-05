@@ -437,7 +437,8 @@ if (gaps.length) {
 
 const library = {
     version: 1,
-    generated: new Date().toISOString().slice(0, 10),
+    // Deliberately no build date: this file is committed, and a timestamp would make it differ
+    // from its own regenerated output every day, defeating any check that it is up to date.
     source: {
         name: '@tombatossals/chords-db',
         version: require('@tombatossals/chords-db/package.json').version,

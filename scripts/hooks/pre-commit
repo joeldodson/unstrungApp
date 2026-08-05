@@ -1,0 +1,4 @@
+#!/bin/sh
+# Git runs hooks through its own bundled shell, so this stays to one line and hands straight over
+# to node. All of the logic lives in the .mjs file beside it.
+exec node scripts/hooks/pre-commit.mjs
