@@ -27,7 +27,7 @@ contextBridge.exposeInMainWorld('unstrung', {
     removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files'),
     saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings),
 
-    // Help documents (Help menu), built from README.md.
-    onHelpOpen: (callback) => ipcRenderer.on('help:open', (_event, payload) => callback(payload)),
-    getReadme: () => ipcRenderer.invoke('help:get-readme')
+    // Help documents (Help menu). The content itself is generated at build time and bundled with
+    // the renderer, so only the menu signal crosses over.
+    onHelpOpen: (callback) => ipcRenderer.on('help:open', (_event, payload) => callback(payload))
 });

@@ -8,9 +8,10 @@
   "scripts": {
     "build:renderer": "esbuild src/renderer/renderer.js --bundle --outfile=src/renderer/bundle.js --platform=browser --format=iife",
     "build:chords": "node scripts/build-chord-library.mjs",
+    "build:help": "node scripts/build-help.mjs",
     "start": "npm run build:renderer && electron .",
     "postinstall": "npm run build:renderer",
-    "dist": "npm run build:renderer && electron-builder --win nsis portable"
+    "dist": "npm run build:help && npm run build:renderer && electron-builder --win nsis portable"
   },
   "devDependencies": {
     "@coderline/alphatab": "^1.8.4",
@@ -30,8 +31,7 @@
       "src/main/**/*",
       "src/renderer/**/*",
       "src/assets/**/*",
-      "package.json",
-      "README.md"
+      "package.json"
     ],
     "win": {
       "target": [

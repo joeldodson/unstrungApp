@@ -138,15 +138,18 @@ export function markdownToHtml(markdown, { headingOffset = 1 } = {}) {
 }
 
 /**
- * Renders a document that is going to be displayed under a heading of its own, such as a tab
+ * Renders a document that is going to be displayed under a heading of its own, such as a dialog
  * whose title already names it.
  *
  * The source's own opening heading is dropped, because the surrounding heading says the same
  * thing -- for a single section that means literally the same word twice over. What is left is
- * then shifted so its shallowest heading becomes an h2, which keeps the levels contiguous under
- * the h1 instead of jumping straight to h3 and leaving a gap.
+ * then shifted so its shallowest heading lands at `startLevel`, which keeps the levels contiguous
+ * beneath the surrounding one instead of skipping a level and leaving a gap.
+ *
+ * @param options.startLevel  the level the outermost remaining heading should become. A dialog
+ *   titled with an h2 wants 3; a panel titled with an h1 wants 2.
  */
-export function markdownBodyToHtml(markdown) {
+export function markdownBodyToHtml(markdown, { startLevel = 2 } = {}) {
     const lines = markdown.replace(/\r\n/g, '\n').split('\n');
 
     let start = 0;
@@ -155,9 +158,9 @@ export function markdownBodyToHtml(markdown) {
 
     const body = lines.slice(start);
     const levels = body.map(line => HEADING.exec(line)).filter(Boolean).map(match => match[1].length);
-    const shallowest = levels.length > 0 ? Math.min(...levels) : 2;
+    const shallowest = levels.length > 0 ? Math.min(...levels) : startLevel;
 
-    return markdownToHtml(body.join('\n').trim(), { headingOffset: 2 - shallowest });
+    return markdownToHtml(body.join('\n').trim(), { headingOffset: startLevel - shallowest });
 }
 
 /**

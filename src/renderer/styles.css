@@ -70,7 +70,10 @@ body {
 #about-dialog,
 #guitar-samples-dialog,
 #settings-dialog,
-#directory-error-dialog {
+#directory-error-dialog,
+#feedback-dialog,
+#what-is-dialog,
+#screen-reader-dialog {
     max-width: 32rem;
     padding: 1.5rem;
     border: 1px solid #333;
@@ -79,17 +82,45 @@ body {
 #about-dialog::backdrop,
 #guitar-samples-dialog::backdrop,
 #settings-dialog::backdrop,
-#directory-error-dialog::backdrop {
+#directory-error-dialog::backdrop,
+#feedback-dialog::backdrop,
+#what-is-dialog::backdrop,
+#screen-reader-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
 }
 
 #about-dialog button,
 #guitar-samples-dialog button,
 #settings-dialog button,
-#directory-error-dialog button {
+#directory-error-dialog button,
+#feedback-dialog button,
+#what-is-dialog button,
+#screen-reader-dialog button {
     font-size: 1rem;
     padding: 0.4rem 1.5rem;
     margin-top: 0.5rem;
+}
+
+/* This one holds a whole document, so it needs a ceiling and its own scrolling rather than growing
+   past the window. The OK button stays outside the scrolling part, so it does not have to be
+   scrolled to.
+
+   The [open] qualifier is essential and not decoration: a closed <dialog> is hidden by the
+   browser's own `display: none`, so setting `display` unconditionally overrides that and leaves the
+   dialog laid out in the page permanently, where nothing can dismiss it because it was never
+   modally open in the first place. */
+#what-is-dialog[open],
+#screen-reader-dialog[open] {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#what-is-body,
+#screen-reader-body {
+    overflow-y: auto;
+    /* Keeps a keyboard focus ring from being clipped against the scrolling edge. */
+    padding: 0 0.25rem;
 }
 
 #chords-search-input {

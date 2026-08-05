@@ -5,7 +5,7 @@ import {
     identifyChordFromNotes, midiToPitchClassName, midiToPitchName
 } from '../shared/musicTheory.mjs';
 import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
-import { markdownBodyToHtml, markdownSection } from '../shared/markdown.mjs';
+import helpContent from '../assets/help/help-content.json';
 
 const statusElement = document.getElementById('status');
 const introElement = document.getElementById('intro');
@@ -17,6 +17,12 @@ const aboutDialog = document.getElementById('about-dialog');
 const aboutVersionElement = document.getElementById('about-version');
 const aboutYearElement = document.getElementById('about-year');
 const aboutOkButton = document.getElementById('about-ok-button');
+const whatIsDialog = document.getElementById('what-is-dialog');
+const whatIsBodyElement = document.getElementById('what-is-body');
+const whatIsOkButton = document.getElementById('what-is-ok-button');
+const screenReaderDialog = document.getElementById('screen-reader-dialog');
+const screenReaderBodyElement = document.getElementById('screen-reader-body');
+const screenReaderOkButton = document.getElementById('screen-reader-ok-button');
 const feedbackDialog = document.getElementById('feedback-dialog');
 const feedbackBodyElement = document.getElementById('feedback-body');
 const feedbackOkButton = document.getElementById('feedback-ok-button');
@@ -400,115 +406,57 @@ aboutDialog.addEventListener('click', event => {
 });
 
 // --- Help documents (Help menu) ---
-// Both are built from README.md rather than from a copy kept here, so the app and the repository
-// page can never disagree.
+// The content is generated from README.md at build time by scripts/build-help.mjs and bundled here,
+// so a copy of the app shows the README as it stood when that copy was built. The file in the
+// repository moves on independently; editing it changes nothing here until `npm run build:help` is
+// run, which keeps a release and its documentation in step.
 //
-// "What is Unstrung" opens as a tab: it is long, has several links a reader may want to keep to
-// hand while doing something else, and a modal dialog would not allow that. Feedback is a short
-// paragraph and one link, so it is a dialog -- and people look under Help specifically for how to
-// get in touch, which is a moment for an answer, not another tab to close.
+// All of them are dialogs. A tab was tried for the long one, but a tab persists, and a panel holding
+// a whole document costs a screen reader time on every visit to it -- the same reason a track's
+// measures sit behind a disclosure. A dialog is read and dismissed, so the cost is paid once and
+// nothing is left behind among the song and playback tabs.
 
-const WHAT_IS_TITLE = 'What is Unstrung';
-const FEEDBACK_SECTION = 'Feedback';
+const HELP_DIALOGS = {
+    'what-is': { dialog: whatIsDialog, body: whatIsBodyElement, ok: whatIsOkButton, html: 'whatIsHtml' },
+    'screen-reader': { dialog: screenReaderDialog, body: screenReaderBodyElement, ok: screenReaderOkButton, html: 'screenReaderHtml' },
+    feedback: { dialog: feedbackDialog, body: feedbackBodyElement, ok: feedbackOkButton, html: 'feedbackHtml' }
+};
 
-let readmeMarkdown = null;
-let whatIsTabId = null;
+let helpDialogOpener = null;
 
-/** The README source, fetched once and kept. Null if it could not be read. */
-async function loadReadme() {
-    if (readmeMarkdown === null) {
-        const { markdown } = await window.unstrung.getReadme();
-        readmeMarkdown = markdown ?? null;
-    }
-    return readmeMarkdown;
-}
+for (const spec of Object.values(HELP_DIALOGS)) {
+    spec.ok.addEventListener('click', () => spec.dialog.close());
 
-/** Links in help content go to the browser, never into the app window. */
-function wireHelpLinks(container, { onFollow } = {}) {
-    container.addEventListener('click', event => {
+    spec.dialog.addEventListener('close', () => {
+        if (helpDialogOpener && typeof helpDialogOpener.focus === 'function') helpDialogOpener.focus();
+        helpDialogOpener = null;
+    });
+
+    // Following a link dismisses the dialog: it is modal, so leaving it up over a browser window
+    // that has just taken focus would trap the keyboard here. Escape closes it too, from <dialog>.
+    spec.dialog.addEventListener('click', event => {
         const link = event.target.closest('a');
         if (!link) return;
         event.preventDefault();
         const href = link.href;
-        onFollow?.();
+        spec.dialog.close();
         window.unstrung.openExternalLink(href);
     });
 }
 
-async function openWhatIsTab() {
-    const existing = tabs.find(tab => tab.id === whatIsTabId);
-    if (existing) {
-        activateTab(existing.id, { focusContent: true });
-        setStatus(`Showing ${WHAT_IS_TITLE}.`);
-        return;
+function openHelpDialog(topic) {
+    const spec = HELP_DIALOGS[topic] ?? HELP_DIALOGS['what-is'];
+    // Filled once, on first opening: the content is fixed at build time and cannot change while
+    // the app is running.
+    if (spec.body.childElementCount === 0) {
+        spec.body.innerHTML = helpContent[spec.html] ?? '';
     }
-
-    const markdown = await loadReadme();
-    if (!markdown) {
-        const message = 'Could not read the documentation.';
-        const tab = createTab(WHAT_IS_TITLE, buildErrorPanel(message), { isError: true });
-        activateTab(tab.id, { focusContent: true });
-        setStatus(message);
-        return;
-    }
-
-    const container = document.createElement('div');
-    // The document's own headings start at h2, so the tab gets one h1 to sit under, matching how
-    // every other panel is structured.
-    const heading = document.createElement('h1');
-    heading.textContent = WHAT_IS_TITLE;
-    const body = document.createElement('div');
-    body.innerHTML = markdownBodyToHtml(markdown);
-    container.append(heading, body);
-    wireHelpLinks(container);
-
-    const tab = createTab(WHAT_IS_TITLE, container, {
-        kind: 'help-what-is',
-        onClose: () => { whatIsTabId = null; }
-    });
-    whatIsTabId = tab.id;
-    activateTab(tab.id, { focusContent: true });
-    setStatus(`Opened ${WHAT_IS_TITLE}. Close it with Ctrl+W.`);
+    helpDialogOpener = document.activeElement;
+    spec.dialog.showModal();
+    spec.dialog.focus();
 }
 
-let feedbackDialogOpener = null;
-
-feedbackOkButton.addEventListener('click', () => feedbackDialog.close());
-
-feedbackDialog.addEventListener('close', () => {
-    if (feedbackDialogOpener && typeof feedbackDialogOpener.focus === 'function') {
-        feedbackDialogOpener.focus();
-    }
-    feedbackDialogOpener = null;
-});
-
-// Following a link dismisses the dialog first: it is modal, so leaving it up over a browser
-// window that has just taken focus would trap the keyboard here.
-wireHelpLinks(feedbackDialog, { onFollow: () => feedbackDialog.close() });
-
-async function openFeedbackDialog() {
-    const markdown = await loadReadme();
-    const section = markdown ? markdownSection(markdown, FEEDBACK_SECTION) : null;
-
-    feedbackBodyElement.replaceChildren();
-    if (section) {
-        feedbackBodyElement.innerHTML = markdownBodyToHtml(section);
-    } else {
-        const fallback = document.createElement('p');
-        fallback.textContent = 'Please open an issue at ' +
-            'https://github.com/joeldodson/unstrungApp/issues';
-        feedbackBodyElement.append(fallback);
-    }
-
-    feedbackDialogOpener = document.activeElement;
-    feedbackDialog.showModal();
-    feedbackDialog.focus();
-}
-
-window.unstrung.onHelpOpen(({ topic }) => {
-    if (topic === 'feedback') openFeedbackDialog();
-    else openWhatIsTab();
-});
+window.unstrung.onHelpOpen(({ topic }) => openHelpDialog(topic));
 // --- end Help documents ---
 
 window.unstrung.onFileOpened(handleFileOpened);
@@ -2054,13 +2002,39 @@ function metronomeClickBuffer(accent) {
 /**
  * One measure of clicks before the music, the way a band counts itself in.
  *
- * Only for the first time through: repeats of a selection join without it, and resuming from a
- * pause or landing on a measure mid-song plays straight away.
+ * For the first time through, and for later repeats only if asked. Resuming from a pause or landing
+ * on a measure mid-song always plays straight away.
+ *
+ * The metronome decides this outright: with no clicks running, a silent measure of waiting before
+ * the music would be a delay with nothing to show for it.
  */
 function audioTrackLeadInSeconds(state, fromSeconds, countIn) {
     if (!state.metronome || !countIn) return 0;
     const bar = state.audioTrack.bars[measureIndexAt(state, fromSeconds)];
     return bar ? bar.endSeconds - bar.startSeconds : 0;
+}
+
+/**
+ * Schedules the clicks of one count-in measure, shaped like the measure about to be played, and
+ * returns how long it lasts.
+ *
+ * Returns 0 without scheduling anything when there should be no count-in, so a caller can add the
+ * result to its cursor either way.
+ */
+function scheduleAudioTrackCountIn(state, destination, atContextTime, forSeconds, wanted) {
+    const seconds = audioTrackLeadInSeconds(state, forSeconds, wanted);
+    if (seconds <= 0) return 0;
+
+    const context = getSharedAudioContext();
+    const bar = state.audioTrack.bars[measureIndexAt(state, forSeconds)];
+    for (const beatSeconds of bar.beats) {
+        const offset = beatSeconds - bar.startSeconds;
+        audioTrackSources.push({
+            source: scheduleMetronomeClick(context, destination, atContextTime + offset, offset === 0),
+            endsAt: atContextTime + offset + METRONOME_CLICK_SECONDS
+        });
+    }
+    return seconds;
 }
 
 function scheduleMetronomeClick(context, destination, when, accent) {
@@ -2111,41 +2085,62 @@ function remainingPassesAfter(state, passNumber) {
  * When the selection repeats, elapsed time past the end of the selection wraps back to its
  * start, so the reported position always lies inside the selected measures.
  */
-function audioTrackPosition(state) {
+/**
+ * Where playback has reached, and which play-through of the selection it is on, starting at 1.
+ *
+ * Both come from one walk over the timeline, because they are the same question asked twice and
+ * working them out separately invites the two answers disagreeing.
+ *
+ * A count-in occupies context time without advancing music time, so once repeats can be counted in,
+ * the cycle a wrap consumes is the selection plus that count-in. Leaving that out would push the
+ * reported position further ahead of what is actually sounding with every repeat. Where there is no
+ * count-in the lead is zero and this reduces to plain elapsed time, as it was before.
+ */
+function audioTrackTimeline(state) {
     if (!state.playing || state.anchorContextTime === null || !sharedAudioContext) {
-        return state.anchorSeconds;
+        return { position: state.anchorSeconds, pass: state.anchorPass };
     }
+
     const range = audioTrackRange(state);
     const passDuration = range.endSeconds - range.startSeconds;
     const elapsed = sharedAudioContext.currentTime - state.anchorContextTime;
-    if (elapsed <= 0) return state.anchorSeconds; // still inside the count-in
-
-    const position = state.anchorSeconds + elapsed;
-    if (position < range.endSeconds || passDuration <= 0) return position;
-
-    const over = position - range.endSeconds;
-    const wraps = 1 + Math.floor(over / passDuration);
-    if (wraps > remainingPassesAfter(state, state.anchorPass)) {
-        return range.endSeconds; // past the final pass; the finish timer lands shortly
+    // Still inside the count-in: the music has not started.
+    if (elapsed <= 0) return { position: state.anchorSeconds, pass: state.anchorPass };
+    if (passDuration <= 0) {
+        return { position: state.anchorSeconds + elapsed, pass: state.anchorPass };
     }
-    return range.startSeconds + (over - (wraps - 1) * passDuration);
+
+    const cap = pass => (state.repeatCount === 0 ? pass : Math.min(pass, state.repeatCount));
+
+    // The first leg is short when playback began part way into the selection.
+    const firstLeg = range.endSeconds - state.anchorSeconds;
+    if (elapsed < firstLeg) {
+        return { position: state.anchorSeconds + elapsed, pass: state.anchorPass };
+    }
+
+    const lead = audioTrackLeadInSeconds(state, range.startSeconds, state.countInEachPass);
+    const cycle = passDuration + lead;
+    const since = elapsed - firstLeg;
+    const wraps = 1 + Math.floor(since / cycle);
+    const pass = cap(state.anchorPass + wraps);
+
+    if (wraps > remainingPassesAfter(state, state.anchorPass)) {
+        // Past the final pass; the finish timer lands shortly.
+        return { position: range.endSeconds, pass };
+    }
+
+    const within = since - (wraps - 1) * cycle;
+    // Inside a repeat's count-in, waiting at the top of the selection.
+    if (within < lead) return { position: range.startSeconds, pass };
+    return { position: range.startSeconds + (within - lead), pass };
 }
 
-/** Which play-through of the selection we are on right now, starting at 1. */
-function currentPassAt(state) {
-    if (!state.playing || state.anchorContextTime === null || !sharedAudioContext) {
-        return state.anchorPass;
-    }
-    const range = audioTrackRange(state);
-    const passDuration = range.endSeconds - range.startSeconds;
-    const elapsed = sharedAudioContext.currentTime - state.anchorContextTime;
-    if (elapsed <= 0 || passDuration <= 0) return state.anchorPass;
+function audioTrackPosition(state) {
+    return audioTrackTimeline(state).position;
+}
 
-    const position = state.anchorSeconds + elapsed;
-    if (position < range.endSeconds) return state.anchorPass;
-    const wraps = 1 + Math.floor((position - range.endSeconds) / passDuration);
-    const pass = state.anchorPass + wraps;
-    return state.repeatCount === 0 ? pass : Math.min(pass, state.repeatCount);
+function currentPassAt(state) {
+    return audioTrackTimeline(state).pass;
 }
 
 /** Zero-based index of the measure containing a position. */
@@ -2318,6 +2313,13 @@ function audioTrackTopUp(state, myToken) {
             }
             sched.pass += 1;
             sched.cursorSeconds = range.startSeconds;
+
+            // A repeat is counted in only when asked for, and only with the metronome running.
+            // Read now rather than when playback started, so ticking the box mid-loop takes effect
+            // from the next repeat instead of needing the track rebuilt.
+            sched.cursorContext += scheduleAudioTrackCountIn(
+                state, audioTrackMasterGain, sched.cursorContext, range.startSeconds,
+                state.countInEachPass);
         }
     }
 
@@ -2345,20 +2347,8 @@ function startAudioTrackPlayback(state, fromSeconds, { countIn = false } = {}) {
     audioTrackMasterGain = masterGain;
     audioTrackSources = [];
 
-    const leadIn = countIn ? audioTrackLeadInSeconds(state, from, true) : 0;
     const contextStart = context.currentTime + 0.12;
-
-    if (leadIn > 0) {
-        // One count-in measure of clicks, shaped like the measure we are about to play.
-        const countInBar = state.audioTrack.bars[measureIndexAt(state, from)];
-        for (const beatSeconds of countInBar.beats) {
-            const offset = beatSeconds - countInBar.startSeconds;
-            audioTrackSources.push({
-                source: scheduleMetronomeClick(context, masterGain, contextStart + offset, offset === 0),
-                endsAt: contextStart + offset + METRONOME_CLICK_SECONDS
-            });
-        }
-    }
+    const leadIn = scheduleAudioTrackCountIn(state, masterGain, contextStart, from, countIn);
 
     state.scheduler = {
         pass: state.anchorPass,
@@ -2841,6 +2831,21 @@ function buildAudioTrackPanel(state) {
     repeatParagraph.append(repeatLabel, repeatInput);
     measuresDetails.append(repeatParagraph);
 
+    // Only ever relevant to a selection that repeats, so it belongs in here with the repeat count
+    // rather than beside the metronome. The metronome itself still decides whether any clicks
+    // happen at all; this only says whether a repeat gets counted in like the first pass did.
+    const countInEachPassParagraph = document.createElement('p');
+    const countInEachPassCheckbox = document.createElement('input');
+    countInEachPassCheckbox.type = 'checkbox';
+    countInEachPassCheckbox.id = 'audio-track-count-in-each-pass-checkbox';
+    countInEachPassCheckbox.checked = state.countInEachPass;
+    const countInEachPassLabel = document.createElement('label');
+    countInEachPassLabel.htmlFor = countInEachPassCheckbox.id;
+    countInEachPassLabel.textContent =
+        'Count in before every repeat, not just the first time through. Needs the metronome on.';
+    countInEachPassParagraph.append(countInEachPassCheckbox, countInEachPassLabel);
+    measuresDetails.append(countInEachPassParagraph);
+
     container.append(measuresDetails);
 
     const metronomeParagraph = document.createElement('p');
@@ -2963,8 +2968,8 @@ function buildAudioTrackPanel(state) {
     container.append(status);
 
     state.ui = {
-        tempoInput, metronomeCheckbox, createButton, playButton, error, extraControls,
-        firstInput, lastInput, repeatInput, measuresSummary,
+        tempoInput, metronomeCheckbox, countInEachPassCheckbox, createButton, playButton, error,
+        extraControls, firstInput, lastInput, repeatInput, measuresSummary,
         status, announce, summary, transportButtons
     };
     refreshAudioTrackSummary(state);
@@ -2972,6 +2977,18 @@ function buildAudioTrackPanel(state) {
 
     metronomeCheckbox.addEventListener('change', () =>
         setAudioTrackMetronome(state, metronomeCheckbox.checked));
+
+    // Re-anchors while playing, the same way the metronome does. Repeats are already scheduled
+    // ahead, and the reported position is worked out from how long a repeat takes, so leaving the
+    // old schedule running under the new setting would put the two out of step.
+    countInEachPassCheckbox.addEventListener('change', () => {
+        state.countInEachPass = countInEachPassCheckbox.checked;
+        if (state.playing) {
+            const position = audioTrackPosition(state);
+            pauseAudioTrackPlayback(state);
+            startAudioTrackPlayback(state, position);
+        }
+    });
 
     // Committing on change rather than on every keystroke: a number field fires input for each
     // digit typed, and rebuilding the timeline mid-number would be wasted work.
@@ -3022,6 +3039,9 @@ function openAudioTrackTab(score, trackIndex, songTabId) {
         anchorContextTime: null,
         metronome: false,
         countInArmed: false,
+        // Off by default: a count-in before every repeat is occasionally wanted, but it interrupts
+        // a loop being used to drill a phrase, which is the usual reason for looping at all.
+        countInEachPass: false,
         // Which measures play, how many times, and which play-through we are on.
         firstMeasure: 1,
         lastMeasure: 1,

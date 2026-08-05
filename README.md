@@ -12,11 +12,11 @@ It is free and open source software, released under the MIT License.
 I am totally blind and use NVDA on Windows 11.
 You'll hear lots of references to browse and focus modes and single letter navigation in HTML documents.
 I think that maps directly to slightly different terms in other screen readers.
-In short, focus mode is when input goes to the element with system focus, e.g., text input field.
+In short, focus mode is when keyboard input goes to the element with system focus, e.g., text input field.
 Browse mode is when NVDA is getting the keyboard input and performing functions like single letter navigation.
 
 As an electron app, unstrung should run on Windows, Mac, and Linux.
-I only have a Windows laptop though, so there is only a Windows installer in the 
+I only have a Windows laptop though, so there is only a Windows installer in the
 [unstrungApp github releases](https://github.com/joeldodson/unstrungApp/releases).
 See the Clone and Run section below to run from source in your environment.
 At some point there will be an installable Mac version, and maybe Linux.
@@ -104,6 +104,81 @@ Nothing below E2 exists in these samples, and a bass guitar goes a full octave l
 so bass tracks cannot be generated yet.
 When you try, unstrung tells you which measures it could not play instead of quietly leaving them out.
 Filling in the bass range is on the list.
+
+## Screen Reader Users
+
+unstrung was written entirely by Claude, directed by a blind developer working with NVDA on Windows 11.
+I chose Electron largely for accessibility we already get from web technologies.
+There are some limitations though which are very difficult to work around.
+In those cases, I've opted for a slightly less usable experience than to try and hack together a work around almost certain to confuse.
+I'm thinking specifically of manually toggling into focus mode and forgetting to toggle out.
+It can result in confusion itself, I've tried to call that out in certain areas.
+
+There are short notes and hints all through the app explaining what a particular control does.
+I know a line of text sitting immediately after a control is easy to miss.
+When you first look around unstrung, take your time and read through a whole page rather than tabbing from control to control.
+Move around with arrows, or ctrl+arrows to ensure you hear everything as you're exploring.
+
+### Settings for screen reader users
+
+The Settings dialog, reached from the File menu, has a tab called Screen Reader.
+It holds a few settings with defaults chosen for newer users in mind.
+Each has a paragraph beneath it saying what it does and why you might want to change it, read the whole tab rather than only the checkbox labels.
+
+### Single key playback control needs focus mode
+
+Once you have generated an audio track, you can control playback with single arrow and letter keys.
+For those keys to reach unstrung, your screen reader has to be in the mode where keyboard input goes straight to the application.
+In NVDA that is focus mode, and the NVDA key with the spacebar toggles it.
+
+Normally a screen reader moves in and out of that mode by itself, based on whether you have landed on something that takes typed input.
+Nothing here is a form field, so it will not switch for you.
+You have to turn focus mode on yourself, and that also means it will not turn itself off again.
+While I was testing I kept catching myself out this way.
+I would switch to focus mode to try the playback keys, then press control with the tab key to go to another tab.
+I would arrive at the tab but be unable to navigate it, until I remembered I was still in focus mode and switched back to browse mode.
+If a tab suddenly seems unresponsive, that is almost certainly why.
+
+Which key does what is written on the audio playback tab itself, in a list under a level 3 heading called "Keyboard control".
+Navigating that tab by headings will get you there.
+It only appears once a track has been generated successfully and is ready to play.
+There are buttons for moving around the track as well, so nothing is keyboard only.
+The keys go further than the buttons though: they also tell you where you are, toggle the metronome, and nudge the tempo without you having to leave your place.
+
+### Getting around
+
+Each file you open gets its own tab, and so does each audio track you generate.
+Control with the tab key moves forward through the tabs, adding shift moves back, and control with W closes the current one.
+Control with T opens a file which results in a new tab for that file.
+
+Inside a song tab, headings are the fastest way around: the song summary, then a heading per track, with that track's details beneath it.
+A track's measures sit behind a collapsed disclosure called "Measures", with the number of them in the name.
+That is deliberate.
+A song can run to hundreds of lines of beat descriptions, and leaving them all exposed made entering the tab slow enough to be painful.
+Expand it when you want the detail, and the Screen Reader settings tab has an option to collapse it again for you when you leave the tab.
+
+The last thing on the page is a status line.
+It is a live region, so your screen reader reads it out when it changes, without you going looking for it.
+Because it also sits last in reading order, you can navigate to the end of the page to read it again if a message went by while you were busy.
+
+### The chord tools
+
+The chord library's search field is a combo box rather than a plain text box.
+Type part of a chord name and a list of matching names appears below it.
+The down and up arrow keys move through that list, enter accepts the highlighted one, and escape closes the list and leaves what you typed alone.
+Pressing tab also closes the list and carries on to the next control, the way a combo box normally behaves.
+
+Once you've tabbed away from the search combo box, any matching search results are below as a list of check boxes.
+By default, the box for the shortest match is checked and its most common voicing (fingering) is checked.
+You can check other chords and other fingerings to have more than one chord played.
+If there is no fingering known to unstrung, there is no checkbox to play the chord.
+There is a collapsed region though with metadata for the chord.
+
+Frets to Chord works the other way around, from specifying strings and frets to the name of the chord.
+There is a tuning selector at the top of that dialog.
+It matters more than it looks: change the tuning and the same fret positions become different notes, so the answer changes with it.
+The chord library itself only holds fingerings for standard tuning.
+In any other tuning, Frets to Chord still names the chord correctly from the notes, but it will tell you plainly that the stored fingerings do not apply.
 
 ## Screen Reader Settings
 

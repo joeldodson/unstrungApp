@@ -32,6 +32,31 @@
         <p id="status" role="status" aria-live="polite"></p>
     </main>
 
+    <dialog id="what-is-dialog" aria-labelledby="what-is-dialog-heading" tabindex="-1">
+        <h2 id="what-is-dialog-heading">What is Unstrung</h2>
+
+        <p>
+            The text below can also be read at
+            <a href="https://github.com/joeldodson/unstrungApp/blob/main/README.md">the README file
+            in the GitHub repo</a>.
+        </p>
+
+        <!-- Filled from README.md each time the dialog opens, so an edited README shows here
+             without the app being rebuilt. -->
+        <div id="what-is-body"></div>
+
+        <button type="button" id="what-is-ok-button">OK</button>
+    </dialog>
+
+    <dialog id="screen-reader-dialog" aria-labelledby="screen-reader-dialog-heading" tabindex="-1">
+        <h2 id="screen-reader-dialog-heading">Screen Reader Users</h2>
+
+        <!-- Filled from the Screen Reader Users section of README.md, generated at build time. -->
+        <div id="screen-reader-body"></div>
+
+        <button type="button" id="screen-reader-ok-button">OK</button>
+    </dialog>
+
     <dialog id="feedback-dialog" aria-labelledby="feedback-dialog-heading" tabindex="-1">
         <h2 id="feedback-dialog-heading">Feedback</h2>
 
