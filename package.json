@@ -1,6 +1,6 @@
 {
   "name": "unstrung",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Accessible, screen-reader-friendly viewer for song composition files (Guitar Pro and similar formats).",
   "private": true,
   "author": "Joel Dodson",
