@@ -411,8 +411,9 @@ for (const rootName of PITCH_CLASS_NAMES) {
             genres: genresFor(suffix),
             confidence: 'unfingered',
             notes,
-            voicings: [],
-            fingeringNote: 'Fingering unknown at this time.'
+            // An empty voicings array is what marks the chord as unfingered; the wording shown for
+            // it belongs to the renderer, not to the data.
+            voicings: []
         });
         unfingered.push(displayName(rootName, suffix));
     }

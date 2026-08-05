@@ -47,7 +47,20 @@ export const QUALITY_LABELS = {
     9: 'dominant 9th', maj9: 'major 9th', m9: 'minor 9th',
     add9: 'added 9th', madd9: 'minor added 9th', mmaj7: 'minor major 7th',
     add11: 'added 11th', maj7sus2: 'major 7th, suspended 2nd',
-    sus2sus4: 'suspended 2nd and 4th'
+    sus2sus4: 'suspended 2nd and 4th',
+    // Every remaining suffix the identifier can produce. Without an entry the raw suffix is shown
+    // instead, which reads as "C#11 - 11" and tells a learner nothing.
+    '7sus4': 'dominant 7th, suspended 4th',
+    '7b5': 'dominant 7th, flat 5th', '7b9': 'dominant 7th, flat 9th',
+    '7#9': 'dominant 7th, sharp 9th',
+    aug7: 'augmented 7th', aug9: 'augmented 9th',
+    '9b5': 'dominant 9th, flat 5th', '9#11': 'dominant 9th, sharp 11th',
+    11: 'dominant 11th', m11: 'minor 11th', maj11: 'major 11th',
+    13: 'dominant 13th', maj13: 'major 13th',
+    69: '6th with added 9th', m69: 'minor 6th with added 9th',
+    'maj7b5': 'major 7th, flat 5th', 'maj7#5': 'major 7th, sharp 5th',
+    mmaj9: 'minor major 9th', mmaj11: 'minor major 11th',
+    'mmaj7b5': 'minor major 7th, flat 5th'
 };
 
 /** Splits "m9/Ab" into { base: "m9", bass: "Ab" }. A bare "/G" means a major chord. */

@@ -12,6 +12,24 @@ const OPEN_FILE_FILTERS = [
 // record of which URLs those documents offer.
 const helpContent = require('../assets/help/help-content.json');
 
+/**
+ * A URL reduced to one spelling, so the allowlist compares like with like.
+ *
+ * A link written as "https://claude.ai" is reported by the DOM as "https://claude.ai/": a bare
+ * domain gains a trailing slash, while anything with a path does not. Comparing the raw strings
+ * therefore rejected exactly the links written without a path, and rejected them silently -- the
+ * dialog closed and nothing opened. Anything that is not http or https reduces to null and can
+ * never match, so prose cannot become a launchable URL of another kind.
+ */
+function canonicalUrl(url) {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
+    } catch {
+        return null;
+    }
+}
+
 const ALLOWED_EXTERNAL_URLS = new Set([
     'https://github.com/joeldodson/unstrungApp',
     // Offered by the What is Unstrung dialog. Listed here rather than coming from the generated
@@ -20,13 +38,14 @@ const ALLOWED_EXTERNAL_URLS = new Set([
     'https://claude.ai',
     'https://github.com/sfzinstruments/karoryfer.black-and-green-guitars',
     // Whatever the Help documents link to, collected when they were generated. First-party content
-    // either way, and http and https only, so prose cannot become a launchable URL of another kind.
+    // either way.
     ...(Array.isArray(helpContent.urls) ? helpContent.urls : [])
-]);
+].map(canonicalUrl).filter(Boolean));
 
 ipcMain.on('shell:open-external', (_event, url) => {
-    if (ALLOWED_EXTERNAL_URLS.has(url)) {
-        shell.openExternal(url);
+    const canonical = canonicalUrl(url);
+    if (canonical && ALLOWED_EXTERNAL_URLS.has(canonical)) {
+        shell.openExternal(canonical);
     }
 });
 

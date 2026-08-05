@@ -996,24 +996,26 @@ function buildVoicingDetails(chord, voicing) {
 }
 
 /**
- * The body of a result row for a chord with no known fingering. Its notes are known for
- * certain, since they come from the chord's interval formula rather than from any dataset,
- * so those are given along with an explicit statement about the missing fingering.
+ * The body of a result row for a chord with no known fingering.
+ *
+ * The missing fingering is stated on the chord's own line, so it is known before the row is
+ * opened. Its notes are certain, since they come from the chord's interval formula rather than
+ * from any dataset, so they and the rest of what is known sit in the disclosure below.
  */
 function buildUnfingeredChordRow(chord) {
     const fragment = document.createDocumentFragment();
 
     const name = document.createElement('span');
-    name.textContent = `${chord.name} - ${baseQualityLabel(chord)}`;
+    name.textContent = `${chord.name} - ${baseQualityLabel(chord)}, fingering unknown`;
 
     const details = document.createElement('details');
     const summary = document.createElement('summary');
-    summary.textContent = chord.fingeringNote ?? 'Fingering unknown at this time.';
+    summary.textContent = `Metadata for ${chord.name}`;
     const list = document.createElement('ul');
     appendTextItems(list, [
         `Notes: ${(chord.notes ?? []).join(', ')}`,
         `Genres: ${chord.genres.join(', ')}`,
-        'No fingering is known for this chord yet, so it cannot be played from here.'
+        'Cannot play sample without voicing (fingering)'
     ]);
     details.append(summary, list);
 
