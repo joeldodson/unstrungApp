@@ -4,7 +4,7 @@ import {
     FINGER_NAMES, QUALITY_LABELS, STANDARD_TUNING_MIDI, STRING_NUMBERS, TUNINGS, fretToMidi,
     identifyChordFromNotes, midiToPitchClassName, midiToPitchName
 } from '../shared/musicTheory.mjs';
-import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
+import { TICKS_PER_QUARTER, buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
 import helpContent from '../assets/help/help-content.json';
 
 const statusElement = document.getElementById('status');
@@ -715,6 +715,8 @@ window.unstrung.onGuitarSamplesOpen(openGuitarSamplesDialog);
 
 const speakNotesDialog = document.getElementById('speak-notes-dialog');
 const speakNotesPassageSelect = document.getElementById('speak-notes-passage-select');
+const speakNotesMeasuresInput = document.getElementById('speak-notes-measures-input');
+const speakNotesOctaveCheckbox = document.getElementById('speak-notes-octave-checkbox');
 const speakNotesRateSelect = document.getElementById('speak-notes-rate-select');
 const speakNotesVoiceSelect = document.getElementById('speak-notes-voice-select');
 const speakNotesTempoInput = document.getElementById('speak-notes-tempo-input');
@@ -753,12 +755,151 @@ const speakNotesPhraseCache = new Map();
 let speakNotesDialogOpener = null;
 let speakNotesVoicesLoaded = false;
 
+// alphaTab's Duration enum is the note value's denominator, so a quarter is 4 and an eighth is 8.
+const SPEAK_NOTES_DURATION_NAMES = {
+    1: 'whole', 2: 'half', 4: 'quarter', 8: 'eighth',
+    16: 'sixteenth', 32: 'thirty second', 64: 'sixty fourth'
+};
+
 /**
- * The built-in passages.
+ * Chord qualities as they should be said, which is not how they should be read.
+ *
+ * QUALITY_LABELS exists to be read at leisure in the chord library, where "power chord (root and
+ * fifth)" is helpful. Said aloud in the gap before a beat it is a disaster: it measured 889 ms,
+ * longer than any other phrase in a real track, and on its own dragged that track's ceiling from
+ * around 80 down to 58. These are the same qualities named to be spoken quickly.
+ */
+const SPEAK_NOTES_QUALITY_LABELS = {
+    major: 'major', minor: 'minor', 5: 'power chord',
+    sus2: 'sus 2', sus4: 'sus 4', sus2sus4: 'sus 2 4', dim: 'dim', aug: 'aug',
+    7: '7', maj7: 'major 7', m7: 'minor 7', 'm7b5': 'minor 7 flat 5', dim7: 'dim 7',
+    mmaj7: 'minor major 7', 6: '6', m6: 'minor 6', add9: 'add 9', madd9: 'minor add 9',
+    '7sus4': '7 sus 4', '7b5': '7 flat 5', aug7: 'aug 7',
+    9: '9', maj9: 'major 9', m9: 'minor 9', 69: '6 9', m69: 'minor 6 9',
+    '7b9': '7 flat 9', '7#9': '7 sharp 9', '9b5': '9 flat 5', aug9: 'aug 9',
+    11: '11', m11: 'minor 11', maj11: 'major 11',
+    mmaj9: 'minor major 9', mmaj11: 'minor major 11',
+    'maj7b5': 'major 7 flat 5', 'maj7#5': 'major 7 sharp 5', maj7sus2: 'major 7 sus 2',
+    13: '13', maj13: 'major 13', '9#11': '9 sharp 11', add11: 'add 11',
+    'mmaj7b5': 'minor major 7 flat 5'
+};
+
+/**
+ * What a beat should be called.
+ *
+ * A beat sounding several notes with no chord name is the common case, not the exception: in the
+ * first ten measures of a real song it was 44% of the sounding beats, and across the whole song
+ * 70%. Announcing all of those as "unknown" would say nothing about most of the music, so the
+ * notes are offered to the chord identifier -- the same reverse lookup the Frets to Chord tool
+ * uses, which named every one of them in that song's first ten measures.
+ *
+ * Two notes are said as two notes before the identifier is consulted. Naming them is not more
+ * informative -- "G, D" says exactly what to play, where "G power chord" makes you work it out --
+ * and it is no longer to say. Only three or more notes spelling no chord give up and say
+ * "unknown", which happened on 6% of the beats of a whole real song: reciting strings and frets
+ * would take far longer than any beat lasts, and there is no shorter honest answer.
+ */
+function speakNotesBeatPhrase(beat, soundedMidis, withOctave) {
+    const noteName = midi => withOctave
+        ? spokenNoteName(midi)
+        : spokenNoteName(midi).replace(/ \d+$/, '');
+
+    if (beat.hasChord && beat.chord && beat.chord.name) return spokenChordName(beat.chord.name);
+    if (soundedMidis.length === 1) return noteName(soundedMidis[0]);
+    if (soundedMidis.length === 2) {
+        return [...soundedMidis].sort((a, b) => a - b).map(noteName).join(', ');
+    }
+
+    const identified = identifyChordFromNotes(soundedMidis)[0];
+    if (identified) {
+        const quality = SPEAK_NOTES_QUALITY_LABELS[identified.suffix]
+            ?? QUALITY_LABELS[identified.suffix] ?? identified.suffix;
+        return `${spokenChordName(identified.root)} ${quality}`;
+    }
+    return 'unknown';
+}
+
+/** "C#" or "Bb" as the speech engine needs it said. Chord names carry no octave. */
+function spokenChordName(name) {
+    return name.replace('#', ' sharp').replace(/(?<=^[A-G])b/, ' flat');
+}
+
+/**
+ * Turns the opening measures of one track into a passage this dialog can play.
+ *
+ * Positions come out in quarter notes from the start of the selection, so the passage carries no
+ * tempo of its own and can be played at whatever the speech allows.
+ *
+ * Beats that strike nothing are dropped rather than announced: a tied note is the previous one
+ * still ringing, and saying its name again would be describing an event that does not happen.
+ * Rests are dropped for the same reason, which is also why a track's empty voices cost nothing.
+ */
+function speakNotesEventsFromScore(score, trackIndex, measureCount, withOctave) {
+    const track = (score.tracks || [])[trackIndex];
+    if (!track) return null;
+
+    const events = [];
+    const kinds = { named: 0, single: 0, identified: 0, pair: 0, unknown: 0 };
+    let beatsPerBar = 4;
+
+    for (const staff of track.staves || []) {
+        const stringCount = staff.tuning ? staff.tuning.length : 0;
+        for (const bar of (staff.bars || []).slice(0, measureCount)) {
+            const master = score.masterBars[bar.index];
+            if (bar.index === 0 && master) beatsPerBar = master.timeSignatureNumerator || 4;
+            const barStartTick = master ? master.start : 0;
+
+            for (const voice of bar.voices || []) {
+                for (const beat of voice.beats || []) {
+                    if (beat.isRest) continue;
+                    const sounded = (beat.notes || []).filter(note =>
+                        !note.isTieDestination && !note.isDead && typeof note.realValue === 'number');
+                    if (sounded.length === 0) continue;
+
+                    const midis = sounded.map(note => note.realValue);
+                    const phrase = speakNotesBeatPhrase(beat, midis, withOctave);
+
+                    // Same order the phrase itself is decided in, so the counts describe what
+                    // was actually said rather than what could have been.
+                    if (beat.hasChord && beat.chord && beat.chord.name) kinds.named++;
+                    else if (midis.length === 1) kinds.single++;
+                    else if (midis.length === 2) kinds.pair++;
+                    else if (phrase === 'unknown') kinds.unknown++;
+                    else kinds.identified++;
+
+                    events.push({
+                        beat: (barStartTick + beat.playbackStart) / TICKS_PER_QUARTER,
+                        // Low string to high, so a strum sweeps the way the file writes it.
+                        midi: sounded
+                            .slice()
+                            .sort((a, b) => b.string - a.string)
+                            .map(note => note.realValue),
+                        phrase,
+                        duration: SPEAK_NOTES_DURATION_NAMES[beat.duration] ?? null
+                    });
+                    void stringCount;
+                }
+            }
+        }
+    }
+
+    if (events.length === 0) return null;
+    events.sort((a, b) => a.beat - b.beat);
+
+    // Voices can write a beat at the same instant; one announcement per instant is all there is
+    // time for, so the first one there wins.
+    const deduped = events.filter((event, index) =>
+        index === 0 || event.beat - events[index - 1].beat > 1e-6);
+
+    return { events: deduped, beatsPerBar, kinds };
+}
+
+/**
+ * The built-in passages, used when no song is open.
  *
  * `beat` is in quarter notes from the start. `midi` is one note, or several for a strum, given
- * low string to high. `phrase` overrides the spoken text, which is how a chord announces its name
- * rather than its notes. `duration` is the word used when durations are being spoken.
+ * low string to high. `phrase` is the spoken text. `duration` is the word used when durations
+ * are being spoken.
  *
  * Deliberately covers the two ends of the range: single notes are short to say and run fast,
  * while a chord with a quality and a strum direction is the longest thing that ever has to fit.
@@ -829,13 +970,52 @@ function spokenNoteName(midi) {
     return name.replace('#', ' sharp').replace('b', ' flat').replace(/(\d)$/, ' $1');
 }
 
-function speakNotesPhraseFor(event, withDuration) {
-    const body = event.phrase ?? spokenNoteName(event.midi[0]);
+function speakNotesPhraseFor(event, { withDuration, withOctave }) {
+    const body = event.phrase ?? (withOctave
+        ? spokenNoteName(event.midi[0])
+        : spokenNoteName(event.midi[0]).replace(/ \d+$/, ''));
     return withDuration && event.duration ? `${event.duration} ${body}` : body;
 }
 
-function speakNotesSelectedPassage() {
-    return SPEAK_NOTES_PASSAGES.find(p => p.id === speakNotesPassageSelect.value) ?? SPEAK_NOTES_PASSAGES[0];
+/**
+ * The passage to play: a track of the open song, or one of the built-in ones.
+ *
+ * A song's own measures are what the idea has to be judged on -- a made-up sequence of notes gives
+ * no sense of whether the announcements arrive when a player would want them. The built-in
+ * passages stay for when nothing is open, and for comparing the two ends of the range directly.
+ */
+function speakNotesBuildPassage() {
+    const value = speakNotesPassageSelect.value;
+    const withOctave = speakNotesOctaveCheckbox.checked;
+    const withDuration = speakNotesDurationCheckbox.checked;
+
+    const addText = passage => ({
+        ...passage,
+        events: passage.events.map(event => ({
+            ...event,
+            text: speakNotesPhraseFor(event, { withDuration, withOctave })
+        }))
+    });
+
+    const songMatch = value.match(/^song:(\d+):(\d+)$/);
+    if (songMatch) {
+        const tab = tabs.find(t => t.id === Number(songMatch[1]));
+        if (!tab || !tab.score) return null;
+        const trackIndex = Number(songMatch[2]);
+        const measureCount = Math.max(1, Number(speakNotesMeasuresInput.value) || 10);
+        const built = speakNotesEventsFromScore(tab.score, trackIndex, measureCount, withOctave);
+        if (!built) return null;
+        return addText({
+            name: `${tab.fileName}, ${tab.score.tracks[trackIndex].name}, ` +
+                `${measureCount} measure${measureCount === 1 ? '' : 's'}`,
+            beatsPerBar: built.beatsPerBar,
+            events: built.events,
+            kinds: built.kinds
+        });
+    }
+
+    const passage = SPEAK_NOTES_PASSAGES.find(p => p.id === value) ?? SPEAK_NOTES_PASSAGES[0];
+    return addText(passage);
 }
 
 /**
@@ -926,18 +1106,25 @@ async function speakNotesMeasureAll(phrases, rate, voice, myToken) {
  * The fastest tempo at which every announcement still finishes before its note.
  *
  * Each event needs its phrase, plus a head start for the engine, to fit in the gap since the
- * previous announcement began. The tightest of those gaps sets the limit for the whole passage,
- * which is why a passage of single notes runs so much faster than one full of chords.
+ * previous announcement began. The tightest of those gaps sets the limit for the whole passage.
+ *
+ * The binding pair is reported alongside, because the longest phrase is usually not the one that
+ * sets the limit and saying so would be misleading. A real track's slowest phrase sat in a whole
+ * beat and was comfortable; what held the tempo down was a much shorter phrase falling in the
+ * half-beat gap of an eighth-note run.
  */
 function speakNotesMaxTempo(events, measured) {
-    let worstBeatsPerMs = Infinity;
+    let worst = null;
     for (let i = 1; i < events.length; i++) {
         const beats = events[i].beat - events[i - 1].beat;
         const needed = measured.get(events[i].text) + SPEAK_NOTES_LATENCY_MS;
-        worstBeatsPerMs = Math.min(worstBeatsPerMs, beats / needed);
+        const beatsPerMs = beats / needed;
+        if (worst === null || beatsPerMs < worst.beatsPerMs) {
+            worst = { beatsPerMs, beats, needed, text: events[i].text };
+        }
     }
-    if (!Number.isFinite(worstBeatsPerMs)) return 300;
-    return Math.floor(worstBeatsPerMs * 60000);
+    if (worst === null) return { tempo: 300, binding: null };
+    return { tempo: Math.floor(worst.beatsPerMs * 60000), binding: worst };
 }
 
 function speakNotesStop() {
@@ -1009,15 +1196,16 @@ function speakNotesScheduleNote(buffer, at) {
 
 async function speakNotesPlay() {
     const myToken = speakNotesToken;
-    const passage = speakNotesSelectedPassage();
+    const passage = speakNotesBuildPassage();
+    if (!passage) {
+        speakNotesStatusElement.textContent = 'That passage has nothing to play.';
+        speakNotesPlayButton.textContent = SPEAK_NOTES_PLAY_LABEL;
+        speakNotesPlayButton.setAttribute('aria-pressed', 'false');
+        return;
+    }
     const rate = Number(speakNotesRateSelect.value) || 8;
     const voice = speakNotesSelectedVoice();
-    const withDuration = speakNotesDurationCheckbox.checked;
-
-    const events = passage.events.map(event => ({
-        ...event,
-        text: speakNotesPhraseFor(event, withDuration)
-    }));
+    const events = passage.events;
 
     // --- Time every phrase before anything is scheduled ---------------------------------
     speakNotesStatusElement.textContent = 'Timing the phrases…';
@@ -1025,17 +1213,26 @@ async function speakNotesPlay() {
     const measured = await speakNotesMeasureAll(distinct, rate, voice, myToken);
     if (myToken !== speakNotesToken || !measured) return;
 
-    const maxTempo = speakNotesMaxTempo(events, measured);
+    const { tempo: maxTempo, binding } = speakNotesMaxTempo(events, measured);
     const wanted = Math.max(20, Number(speakNotesTempoInput.value) || 90);
     // A floor of 20 keeps an absurdly long phrase from stalling the passage entirely; at that
     // point the announcement overlaps its note, which is the documented failure rather than a bug.
     const tempo = Math.max(20, Math.min(wanted, maxTempo));
 
     const longest = distinct.reduce((a, b) => (measured.get(a) >= measured.get(b) ? a : b));
+    const kinds = passage.kinds
+        ? ` ${passage.events.length} beats: ${passage.kinds.single} single notes, ` +
+          `${passage.kinds.named} named by the file, ${passage.kinds.identified} named from their notes, ` +
+          `${passage.kinds.pair} said as two notes, ${passage.kinds.unknown} unknown.`
+        : '';
     speakNotesLimitElement.textContent =
-        `Longest phrase "${longest}" takes ${Math.round(measured.get(longest))} milliseconds. ` +
         `Fastest tempo these phrases fit: ${maxTempo}.` +
-        (tempo < wanted ? ` Playing at ${tempo} instead of ${wanted}.` : '');
+        (binding
+            ? ` Set by "${binding.text}" at ${Math.round(measured.get(binding.text))} milliseconds` +
+              ` having to fit a ${binding.beats} beat gap.`
+            : '') +
+        ` Longest phrase is "${longest}" at ${Math.round(measured.get(longest))} milliseconds.` +
+        (tempo < wanted ? ` Playing at ${tempo} instead of ${wanted}.` : '') + kinds;
 
     const secondsPerBeat = 60 / tempo;
 
@@ -1146,20 +1343,34 @@ speakNotesDialog.addEventListener('close', () => {
 
 // Changing anything that affects the timing invalidates the figure on screen.
 for (const control of [speakNotesPassageSelect, speakNotesRateSelect, speakNotesVoiceSelect,
-    speakNotesDurationCheckbox]) {
+    speakNotesDurationCheckbox, speakNotesOctaveCheckbox, speakNotesMeasuresInput]) {
     control.addEventListener('change', () => { speakNotesLimitElement.textContent = ''; });
 }
 
 async function openSpeakNotesDialog() {
     speakNotesDialogOpener = document.activeElement;
 
-    if (speakNotesPassageSelect.options.length === 0) {
-        for (const passage of SPEAK_NOTES_PASSAGES) {
+    // Rebuilt on every open: which songs are loaded changes while the dialog is closed.
+    const previous = speakNotesPassageSelect.value;
+    speakNotesPassageSelect.replaceChildren();
+
+    for (const tab of tabs) {
+        if (!tab.score || !Array.isArray(tab.score.tracks)) continue;
+        for (const [trackIndex, track] of tab.score.tracks.entries()) {
             const option = document.createElement('option');
-            option.value = passage.id;
-            option.textContent = passage.name;
+            option.value = `song:${tab.id}:${trackIndex}`;
+            option.textContent = `${tab.fileName} - ${track.name || `Track ${trackIndex + 1}`}`;
             speakNotesPassageSelect.append(option);
         }
+    }
+    for (const passage of SPEAK_NOTES_PASSAGES) {
+        const option = document.createElement('option');
+        option.value = passage.id;
+        option.textContent = passage.name;
+        speakNotesPassageSelect.append(option);
+    }
+    if (previous && [...speakNotesPassageSelect.options].some(o => o.value === previous)) {
+        speakNotesPassageSelect.value = previous;
     }
 
     speakNotesDialog.showModal();
