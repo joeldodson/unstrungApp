@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld('unstrung', {
     getGuitarSampleAudio: (key, velocity, maxSeconds) =>
         ipcRenderer.invoke('guitar-samples:get-audio', { key, velocity, maxSeconds }),
 
+    // Spoken note names (Tools menu). The speech itself is browser-side, so only the menu
+    // signal crosses over; the guitar notes reuse the sample channels above.
+    onSpeakNotesOpen: (callback) => ipcRenderer.on('speak-notes:open', () => callback()),
+
     // Chord library (Tools menu).
     onChordLibraryOpen: (callback) => ipcRenderer.on('chords:open', () => callback()),
     onFretsToChordOpen: (callback) => ipcRenderer.on('frets:open', () => callback()),

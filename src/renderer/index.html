@@ -162,6 +162,74 @@
         <button type="button" id="guitar-samples-ok-button">OK</button>
     </dialog>
 
+    <dialog id="speak-notes-dialog" aria-labelledby="speak-notes-dialog-heading" tabindex="-1">
+        <h2 id="speak-notes-dialog-heading">Speak the Notes (experimental)</h2>
+
+        <p>
+            Plays a short passage and speaks each note or chord just before it sounds, so a song can be
+            learned by ear without having to remember what comes next. This is a test bench for the idea,
+            not the finished feature: it plays its own built-in passages rather than a song you opened.
+        </p>
+
+        <p>
+            How fast the passage can go is decided by the speech, not by the music. Before playing,
+            every phrase the passage needs is spoken silently once and timed, and the fastest tempo
+            those phrases fit in is worked out and shown. Asking for more than that is reduced to the
+            measured limit.
+        </p>
+
+        <p>
+            Duration is not spoken. The metronome is meant to carry it: a note that lands on the next
+            click was a quarter note, one that lands between clicks was an eighth. Speaking the duration
+            as well is offered below for comparison, and costs roughly a third of the tempo.
+        </p>
+
+        <p>
+            <label for="speak-notes-passage-select">Passage</label>
+            <select id="speak-notes-passage-select"></select>
+        </p>
+
+        <p>
+            <label for="speak-notes-rate-select">Speech rate</label>
+            <select id="speak-notes-rate-select">
+                <option value="6">6 — fastest that is clearly articulated</option>
+                <option value="8" selected>8 — faster, some clipping of word endings</option>
+                <option value="10">10 — as fast as the speech engine goes</option>
+            </select>
+        </p>
+
+        <p>
+            <label for="speak-notes-voice-select">Voice</label>
+            <select id="speak-notes-voice-select"></select>
+        </p>
+
+        <p>
+            <label for="speak-notes-tempo-input">Tempo (beats per minute)</label>
+            <input type="number" id="speak-notes-tempo-input" min="20" max="300" step="1" value="90" />
+        </p>
+
+        <p>
+            <input type="checkbox" id="speak-notes-metronome-checkbox" checked />
+            <label for="speak-notes-metronome-checkbox">Metronome</label>
+        </p>
+
+        <p>
+            <input type="checkbox" id="speak-notes-duration-checkbox" />
+            <label for="speak-notes-duration-checkbox">Speak the duration as well, for comparison</label>
+        </p>
+
+        <p>
+            <input type="checkbox" id="speak-notes-guitar-checkbox" checked />
+            <label for="speak-notes-guitar-checkbox">Play the guitar notes</label>
+        </p>
+
+        <p id="speak-notes-limit" aria-live="polite"></p>
+        <p id="speak-notes-status" aria-live="polite"></p>
+
+        <button type="button" id="speak-notes-play-button" aria-pressed="false">Play Passage</button>
+        <button type="button" id="speak-notes-ok-button">OK</button>
+    </dialog>
+
     <!-- The chord library opens as a tab rather than a dialog: it is a place you browse and
          build up a comparison set in, not a decision you commit or cancel. Cloned into a tab
          panel on demand, and only ever one instance, so these ids stay unique. -->

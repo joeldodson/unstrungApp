@@ -502,7 +502,8 @@ function buildMenu(window) {
             submenu: [
                 { label: '&Chord Library…', click: () => window.webContents.send('chords:open') },
                 { label: '&Frets to Chord…', click: () => window.webContents.send('frets:open') },
-                { label: '&Listen to Guitar Samples…', click: () => window.webContents.send('guitar-samples:open') }
+                { label: '&Listen to Guitar Samples…', click: () => window.webContents.send('guitar-samples:open') },
+                { label: 'Speak the &Notes (experimental)…', click: () => window.webContents.send('speak-notes:open') }
             ]
         },
         {

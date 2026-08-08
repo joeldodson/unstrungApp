@@ -689,6 +689,505 @@ async function openGuitarSamplesDialog() {
 window.unstrung.onGuitarSamplesOpen(openGuitarSamplesDialog);
 // --- end Green Gretsch guitar sample playback ---
 
+// --- Spoken note names (Tools menu, experimental) --------------------------------------
+//
+// Speaks each note or chord immediately before it sounds, so a passage can be followed by ear.
+//
+// THE MUSIC KEEPS TIME, NOT THE SPEECH. Notes and clicks are scheduled in the audio graph up
+// front, exactly as the audio track does, and nothing the speech does can move them. Speech is
+// started on an ordinary timer sized to finish before its note. An announcement that starts late
+// or runs long overlaps its note; the beat does not shift. That is the whole reason the tempo
+// stays steady while the speech does not.
+//
+// Two measured facts shape the rest, both from driving this engine and timing it:
+//
+// 1. A third to a half of every utterance is silence after the last word. Waiting for the `end`
+//    event therefore throws away that much of the tempo. Instead each phrase is timed once to
+//    find where its speech actually stops -- the last word boundary plus that word's length --
+//    and the utterance is abandoned there. Cancelling mid-utterance and immediately speaking the
+//    next one is reliable: over a sustained run every announcement still reached its last word.
+//
+// 2. Phrase timings are extremely stable, within about ten milliseconds run to run, so timing a
+//    phrase once is enough to schedule every later use of it.
+//
+// The speech engine is the browser's own, so this carries no dependency and no platform code, at
+// the cost of not being able to pitch the speech: the API hands out no audio, only sound.
+
+const speakNotesDialog = document.getElementById('speak-notes-dialog');
+const speakNotesPassageSelect = document.getElementById('speak-notes-passage-select');
+const speakNotesRateSelect = document.getElementById('speak-notes-rate-select');
+const speakNotesVoiceSelect = document.getElementById('speak-notes-voice-select');
+const speakNotesTempoInput = document.getElementById('speak-notes-tempo-input');
+const speakNotesMetronomeCheckbox = document.getElementById('speak-notes-metronome-checkbox');
+const speakNotesDurationCheckbox = document.getElementById('speak-notes-duration-checkbox');
+const speakNotesGuitarCheckbox = document.getElementById('speak-notes-guitar-checkbox');
+const speakNotesLimitElement = document.getElementById('speak-notes-limit');
+const speakNotesStatusElement = document.getElementById('speak-notes-status');
+const speakNotesPlayButton = document.getElementById('speak-notes-play-button');
+const speakNotesOkButton = document.getElementById('speak-notes-ok-button');
+
+const SPEAK_NOTES_PLAY_LABEL = 'Play Passage';
+const SPEAK_NOTES_STOP_LABEL = 'Stop';
+
+// Allowed for the final word to finish after its boundary event fires. Closing words measured
+// 75-150 ms at rate 4 and less above that, so this is generous at every offered rate. Erring
+// long costs tempo; erring short clips the end of the last word, which is the better failure.
+const SPEAK_NOTES_TAIL_MS = 140;
+
+// Head start on each announcement, covering the gap between calling speak() and the engine
+// starting. Measured at 20-30 ms typical and about 50 ms at worst once the voice is warm.
+const SPEAK_NOTES_LATENCY_MS = 60;
+
+const SPEAK_NOTES_VELOCITY = 'mf';
+const SPEAK_NOTES_STRUM_DELAY_SECONDS = 0.02; // matches the audio track's strum spread
+const SPEAK_NOTES_NOTE_GAIN = 0.7;
+const SPEAK_NOTES_RING_SECONDS = 2.2;
+
+let speakNotesToken = 0;
+let speakNotesMasterGain = null;
+let speakNotesSources = [];
+let speakNotesTimers = [];
+// Measured speech lengths, keyed by voice, rate and text. Timings do not change within a
+// session, so a phrase met again in another passage costs nothing the second time.
+const speakNotesPhraseCache = new Map();
+let speakNotesDialogOpener = null;
+let speakNotesVoicesLoaded = false;
+
+/**
+ * The built-in passages.
+ *
+ * `beat` is in quarter notes from the start. `midi` is one note, or several for a strum, given
+ * low string to high. `phrase` overrides the spoken text, which is how a chord announces its name
+ * rather than its notes. `duration` is the word used when durations are being spoken.
+ *
+ * Deliberately covers the two ends of the range: single notes are short to say and run fast,
+ * while a chord with a quality and a strum direction is the longest thing that ever has to fit.
+ */
+const SPEAK_NOTES_PASSAGES = [
+    {
+        id: 'single-quarters',
+        name: 'Single notes, one per beat',
+        beatsPerBar: 4,
+        events: [
+            { beat: 0, midi: [40], duration: 'quarter' },
+            { beat: 1, midi: [43], duration: 'quarter' },
+            { beat: 2, midi: [45], duration: 'quarter' },
+            { beat: 3, midi: [47], duration: 'quarter' },
+            { beat: 4, midi: [50], duration: 'quarter' },
+            { beat: 5, midi: [52], duration: 'quarter' },
+            { beat: 6, midi: [55], duration: 'quarter' },
+            { beat: 7, midi: [57], duration: 'quarter' },
+            { beat: 8, midi: [59], duration: 'quarter' },
+            { beat: 9, midi: [62], duration: 'quarter' },
+            { beat: 10, midi: [64], duration: 'quarter' },
+            { beat: 11, midi: [62], duration: 'quarter' },
+            { beat: 12, midi: [59], duration: 'quarter' },
+            { beat: 13, midi: [55], duration: 'quarter' },
+            { beat: 14, midi: [50], duration: 'quarter' },
+            { beat: 15, midi: [40], duration: 'quarter' }
+        ]
+    },
+    {
+        id: 'chords',
+        name: 'Chords, one per beat (the slowest case)',
+        beatsPerBar: 4,
+        events: [
+            { beat: 0, midi: [40, 47, 52, 55, 59, 64], phrase: 'E minor 7 up', duration: 'quarter' },
+            { beat: 1, midi: [45, 52, 57, 60, 64], phrase: 'A minor down', duration: 'quarter' },
+            { beat: 2, midi: [43, 47, 50, 55, 59, 67], phrase: 'G major up', duration: 'quarter' },
+            { beat: 3, midi: [48, 52, 55, 60, 64], phrase: 'C major down', duration: 'quarter' },
+            { beat: 4, midi: [42, 49, 54, 57, 61, 66], phrase: 'F sharp minor 7 up', duration: 'quarter' },
+            { beat: 5, midi: [45, 52, 57, 60, 64], phrase: 'A minor down', duration: 'quarter' },
+            { beat: 6, midi: [40, 47, 52, 56, 59, 64], phrase: 'E major up', duration: 'quarter' },
+            { beat: 7, midi: [40, 47, 52, 55, 59, 64], phrase: 'E minor 7 down', duration: 'quarter' }
+        ]
+    },
+    {
+        id: 'mixed',
+        name: 'Mixed: chords with eighth-note runs',
+        beatsPerBar: 4,
+        events: [
+            { beat: 0, midi: [43, 47, 50, 55, 59, 67], phrase: 'G major up', duration: 'quarter' },
+            { beat: 1, midi: [55], duration: 'eighth' },
+            { beat: 1.5, midi: [57], duration: 'eighth' },
+            { beat: 2, midi: [59], duration: 'eighth' },
+            { beat: 2.5, midi: [62], duration: 'eighth' },
+            { beat: 3, midi: [64], duration: 'quarter' },
+            { beat: 4, midi: [48, 52, 55, 60, 64], phrase: 'C major down', duration: 'quarter' },
+            { beat: 5, midi: [60], duration: 'eighth' },
+            { beat: 5.5, midi: [59], duration: 'eighth' },
+            { beat: 6, midi: [57], duration: 'eighth' },
+            { beat: 6.5, midi: [55], duration: 'eighth' },
+            { beat: 7, midi: [52], duration: 'quarter' }
+        ]
+    }
+];
+
+/** "C#3" as the speech engine needs it said: "C sharp 3". */
+function spokenNoteName(midi) {
+    const name = midiToPitchName(midi);
+    return name.replace('#', ' sharp').replace('b', ' flat').replace(/(\d)$/, ' $1');
+}
+
+function speakNotesPhraseFor(event, withDuration) {
+    const body = event.phrase ?? spokenNoteName(event.midi[0]);
+    return withDuration && event.duration ? `${event.duration} ${body}` : body;
+}
+
+function speakNotesSelectedPassage() {
+    return SPEAK_NOTES_PASSAGES.find(p => p.id === speakNotesPassageSelect.value) ?? SPEAK_NOTES_PASSAGES[0];
+}
+
+/**
+ * Waits for the voice list, which starts empty and fills asynchronously.
+ *
+ * Listening for `voiceschanged` is a trap: it fires once while the list is still empty, so a
+ * one-shot listener reads zero voices and concludes the machine has none. Poll instead.
+ */
+async function speakNotesLoadVoices() {
+    const deadline = performance.now() + 5000;
+    while (performance.now() < deadline) {
+        const voices = speechSynthesis.getVoices();
+        if (voices.length > 0) return voices;
+        await waitSeconds(0.1);
+    }
+    return speechSynthesis.getVoices();
+}
+
+function speakNotesSelectedVoice() {
+    const name = speakNotesVoiceSelect.value;
+    return speechSynthesis.getVoices().find(v => v.name === name) ?? null;
+}
+
+/**
+ * Times one phrase: how long until its speech actually stops, ignoring the trailing silence.
+ *
+ * Spoken at zero volume, which measures the same as speaking aloud to within a fifth of a percent.
+ * The utterance is abandoned as soon as the last word has been reached, so timing a phrase costs
+ * about what saying it costs rather than the full utterance with its dead air.
+ *
+ * Boundary events can repeat a position, so words are counted by distinct character index. If the
+ * engine gives no usable boundaries the full utterance length is used, which is safe but slower.
+ */
+function speakNotesMeasurePhrase(text, rate, voice) {
+    return new Promise(resolve => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = rate;
+        utterance.volume = 0;
+        if (voice) utterance.voice = voice;
+
+        const wordCount = text.trim().split(/\s+/).length;
+        const seen = new Set();
+        let startedAt = null, lastWordAt = null, settled = false;
+
+        const finish = ms => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(guard);
+            speechSynthesis.cancel();
+            resolve(ms);
+        };
+        // Never let a phrase hang the run: 6 s is far beyond any announcement.
+        const guard = setTimeout(() => finish(6000), 6000);
+
+        utterance.onstart = () => { startedAt = performance.now(); };
+        utterance.onboundary = event => {
+            if (startedAt === null || seen.has(event.charIndex)) return;
+            seen.add(event.charIndex);
+            lastWordAt = performance.now() - startedAt;
+            if (seen.size >= wordCount) finish(lastWordAt + SPEAK_NOTES_TAIL_MS);
+        };
+        utterance.onerror = () => finish(0);
+        utterance.onend = () => finish(
+            lastWordAt === null
+                ? (startedAt === null ? 0 : performance.now() - startedAt)
+                : lastWordAt + SPEAK_NOTES_TAIL_MS);
+
+        speechSynthesis.cancel();
+        speechSynthesis.speak(utterance);
+    });
+}
+
+/** Measures every phrase the passage needs, reusing anything already timed this session. */
+async function speakNotesMeasureAll(phrases, rate, voice, myToken) {
+    const measured = new Map();
+    for (const text of phrases) {
+        if (myToken !== speakNotesToken) return null;
+        const cacheKey = `${voice ? voice.name : 'default'}:${rate}:${text}`;
+        if (!speakNotesPhraseCache.has(cacheKey)) {
+            speakNotesPhraseCache.set(cacheKey, await speakNotesMeasurePhrase(text, rate, voice));
+        }
+        measured.set(text, speakNotesPhraseCache.get(cacheKey));
+    }
+    return measured;
+}
+
+/**
+ * The fastest tempo at which every announcement still finishes before its note.
+ *
+ * Each event needs its phrase, plus a head start for the engine, to fit in the gap since the
+ * previous announcement began. The tightest of those gaps sets the limit for the whole passage,
+ * which is why a passage of single notes runs so much faster than one full of chords.
+ */
+function speakNotesMaxTempo(events, measured) {
+    let worstBeatsPerMs = Infinity;
+    for (let i = 1; i < events.length; i++) {
+        const beats = events[i].beat - events[i - 1].beat;
+        const needed = measured.get(events[i].text) + SPEAK_NOTES_LATENCY_MS;
+        worstBeatsPerMs = Math.min(worstBeatsPerMs, beats / needed);
+    }
+    if (!Number.isFinite(worstBeatsPerMs)) return 300;
+    return Math.floor(worstBeatsPerMs * 60000);
+}
+
+function speakNotesStop() {
+    speakNotesToken++;
+    speechSynthesis.cancel();
+
+    for (const timer of speakNotesTimers) clearTimeout(timer);
+    speakNotesTimers = [];
+
+    if (speakNotesMasterGain && sharedAudioContext) {
+        const now = sharedAudioContext.currentTime;
+        const gain = speakNotesMasterGain.gain;
+        gain.cancelScheduledValues(now);
+        gain.setValueAtTime(gain.value, now);
+        gain.linearRampToValueAtTime(0, now + 0.04);
+        for (const source of speakNotesSources) {
+            try { source.stop(now + 0.04); } catch { /* already stopped */ }
+        }
+    }
+    speakNotesMasterGain = null;
+    speakNotesSources = [];
+
+    speakNotesPlayButton.textContent = SPEAK_NOTES_PLAY_LABEL;
+    speakNotesPlayButton.setAttribute('aria-pressed', 'false');
+}
+
+/**
+ * Fetches one guitar note, decoded into the shared context this dialog schedules against.
+ *
+ * The Tools sample player keeps its own context, so its loader cannot be reused here: a buffer
+ * has to be decoded by the context that will play it back at that context's sample rate.
+ * Never rejects, so one missing sample cannot abort the passage.
+ */
+async function speakNotesLoadNoteBuffer(key, seconds) {
+    try {
+        const bytes = await window.unstrung.getGuitarSampleAudio(key, SPEAK_NOTES_VELOCITY, seconds);
+        const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        return await getSharedAudioContext().decodeAudioData(arrayBuffer);
+    } catch {
+        return null;
+    }
+}
+
+/** Snaps a wanted pitch to the nearest note the sample pack actually recorded. */
+function speakNotesNearestSampleKey(notes, midi) {
+    let best = notes[0].key;
+    for (const note of notes) {
+        if (Math.abs(note.key - midi) < Math.abs(best - midi)) best = note.key;
+    }
+    return best;
+}
+
+function speakNotesScheduleNote(buffer, at) {
+    const context = getSharedAudioContext();
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+
+    const ring = Math.min(SPEAK_NOTES_RING_SECONDS, buffer.duration);
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(SPEAK_NOTES_NOTE_GAIN, at);
+    gain.gain.setValueAtTime(SPEAK_NOTES_NOTE_GAIN, at + ring - 0.2);
+    gain.gain.linearRampToValueAtTime(0, at + ring);
+
+    source.connect(gain).connect(speakNotesMasterGain);
+    source.start(at);
+    source.stop(at + ring + 0.01);
+    speakNotesSources.push(source);
+}
+
+async function speakNotesPlay() {
+    const myToken = speakNotesToken;
+    const passage = speakNotesSelectedPassage();
+    const rate = Number(speakNotesRateSelect.value) || 8;
+    const voice = speakNotesSelectedVoice();
+    const withDuration = speakNotesDurationCheckbox.checked;
+
+    const events = passage.events.map(event => ({
+        ...event,
+        text: speakNotesPhraseFor(event, withDuration)
+    }));
+
+    // --- Time every phrase before anything is scheduled ---------------------------------
+    speakNotesStatusElement.textContent = 'Timing the phrases…';
+    const distinct = [...new Set(events.map(e => e.text))];
+    const measured = await speakNotesMeasureAll(distinct, rate, voice, myToken);
+    if (myToken !== speakNotesToken || !measured) return;
+
+    const maxTempo = speakNotesMaxTempo(events, measured);
+    const wanted = Math.max(20, Number(speakNotesTempoInput.value) || 90);
+    // A floor of 20 keeps an absurdly long phrase from stalling the passage entirely; at that
+    // point the announcement overlaps its note, which is the documented failure rather than a bug.
+    const tempo = Math.max(20, Math.min(wanted, maxTempo));
+
+    const longest = distinct.reduce((a, b) => (measured.get(a) >= measured.get(b) ? a : b));
+    speakNotesLimitElement.textContent =
+        `Longest phrase "${longest}" takes ${Math.round(measured.get(longest))} milliseconds. ` +
+        `Fastest tempo these phrases fit: ${maxTempo}.` +
+        (tempo < wanted ? ` Playing at ${tempo} instead of ${wanted}.` : '');
+
+    const secondsPerBeat = 60 / tempo;
+
+    // --- Schedule the music. Nothing after this point can move it. ----------------------
+    const context = getSharedAudioContext();
+    if (context.state === 'suspended') await context.resume();
+    if (myToken !== speakNotesToken) return;
+
+    speakNotesMasterGain = context.createGain();
+    speakNotesMasterGain.gain.value = 1;
+    speakNotesMasterGain.connect(context.destination);
+    speakNotesSources = [];
+
+    // Buffers first, so no note is waiting on a fetch once the clock is running.
+    const buffersByMidi = new Map();
+    if (speakNotesGuitarCheckbox.checked) {
+        speakNotesStatusElement.textContent = 'Loading guitar notes…';
+        const sampleNotes = await loadGuitarSampleNotesOnce();
+        if (myToken !== speakNotesToken) return;
+
+        const wantedMidi = [...new Set(events.flatMap(e => e.midi))];
+        for (const midi of wantedMidi) {
+            const key = speakNotesNearestSampleKey(sampleNotes, midi);
+            const buffer = await speakNotesLoadNoteBuffer(key, SPEAK_NOTES_RING_SECONDS + 0.15);
+            if (myToken !== speakNotesToken) return;
+            if (buffer) buffersByMidi.set(midi, buffer);
+        }
+    }
+    if (myToken !== speakNotesToken) return;
+
+    // A count-in bar, so the first announcement has somewhere to happen before the music starts.
+    const lastBeat = events[events.length - 1].beat;
+    const countInBeats = passage.beatsPerBar;
+    const zero = context.currentTime + 0.3;
+    const musicStart = zero + countInBeats * secondsPerBeat;
+    const beatTime = beat => musicStart + beat * secondsPerBeat;
+
+    if (speakNotesMetronomeCheckbox.checked) {
+        const totalBeats = countInBeats + Math.ceil(lastBeat) + 1;
+        for (let beat = 0; beat < totalBeats; beat++) {
+            const at = zero + beat * secondsPerBeat;
+            const accent = (beat % passage.beatsPerBar) === 0;
+            speakNotesSources.push(
+                scheduleMetronomeClick(context, speakNotesMasterGain, at, accent));
+        }
+    }
+
+    for (const event of events) {
+        const at = beatTime(event.beat);
+        for (const [index, midi] of event.midi.entries()) {
+            const buffer = buffersByMidi.get(midi);
+            if (buffer) speakNotesScheduleNote(buffer, at + index * SPEAK_NOTES_STRUM_DELAY_SECONDS);
+        }
+    }
+
+    // --- Speech runs alongside on ordinary timers, and cannot disturb the above ---------
+    for (const event of events) {
+        const speakAt = beatTime(event.beat)
+            - (measured.get(event.text) + SPEAK_NOTES_LATENCY_MS) / 1000;
+        const delayMs = (speakAt - context.currentTime) * 1000;
+
+        speakNotesTimers.push(setTimeout(() => {
+            if (myToken !== speakNotesToken) return;
+            const utterance = new SpeechSynthesisUtterance(event.text);
+            utterance.rate = rate;
+            if (voice) utterance.voice = voice;
+            // Abandon whatever is still in its trailing silence rather than queueing behind it.
+            speechSynthesis.cancel();
+            speechSynthesis.speak(utterance);
+        }, Math.max(0, delayMs)));
+    }
+
+    speakNotesStatusElement.textContent =
+        `Playing ${passage.name} at ${tempo} beats per minute.`;
+
+    const endsAt = beatTime(lastBeat) + SPEAK_NOTES_RING_SECONDS;
+    speakNotesTimers.push(setTimeout(() => {
+        if (myToken !== speakNotesToken) return;
+        speechSynthesis.cancel();
+        speakNotesStatusElement.textContent = 'Finished.';
+        speakNotesPlayButton.textContent = SPEAK_NOTES_PLAY_LABEL;
+        speakNotesPlayButton.setAttribute('aria-pressed', 'false');
+    }, Math.max(0, (endsAt - context.currentTime) * 1000)));
+}
+
+speakNotesPlayButton.addEventListener('click', () => {
+    const wasPlaying = speakNotesPlayButton.getAttribute('aria-pressed') === 'true';
+    speakNotesStop();
+
+    if (wasPlaying) {
+        speakNotesStatusElement.textContent = 'Stopped.';
+        return;
+    }
+    speakNotesPlayButton.textContent = SPEAK_NOTES_STOP_LABEL;
+    speakNotesPlayButton.setAttribute('aria-pressed', 'true');
+    speakNotesPlay();
+});
+
+speakNotesOkButton.addEventListener('click', () => speakNotesDialog.close());
+
+speakNotesDialog.addEventListener('close', () => {
+    speakNotesStop();
+    if (speakNotesDialogOpener && typeof speakNotesDialogOpener.focus === 'function') {
+        speakNotesDialogOpener.focus();
+    }
+    speakNotesDialogOpener = null;
+});
+
+// Changing anything that affects the timing invalidates the figure on screen.
+for (const control of [speakNotesPassageSelect, speakNotesRateSelect, speakNotesVoiceSelect,
+    speakNotesDurationCheckbox]) {
+    control.addEventListener('change', () => { speakNotesLimitElement.textContent = ''; });
+}
+
+async function openSpeakNotesDialog() {
+    speakNotesDialogOpener = document.activeElement;
+
+    if (speakNotesPassageSelect.options.length === 0) {
+        for (const passage of SPEAK_NOTES_PASSAGES) {
+            const option = document.createElement('option');
+            option.value = passage.id;
+            option.textContent = passage.name;
+            speakNotesPassageSelect.append(option);
+        }
+    }
+
+    speakNotesDialog.showModal();
+    speakNotesDialog.focus();
+    speakNotesLimitElement.textContent = '';
+    speakNotesStatusElement.textContent = '';
+
+    if (!speakNotesVoicesLoaded) {
+        const voices = await speakNotesLoadVoices();
+        speakNotesVoiceSelect.replaceChildren();
+        if (voices.length === 0) {
+            speakNotesStatusElement.textContent =
+                'No speech voices are available, so nothing can be spoken.';
+        }
+        for (const voice of voices) {
+            const option = document.createElement('option');
+            option.value = voice.name;
+            option.textContent = voice.name + (voice.default ? ' (default)' : '');
+            if (voice.default) option.selected = true;
+            speakNotesVoiceSelect.append(option);
+        }
+        speakNotesVoicesLoaded = true;
+    }
+}
+
+window.unstrung.onSpeakNotesOpen(openSpeakNotesDialog);
+// --- end spoken note names ---
+
 // --- Settings dialog (File menu) ---
 const settingsDialog = document.getElementById('settings-dialog');
 const settingsDirectoryInput = document.getElementById('settings-default-directory-input');
