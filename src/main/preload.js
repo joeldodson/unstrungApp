@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('unstrung', {
     // Spoken note names (Tools menu). The speech itself is browser-side, so only the menu
     // signal crosses over; the guitar notes reuse the sample channels above.
     onSpeakNotesOpen: (callback) => ipcRenderer.on('speak-notes:open', () => callback()),
+    // Rendering phrases to audio, which is the platform specific half of the experiment.
+    listRenderedSpeechVoices: () => ipcRenderer.invoke('speak-notes:list-voices'),
+    renderSpeechPhrases: (phrases, rate, voice) =>
+        ipcRenderer.invoke('speak-notes:render', { phrases, rate, voice }),
 
     // Chord library (Tools menu).
     onChordLibraryOpen: (callback) => ipcRenderer.on('chords:open', () => callback()),

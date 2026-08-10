@@ -202,12 +202,38 @@
         </p>
 
         <p>
-            <label for="speak-notes-rate-select">Speech rate</label>
-            <select id="speak-notes-rate-select">
-                <option value="6">6 — fastest that is clearly articulated</option>
-                <option value="8" selected>8 — faster, some clipping of word endings</option>
-                <option value="10">10 — as fast as the speech engine goes</option>
+            <label for="speak-notes-source-select">Speech source</label>
+            <select id="speak-notes-source-select">
+                <option value="browser" selected>The browser's own speech — works everywhere, cannot be pitched</option>
+                <option value="windows">Rendered on this PC — Windows only, can be pitched</option>
             </select>
+        </p>
+
+        <p>
+            Rendering makes the speech available as audio rather than only as sound, which is the
+            only way to know a phrase's exact length in advance, to place it on the same clock as the
+            notes, and to move its pitch. It is also the only platform specific thing in Unstrung.
+            The browser's engine needs nothing and runs anywhere, but its output cannot be touched.
+        </p>
+
+        <p>
+            <input type="checkbox" id="speak-notes-pitch-checkbox" />
+            <label for="speak-notes-pitch-checkbox">
+                Speak each note at its own pitch, folded into one octave (rendered speech only)
+            </label>
+        </p>
+
+        <p>
+            Pitch is moved by playing the phrase faster or slower, like speeding up a tape, so it
+            also changes how long the phrase takes: low notes are spoken slower and cost more tempo.
+            Guitar spans four octaves and speech does not, so pitches are folded into a single
+            octave around the voice's natural pitch. Pitch class is what survives; the octave does
+            not, which is what the octave option below is for.
+        </p>
+
+        <p>
+            <label for="speak-notes-rate-select">Speech rate</label>
+            <select id="speak-notes-rate-select"></select>
         </p>
 
         <p>

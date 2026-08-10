@@ -718,6 +718,8 @@ const speakNotesPassageSelect = document.getElementById('speak-notes-passage-sel
 const speakNotesMeasuresInput = document.getElementById('speak-notes-measures-input');
 const speakNotesOctaveCheckbox = document.getElementById('speak-notes-octave-checkbox');
 const speakNotesRateSelect = document.getElementById('speak-notes-rate-select');
+const speakNotesSourceSelect = document.getElementById('speak-notes-source-select');
+const speakNotesPitchCheckbox = document.getElementById('speak-notes-pitch-checkbox');
 const speakNotesVoiceSelect = document.getElementById('speak-notes-voice-select');
 const speakNotesTempoInput = document.getElementById('speak-notes-tempo-input');
 const speakNotesMetronomeCheckbox = document.getElementById('speak-notes-metronome-checkbox');
@@ -743,6 +745,9 @@ const SPEAK_NOTES_LATENCY_MS = 60;
 const SPEAK_NOTES_VELOCITY = 'mf';
 const SPEAK_NOTES_STRUM_DELAY_SECONDS = 0.02; // matches the audio track's strum spread
 const SPEAK_NOTES_NOTE_GAIN = 0.7;
+// Rendered speech shares the graph with the guitar, so it needs a level. Above the notes, since
+// an announcement that cannot be made out over the playing is worth nothing.
+const SPEAK_NOTES_SPEECH_GAIN = 1.0;
 const SPEAK_NOTES_RING_SECONDS = 2.2;
 
 let speakNotesToken = 0;
@@ -754,6 +759,102 @@ let speakNotesTimers = [];
 const speakNotesPhraseCache = new Map();
 let speakNotesDialogOpener = null;
 let speakNotesVoicesLoaded = false;
+
+// Decoded, silence-trimmed phrases from the Windows renderer, keyed by voice, rate and text.
+const speakNotesRenderCache = new Map();
+let speakNotesWindowsVoices = null;
+
+// Rate scales for the two sources. They are unrelated numbers: the Web Speech API's rate is a
+// multiplier on normal speed, while SAPI's is an integer -10 to 10 where 0 is normal.
+const SPEAK_NOTES_RATE_OPTIONS = {
+    browser: [
+        { value: '6', label: '6 - fastest that is clearly articulated' },
+        { value: '8', label: '8 - faster, some clipping of word endings', selected: true },
+        { value: '10', label: '10 - as fast as the speech engine goes' }
+    ],
+    windows: [
+        { value: '0', label: '0 - the voice\'s normal speed' },
+        { value: '3', label: '3 - brisk' },
+        { value: '5', label: '5 - fast', selected: true },
+        { value: '7', label: '7 - very fast' },
+        { value: '10', label: '10 - as fast as SAPI goes' }
+    ]
+};
+
+// Anything quieter than this counts as silence when trimming a rendered phrase. About -46 dBFS:
+// low enough to keep a soft consonant, high enough to cut the encoder's noise floor.
+const SPEAK_NOTES_SILENCE_FLOOR = 0.005;
+
+// A pitch this far from the voice's own is where the fold wraps around. Six semitones each way
+// keeps the shift under half an octave, which is where a concatenative voice stays intelligible.
+const SPEAK_NOTES_FOLD_CENTRE_SEMITONES = 6;
+
+/**
+ * How far to shift a phrase so it carries the note's pitch.
+ *
+ * A guitar spans about four octaves and a speaking voice spans nowhere near that, so pitches are
+ * folded into one octave: only the pitch class survives, and the octave is left to the words. C is
+ * taken as the voice's natural pitch and everything else is placed within half an octave of it,
+ * wrapping at the tritone, so no phrase is ever shifted more than six semitones.
+ *
+ * Returns semitones, which the caller turns into a playback rate.
+ */
+function speakNotesFoldedSemitones(midi) {
+    const pitchClass = ((midi % 12) + 12) % 12;
+    return pitchClass > SPEAK_NOTES_FOLD_CENTRE_SEMITONES - 1 ? pitchClass - 12 : pitchClass;
+}
+
+/**
+ * Where the speech actually starts and stops inside a rendered phrase.
+ *
+ * The browser path had to infer this from word boundary events and a fixed allowance for the last
+ * word, because it never had the audio. Here the samples are in hand, so the answer is read off
+ * them directly and is exact.
+ */
+function speakNotesTrimSilence(buffer) {
+    const data = buffer.getChannelData(0);
+    let first = 0, last = data.length - 1;
+    while (first < data.length && Math.abs(data[first]) < SPEAK_NOTES_SILENCE_FLOOR) first++;
+    while (last > first && Math.abs(data[last]) < SPEAK_NOTES_SILENCE_FLOOR) last--;
+    if (first >= last) return { startSeconds: 0, speechSeconds: buffer.duration };
+
+    // A few milliseconds either side, so a quiet attack or release is not clipped off.
+    const pad = Math.round(0.01 * buffer.sampleRate);
+    const start = Math.max(0, first - pad);
+    const end = Math.min(data.length - 1, last + pad);
+    return {
+        startSeconds: start / buffer.sampleRate,
+        speechSeconds: (end - start) / buffer.sampleRate
+    };
+}
+
+/** Renders and decodes every phrase not already cached for this voice and rate. */
+async function speakNotesRenderPhrases(phrases, rate, voice, myToken) {
+    const missing = phrases.filter(text =>
+        !speakNotesRenderCache.has(`${voice || 'default'}:${rate}:${text}`));
+
+    if (missing.length > 0) {
+        const rendered = await window.unstrung.renderSpeechPhrases(missing, rate, voice);
+        if (myToken !== speakNotesToken) return null;
+
+        for (const entry of rendered) {
+            const bytes = entry.bytes;
+            const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+            const buffer = await getSharedAudioContext().decodeAudioData(arrayBuffer);
+            speakNotesRenderCache.set(`${voice || 'default'}:${rate}:${entry.text}`, {
+                buffer, ...speakNotesTrimSilence(buffer)
+            });
+        }
+        if (myToken !== speakNotesToken) return null;
+    }
+
+    const result = new Map();
+    for (const text of phrases) {
+        const hit = speakNotesRenderCache.get(`${voice || 'default'}:${rate}:${text}`);
+        if (hit) result.set(text, hit);
+    }
+    return result;
+}
 
 // alphaTab's Duration enum is the note value's denominator, so a quarter is 4 and an eighth is 8.
 const SPEAK_NOTES_DURATION_NAMES = {
@@ -1113,14 +1214,17 @@ async function speakNotesMeasureAll(phrases, rate, voice, myToken) {
  * beat and was comfortable; what held the tempo down was a much shorter phrase falling in the
  * half-beat gap of an eighth-note run.
  */
-function speakNotesMaxTempo(events, measured) {
+function speakNotesMaxTempo(events, source) {
+    // A rendered phrase is placed on the audio clock, so it needs no head start; a browser
+    // utterance is started on a timer and the engine takes a moment to begin.
+    const headStart = source === 'windows' ? 0 : SPEAK_NOTES_LATENCY_MS;
     let worst = null;
     for (let i = 1; i < events.length; i++) {
         const beats = events[i].beat - events[i - 1].beat;
-        const needed = measured.get(events[i].text) + SPEAK_NOTES_LATENCY_MS;
+        const needed = events[i].announceMs + headStart;
         const beatsPerMs = beats / needed;
         if (worst === null || beatsPerMs < worst.beatsPerMs) {
-            worst = { beatsPerMs, beats, needed, text: events[i].text };
+            worst = { beatsPerMs, beats, needed, text: events[i].text, announceMs: events[i].announceMs };
         }
     }
     if (worst === null) return { tempo: 300, binding: null };
@@ -1203,35 +1307,82 @@ async function speakNotesPlay() {
         speakNotesPlayButton.setAttribute('aria-pressed', 'false');
         return;
     }
-    const rate = Number(speakNotesRateSelect.value) || 8;
-    const voice = speakNotesSelectedVoice();
+    const source = speakNotesSourceSelect.value;
+    // Not `|| default`: SAPI's normal speed is rate 0, which is falsy, and that silently
+    // substituted a much faster rate. It made a rate sweep come out non-monotonic before it was
+    // spotted, since "rate 0" was really being rendered at 8.
+    const chosenRate = Number(speakNotesRateSelect.value);
+    const rate = Number.isFinite(chosenRate) ? chosenRate : (source === 'windows' ? 5 : 8);
     const events = passage.events;
-
-    // --- Time every phrase before anything is scheduled ---------------------------------
-    speakNotesStatusElement.textContent = 'Timing the phrases…';
     const distinct = [...new Set(events.map(e => e.text))];
-    const measured = await speakNotesMeasureAll(distinct, rate, voice, myToken);
-    if (myToken !== speakNotesToken || !measured) return;
 
-    const { tempo: maxTempo, binding } = speakNotesMaxTempo(events, measured);
+    // --- Find out how long every announcement takes, before anything is scheduled --------
+    // Each event ends up with `announceMs`. How that is arrived at is the difference between the
+    // two sources: the browser has to be timed by speaking, while a rendered phrase can simply be
+    // measured, and its length additionally depends on how far its pitch is shifted.
+    let renderedByText = null;
+    const voice = source === 'windows'
+        ? (speakNotesVoiceSelect.value || null)
+        : speakNotesSelectedVoice();
+
+    if (source === 'windows') {
+        speakNotesStatusElement.textContent = 'Rendering the phrases…';
+        try {
+            renderedByText = await speakNotesRenderPhrases(distinct, rate, voice, myToken);
+        } catch (error) {
+            speakNotesStatusElement.textContent = `Could not render speech: ${error.message}`;
+            speakNotesPlayButton.textContent = SPEAK_NOTES_PLAY_LABEL;
+            speakNotesPlayButton.setAttribute('aria-pressed', 'false');
+            return;
+        }
+        if (myToken !== speakNotesToken || !renderedByText) return;
+
+        const withPitch = speakNotesPitchCheckbox.checked;
+        for (const event of events) {
+            const info = renderedByText.get(event.text);
+            if (!info) { event.announceMs = 0; continue; }
+            // The lowest sounding note carries the pitch: for a chord that is its bass, which is
+            // what a player hears as the chord's position.
+            const semitones = withPitch ? speakNotesFoldedSemitones(Math.min(...event.midi)) : 0;
+            event.playbackRate = Math.pow(2, semitones / 12);
+            event.semitones = semitones;
+            event.render = info;
+            // Playing faster raises the pitch and shortens the phrase by the same factor.
+            event.announceMs = (info.speechSeconds / event.playbackRate) * 1000;
+        }
+    } else {
+        speakNotesStatusElement.textContent = 'Timing the phrases…';
+        const measured = await speakNotesMeasureAll(distinct, rate, voice, myToken);
+        if (myToken !== speakNotesToken || !measured) return;
+        for (const event of events) event.announceMs = measured.get(event.text) ?? 0;
+    }
+
+    const { tempo: maxTempo, binding } = speakNotesMaxTempo(events, source);
     const wanted = Math.max(20, Number(speakNotesTempoInput.value) || 90);
     // A floor of 20 keeps an absurdly long phrase from stalling the passage entirely; at that
     // point the announcement overlaps its note, which is the documented failure rather than a bug.
     const tempo = Math.max(20, Math.min(wanted, maxTempo));
 
-    const longest = distinct.reduce((a, b) => (measured.get(a) >= measured.get(b) ? a : b));
+    const longest = events.reduce((a, b) => (a.announceMs >= b.announceMs ? a : b));
     const kinds = passage.kinds
         ? ` ${passage.events.length} beats: ${passage.kinds.single} single notes, ` +
           `${passage.kinds.named} named by the file, ${passage.kinds.identified} named from their notes, ` +
           `${passage.kinds.pair} said as two notes, ${passage.kinds.unknown} unknown.`
         : '';
+    // With pitch on, the same phrase runs to different lengths at different pitches, so the spread
+    // is worth stating: it is the cost of pitching, and it falls entirely on the low notes.
+    const shifts = events.filter(e => typeof e.semitones === 'number' && e.semitones !== 0);
+    const pitchNote = shifts.length > 0
+        ? ` Pitched over ${Math.min(...shifts.map(e => e.semitones))} to ` +
+          `${Math.max(...shifts.map(e => e.semitones))} semitones.`
+        : '';
     speakNotesLimitElement.textContent =
         `Fastest tempo these phrases fit: ${maxTempo}.` +
         (binding
-            ? ` Set by "${binding.text}" at ${Math.round(measured.get(binding.text))} milliseconds` +
+            ? ` Set by "${binding.text}" at ${Math.round(binding.announceMs)} milliseconds` +
               ` having to fit a ${binding.beats} beat gap.`
             : '') +
-        ` Longest phrase is "${longest}" at ${Math.round(measured.get(longest))} milliseconds.` +
+        ` Longest is "${longest.text}" at ${Math.round(longest.announceMs)} milliseconds.` + pitchNote +
         (tempo < wanted ? ` Playing at ${tempo} instead of ${wanted}.` : '') + kinds;
 
     const secondsPerBeat = 60 / tempo;
@@ -1288,11 +1439,32 @@ async function speakNotesPlay() {
         }
     }
 
-    // --- Speech runs alongside on ordinary timers, and cannot disturb the above ---------
+    // --- The announcements ---------------------------------------------------------------
+    //
+    // Rendered phrases go into the same graph as the notes, so each one lands exactly where it is
+    // put and finishes exactly when its note begins. Browser utterances cannot be scheduled at
+    // all, so they are started on a timer with a head start and allowed to overlap their note if
+    // the engine is slow. Either way the notes and clicks above are already committed and neither
+    // path can move them.
     for (const event of events) {
-        const speakAt = beatTime(event.beat)
-            - (measured.get(event.text) + SPEAK_NOTES_LATENCY_MS) / 1000;
-        const delayMs = (speakAt - context.currentTime) * 1000;
+        const endsAt = beatTime(event.beat);
+        const startsAt = endsAt - event.announceMs / 1000;
+
+        if (source === 'windows') {
+            if (!event.render) continue;
+            const speech = context.createBufferSource();
+            speech.buffer = event.render.buffer;
+            speech.playbackRate.value = event.playbackRate;
+            const gain = context.createGain();
+            gain.gain.value = SPEAK_NOTES_SPEECH_GAIN;
+            speech.connect(gain).connect(speakNotesMasterGain);
+            // Offsets into the buffer are in the buffer's own time, unaffected by playback rate;
+            // the length to play is not, which is why the duration is scaled and the offset is not.
+            speech.start(Math.max(context.currentTime, startsAt), event.render.startSeconds,
+                event.render.speechSeconds);
+            speakNotesSources.push(speech);
+            continue;
+        }
 
         speakNotesTimers.push(setTimeout(() => {
             if (myToken !== speakNotesToken) return;
@@ -1302,7 +1474,7 @@ async function speakNotesPlay() {
             // Abandon whatever is still in its trailing silence rather than queueing behind it.
             speechSynthesis.cancel();
             speechSynthesis.speak(utterance);
-        }, Math.max(0, delayMs)));
+        }, Math.max(0, (startsAt - SPEAK_NOTES_LATENCY_MS / 1000 - context.currentTime) * 1000)));
     }
 
     speakNotesStatusElement.textContent =
@@ -1343,9 +1515,71 @@ speakNotesDialog.addEventListener('close', () => {
 
 // Changing anything that affects the timing invalidates the figure on screen.
 for (const control of [speakNotesPassageSelect, speakNotesRateSelect, speakNotesVoiceSelect,
-    speakNotesDurationCheckbox, speakNotesOctaveCheckbox, speakNotesMeasuresInput]) {
+    speakNotesDurationCheckbox, speakNotesOctaveCheckbox, speakNotesMeasuresInput,
+    speakNotesSourceSelect, speakNotesPitchCheckbox]) {
     control.addEventListener('change', () => { speakNotesLimitElement.textContent = ''; });
 }
+
+/**
+ * Fills the rate and voice lists for the chosen source.
+ *
+ * The two sources agree on nothing here: their rate scales are unrelated numbers, and they see
+ * different voices -- Chromium exposes the OneCore voices while System.Speech exposes the older
+ * SAPI "Desktop" ones, so the same machine offers three to one and two to the other.
+ */
+async function speakNotesRefreshForSource() {
+    const source = speakNotesSourceSelect.value;
+
+    const previousRate = speakNotesRateSelect.value;
+    speakNotesRateSelect.replaceChildren();
+    for (const entry of SPEAK_NOTES_RATE_OPTIONS[source]) {
+        const option = document.createElement('option');
+        option.value = entry.value;
+        option.textContent = entry.label;
+        if (entry.selected) option.selected = true;
+        speakNotesRateSelect.append(option);
+    }
+    if ([...speakNotesRateSelect.options].some(o => o.value === previousRate)) {
+        speakNotesRateSelect.value = previousRate;
+    }
+
+    // Pitch is only on offer where there is audio to shift.
+    speakNotesPitchCheckbox.disabled = source !== 'windows';
+    if (source !== 'windows') speakNotesPitchCheckbox.checked = false;
+
+    speakNotesVoiceSelect.replaceChildren();
+    if (source === 'windows') {
+        if (speakNotesWindowsVoices === null) {
+            const result = await window.unstrung.listRenderedSpeechVoices();
+            speakNotesWindowsVoices = result.supported ? result.voices : [];
+            if (!result.supported) {
+                speakNotesStatusElement.textContent = result.error
+                    ? `Rendering speech is not available: ${result.error}`
+                    : 'Rendering speech is only available on Windows.';
+            }
+        }
+        for (const name of speakNotesWindowsVoices) {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            speakNotesVoiceSelect.append(option);
+        }
+        return;
+    }
+
+    for (const voice of await speakNotesLoadVoices()) {
+        const option = document.createElement('option');
+        option.value = voice.name;
+        option.textContent = voice.name + (voice.default ? ' (default)' : '');
+        if (voice.default) option.selected = true;
+        speakNotesVoiceSelect.append(option);
+    }
+}
+
+speakNotesSourceSelect.addEventListener('change', () => {
+    speakNotesStatusElement.textContent = '';
+    speakNotesRefreshForSource();
+});
 
 async function openSpeakNotesDialog() {
     speakNotesDialogOpener = document.activeElement;
@@ -1379,18 +1613,10 @@ async function openSpeakNotesDialog() {
     speakNotesStatusElement.textContent = '';
 
     if (!speakNotesVoicesLoaded) {
-        const voices = await speakNotesLoadVoices();
-        speakNotesVoiceSelect.replaceChildren();
-        if (voices.length === 0) {
+        await speakNotesRefreshForSource();
+        if (speakNotesVoiceSelect.options.length === 0) {
             speakNotesStatusElement.textContent =
                 'No speech voices are available, so nothing can be spoken.';
-        }
-        for (const voice of voices) {
-            const option = document.createElement('option');
-            option.value = voice.name;
-            option.textContent = voice.name + (voice.default ? ' (default)' : '');
-            if (voice.default) option.selected = true;
-            speakNotesVoiceSelect.append(option);
         }
         speakNotesVoicesLoaded = true;
     }
