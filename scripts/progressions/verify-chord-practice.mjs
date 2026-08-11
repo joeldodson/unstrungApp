@@ -72,7 +72,8 @@ await page.waitForTimeout(1500);
 const tab = await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
     if (!panel) return null;
-    const details = [...panel.querySelectorAll('details')];
+    // Only the chord rows: the panel also holds a Keyboard commands disclosure.
+    const details = [...panel.querySelectorAll('ol > li > details')];
     return {
         dialogClosed: !document.getElementById('chord-practice-dialog').open,
         tabName: [...document.querySelectorAll('[role="tab"]')]
@@ -96,16 +97,16 @@ console.log(`  headings: ${tab.headings.join(' | ')}`);
 check('there is a progression heading and a playback heading',
     tab.headings.some(h => h.startsWith('H2')) &&
     tab.headings.filter(h => h.startsWith('H3')).length === 2, tab.headings.join(' | '));
-check('playback has Play and Stop buttons',
-    tab.buttons.includes('Play') && tab.buttons.includes('Stop'), tab.buttons.join(', '));
+check('playback has a transport', tab.buttons.includes('Play'), tab.buttons.join(', '));
 check('there is a live region for playback state', tab.liveRegions >= 1);
 
 console.log(`  summary: ${tab.summaryItems.join(' | ')}`);
 check('the seed is stated so the progression can be regenerated',
     tab.summaryItems.some(row => row.startsWith('Seed - ')));
-check('the tempo and time signature are stated',
-    tab.summaryItems.some(r => r.includes('70 beats per minute')) &&
-    tab.summaryItems.some(r => r.includes('4/4')));
+// Tempo is no longer in the summary: it is adjustable during playback, so it lives in a field
+// where it can be changed and read back rather than in text that would go stale.
+check('the time signature is stated', tab.summaryItems.some(r => r.includes('4/4')),
+    tab.summaryItems.join(' | '));
 
 console.log(`\n  chords: ${tab.summaries.join('  ')}`);
 check('eight chords were listed', tab.chordCount === 8, `${tab.chordCount}`);
@@ -121,7 +122,7 @@ console.log('\n=== A chord with no fingering says so inside, not on its name ===
 const unfingered = await page.evaluate(() => {
     // Generated at the advanced level, which admits chords the library has no shape for.
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    return [...panel.querySelectorAll('details')].map(d => ({
+    return [...panel.querySelectorAll('ol > li > details')].map(d => ({
         summary: d.querySelector('summary').textContent,
         rows: [...d.querySelectorAll('li')].map(li => li.textContent)
     }));
@@ -144,15 +145,14 @@ const timing = await page.evaluate(async () => {
 });
 check('instrumentation installed', timing === true);
 
-await page.evaluate(() => {
+// One button toggles: it reads Play, then Pause once running.
+const clickTransport = () => page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    [...panel.querySelectorAll('button')].find(b => b.textContent === 'Play').click();
+    [...panel.querySelectorAll('button')].find(b => /^(Play|Pause)$/.test(b.textContent)).click();
 });
+await clickTransport();
 await page.waitForTimeout(9000);
-await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    [...panel.querySelectorAll('button')].find(b => b.textContent === 'Stop').click();
-});
+await clickTransport();
 
 const starts = await page.evaluate(() => window.__starts);
 // Speech sources are the only ones started with an explicit duration.
@@ -170,6 +170,141 @@ if (speech.length >= 2) {
 } else {
     console.log('  (speech unavailable or off; the timing assertion needs it)');
 }
+
+console.log('\n=== Transport matches the audio track ===');
+const panelState = () => page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const play = [...panel.querySelectorAll('button')].find(b => /^(Play|Pause)$/.test(b.textContent));
+    return {
+        playLabel: play.textContent,
+        pressed: play.getAttribute('aria-pressed'),
+        announcement: panel.querySelector('[aria-live]').textContent,
+        tempo: panel.querySelector('input[type="number"]').value,
+        metronome: panel.querySelector('input[type="checkbox"]').checked,
+        repeats: panel.querySelector('select').value
+    };
+});
+
+const controls = await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const labelled = [...panel.querySelectorAll('input, select')].every(el =>
+        panel.querySelector(`label[for="${el.id}"]`));
+    const keyRows = [...panel.querySelectorAll('details')]
+        .filter(d => d.querySelector('summary').textContent === 'Keyboard commands')
+        .flatMap(d => [...d.querySelectorAll('li')].map(li => li.textContent));
+    return {
+        buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
+        labelled, keyRows
+    };
+});
+check('the panel has tempo, repeats and metronome, all labelled', controls.labelled);
+check('Play and Back to Bar 1 buttons are present',
+    controls.buttons.includes('Play') && controls.buttons.includes('Back to Bar 1'),
+    controls.buttons.join(', '));
+console.log(`  keyboard commands listed: ${controls.keyRows.length}`);
+// Seven rows covering nine keys: the arrow pairs and the tempo pair share a row each.
+check('the audio track keys are documented', controls.keyRows.length === 7,
+    `${controls.keyRows.length} rows`);
+
+// Focus the panel itself so the bare keys reach the transport.
+await page.evaluate(() => {
+    [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus();
+});
+
+const press = async key => {
+    await page.keyboard.press(key);
+    await page.waitForTimeout(700);
+    return panelState();
+};
+
+// The speech timing run above left the position partway in, so start from a known bar rather
+// than assuming one.
+await press('ArrowUp');
+
+const afterB = await press('b');
+console.log(`  B  -> ${afterB.announcement}`);
+check('B announces the bar, the chord and which play this is',
+    /^Bar 1 of 8, [A-G][^,]*, play 1 of 4\.$/.test(afterB.announcement), afterB.announcement);
+
+const afterRight = await press('ArrowRight');
+console.log(`  Right -> ${afterRight.announcement}`);
+check('Right moves forward a bar', /^Bar 2, /.test(afterRight.announcement), afterRight.announcement);
+
+const afterLeft = await press('ArrowLeft');
+console.log(`  Left  -> ${afterLeft.announcement}`);
+check('Left moves back a bar', /^Bar 1, /.test(afterLeft.announcement), afterLeft.announcement);
+
+const afterDown = await press('ArrowDown');
+console.log(`  Down  -> ${afterDown.announcement}`);
+check('Down returns to the start of this bar', /^Bar 1, /.test(afterDown.announcement),
+    afterDown.announcement);
+
+const afterSlower = await press('s');
+console.log(`  S  -> ${afterSlower.announcement}, tempo box now ${afterSlower.tempo}`);
+check('S slows the tempo by five', afterSlower.tempo === '65', afterSlower.tempo);
+const afterFaster = await press('f');
+check('F speeds it back up', afterFaster.tempo === '70', afterFaster.tempo);
+
+const afterM = await press('m');
+console.log(`  M  -> ${afterM.announcement}, metronome ${afterM.metronome}`);
+check('M toggles the metronome and the checkbox follows',
+    afterM.metronome === false && /Metronome off/.test(afterM.announcement));
+await press('m');
+
+console.log('\n=== Space plays and pauses, Up restarts ===');
+const afterSpace = await press(' ');
+await page.waitForTimeout(2500);
+const playing = await panelState();
+console.log(`  Space -> button "${playing.playLabel}", ${playing.announcement}`);
+check('Space starts playback and the button becomes Pause',
+    playing.playLabel === 'Pause' && playing.pressed === 'true',
+    `${playing.playLabel} / ${playing.pressed}`);
+void afterSpace;
+
+const afterPause = await press(' ');
+console.log(`  Space -> button "${afterPause.playLabel}", ${afterPause.announcement}`);
+check('Space pauses and says where it stopped',
+    afterPause.playLabel === 'Play' && /^Paused at bar \d+\./.test(afterPause.announcement),
+    afterPause.announcement);
+
+const afterUp = await press('ArrowUp');
+console.log(`  Up -> ${afterUp.announcement}`);
+check('Up returns to bar 1', /Back to bar 1/.test(afterUp.announcement), afterUp.announcement);
+
+console.log('\n=== Looping ===');
+await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const select = panel.querySelector('select');
+    select.value = '0';
+    select.dispatchEvent(new Event('change'));
+});
+const loopState = await panelState();
+console.log(`  repeats set to "${loopState.repeats}" -> ${loopState.announcement}`);
+check('repeat until stopped is selectable and announced',
+    loopState.repeats === '0' && /until stopped/i.test(loopState.announcement),
+    loopState.announcement);
+
+// Eight bars of 4/4 at 70 bpm is 27.4 s, too long to wait for a wrap; push the tempo up so a
+// whole pass fits inside the check, then confirm playback survives past the end of pass one.
+await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const tempo = panel.querySelector('input[type="number"]');
+    tempo.value = '240';
+    tempo.dispatchEvent(new Event('change'));
+});
+await page.waitForTimeout(500);
+await page.evaluate(() => {
+    [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus();
+});
+await page.keyboard.press(' ');
+// One pass at 240 bpm is 8 s; wait past it and confirm it is still going.
+await page.waitForTimeout(13000);
+const looping = await panelState();
+console.log(`  after 13 s at 240 bpm: button "${looping.playLabel}", ${looping.announcement}`);
+check('playback is still running past the end of the first pass',
+    looping.playLabel === 'Pause', looping.playLabel);
+check('the repeat was announced', /Repeat \d+/.test(looping.announcement), looping.announcement);
+await page.keyboard.press(' ');
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 await app.close();
