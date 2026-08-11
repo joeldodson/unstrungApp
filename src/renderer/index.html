@@ -162,6 +162,88 @@
         <button type="button" id="guitar-samples-ok-button">OK</button>
     </dialog>
 
+    <dialog id="chord-practice-dialog" aria-labelledby="chord-practice-dialog-heading" tabindex="-1">
+        <h2 id="chord-practice-dialog-heading">Chord Practice</h2>
+
+        <p>
+            Generates a chord progression to play along with, and an audio track for it. The
+            progression opens in its own tab, with every chord listed and its fingering and notes
+            inside a collapsed region.
+        </p>
+
+        <p>
+            Chords are chosen from weights that follow how chords tend to move in a key, so a
+            progression is different each time but still goes somewhere. Only chords playable at
+            the experience level chosen are used.
+        </p>
+
+        <p>
+            <label for="chord-practice-level-select">Experience level</label>
+            <select id="chord-practice-level-select"></select>
+        </p>
+
+        <p id="chord-practice-level-description"></p>
+
+        <p>
+            <label for="chord-practice-key-select">Key</label>
+            <select id="chord-practice-key-select"></select>
+        </p>
+
+        <p>
+            Keys are listed only where enough chords can be played at the level chosen. Open
+            position does not cover all twelve.
+        </p>
+
+        <p>
+            <label for="chord-practice-time-select">Time signature</label>
+            <select id="chord-practice-time-select">
+                <option value="4/4" selected>4/4 — four beats to the bar</option>
+                <option value="3/4">3/4 — three beats to the bar, a waltz</option>
+                <option value="2/4">2/4 — two beats to the bar</option>
+                <option value="6/8">6/8 — six beats to the bar</option>
+            </select>
+        </p>
+
+        <p>
+            <label for="chord-practice-tempo-input">Tempo (beats per minute)</label>
+            <input type="number" id="chord-practice-tempo-input" min="30" max="240" step="1" value="80" />
+        </p>
+
+        <p>
+            <label for="chord-practice-count-input">Number of chords</label>
+            <input type="number" id="chord-practice-count-input" min="2" max="32" step="1" value="8" />
+        </p>
+
+        <p>
+            Each chord lasts one bar and is strummed on every beat. A chord may be held for two
+            bars, the way a progression usually breathes.
+        </p>
+
+        <p>
+            <input type="checkbox" id="chord-practice-metronome-checkbox" checked />
+            <label for="chord-practice-metronome-checkbox">Metronome</label>
+        </p>
+
+        <p>
+            <input type="checkbox" id="chord-practice-speak-checkbox" />
+            <label for="chord-practice-speak-checkbox">
+                Speak the name of the next chord on the last beat of each bar
+            </label>
+        </p>
+
+        <p>
+            <label for="chord-practice-speech-volume-input">Spoken chord volume (percent)</label>
+            <input type="number" id="chord-practice-speech-volume-input" min="0" max="100" step="5" value="100" />
+        </p>
+
+        <p id="chord-practice-speech-note"></p>
+
+        <p id="chord-practice-status" aria-live="polite"></p>
+
+        <button type="button" id="chord-practice-generate-button">Generate Progression</button>
+        <button type="button" id="chord-practice-cancel-button">Cancel</button>
+    </dialog>
+
     <!-- The chord library opens as a tab rather than a dialog: it is a place you browse and
          build up a comparison set in, not a decision you commit or cancel. Cloned into a tab
          panel on demand, and only ever one instance, so these ids stay unique. -->

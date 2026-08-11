@@ -36,7 +36,9 @@ for (const levelId of ['beginner', 'intermediate', 'advanced']) {
 console.log('=== Every chord is playable at the level asked for ===');
 for (const levelId of ['beginner', 'intermediate']) {
     const level = model.levels.find(l => l.id === levelId);
-    const isPlayable = buildPlayability(library, model.playabilityRules[level.playability]);
+    // alsoAllow must be passed here too, or the check disagrees with the generator about what the
+    // level permits and reports its own omission as a defect.
+    const isPlayable = buildPlayability(library, model.playabilityRules[level.playability], level.alsoAllow);
     let checked = 0, bad = [];
     for (const key of KEY_ROOTS) {
         for (const mode of ['major', 'minor']) {

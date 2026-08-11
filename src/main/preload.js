@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld('unstrung', {
     renderSpokenPhrases: (phrases, rate, voice) =>
         ipcRenderer.invoke('speech:render', { phrases, rate, voice }),
 
+    // Chord practice (Tools menu).
+    onChordPracticeOpen: (callback) => ipcRenderer.on('chord-practice:open', () => callback()),
+
     // Chord library (Tools menu).
     onChordLibraryOpen: (callback) => ipcRenderer.on('chords:open', () => callback()),
     onFretsToChordOpen: (callback) => ipcRenderer.on('frets:open', () => callback()),

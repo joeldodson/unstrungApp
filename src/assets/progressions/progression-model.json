@@ -84,6 +84,9 @@
       "description": "Major and minor shapes in open position, no barres. The chords a first year of playing covers.",
       "degrees": { "major": ["I", "ii", "IV", "V", "vi"], "minor": ["i", "iv", "v", "VI", "VII"] },
       "playability": "open",
+      "alsoAllow": [
+        { "root": "F", "suffix": "major", "why": "the three and four string cheats are how everyone first plays it" }
+      ],
       "repeatProbability": 0.25,
       "upgrades": [],
       "substitutions": []

@@ -87,7 +87,7 @@ function voicingSatisfies(voicing, rule) {
  * Returns a function of (root, suffix). Passing no library at all makes everything acceptable,
  * which is what the "any" rule means and also lets the generator be tested without the library.
  */
-export function buildPlayability(library, rule) {
+export function buildPlayability(library, rule, alsoAllow = []) {
     if (!rule || rule.requireVoicing === false) return () => true;
 
     const acceptable = new Set();
@@ -96,6 +96,12 @@ export function buildPlayability(library, rule) {
             acceptable.add(`${chord.root}|${chord.suffix}`);
         }
     }
+    // Chords a level admits despite failing its rule, because a simplified shape everyone learns
+    // early makes the full fingering beside the point. F major is the case this exists for: the
+    // library only knows the barre, but the three and four string cheats are how it is first
+    // played, and excluding it costs C major its IV chord.
+    for (const chord of alsoAllow) acceptable.add(`${chord.root}|${chord.suffix}`);
+
     return (root, suffix) => acceptable.has(`${root}|${suffix}`);
 }
 
@@ -113,7 +119,7 @@ const MINIMUM_USABLE_DEGREES = 3;
  */
 export function usableKeys(model, mode, levelId, library) {
     const level = model.levels.find(entry => entry.id === levelId) ?? model.levels[0];
-    const isPlayable = buildPlayability(library, model.playabilityRules[level.playability]);
+    const isPlayable = buildPlayability(library, model.playabilityRules[level.playability], level.alsoAllow);
     return KEY_ROOTS.map(key => {
         const degrees = usableDegrees(model, mode, key, level, isPlayable);
         return { key, degreeCount: degrees.length, usable: degrees.length >= MINIMUM_USABLE_DEGREES };
@@ -258,7 +264,7 @@ export function generateProgression(model, {
 } = {}) {
     const level = model.levels.find(entry => entry.id === levelId) ?? model.levels[0];
     const rule = model.playabilityRules[level.playability];
-    const isPlayable = buildPlayability(library, rule);
+    const isPlayable = buildPlayability(library, rule, level.alsoAllow);
 
     const usedSeed = seed === null ? Math.floor(Math.random() * 2 ** 31) : seed;
     const random = makeRandom(usedSeed);
