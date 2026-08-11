@@ -62,7 +62,8 @@ await page.waitForTimeout(300);
 
 console.log('\n=== Generating opens a tab ===');
 await page.selectOption('#chord-practice-key-select', 'C|major');
-await page.selectOption('#chord-practice-time-select', '4/4');
+await page.fill('#chord-practice-beats-input', '4');
+    await page.fill('#chord-practice-beat-unit-input', '4');
 await page.fill('#chord-practice-tempo-input', '70');
 await page.fill('#chord-practice-count-input', '8');
 await page.setChecked('#chord-practice-speak-checkbox', true).catch(() => {});
@@ -72,14 +73,16 @@ await page.waitForTimeout(1500);
 const tab = await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
     if (!panel) return null;
-    // Only the chord rows: the panel also holds a Keyboard commands disclosure.
-    const details = [...panel.querySelectorAll('ol > li > details')];
+    // Only the chord rows, which are the one list carrying that class.
+    const details = [...panel.querySelectorAll('ul.chord-progression > li > details')];
     return {
         dialogClosed: !document.getElementById('chord-practice-dialog').open,
         tabName: [...document.querySelectorAll('[role="tab"]')]
             .find(t => t.getAttribute('aria-selected') === 'true')?.textContent,
         headings: [...panel.querySelectorAll('h2, h3')].map(h => `${h.tagName}: ${h.textContent}`),
-        summaryItems: [...panel.querySelectorAll('h2 + ul > li')].map(li => li.textContent),
+        // The metadata list: the only plain list outside a chord's own disclosure.
+        summaryItems: [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
+            .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent),
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
         liveRegions: [...panel.querySelectorAll('[aria-live]')].length,
         chordCount: details.length,
@@ -94,10 +97,17 @@ const tab = await page.evaluate(() => {
 check('a tab opened and the dialog closed', tab !== null && tab.dialogClosed);
 console.log(`  tab: ${tab.tabName}`);
 console.log(`  headings: ${tab.headings.join(' | ')}`);
-check('there is a progression heading and a playback heading',
-    tab.headings.some(h => h.startsWith('H2')) &&
-    tab.headings.filter(h => h.startsWith('H3')).length === 2, tab.headings.join(' | '));
-check('playback has a transport', tab.buttons.includes('Play'), tab.buttons.join(', '));
+// The same shape as the audio track panel: a heading per section, and the keyboard commands last.
+check('the sections are laid out in order',
+    tab.headings.join(' | ') ===
+    'H2: Chord practice - C major | H3: Progression | H3: Chords (8) | H3: Playback | ' +
+    'H3: Move around the progression | H3: Keyboard control',
+    tab.headings.join(' | '));
+check('the chords come straight after the metadata',
+    tab.headings.indexOf('H3: Chords (8)') === tab.headings.indexOf('H3: Progression') + 1);
+check('keyboard control is the last heading',
+    tab.headings[tab.headings.length - 1] === 'H3: Keyboard control');
+check('playback has a transport', tab.buttons.includes('Play Progression'), tab.buttons.join(', '));
 check('there is a live region for playback state', tab.liveRegions >= 1);
 
 console.log(`  summary: ${tab.summaryItems.join(' | ')}`);
@@ -122,7 +132,7 @@ console.log('\n=== A chord with no fingering says so inside, not on its name ===
 const unfingered = await page.evaluate(() => {
     // Generated at the advanced level, which admits chords the library has no shape for.
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    return [...panel.querySelectorAll('ol > li > details')].map(d => ({
+    return [...panel.querySelectorAll('ul.chord-progression > li > details')].map(d => ({
         summary: d.querySelector('summary').textContent,
         rows: [...d.querySelectorAll('li')].map(li => li.textContent)
     }));
@@ -148,7 +158,7 @@ check('instrumentation installed', timing === true);
 // One button toggles: it reads Play, then Pause once running.
 const clickTransport = () => page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    [...panel.querySelectorAll('button')].find(b => /^(Play|Pause)$/.test(b.textContent)).click();
+    [...panel.querySelectorAll('button')].find(b => /^(Play Progression|Pause)$/.test(b.textContent)).click();
 });
 await clickTransport();
 await page.waitForTimeout(9000);
@@ -174,14 +184,15 @@ if (speech.length >= 2) {
 console.log('\n=== Transport matches the audio track ===');
 const panelState = () => page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    const play = [...panel.querySelectorAll('button')].find(b => /^(Play|Pause)$/.test(b.textContent));
+    const play = [...panel.querySelectorAll('button')].find(b => /^(Play Progression|Pause)$/.test(b.textContent));
     return {
         playLabel: play.textContent,
         pressed: play.getAttribute('aria-pressed'),
         announcement: panel.querySelector('[aria-live]').textContent,
-        tempo: panel.querySelector('input[type="number"]').value,
-        metronome: panel.querySelector('input[type="checkbox"]').checked,
-        repeats: panel.querySelector('select').value
+        // Both are number inputs now, so pick them by id rather than by position.
+        tempo: panel.querySelector('input[id^="chord-practice-tab-tempo"]').value,
+        repeats: panel.querySelector('input[id^="chord-practice-tab-repeat"]').value,
+        metronome: panel.querySelector('input[type="checkbox"]').checked
     };
 });
 
@@ -189,22 +200,30 @@ const controls = await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
     const labelled = [...panel.querySelectorAll('input, select')].every(el =>
         panel.querySelector(`label[for="${el.id}"]`));
-    const keyRows = [...panel.querySelectorAll('details')]
-        .filter(d => d.querySelector('summary').textContent === 'Keyboard commands')
-        .flatMap(d => [...d.querySelectorAll('li')].map(li => li.textContent));
+    // The key list is the last plain list in the panel, under the Keyboard control heading.
+    const lists = [...panel.querySelectorAll('ul:not(.chord-progression)')]
+        .filter(ul => !ul.closest('details'));
+    const keyRows = [...lists[lists.length - 1].querySelectorAll('li')].map(li => li.textContent);
+    const listStyle = getComputedStyle(panel.querySelector('ul.chord-progression')).listStyleType;
     return {
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
-        labelled, keyRows
+        labelled, keyRows, listStyle
     };
 });
+check('the chord list carries no bullet or number', controls.listStyle === 'none',
+    controls.listStyle);
 check('the panel has tempo, repeats and metronome, all labelled', controls.labelled);
-check('Play and Back to Bar 1 buttons are present',
-    controls.buttons.includes('Play') && controls.buttons.includes('Back to Bar 1'),
+check('the transport buttons match the audio track',
+    controls.buttons.includes('Play Progression') && controls.buttons.includes('Restart'),
     controls.buttons.join(', '));
 console.log(`  keyboard commands listed: ${controls.keyRows.length}`);
-// Seven rows covering nine keys: the arrow pairs and the tempo pair share a row each.
-check('the audio track keys are documented', controls.keyRows.length === 7,
+// Nine rows, one per key, worded as the audio track words them.
+check('the audio track keys are documented', controls.keyRows.length === 9,
     `${controls.keyRows.length} rows`);
+check('the tempo keys name their step size',
+    controls.keyRows.some(r => r === 'S - slower by 5 BPM') &&
+    controls.keyRows.some(r => r === 'F - faster by 5 BPM'),
+    controls.keyRows.filter(r => /^[SF] /.test(r)).join(' | '));
 
 // Focus the panel itself so the bare keys reach the transport.
 await page.evaluate(() => {
@@ -223,25 +242,29 @@ await press('ArrowUp');
 
 const afterB = await press('b');
 console.log(`  B  -> ${afterB.announcement}`);
-check('B announces the bar, the chord and which play this is',
-    /^Bar 1 of 8, [A-G][^,]*, play 1 of 4\.$/.test(afterB.announcement), afterB.announcement);
+// Repeats default to 0, which is "until stopped", so there is no total to say: "play 1", not
+// "play 1 of 4". The audio track words it the same way.
+check('B announces the measure, the chord and which play this is',
+    /^Measure 1 of 8, [A-G][^,]*, play 1\.$/.test(afterB.announcement), afterB.announcement);
 
 const afterRight = await press('ArrowRight');
 console.log(`  Right -> ${afterRight.announcement}`);
-check('Right moves forward a bar', /^Bar 2, /.test(afterRight.announcement), afterRight.announcement);
+check('Right moves forward a bar', /^Measure 2, /.test(afterRight.announcement), afterRight.announcement);
 
 const afterLeft = await press('ArrowLeft');
 console.log(`  Left  -> ${afterLeft.announcement}`);
-check('Left moves back a bar', /^Bar 1, /.test(afterLeft.announcement), afterLeft.announcement);
+check('Left moves back a bar', /^Measure 1, /.test(afterLeft.announcement), afterLeft.announcement);
 
 const afterDown = await press('ArrowDown');
 console.log(`  Down  -> ${afterDown.announcement}`);
-check('Down returns to the start of this bar', /^Bar 1, /.test(afterDown.announcement),
+check('Down returns to the start of this bar', /^Measure 1, /.test(afterDown.announcement),
     afterDown.announcement);
 
 const afterSlower = await press('s');
-console.log(`  S  -> ${afterSlower.announcement}, tempo box now ${afterSlower.tempo}`);
+console.log(`  S  -> "${afterSlower.announcement}", tempo box now ${afterSlower.tempo}`);
 check('S slows the tempo by five', afterSlower.tempo === '65', afterSlower.tempo);
+check('the tempo announcement is the value alone, as the audio track does it',
+    afterSlower.announcement === '65 BPM', afterSlower.announcement);
 const afterFaster = await press('f');
 check('F speeds it back up', afterFaster.tempo === '70', afterFaster.tempo);
 
@@ -264,31 +287,23 @@ void afterSpace;
 const afterPause = await press(' ');
 console.log(`  Space -> button "${afterPause.playLabel}", ${afterPause.announcement}`);
 check('Space pauses and says where it stopped',
-    afterPause.playLabel === 'Play' && /^Paused at bar \d+\./.test(afterPause.announcement),
+    afterPause.playLabel === 'Play Progression' && /^Paused at measure \d+\./.test(afterPause.announcement),
     afterPause.announcement);
 
 const afterUp = await press('ArrowUp');
 console.log(`  Up -> ${afterUp.announcement}`);
-check('Up returns to bar 1', /Back to bar 1/.test(afterUp.announcement), afterUp.announcement);
+check('Up returns to bar 1', /Back to measure 1/.test(afterUp.announcement), afterUp.announcement);
 
 console.log('\n=== Looping ===');
-await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    const select = panel.querySelector('select');
-    select.value = '0';
-    select.dispatchEvent(new Event('change'));
-});
 const loopState = await panelState();
-console.log(`  repeats set to "${loopState.repeats}" -> ${loopState.announcement}`);
-check('repeat until stopped is selectable and announced',
-    loopState.repeats === '0' && /until stopped/i.test(loopState.announcement),
-    loopState.announcement);
+console.log(`  repeats field reads "${loopState.repeats}"`);
+check('repeats defaults to 0, meaning until stopped', loopState.repeats === '0', loopState.repeats);
 
 // Eight bars of 4/4 at 70 bpm is 27.4 s, too long to wait for a wrap; push the tempo up so a
 // whole pass fits inside the check, then confirm playback survives past the end of pass one.
 await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    const tempo = panel.querySelector('input[type="number"]');
+    const tempo = panel.querySelector('input[id^="chord-practice-tab-tempo"]');
     tempo.value = '240';
     tempo.dispatchEvent(new Event('change'));
 });
@@ -300,11 +315,59 @@ await page.keyboard.press(' ');
 // One pass at 240 bpm is 8 s; wait past it and confirm it is still going.
 await page.waitForTimeout(13000);
 const looping = await panelState();
-console.log(`  after 13 s at 240 bpm: button "${looping.playLabel}", ${looping.announcement}`);
+console.log(`  after 13 s at 240 bpm: button "${looping.playLabel}", announcement "${looping.announcement}"`);
 check('playback is still running past the end of the first pass',
     looping.playLabel === 'Pause', looping.playLabel);
-check('the repeat was announced', /Repeat \d+/.test(looping.announcement), looping.announcement);
+// A live region firing every time round would talk over the music it is counting.
+check('nothing is announced on a repeat', !/repeat/i.test(looping.announcement),
+    looping.announcement);
+const afterLoopB = await press('b');
+console.log(`  B while looping -> ${afterLoopB.announcement}`);
+check('B still says which play you are on',
+    /, play [2-9]\d*\.$/.test(afterLoopB.announcement), afterLoopB.announcement);
 await page.keyboard.press(' ');
+await page.waitForTimeout(400);
+
+console.log('\n=== A seed rebuilds the same progression ===');
+const firstChords = tab.summaries.join(' ');
+const seedRow = tab.summaryItems.find(row => row.startsWith('Seed - '));
+const seed = seedRow.match(/Seed - (\d+)/)[1];
+console.log(`  seed from the first tab: ${seed}`);
+
+await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await page.waitForTimeout(1200);
+await page.fill('#chord-practice-seed-input', seed);
+await page.selectOption('#chord-practice-key-select', 'C|major');
+await page.fill('#chord-practice-count-input', '8');
+await page.click('#chord-practice-generate-button');
+await page.waitForTimeout(1500);
+
+const rebuilt = await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    return [...panel.querySelectorAll('ul.chord-progression > li > details')]
+        .map(d => d.querySelector('summary').textContent).join(' ');
+});
+console.log(`  original: ${firstChords}`);
+console.log(`  rebuilt : ${rebuilt}`);
+check('the same seed gives the same chords', rebuilt === firstChords, rebuilt);
+
+await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await page.waitForTimeout(1000);
+const seedRejected = await page.evaluate(async () => {
+    document.getElementById('chord-practice-seed-input').value = 'not a number';
+    document.getElementById('chord-practice-generate-button').click();
+    await new Promise(r => setTimeout(r, 400));
+    return {
+        stillOpen: document.getElementById('chord-practice-dialog').open,
+        status: document.getElementById('chord-practice-status').textContent
+    };
+});
+console.log(`  bad seed -> ${seedRejected.status}`);
+check('a seed that is not a number is refused rather than ignored',
+    seedRejected.stillOpen && /not a number/.test(seedRejected.status), seedRejected.status);
+await page.evaluate(() => document.getElementById('chord-practice-dialog').close());
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 await app.close();

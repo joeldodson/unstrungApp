@@ -3103,10 +3103,12 @@ const chordPracticeDialog = document.getElementById('chord-practice-dialog');
 const chordPracticeLevelSelect = document.getElementById('chord-practice-level-select');
 const chordPracticeLevelDescription = document.getElementById('chord-practice-level-description');
 const chordPracticeKeySelect = document.getElementById('chord-practice-key-select');
-const chordPracticeTimeSelect = document.getElementById('chord-practice-time-select');
+const chordPracticeSeedInput = document.getElementById('chord-practice-seed-input');
+const chordPracticeBeatsInput = document.getElementById('chord-practice-beats-input');
+const chordPracticeBeatUnitInput = document.getElementById('chord-practice-beat-unit-input');
 const chordPracticeTempoInput = document.getElementById('chord-practice-tempo-input');
 const chordPracticeCountInput = document.getElementById('chord-practice-count-input');
-const chordPracticeRepeatSelect = document.getElementById('chord-practice-repeat-select');
+const chordPracticeRepeatInput = document.getElementById('chord-practice-repeat-input');
 const chordPracticeMetronomeCheckbox = document.getElementById('chord-practice-metronome-checkbox');
 const chordPracticeSpeakCheckbox = document.getElementById('chord-practice-speak-checkbox');
 const chordPracticeSpeechVolumeInput = document.getElementById('chord-practice-speech-volume-input');
@@ -3192,10 +3194,10 @@ function buildChordPracticeRow(chord, position) {
     const list = document.createElement('ul');
     const entry = chordPracticeLibraryEntry(chord);
     const voicing = chordPracticeVoicing(entry);
-    const rows = [`Bar ${position + 1}`];
+    const rows = [`Measure ${position + 1}`];
 
     if (entry) rows.push(`${entry.name} - ${baseQualityLabel(entry)}`);
-    if (chord.repeatOfPrevious) rows.push('Held over from the bar before');
+    if (chord.repeatOfPrevious) rows.push('Held over from the measure before');
     if (chord.substituted) rows.push(`Borrowed chord: ${chord.substituted}`);
 
     if (voicing) {
@@ -3231,9 +3233,9 @@ let chordPracticeSources = [];
 let chordPracticeTimers = [];
 let chordPracticeStates = [];
 
-const chordPracticeBarSeconds = state => state.beatsPerBar * (60 / state.tempo);
+const chordPracticeMeasureSeconds = state => state.beatsPerBar * (60 / state.tempo);
 const chordPracticeTotalSeconds = state =>
-    state.progression.chords.length * chordPracticeBarSeconds(state);
+    state.progression.chords.length * chordPracticeMeasureSeconds(state);
 
 function clearChordPracticeTimers() {
     for (const timer of chordPracticeTimers) clearTimeout(timer);
@@ -3275,9 +3277,9 @@ function chordPracticePosition(state) {
     return position;
 }
 
-function chordPracticeBarAt(state, seconds) {
+function chordPracticeMeasureAt(state, seconds) {
     return Math.min(state.progression.chords.length - 1,
-        Math.max(0, Math.floor(seconds / chordPracticeBarSeconds(state))));
+        Math.max(0, Math.floor(seconds / chordPracticeMeasureSeconds(state))));
 }
 
 /** Fetches and decodes every guitar note the progression needs, once. */
@@ -3360,7 +3362,7 @@ function scheduleChordPracticeStrum(state, midi, at) {
 function scheduleChordPracticePass(state, fromSeconds, contextStart) {
     const context = getSharedAudioContext();
     const secondsPerBeat = 60 / state.tempo;
-    const barSeconds = chordPracticeBarSeconds(state);
+    const barSeconds = chordPracticeMeasureSeconds(state);
     const total = chordPracticeTotalSeconds(state);
     const at = seconds => contextStart + (seconds - fromSeconds);
 
@@ -3442,7 +3444,9 @@ function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {})
                 state.anchorSeconds = 0;
                 state.anchorContextTime = endsAt;
                 armPass(endsAt, 0);
-                state.announce(`Repeat ${state.pass}.`);
+                // Nothing is announced on a repeat. The point of looping is to keep playing, and a
+                // live region firing every time round talks over the music it is counting. B says
+                // which repeat you are on for anyone who wants to know.
             }, Math.max(0, (endsAt - context.currentTime - 1.5) * 1000)));
             return;
         }
@@ -3490,7 +3494,7 @@ async function toggleChordPracticePlayback(state) {
         state.anchorSeconds = position;
         state.anchorContextTime = null;
         state.setPlaying(false);
-        state.announce(`Paused at bar ${chordPracticeBarAt(state, position) + 1}.`);
+        state.announce(`Paused at measure ${chordPracticeMeasureAt(state, position) + 1}.`);
         return;
     }
     if (!await chordPracticePrepare(state)) return;
@@ -3511,24 +3515,25 @@ function seekChordPractice(state, seconds, { announce = true } = {}) {
     else state.setPlaying(false);
 
     if (announce) {
-        const bar = chordPracticeBarAt(state, target);
-        state.announce(`Bar ${bar + 1}, ${chordDisplayName(state.progression.chords[bar])}.`);
+        const measure = chordPracticeMeasureAt(state, target);
+        state.announce(
+            `Measure ${measure + 1}, ${chordDisplayName(state.progression.chords[measure])}.`);
     }
 }
 
-function seekChordPracticeByBar(state, delta) {
-    const barSeconds = chordPracticeBarSeconds(state);
-    const bar = chordPracticeBarAt(state, chordPracticePosition(state));
-    seekChordPractice(state, (bar + delta) * barSeconds);
+function seekChordPracticeByMeasure(state, delta) {
+    const measureSeconds = chordPracticeMeasureSeconds(state);
+    const measure = chordPracticeMeasureAt(state, chordPracticePosition(state));
+    seekChordPractice(state, (measure + delta) * measureSeconds);
 }
 
-function announceChordPracticeBar(state) {
-    const bar = chordPracticeBarAt(state, chordPracticePosition(state));
-    const chord = state.progression.chords[bar];
+function announceChordPracticeMeasure(state) {
+    const measure = chordPracticeMeasureAt(state, chordPracticePosition(state));
+    const chord = state.progression.chords[measure];
     const passText = state.repeatCount === 1 ? ''
         : state.repeatCount === 0 ? `, play ${state.pass}`
             : `, play ${state.pass} of ${state.repeatCount}`;
-    state.announce(`Bar ${bar + 1} of ${state.progression.chords.length}, ` +
+    state.announce(`Measure ${measure + 1} of ${state.progression.chords.length}, ` +
         `${chordDisplayName(chord)}${passText}.`);
 }
 
@@ -3539,16 +3544,18 @@ function stepChordPracticeTempo(state, delta) {
 
     // Position is held in seconds, so a tempo change has to move it to the equivalent point in the
     // music rather than leave it where it was on the clock.
-    const bar = chordPracticeBarAt(state, chordPracticePosition(state));
+    const bar = chordPracticeMeasureAt(state, chordPracticePosition(state));
     const wasPlaying = state.playing;
     stopChordPracticePlayback();
     state.tempo = tempo;
     state.ui.tempoInput.value = String(tempo);
-    state.anchorSeconds = bar * chordPracticeBarSeconds(state);
+    state.anchorSeconds = bar * chordPracticeMeasureSeconds(state);
     state.anchorContextTime = null;
     if (wasPlaying) startChordPracticePlayback(state, state.anchorSeconds, { countIn: false });
     else state.setPlaying(false);
-    state.announce(`Tempo ${tempo}.`);
+    // Just the number, as the audio track does it: the word "tempo" on every step is noise when
+    // stepping through a range to find one that fits.
+    state.announce(`${tempo} BPM`);
 }
 
 function setChordPracticeMetronome(state, enabled) {
@@ -3572,7 +3579,7 @@ function restartChordPractice(state) {
     state.pass = 1;
     if (wasPlaying) startChordPracticePlayback(state, 0, { countIn: true });
     else state.setPlaying(false);
-    state.announce('Back to bar 1.');
+    state.announce('Back to measure 1.');
 }
 
 // The same keys as the audio track, deliberately: a player should not have to remember which panel
@@ -3581,12 +3588,12 @@ function restartChordPractice(state) {
 // the same ground for when focus mode is not on.
 const CHORD_PRACTICE_SHORTCUTS = {
     ' ': state => toggleChordPracticePlayback(state),
-    ArrowLeft: state => seekChordPracticeByBar(state, -1),
-    ArrowRight: state => seekChordPracticeByBar(state, 1),
+    ArrowLeft: state => seekChordPracticeByMeasure(state, -1),
+    ArrowRight: state => seekChordPracticeByMeasure(state, 1),
     ArrowDown: state => seekChordPractice(state,
-        chordPracticeBarAt(state, chordPracticePosition(state)) * chordPracticeBarSeconds(state)),
+        chordPracticeMeasureAt(state, chordPracticePosition(state)) * chordPracticeMeasureSeconds(state)),
     ArrowUp: state => restartChordPractice(state),
-    b: state => announceChordPracticeBar(state),
+    b: state => announceChordPracticeMeasure(state),
     m: state => setChordPracticeMetronome(state, !state.metronome),
     s: state => stepChordPracticeTempo(state, -CHORD_PRACTICE_TEMPO_STEP_BPM),
     f: state => stepChordPracticeTempo(state, CHORD_PRACTICE_TEMPO_STEP_BPM)
@@ -3610,7 +3617,17 @@ document.addEventListener('keydown', event => {
     shortcut(state);
 });
 
-/** Builds the tab: what was asked for, how to play it, then the chords themselves. */
+/**
+ * Builds the tab, laid out to match the audio track panel.
+ *
+ * Where the two panels do the same thing they read the same: the same headings, the same button
+ * labels, the same key list at the end, and "measure" throughout rather than "bar". Having to
+ * remember which tab you are in to know what a control is called is a cost paid on every use.
+ *
+ * The progression itself comes straight after the metadata, because it is what the tab is for.
+ * The controls sit below it: they are set once and then left alone, while the chords are read
+ * over and over.
+ */
 function buildChordPracticeTab(progression, options) {
     const container = document.createElement('div');
 
@@ -3618,20 +3635,38 @@ function buildChordPracticeTab(progression, options) {
     heading.textContent = `Chord practice - ${progression.key} ${progression.mode}`;
     container.append(heading);
 
+    const summaryHeading = document.createElement('h3');
+    summaryHeading.textContent = 'Progression';
+    container.append(summaryHeading);
+
     const summaryList = document.createElement('ul');
     appendTextItems(summaryList, [
         `Key - ${progression.key} ${progression.mode}`,
         `Level - ${progression.level}`,
         `Time signature - ${options.timeSignature}`,
-        `Length - ${progression.chords.length} bars`,
+        `Length - ${progression.chords.length} measures`,
         `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
         `Spoken chord names - ${options.speak
             ? `on, at ${Math.round(options.speechVolume * 100)} percent volume`
             : 'off'}`,
-        // The seed is the only reason a progression worth practising is not lost.
+        // The seed is the only reason a progression worth practising is not lost, and the only
+        // way to hand one to somebody else.
         `Seed - ${progression.seed}, which regenerates this exact progression`
     ]);
     container.append(summaryList);
+
+    const chordsHeading = document.createElement('h3');
+    chordsHeading.textContent = `Chords (${progression.chords.length})`;
+    container.append(chordsHeading);
+
+    const list = document.createElement('ul');
+    // Read one after another, so no bullets and no numbering; see .chord-progression in the
+    // stylesheet.
+    list.className = 'chord-progression';
+    for (const [position, chord] of progression.chords.entries()) {
+        list.append(buildChordPracticeRow(chord, position));
+    }
+    container.append(list);
 
     const playbackHeading = document.createElement('h3');
     playbackHeading.textContent = 'Playback';
@@ -3651,20 +3686,18 @@ function buildChordPracticeTab(progression, options) {
     tempoParagraph.append(tempoLabel, tempoInput);
 
     const repeatParagraph = document.createElement('p');
-    const repeatSelect = document.createElement('select');
-    repeatSelect.id = `chord-practice-tab-repeat-${nextTabId}`;
-    for (const [value, label] of [['1', 'Play once'], ['2', 'Repeat 2 times'],
-        ['4', 'Repeat 4 times'], ['8', 'Repeat 8 times'], ['0', 'Repeat until stopped']]) {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = label;
-        if (Number(value) === options.repeatCount) option.selected = true;
-        repeatSelect.append(option);
-    }
+    const repeatInput = document.createElement('input');
+    repeatInput.type = 'number';
+    repeatInput.id = `chord-practice-tab-repeat-${nextTabId}`;
+    repeatInput.min = '0';
+    repeatInput.max = '50';
+    repeatInput.step = '1';
+    repeatInput.value = String(options.repeatCount);
     const repeatLabel = document.createElement('label');
-    repeatLabel.htmlFor = repeatSelect.id;
-    repeatLabel.textContent = 'Repeats';
-    repeatParagraph.append(repeatLabel, repeatSelect);
+    repeatLabel.htmlFor = repeatInput.id;
+    // Worded exactly as the audio track words it.
+    repeatLabel.textContent = 'Times to play the progression, up to 50; 0 repeats until stopped';
+    repeatParagraph.append(repeatLabel, repeatInput);
 
     const metronomeParagraph = document.createElement('p');
     const metronomeCheckbox = document.createElement('input');
@@ -3673,49 +3706,76 @@ function buildChordPracticeTab(progression, options) {
     metronomeCheckbox.checked = options.metronome;
     const metronomeLabel = document.createElement('label');
     metronomeLabel.htmlFor = metronomeCheckbox.id;
-    metronomeLabel.textContent = 'Metronome, with one bar counting in at the start';
+    metronomeLabel.textContent =
+        'Metronome, with one measure of clicks counting in the first time through';
     metronomeParagraph.append(metronomeCheckbox, metronomeLabel);
 
     container.append(tempoParagraph, repeatParagraph, metronomeParagraph);
 
+    const actions = document.createElement('p');
     const playButton = document.createElement('button');
     playButton.type = 'button';
-    playButton.textContent = 'Play';
+    playButton.textContent = 'Play Progression';
     playButton.setAttribute('aria-pressed', 'false');
+    actions.append(playButton);
+    container.append(actions);
 
-    const restartButton = document.createElement('button');
-    restartButton.type = 'button';
-    restartButton.textContent = 'Back to Bar 1';
+    // The same moves the shortcuts make, as buttons, so nothing here is keyboard-only. Same
+    // headings and same labels as the audio track panel.
+    const transportHeading = document.createElement('h3');
+    transportHeading.textContent = 'Move around the progression';
+    container.append(transportHeading);
 
-    const announcement = document.createElement('p');
-    announcement.setAttribute('aria-live', 'polite');
+    const transportParagraph = document.createElement('p');
+    const transportActions = [
+        ['Previous Measure', s => seekChordPracticeByMeasure(s, -1)],
+        ['Next Measure', s => seekChordPracticeByMeasure(s, 1)],
+        ['Start of Measure', s => seekChordPractice(s,
+            chordPracticeMeasureAt(s, chordPracticePosition(s)) * chordPracticeMeasureSeconds(s))],
+        ['Restart', s => restartChordPractice(s)]
+    ];
+    const transportButtons = [];
+    for (const [label, action] of transportActions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        transportButtons.push({ button, action });
+        transportParagraph.append(button);
+    }
+    container.append(transportParagraph);
+
+    const keysHeading = document.createElement('h3');
+    keysHeading.textContent = 'Keyboard control';
+    container.append(keysHeading);
+
+    const keysNote = document.createElement('p');
+    keysNote.textContent =
+        'These keys only work while your screen reader is passing keystrokes straight through to' +
+        ' Unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
+        ' same things.';
+    container.append(keysNote);
 
     const keysList = document.createElement('ul');
     appendTextItems(keysList, [
-        'Space - play or pause',
-        'Left and Right arrows - back or forward one bar',
-        'Down arrow - back to the start of this bar',
-        'Up arrow - back to bar 1, counting in again',
-        'B - which bar and chord this is',
+        'Space - pause and resume',
+        'Left arrow - back one measure',
+        'Right arrow - forward one measure',
+        'Down arrow - back to the start of the current measure',
+        'Up arrow - restart the progression, counting in again',
+        'B - say which measure you are in, its chord, and which repeat',
         'M - metronome on or off',
-        'S - slower, F - faster, by 5 beats per minute'
+        `S - slower by ${CHORD_PRACTICE_TEMPO_STEP_BPM} BPM`,
+        `F - faster by ${CHORD_PRACTICE_TEMPO_STEP_BPM} BPM`
     ]);
-    const keysDetails = document.createElement('details');
-    const keysSummary = document.createElement('summary');
-    keysSummary.textContent = 'Keyboard commands';
-    keysDetails.append(keysSummary, keysList);
+    container.append(keysList);
 
-    container.append(playButton, restartButton, announcement, keysDetails);
-
-    const chordsHeading = document.createElement('h3');
-    chordsHeading.textContent = `Chords (${progression.chords.length})`;
-    container.append(chordsHeading);
-
-    const list = document.createElement('ol');
-    for (const [position, chord] of progression.chords.entries()) {
-        list.append(buildChordPracticeRow(chord, position));
-    }
-    container.append(list);
+    // Moving around stays silent so the music is not talked over; this is where the keys that
+    // exist to ask a question put their answer. Not role="status", which maps to a status bar on
+    // Windows and reads oddly mid-panel.
+    const announcement = document.createElement('p');
+    announcement.setAttribute('aria-live', 'polite');
+    announcement.setAttribute('aria-atomic', 'true');
+    container.append(announcement);
 
     const state = {
         progression,
@@ -3732,7 +3792,7 @@ function buildChordPracticeTab(progression, options) {
         speech: null,
         anchorSeconds: 0,
         anchorContextTime: null,
-        ui: { tempoInput, metronomeCheckbox, repeatSelect, playButton },
+        ui: { tempoInput, metronomeCheckbox, repeatInput, playButton },
         announce: text => {
             // Cleared first, or repeating the same message says nothing.
             announcement.textContent = '';
@@ -3740,20 +3800,23 @@ function buildChordPracticeTab(progression, options) {
         },
         setPlaying: playing => {
             state.playing = playing;
-            playButton.textContent = playing ? 'Pause' : 'Play';
+            playButton.textContent = playing ? 'Pause' : 'Play Progression';
             playButton.setAttribute('aria-pressed', String(playing));
         }
     };
 
     playButton.addEventListener('click', () => toggleChordPracticePlayback(state));
-    restartButton.addEventListener('click', () => restartChordPractice(state));
+    for (const { button, action } of transportButtons) {
+        button.addEventListener('click', () => action(state));
+    }
     metronomeCheckbox.addEventListener('change',
         () => setChordPracticeMetronome(state, metronomeCheckbox.checked));
-    repeatSelect.addEventListener('change', () => {
-        state.repeatCount = Number(repeatSelect.value);
-        state.announce(state.repeatCount === 0 ? 'Repeating until stopped.'
-            : state.repeatCount === 1 ? 'Playing once.'
-                : `Repeating ${state.repeatCount} times.`);
+    repeatInput.addEventListener('change', () => {
+        const wanted = Number(repeatInput.value);
+        state.repeatCount = Number.isFinite(wanted)
+            ? Math.max(0, Math.min(50, Math.trunc(wanted)))
+            : state.repeatCount;
+        repeatInput.value = String(state.repeatCount);
     });
     tempoInput.addEventListener('change', () => {
         const wanted = Math.max(CHORD_PRACTICE_MIN_TEMPO,
@@ -3766,19 +3829,33 @@ function buildChordPracticeTab(progression, options) {
 
 async function generateChordPractice() {
     const [key, mode] = chordPracticeKeySelect.value.split('|');
-    const [beatsPerBar] = chordPracticeTimeSelect.value.split('/').map(Number);
+    const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
+    const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
+    const repeatWanted = Number(chordPracticeRepeatInput.value);
+
     const options = {
-        timeSignature: chordPracticeTimeSelect.value,
+        // The lower number is how the signature is written, not how it plays: the tempo is
+        // already counted in beats, so 6/8 at 90 is ninety eighth notes a minute.
+        timeSignature: `${beatsPerBar}/${beatUnit}`,
         beatsPerBar,
         tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
         speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
         speechVolume: Math.min(1, Math.max(0, Number(chordPracticeSpeechVolumeInput.value) / 100)),
         metronome: chordPracticeMetronomeCheckbox.checked,
-        repeatCount: Number(chordPracticeRepeatSelect.value)
+        repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
     };
 
+    // An empty seed field means a new progression; a seed reproduces the one it came from.
+    const seedText = chordPracticeSeedInput.value.trim();
+    const seed = seedText === '' ? null : Number(seedText);
+    if (seedText !== '' && !Number.isFinite(seed)) {
+        chordPracticeStatus.textContent =
+            'That seed is not a number. Leave the field empty for a new progression.';
+        return;
+    }
+
     const progression = generateProgression(progressionModel, {
-        key, mode,
+        key, mode, seed,
         levelId: chordPracticeLevelSelect.value,
         chordCount: Math.max(2, Number(chordPracticeCountInput.value) || 8),
         library: chordPracticeLibrary

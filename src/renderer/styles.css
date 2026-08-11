@@ -254,3 +254,11 @@ body {
     font-weight: bold;
     padding: 0.25rem 0;
 }
+
+/* The chord progression is read straight through, one chord after another, so it carries no
+   markers: a bullet or a number before every chord is one more thing announced on every line. */
+.chord-progression {
+    list-style-type: none;
+    padding-left: 0;
+    margin-left: 0;
+}
