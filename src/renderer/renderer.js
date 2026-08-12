@@ -2136,10 +2136,26 @@ function scheduleMetronomeClick(context, destination, when, accent) {
  * of listening to it. Position and tempo are reported only on the keys that exist to ask for
  * them, so speech happens when it is wanted and not otherwise.
  */
+/**
+ * Puts a message in a live region, including when it is the same message as last time.
+ *
+ * Clearing the region and refilling it in the same task does not work, which is easy to believe it
+ * does: the browser coalesces both writes into one mutation, so an unchanged string looks like no
+ * change and is never spoken. It shows up as a key that answers a question working while the music
+ * plays -- where the answer keeps changing -- and going silent the moment playback is paused and
+ * the same answer is asked for twice.
+ *
+ * Clearing now and filling on the next task gives two separate mutations, which is what the region
+ * needs to see.
+ */
+function announceLiveRegion(element, message) {
+    if (!element) return;
+    element.textContent = '';
+    setTimeout(() => { element.textContent = message; }, 0);
+}
+
 function announceAudioTrack(state, message) {
-    // Re-announce the same text by clearing first, otherwise a repeated value stays silent.
-    state.ui.announce.textContent = '';
-    state.ui.announce.textContent = message;
+    announceLiveRegion(state.ui.announce, message);
 }
 
 /** The selected measures as zero-based bar indices and their second boundaries. */
@@ -3639,16 +3655,20 @@ function stepChordPracticeTempo(state, delta) {
     state.announce(`${tempo} BPM`);
 }
 
+/**
+ * Turns the metronome on or off, in place.
+ *
+ * Says nothing. The checkbox carries the state, and the clicks starting or stopping is itself the
+ * answer -- an announcement here only talks over the music it is describing. The live region is
+ * for the keys that exist to ask a question, which this is not.
+ */
 function setChordPracticeMetronome(state, enabled) {
     state.metronome = enabled;
     state.ui.metronomeCheckbox.checked = enabled;
+    if (!state.playing) return;
     const position = chordPracticePosition(state);
-    const wasPlaying = state.playing;
-    if (wasPlaying) {
-        stopChordPracticePlayback();
-        startChordPracticePlayback(state, position, { countIn: false });
-    }
-    state.announce(enabled ? 'Metronome on.' : 'Metronome off.');
+    stopChordPracticePlayback();
+    startChordPracticePlayback(state, position, { countIn: false });
 }
 
 /** Back to the top, counting in again and keeping the repeat setting. */
@@ -3876,11 +3896,7 @@ function buildChordPracticeTab(progression, options) {
         anchorSeconds: 0,
         anchorContextTime: null,
         ui: { tempoInput, metronomeCheckbox, repeatInput, playButton },
-        announce: text => {
-            // Cleared first, or repeating the same message says nothing.
-            announcement.textContent = '';
-            announcement.textContent = text;
-        },
+        announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
             playButton.textContent = playing ? 'Pause' : 'Play Progression';

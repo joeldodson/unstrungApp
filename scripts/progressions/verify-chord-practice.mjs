@@ -323,10 +323,32 @@ check('the tempo announcement is the value alone, as the audio track does it',
 const afterFaster = await press('f');
 check('F speeds it back up', afterFaster.tempo === '70', afterFaster.tempo);
 
+// Pressing B twice on the same measure has to speak twice. It did not: clearing a live region and
+// refilling it in one task is coalesced into a single mutation, so an unchanged string looked like
+// no change. It worked while playing, where the answer keeps moving, and went silent when paused.
+await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const region = panel.querySelector('[aria-live]');
+    window.__announcements = [];
+    new MutationObserver(() => {
+        const text = region.textContent;
+        if (text) window.__announcements.push(text);
+    }).observe(region, { childList: true, characterData: true, subtree: true });
+});
+await press('b');
+await press('b');
+await press('b');
+const repeated = await page.evaluate(() => window.__announcements);
+console.log(`  B pressed three times while paused -> ${repeated.length} announcements`);
+check('the same answer is spoken every time it is asked for',
+    repeated.length === 3 && new Set(repeated).size === 1,
+    `${repeated.length} announcements: ${[...new Set(repeated)].join(' | ')}`);
+
 const afterM = await press('m');
-console.log(`  M  -> ${afterM.announcement}, metronome ${afterM.metronome}`);
-check('M toggles the metronome and the checkbox follows',
-    afterM.metronome === false && /Metronome off/.test(afterM.announcement));
+console.log(`  M  -> metronome ${afterM.metronome}, announcement "${afterM.announcement}"`);
+check('M toggles the metronome and the checkbox follows', afterM.metronome === false);
+// The checkbox carries the state and the clicks stopping is its own answer.
+check('M says nothing', !/metronome/i.test(afterM.announcement), afterM.announcement);
 await press('m');
 
 console.log('\n=== Space plays and pauses, Up restarts ===');
