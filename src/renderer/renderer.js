@@ -3179,6 +3179,7 @@ const chordPracticeLevelSelect = document.getElementById('chord-practice-level-s
 const chordPracticeLevelDescription = document.getElementById('chord-practice-level-description');
 const chordPracticeKeySelect = document.getElementById('chord-practice-key-select');
 const chordPracticeSeedInput = document.getElementById('chord-practice-seed-input');
+const chordPracticeBorrowingSelect = document.getElementById('chord-practice-borrowing-select');
 const chordPracticeBeatsInput = document.getElementById('chord-practice-beats-input');
 const chordPracticeBeatUnitInput = document.getElementById('chord-practice-beat-unit-input');
 const chordPracticeTempoInput = document.getElementById('chord-practice-tempo-input');
@@ -3273,7 +3274,12 @@ function buildChordPracticeRow(chord, position) {
 
     if (entry) rows.push(`${entry.name} - ${baseQualityLabel(entry)}`);
     if (chord.repeatOfPrevious) rows.push('Held over from the measure before');
-    if (chord.substituted) rows.push(`Borrowed chord: ${chord.substituted}`);
+    if (chord.borrowed) {
+        // Said here rather than on the summary, which stays the chord name and nothing else. Why a
+        // chord is outside the key is worth knowing when you stop to look at it, not on every pass.
+        rows.push(`From outside the key: ${chord.borrowed}, ${chord.borrowedWhy}`);
+        if (chord.resolvesTo) rows.push(`Points at the ${chord.resolvesTo} chord that follows it`);
+    }
 
     if (voicing) {
         rows.push(...describeVoicingRows(entry, voicing));
@@ -3721,6 +3727,8 @@ function buildChordPracticeTab(progression, options) {
         `Time signature - ${options.timeSignature}`,
         `Length - ${progression.chords.length} measures`,
         `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
+        `Chords from outside the key - ${progression.borrowing ?? 'stay in the key'}` +
+            (progression.borrowedCount > 0 ? `, ${progression.borrowedCount} used` : ''),
         `Spoken chord names - ${options.speak
             ? `on, at ${Math.round(options.speechVolume * 100)} percent volume`
             : 'off'}`,
@@ -3932,6 +3940,7 @@ async function generateChordPractice() {
     const progression = generateProgression(progressionModel, {
         key, mode, seed,
         levelId: chordPracticeLevelSelect.value,
+        borrowingId: chordPracticeBorrowingSelect.value,
         chordCount: Math.max(2, Number(chordPracticeCountInput.value) || 8),
         library: chordPracticeLibrary
     });
@@ -3977,6 +3986,15 @@ async function openChordPracticeDialog() {
             option.value = level.id;
             option.textContent = level.name;
             chordPracticeLevelSelect.append(option);
+        }
+    }
+    if (chordPracticeBorrowingSelect.options.length === 0) {
+        for (const tier of progressionModel.borrowing.tiers) {
+            const option = document.createElement('option');
+            option.value = tier.id;
+            option.textContent = tier.name;
+            if (tier.id === 'occasional') option.selected = true;
+            chordPracticeBorrowingSelect.append(option);
         }
     }
     chordPracticeRefreshKeys();

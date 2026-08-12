@@ -77,6 +77,37 @@
     }
   },
 
+  "borrowing": {
+    "note": "How often a chord from outside the key is used. Secondary dominants point at the chord that follows them and must resolve to it; mixture chords stand in for a diatonic chord of the same position. `circleSteps` records how far the chord's home key sits from this one on the circle of fifths, and gates which are offered.",
+    "tiers": [
+      { "id": "none", "name": "Stay in the key", "probability": 0, "maxCircleSteps": 0 },
+      { "id": "occasional", "name": "Occasional chord from outside the key", "probability": 0.18, "maxCircleSteps": 1 },
+      { "id": "frequent", "name": "Frequent chords from outside the key", "probability": 0.38, "maxCircleSteps": 2 }
+    ],
+    "chords": {
+      "major": [
+        { "label": "V/V", "semitones": 2, "suffix": "7", "beforeDegree": "V", "circleSteps": 1, "weight": 5, "why": "dominant of the dominant; the D7 in a song in C" },
+        { "label": "V/vi", "semitones": 4, "suffix": "7", "beforeDegree": "vi", "circleSteps": 1, "weight": 4, "why": "dominant of the relative minor; the E7 in a song in C" },
+        { "label": "V/ii", "semitones": 9, "suffix": "7", "beforeDegree": "ii", "circleSteps": 1, "weight": 3, "why": "dominant of the supertonic; the A7 in a song in C" },
+        { "label": "V/IV", "semitones": 0, "suffix": "7", "beforeDegree": "IV", "circleSteps": 1, "weight": 2, "why": "the tonic turned dominant to point at the fourth" },
+        { "label": "bVII", "semitones": 10, "suffix": "major", "replacesDegree": "V", "circleSteps": 1, "weight": 5, "why": "from the parallel minor; the Bb in a song in C" },
+        { "label": "iv", "semitones": 5, "suffix": "minor", "replacesDegree": "IV", "circleSteps": 1, "weight": 4, "why": "the minor fourth, borrowed from the parallel minor" },
+        { "label": "bVI", "semitones": 8, "suffix": "major", "replacesDegree": "vi", "circleSteps": 2, "weight": 3, "why": "from the parallel minor; the Ab in a song in C" },
+        { "label": "bIII", "semitones": 3, "suffix": "major", "replacesDegree": "iii", "circleSteps": 2, "weight": 2, "why": "from the parallel minor; the Eb in a song in C" },
+        { "label": "v", "semitones": 7, "suffix": "minor", "replacesDegree": "V", "circleSteps": 1, "weight": 2, "why": "the minor fifth, which softens the pull home" },
+        { "label": "V/iii", "semitones": 11, "suffix": "7", "beforeDegree": "iii", "circleSteps": 2, "weight": 1, "why": "dominant of the mediant; the B7 in a song in C" }
+      ],
+      "minor": [
+        { "label": "V/V", "semitones": 2, "suffix": "7", "beforeDegree": "V", "circleSteps": 1, "weight": 3, "why": "dominant of the dominant" },
+        { "label": "V/iv", "semitones": 0, "suffix": "7", "beforeDegree": "iv", "circleSteps": 1, "weight": 3, "why": "the tonic turned dominant to point at the fourth" },
+        { "label": "V/VI", "semitones": 3, "suffix": "7", "beforeDegree": "VI", "circleSteps": 1, "weight": 2, "why": "dominant of the sixth" },
+        { "label": "IV", "semitones": 5, "suffix": "major", "replacesDegree": "iv", "circleSteps": 1, "weight": 3, "why": "the major fourth, borrowed from the parallel major" },
+        { "label": "V/VII", "semitones": 5, "suffix": "7", "beforeDegree": "VII", "circleSteps": 2, "weight": 2, "why": "dominant of the seventh" },
+        { "label": "bII", "semitones": 1, "suffix": "major", "replacesDegree": "ii", "circleSteps": 2, "weight": 1, "why": "the Neapolitan, a flattened second before the dominant" }
+      ]
+    }
+  },
+
   "levels": [
     {
       "id": "beginner",
@@ -88,8 +119,7 @@
         { "root": "F", "suffix": "major", "why": "the three and four string cheats are how everyone first plays it" }
       ],
       "repeatProbability": 0.25,
-      "upgrades": [],
-      "substitutions": []
+      "upgrades": []
     },
     {
       "id": "intermediate",
@@ -102,8 +132,7 @@
         { "degrees": ["V"], "suffix": "7", "probability": 0.45 },
         { "degrees": ["ii", "vi", "iii", "iv"], "suffix": "m7", "probability": 0.25 },
         { "degrees": ["I", "V"], "suffix": "sus4", "probability": 0.1 }
-      ],
-      "substitutions": []
+      ]
     },
     {
       "id": "advanced",
@@ -119,34 +148,6 @@
         { "degrees": ["I", "IV"], "suffix": "maj7", "probability": 0.3 },
         { "degrees": ["vii"], "suffix": "m7b5", "probability": 0.6 },
         { "degrees": ["I", "IV"], "suffix": "add9", "probability": 0.1 }
-      ],
-      "substitutions": [
-        {
-          "name": "secondary dominant",
-          "beforeDegree": "V",
-          "semitones": 2,
-          "suffix": "7",
-          "label": "V/V",
-          "probability": 0.15
-        },
-        {
-          "name": "borrowed flat seven",
-          "beforeDegree": "I",
-          "semitones": 10,
-          "suffix": "major",
-          "label": "bVII",
-          "probability": 0.12,
-          "modes": ["major"]
-        },
-        {
-          "name": "borrowed minor fourth",
-          "beforeDegree": "I",
-          "semitones": 5,
-          "suffix": "minor",
-          "label": "iv",
-          "probability": 0.1,
-          "modes": ["major"]
-        }
       ]
     }
   ],

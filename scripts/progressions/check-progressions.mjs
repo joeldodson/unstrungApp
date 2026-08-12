@@ -177,6 +177,106 @@ console.log('\n=== A chord is never held for more than two slots ===');
     check('no chord repeats more than twice running', worstRun <= 2, `longest run ${worstRun} -- ${worstExample}`);
 }
 
+console.log('\n=== Chords from outside the key ===');
+{
+    for (const borrowingId of ['none', 'occasional', 'frequent']) {
+        const tally = {};
+        let borrowedTotal = 0, chordTotal = 0, unresolved = 0, inCadence = 0;
+        for (const key of KEY_ROOTS) {
+            for (const mode of ['major', 'minor']) {
+                for (let seed = 0; seed < 60; seed++) {
+                    const result = generateProgression(model, {
+                        key, mode, levelId: 'advanced', chordCount: 8, seed, library, borrowingId
+                    });
+                    chordTotal += result.chords.length;
+                    for (const [index, chord] of result.chords.entries()) {
+                        if (!chord.borrowed) continue;
+                        borrowedTotal++;
+                        tally[chord.borrowed] = (tally[chord.borrowed] ?? 0) + 1;
+                        // A secondary dominant that does not land on its target is a wrong note.
+                        if (chord.resolvesTo) {
+                            const next = result.chords[index + 1];
+                            if (!next || next.degree !== chord.resolvesTo) unresolved++;
+                        }
+                        if (index >= result.chords.length - 2) inCadence++;
+                    }
+                }
+            }
+        }
+        const share = chordTotal === 0 ? 0 : (borrowedTotal / chordTotal) * 100;
+        console.log(`  ${borrowingId.padEnd(11)} ${share.toFixed(1).padStart(5)}% of chords borrowed` +
+            (borrowedTotal ? `   ${Object.entries(tally).sort((a, b) => b[1] - a[1])
+                .map(([label, count]) => `${label} ${count}`).join(', ')}` : ''));
+
+        if (borrowingId === 'none') {
+            check('none borrows nothing at all', borrowedTotal === 0, `${borrowedTotal}`);
+        } else {
+            check(`${borrowingId} borrows something`, borrowedTotal > 0);
+            check(`${borrowingId}: every secondary dominant resolves to its target`,
+                unresolved === 0, `${unresolved} did not`);
+            check(`${borrowingId}: the cadence is left alone`, inCadence === 0, `${inCadence} inside it`);
+        }
+    }
+}
+
+console.log('\n=== Frequent reaches further around the circle than occasional ===');
+{
+    const stepsAt = borrowingId => {
+        const steps = new Set();
+        for (const key of KEY_ROOTS) {
+            for (const mode of ['major', 'minor']) {
+                for (let seed = 0; seed < 60; seed++) {
+                    for (const chord of generateProgression(model, {
+                        key, mode, levelId: 'advanced', chordCount: 8, seed, library, borrowingId
+                    }).chords) {
+                        if (chord.borrowed) steps.add(chord.circleSteps);
+                    }
+                }
+            }
+        }
+        return [...steps].sort();
+    };
+    const occasional = stepsAt('occasional');
+    const frequent = stepsAt('frequent');
+    console.log(`  occasional reaches ${occasional.join(' and ')} step(s) around the circle`);
+    console.log(`  frequent reaches   ${frequent.join(' and ')} step(s) around the circle`);
+    check('occasional stays one step out', Math.max(...occasional) === 1, occasional.join(','));
+    check('frequent reaches two', Math.max(...frequent) === 2, frequent.join(','));
+}
+
+console.log('\n=== Borrowed chords are still playable at the level asked for ===');
+{
+    const level = model.levels.find(l => l.id === 'intermediate');
+    const isPlayable = buildPlayability(library, model.playabilityRules[level.playability], level.alsoAllow);
+    const bad = [];
+    for (const key of KEY_ROOTS) {
+        for (let seed = 0; seed < 60; seed++) {
+            for (const chord of generateProgression(model, {
+                key, mode: 'major', levelId: 'intermediate', chordCount: 8, seed, library,
+                borrowingId: 'frequent'
+            }).chords) {
+                if (!isPlayable(chord.root, chord.suffix)) {
+                    bad.push(`${chordDisplayName(chord)} in ${key}`);
+                }
+            }
+        }
+    }
+    check('borrowing never smuggles in an unplayable chord', bad.length === 0,
+        bad.slice(0, 5).join(', '));
+}
+
+console.log('\n=== What a borrowed progression looks like ===');
+for (const [key, mode] of [['C', 'major'], ['G', 'major'], ['A', 'minor']]) {
+    for (const borrowingId of ['none', 'occasional', 'frequent']) {
+        const result = generateProgression(model, {
+            key, mode, levelId: 'advanced', chordCount: 8, seed: 991, library, borrowingId
+        });
+        const written = result.chords
+            .map(c => chordDisplayName(c) + (c.borrowed ? '*' : '')).join('  ');
+        console.log(`  ${(key + ' ' + mode).padEnd(9)} ${borrowingId.padEnd(11)} ${written}`);
+    }
+}
+
 console.log('\n=== Which keys each level can offer ===');
 for (const levelId of ['beginner', 'intermediate', 'advanced']) {
     for (const mode of ['major', 'minor']) {

@@ -236,6 +236,83 @@ function breakLongRuns(chords, allowedDegrees, buildChord, random) {
     return chords;
 }
 
+/**
+ * Chords from outside the key, and when one may stand in.
+ *
+ * Two different things are going on here and they are not interchangeable.
+ *
+ * A SECONDARY DOMINANT points at the chord after it and has to resolve there: the D7 in a song in
+ * C works because a G follows it, and sounds like a wrong note if anything else does. Those carry
+ * `beforeDegree` and are only ever placed in front of it.
+ *
+ * A MIXTURE chord stands in for a diatonic chord in the same position -- an F minor where an F was
+ * due, a Bb where a G was due. Those carry `replacesDegree` and go wherever that degree went.
+ *
+ * `circleSteps` is how far the chord's home key sits from this one on the circle of fifths, and is
+ * what the tiers gate on. It describes distance honestly but does not decide taste: a chord one
+ * step away can still be jarring, which is why every entry is also tied to a position rather than
+ * being dropped in anywhere.
+ */
+function borrowedChordFor(model, mode, key, tier, degree, nextDegree, isPlayable, random) {
+    if (!tier || tier.probability <= 0) return null;
+    if (random() >= tier.probability) return null;
+
+    const candidates = {};
+    const list = model.borrowing?.chords?.[mode] ?? [];
+    for (const [index, borrowed] of list.entries()) {
+        if (borrowed.circleSteps > tier.maxCircleSteps) continue;
+        if (borrowed.beforeDegree && borrowed.beforeDegree !== nextDegree) continue;
+        if (borrowed.replacesDegree && borrowed.replacesDegree !== degree) continue;
+        // A borrowed chord the player cannot fret is no more use than a diatonic one they cannot.
+        if (!isPlayable(transpose(key, borrowed.semitones), borrowed.suffix)) continue;
+        candidates[index] = borrowed.weight;
+    }
+
+    const pick = weightedPick(candidates, random);
+    return pick === null ? null : list[Number(pick)];
+}
+
+/**
+ * Swaps in the chords from outside the key, over the finished progression.
+ *
+ * This runs last, after repeats and after long runs have been broken up, and that ordering is the
+ * whole reason it works. Deciding it earlier looked simpler and was wrong: a secondary dominant
+ * chosen against the planned degree list stopped resolving as soon as a later step replaced the
+ * chord it was pointing at, and 828 of them missed their target that way.
+ *
+ * Two rules keep the resolutions honest. Never borrow twice in a row, or the chord a secondary
+ * dominant points at is itself replaced and the dominant is left pointing at nothing. And never
+ * touch the last two chords, which are the cadence: that is what makes the progression end, and a
+ * borrowed chord inside it undoes exactly that.
+ */
+function applyBorrowing(model, mode, key, tier, chords, isPlayable, random) {
+    if (!tier || tier.probability <= 0) return chords;
+
+    for (let position = 0; position < chords.length - 2; position++) {
+        if (position > 0 && chords[position - 1].borrowed) continue;
+        // A held chord is the one before it still sounding; changing it would make it a new chord.
+        if (chords[position].repeatOfPrevious) continue;
+        if (chords[position + 1]?.repeatOfPrevious) continue;
+
+        const borrowed = borrowedChordFor(model, mode, key, tier,
+            chords[position].degree, chords[position + 1]?.degree, isPlayable, random);
+        if (!borrowed) continue;
+
+        chords[position] = {
+            ...chords[position],
+            baseDegree: chords[position].degree,
+            root: transpose(key, borrowed.semitones),
+            suffix: borrowed.suffix,
+            degree: borrowed.label,
+            borrowed: borrowed.label,
+            borrowedWhy: borrowed.why,
+            circleSteps: borrowed.circleSteps,
+            resolvesTo: borrowed.beforeDegree ?? null
+        };
+    }
+    return chords;
+}
+
 /** Applies at most one upgrade to a degree, if this level offers one and the roll succeeds. */
 function upgradeChord(chord, level, isPlayable, random) {
     for (const upgrade of level.upgrades ?? []) {
@@ -260,9 +337,11 @@ export function generateProgression(model, {
     levelId = 'beginner',
     chordCount = 8,
     seed = null,
-    library = null
+    library = null,
+    borrowingId = 'none'
 } = {}) {
     const level = model.levels.find(entry => entry.id === levelId) ?? model.levels[0];
+    const tier = (model.borrowing?.tiers ?? []).find(entry => entry.id === borrowingId) ?? null;
     const rule = model.playabilityRules[level.playability];
     const isPlayable = buildPlayability(library, rule, level.alsoAllow);
 
@@ -309,22 +388,6 @@ export function generateProgression(model, {
         if (!chord) continue;
         chord = upgradeChord({ ...chord, position }, level, isPlayable, random);
 
-        // A substitution replaces the chord *before* a named degree, so it needs to know what
-        // follows; applied here, looking ahead at the degree list rather than at what was built.
-        const next = degrees[position + 1];
-        for (const substitution of level.substitutions ?? []) {
-            if (substitution.modes && !substitution.modes.includes(mode)) continue;
-            if (substitution.beforeDegree !== next) continue;
-            if (random() >= substitution.probability) continue;
-            const root = transpose(key, substitution.semitones);
-            if (!isPlayable(root, substitution.suffix)) continue;
-            chord = {
-                ...chord, root, suffix: substitution.suffix,
-                degree: substitution.label, substituted: substitution.name
-            };
-            break;
-        }
-
         chords.push({ ...chord, repeatOfPrevious: false });
     }
 
@@ -332,8 +395,12 @@ export function generateProgression(model, {
         upgradeChord({ ...chordForDegree(model, mode, key, degree), position }, level, isPlayable, random);
     breakLongRuns(chords, allowed, buildChord, random);
 
+    applyBorrowing(model, mode, key, tier, chords, isPlayable, random);
+
     return {
         key, mode, levelId, level: level.name, seed: usedSeed,
+        borrowingId, borrowing: tier ? tier.name : null,
+        borrowedCount: chords.filter(chord => chord.borrowed).length,
         cadence, skeleton, chords,
         excludedDegrees: (level.degrees[mode] ?? []).filter(degree => !allowed.includes(degree))
     };

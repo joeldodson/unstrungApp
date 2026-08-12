@@ -60,6 +60,61 @@ check('advanced offers every key and mode', advancedKeys.length === 24, `${advan
 await page.selectOption('#chord-practice-level-select', 'beginner');
 await page.waitForTimeout(300);
 
+console.log('\n=== Borrowing is offered and reaches the tab ===');
+const borrowing = await page.evaluate(() =>
+    [...document.getElementById('chord-practice-borrowing-select').options]
+        .map(o => ({ value: o.value, selected: o.selected })));
+console.log(`  tiers: ${borrowing.map(b => b.value).join(', ')}`);
+check('three borrowing tiers offered', borrowing.length === 3, borrowing.map(b => b.value).join(','));
+check('occasional is the default', borrowing.find(b => b.selected)?.value === 'occasional',
+    borrowing.find(b => b.selected)?.value);
+
+// Advanced in C major with frequent borrowing, long enough that something is very likely to fire.
+await page.selectOption('#chord-practice-level-select', 'advanced');
+await page.waitForTimeout(400);
+await page.selectOption('#chord-practice-key-select', 'C|major');
+await page.selectOption('#chord-practice-borrowing-select', 'frequent');
+await page.fill('#chord-practice-count-input', '16');
+await page.fill('#chord-practice-seed-input', '');
+await page.click('#chord-practice-generate-button');
+await page.waitForTimeout(1500);
+
+const borrowedTab = await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
+        .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent);
+    const rows = [...panel.querySelectorAll('ul.chord-progression > li > details')].map(d => ({
+        name: d.querySelector('summary').textContent,
+        rows: [...d.querySelectorAll('li')].map(li => li.textContent)
+    }));
+    return { meta, rows };
+});
+const borrowedRows = borrowedTab.rows.filter(r => r.rows.some(x => x.startsWith('From outside the key')));
+console.log(`  ${borrowedTab.meta.find(m => m.startsWith('Chords from outside the key'))}`);
+console.log(`  chords: ${borrowedTab.rows.map(r => r.name).join('  ')}`);
+check('the metadata names the borrowing setting',
+    borrowedTab.meta.some(m => /Chords from outside the key - Frequent/.test(m)),
+    borrowedTab.meta.find(m => m.startsWith('Chords from outside')));
+check('at least one chord came from outside the key', borrowedRows.length > 0,
+    `${borrowedRows.length}`);
+if (borrowedRows.length > 0) {
+    const first = borrowedRows[0];
+    console.log(`  ${first.name}: ${first.rows.find(x => x.startsWith('From outside the key'))}`);
+    check('a borrowed chord explains itself inside, not on its name',
+        !/outside|borrow/i.test(first.name), first.name);
+    const pointer = first.rows.find(x => x.startsWith('Points at'));
+    if (pointer) console.log(`  ${pointer}`);
+}
+
+// Generating closed the dialog, so the sections below have to open it again before they can set
+// anything. Everything after this point expects beginner, C major and no borrowing.
+await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await page.waitForTimeout(1200);
+await page.selectOption('#chord-practice-borrowing-select', 'none');
+await page.selectOption('#chord-practice-level-select', 'beginner');
+await page.waitForTimeout(400);
+
 console.log('\n=== Generating opens a tab ===');
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.fill('#chord-practice-beats-input', '4');
