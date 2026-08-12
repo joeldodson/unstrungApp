@@ -1182,6 +1182,30 @@ function updateChordResultsHeading() {
     chordsUi.resultsHeading.textContent = text;
 }
 
+/**
+ * Puts what the library is currently showing on the status line.
+ *
+ * The status line is written by whatever opened the library and then never revisited, so it went
+ * stale the moment the search changed. This states the current search and count instead, so the
+ * line agrees with the results rather than with how they were arrived at.
+ */
+function announceChordLibraryState() {
+    if (!chordsUi) return;
+    const search = chordsUi.searchInput.value.trim();
+    const count = chordsMatches.length;
+
+    if (count === 0) {
+        setStatus(search
+            ? `Chord Library: no chords match "${search}".`
+            : 'Chord Library: no chords match the current filters.');
+        return;
+    }
+    const chords = `${count} chord${count === 1 ? '' : 's'}`;
+    setStatus(search
+        ? `Chord Library: ${chords} matching "${search}".`
+        : `Chord Library: ${chords}.`);
+}
+
 // --- Search combobox ----------------------------------------------------------------
 function closeChordSuggestions() {
     if (!chordsUi) return;
@@ -1485,6 +1509,11 @@ function wireChordLibrary() {
         setTimeout(() => {
             closeChordSuggestions();
             queueDefaultChordIfNoneQueued();
+            // The status line otherwise keeps whatever put the library on screen. Arriving from
+            // Frets to Chord left it saying "Showing Gsus2" for the rest of the session, however
+            // many other chords were searched for afterwards. Updated on leaving the field rather
+            // than on every keystroke, so it does not chatter while a name is being typed.
+            announceChordLibraryState();
         }, 0);
     });
 
@@ -1652,9 +1681,20 @@ function populateFretSelects() {
         addOption(select, '0', 'open');
         addOption(select, '-1', 'not played');
         for (let fret = 1; fret <= FRETS_MAX_FRET; fret++) addOption(select, String(fret), String(fret));
-        select.value = '0';
     }
     updateFretStringLabels();
+}
+
+/**
+ * Every string back to open.
+ *
+ * The tool is opened to identify a shape, and the shape is a fresh question every time. Leaving
+ * the last one in place means the first thing it says is the answer to something already asked and
+ * finished with, and the frets have to be cleared one at a time before the real question can be
+ * put. The tuning is left alone: that is a property of the instrument, not of the question.
+ */
+function resetFretSelection() {
+    for (const select of fretsSelects.values()) select.value = '0';
 }
 
 /** What the selectors currently describe, as absolute frets keyed by string number. */
@@ -1854,6 +1894,7 @@ fretsViewButton.addEventListener('click', async () => {
 async function openFretsToChordDialog() {
     fretsDialogOpener = document.activeElement;
     populateFretSelects();
+    resetFretSelection();
     fretsDialog.showModal();
     fretsDialog.focus();
 
