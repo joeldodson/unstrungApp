@@ -137,5 +137,46 @@ check('no note carries a double accidental',
 check('the fallback still sounds right',
     PITCH_CLASSES[spellChordTone('C', 9, 7)] === 9, spellChordTone('C', 9, 7));
 
+console.log('\n=== Notes are listed root first, then up through the chord ===');
+for (const name of ['F#m', 'Bm', 'Bbm', 'Gmaj7', 'Am']) {
+    const chord = library.chords.find(c => c.name === name);
+    const notes = chord.voicings[0] ? chord.voicings[0].notes : chord.notes;
+    console.log(`      ${name.padEnd(7)} ${notes.join(', ')}`);
+    check(`${name} starts on its root`, notes[0] === chord.root, notes.join(', '));
+}
+
+let outOfOrder = 0;
+for (const chord of library.chords) {
+    if (chord.suffix.includes('/')) continue;
+    const rootPc = PITCH_CLASSES[chord.root];
+    for (const voicing of chord.voicings) {
+        const intervals = voicing.notes.map(n => (((PITCH_CLASSES[n] - rootPc) % 12) + 12) % 12);
+        if (intervals.some((v, i) => i > 0 && v < intervals[i - 1])) outOfOrder++;
+    }
+}
+check('every voicing lists its notes in ascending order from the root', outOfOrder === 0,
+    `${outOfOrder} out of order`);
+
+console.log('\n=== Voicings whose bass is not the root are identifiable ===');
+// Not an error: an A shape barred across all six strings genuinely sounds an inversion. But it
+// has to be visible, or the chord name is quietly wrong.
+let inverted = 0, total = 0;
+for (const chord of library.chords) {
+    if (chord.suffix.includes('/')) continue;
+    const rootPc = PITCH_CLASSES[chord.root];
+    for (const voicing of chord.voicings) {
+        if (!voicing.midi?.length) continue;
+        total++;
+        if (((Math.min(...voicing.midi) % 12) + 12) % 12 !== rootPc) inverted++;
+    }
+}
+console.log(`  ${inverted} of ${total} voicings sound something other than the root lowest`);
+const bm = library.chords.find(c => c.name === 'Bm').voicings[0];
+console.log(`  Bm first voicing: lowest MIDI ${Math.min(...bm.midi)}, notes [${bm.notes.join(', ')}]`);
+check('the Bm A-shape barre is one of them',
+    ((Math.min(...bm.midi) % 12) + 12) % 12 !== PITCH_CLASSES.B);
+check('a fifth of voicings being inverted is worth reporting rather than hiding',
+    inverted > 0 && inverted < total);
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

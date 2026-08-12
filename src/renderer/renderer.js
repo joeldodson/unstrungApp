@@ -1,8 +1,8 @@
 import * as alphaTab from '@coderline/alphatab';
 import { extractScoreMetadata } from '../shared/scoreMetadata.mjs';
 import {
-    FINGER_NAMES, QUALITY_LABELS, STANDARD_TUNING_MIDI, STRING_NUMBERS, TUNINGS, fretToMidi,
-    identifyChordFromNotes, midiToPitchClassName, midiToPitchName
+    FINGER_NAMES, PITCH_CLASSES, QUALITY_LABELS, STANDARD_TUNING_MIDI, STRING_NUMBERS, TUNINGS,
+    fretToMidi, identifyChordFromNotes, midiToPitchClassName, midiToPitchName
 } from '../shared/musicTheory.mjs';
 import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
 import helpContent from '../assets/help/help-content.json';
@@ -978,12 +978,46 @@ function appendTextItems(list, rows) {
     }
 }
 
+/**
+ * Says which note is in the bass when it is not the root, and what that makes the chord.
+ *
+ * A shape can contain every note of the chord and still not be the chord as written. The A shape
+ * barre is the clearest case: barring all six strings puts the fifth below the root, so a B minor
+ * fingered that way sounds Bm/F#. That is a real and common way to play it, not a mistake, but the
+ * description has to say so or the name is quietly wrong. Muting the lowest string is the fix, and
+ * is why the shape data treats that string as optional.
+ *
+ * One in five voicings in the library has a bass note other than the root, so this is not an edge
+ * case worth leaving unsaid.
+ */
+function bassNoteRow(chord, voicing) {
+    if (!Array.isArray(voicing.midi) || voicing.midi.length === 0) return null;
+    const rootPitchClass = PITCH_CLASSES[chord.root];
+    if (rootPitchClass === undefined) return null;
+
+    const lowestMidi = Math.min(...voicing.midi);
+    const lowestPitchClass = ((lowestMidi % 12) + 12) % 12;
+    if (lowestPitchClass === rootPitchClass) return null;
+
+    // Named from the chord's own spelling, so the bass agrees with the notes listed above it.
+    const bass = voicing.notes.find(note => PITCH_CLASSES[note] === lowestPitchClass)
+        ?? midiToPitchClassName(lowestMidi);
+    const lowestString = voicing.strings
+        .filter(entry => entry.play !== 'muted')
+        .sort((a, b) => b.string - a.string)[0];
+
+    return `Lowest note is ${bass}, not the root, so this sounds as ${chord.name}/${bass}` +
+        (lowestString ? `. Mute string ${lowestString.string} to put ${chord.root} in the bass` : '');
+}
+
 function describeVoicingRows(chord, voicing) {
+    const bass = bassNoteRow(chord, voicing);
     return [
         `Notes: ${voicing.notes.join(', ')}`,
         voicing.shape
             ? `Shape: ${voicing.shape}`
             : `Position: ${voicing.lowestFret === 0 ? 'open' : 'from fret ' + voicing.lowestFret}`,
+        ...(bass ? [bass] : []),
         `Genres: ${chord.genres.join(', ')}`,
         ...voicing.description
     ];

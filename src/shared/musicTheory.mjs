@@ -219,6 +219,10 @@ export function verifyVoicing(voicing, rootName, suffix) {
         spelled.set(PITCH_CLASSES[name] ?? -1, name);
     }
     const spell = pc => spelled.get(pc) ?? PITCH_CLASS_NAMES[pc];
+    // Root first, then up through the chord. Sorting by pitch class instead put F#m as "C#, F#, A",
+    // which is the right notes in an order nobody builds a shape from.
+    const fromRoot = pc => ((pc - rootPc) % 12 + 12) % 12;
+    const byInterval = (a, b) => fromRoot(a) - fromRoot(b);
 
     return {
         status: foreign.length === 0 && hasSeventh ? 'pass' : 'fail',
@@ -226,8 +230,8 @@ export function verifyVoicing(voicing, rootName, suffix) {
         hasRoot,
         hasThird,
         hasSeventh,
-        notes: [...sounded].sort((a, b) => a - b).map(spell),
-        expected: [...allowed].sort((a, b) => a - b).map(spell)
+        notes: [...sounded].sort(byInterval).map(spell),
+        expected: [...allowed].sort(byInterval).map(spell)
     };
 }
 
