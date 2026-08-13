@@ -3346,8 +3346,11 @@ function stopChordPracticeSources() {
         gain.setValueAtTime(gain.value, now);
         // A quick fade rather than a hard stop: silencing a sample mid-waveform clicks.
         gain.linearRampToValueAtTime(0, now + 0.04);
-        for (const source of chordPracticeSources) {
-            try { source.stop(now + 0.04); } catch { /* already finished */ }
+        for (const entry of chordPracticeSources) {
+            // Only what is still sounding or still to come. Calling stop on the hundreds that have
+            // already finished is pure work at the exact moment playback is trying to restart.
+            if (entry.endsAt <= now) continue;
+            try { entry.source.stop(now + 0.04); } catch { /* already finished */ }
         }
     }
     chordPracticeMasterGain = null;
@@ -3442,46 +3445,62 @@ function scheduleChordPracticeStrum(state, midi, at) {
         source.connect(gain).connect(chordPracticeMasterGain);
         source.start(start);
         source.stop(start + ring + 0.01);
-        chordPracticeSources.push(source);
+        chordPracticeSources.push({ source, endsAt: start + ring + 0.01 });
     }
 }
 
+// A short horizon, topped up on a timer, rather than the whole progression at once.
+//
+// Scheduling a whole pass up front was the cause of a delay on every re-anchor -- the metronome
+// especially, since toggling it stops and restarts. Two things went wrong at once. Building a
+// pass's worth of nodes takes real time on the main thread, and the audio clock keeps running
+// while it happens, so the head start was partly spent before the first note. And nothing ever
+// pruned finished sources, so the array grew with every pass and every toggle, making each
+// restart slower than the last. That is why it felt fine at first and worse as it went on.
+//
+// These are the audio track's numbers, which is the point: it does not have this problem.
+const CHORD_PRACTICE_LOOKAHEAD_SECONDS = 12;
+const CHORD_PRACTICE_TOPUP_INTERVAL_MS = 3000;
+
 /**
- * Schedules one pass from `fromSeconds`, and returns the context time it ends at.
+ * Schedules everything falling in [fromSeconds, toSeconds) of the progression.
  *
- * The first chord's name falls one beat before the pass starts, which is negative music time. That
- * needs no special case: on the first play the count-in bar occupies exactly that time, and on a
- * repeat the previous pass is still sounding there, so the announcement lands on its last beat.
- * Both are simply `contextStart` minus a beat. Only a seek can put it genuinely in the past, and
- * the clock check drops it there.
+ * A chord's spoken name falls one beat before its measure, which for the first chord is negative
+ * music time. That needs no special case: on the first play the count-in occupies exactly that
+ * time, and on a repeat the previous pass is still sounding there. Both are the chunk's own base
+ * minus a beat. Only a seek can put it genuinely in the past, which the clock check drops.
  */
-function scheduleChordPracticePass(state, fromSeconds, contextStart) {
+function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext) {
     const context = getSharedAudioContext();
     const secondsPerBeat = 60 / state.tempo;
-    const barSeconds = chordPracticeMeasureSeconds(state);
-    const total = chordPracticeTotalSeconds(state);
-    const at = seconds => contextStart + (seconds - fromSeconds);
+    const measureSeconds = chordPracticeMeasureSeconds(state);
+    const at = seconds => baseContext + (seconds - fromSeconds);
 
     for (const [index, chord] of state.progression.chords.entries()) {
-        const barStart = index * barSeconds;
+        const measureStart = index * measureSeconds;
+        if (measureStart >= toSeconds) break;
         const midi = chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? [];
 
         for (let beat = 0; beat < state.beatsPerBar; beat++) {
-            const beatSeconds = barStart + beat * secondsPerBeat;
-            if (beatSeconds < fromSeconds - 1e-6) continue;
+            const beatSeconds = measureStart + beat * secondsPerBeat;
+            if (beatSeconds < fromSeconds - 1e-6 || beatSeconds >= toSeconds - 1e-6) continue;
             if (state.metronome) {
-                chordPracticeSources.push(scheduleMetronomeClick(
-                    context, chordPracticeMasterGain, at(beatSeconds), beat === 0));
+                chordPracticeSources.push({
+                    source: scheduleMetronomeClick(
+                        context, chordPracticeMasterGain, at(beatSeconds), beat === 0),
+                    endsAt: at(beatSeconds) + METRONOME_CLICK_SECONDS
+                });
             }
             scheduleChordPracticeStrum(state, midi, at(beatSeconds));
         }
 
+        // Announced with the measure it belongs to, so it is scheduled in the same chunk.
         if (!state.speech) continue;
+        if (measureStart < fromSeconds - 1e-6 || measureStart >= toSeconds - 1e-6) continue;
         const phrase = state.speech.get(spokenChordName(chord.root, chord.suffix));
         if (!phrase) continue;
 
-        // The last beat of the bar before this one.
-        const when = at(barStart - secondsPerBeat);
+        const when = at(measureStart - secondsPerBeat);
         if (when < context.currentTime) continue;
 
         const source = context.createBufferSource();
@@ -3490,10 +3509,57 @@ function scheduleChordPracticePass(state, fromSeconds, contextStart) {
         gain.gain.value = state.speechVolume;
         source.connect(gain).connect(chordPracticeMasterGain);
         source.start(when, phrase.startSeconds, phrase.speechSeconds);
-        chordPracticeSources.push(source);
+        chordPracticeSources.push({ source, endsAt: when + phrase.speechSeconds });
+    }
+}
+
+/** Fills the schedule up to the horizon, wrapping into repeats, and arms the next top-up. */
+function chordPracticeTopUp(state, myToken) {
+    if (myToken !== chordPracticeToken) return;
+    const context = getSharedAudioContext();
+    const scheduler = state.scheduler;
+    const total = chordPracticeTotalSeconds(state);
+    const horizon = context.currentTime + CHORD_PRACTICE_LOOKAHEAD_SECONDS;
+
+    while (true) {
+        const available = horizon - scheduler.cursorContext;
+        // A meaningful minimum, not just above zero: a sliver below float resolution would advance
+        // the cursor by nothing and spin this loop forever.
+        if (available < 0.05) break;
+
+        const chunkEnd = Math.min(total, scheduler.cursorSeconds + available);
+        if (chunkEnd > scheduler.cursorSeconds + 1e-6) {
+            scheduleChordPracticeChunk(state, scheduler.cursorSeconds, chunkEnd, scheduler.cursorContext);
+            scheduler.cursorContext += chunkEnd - scheduler.cursorSeconds;
+            scheduler.cursorSeconds = chunkEnd;
+        }
+
+        if (scheduler.cursorSeconds < total - 1e-9) continue;
+        if (!chordPracticeHasNextPass(state)) {
+            const endsAt = scheduler.cursorContext + CHORD_PRACTICE_RING_SECONDS;
+            chordPracticeTimers.push(setTimeout(() => {
+                if (myToken !== chordPracticeToken) return;
+                state.anchorSeconds = 0;
+                state.anchorContextTime = null;
+                state.pass = 1;
+                state.setPlaying(false);
+                state.announce('End of progression.');
+            }, Math.max(0, (endsAt - context.currentTime) * 1000)));
+            return;
+        }
+        // Wrapping to the next pass. The anchor moves with it so the reported position stays
+        // right, and nothing is announced: looping exists to keep playing.
+        state.pass += 1;
+        state.anchorSeconds = 0;
+        state.anchorContextTime = scheduler.cursorContext;
+        scheduler.pass += 1;
+        scheduler.cursorSeconds = 0;
     }
 
-    return contextStart + (total - fromSeconds);
+    const now = context.currentTime;
+    chordPracticeSources = chordPracticeSources.filter(entry => entry.endsAt > now);
+    chordPracticeTimers.push(setTimeout(
+        () => chordPracticeTopUp(state, myToken), CHORD_PRACTICE_TOPUP_INTERVAL_MS));
 }
 
 /** Whether another pass should follow this one. 0 repeats means until stopped. */
@@ -3524,8 +3590,11 @@ function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {})
 
     if (countIn && state.metronome) {
         for (let beat = 0; beat < state.beatsPerBar; beat++) {
-            chordPracticeSources.push(scheduleMetronomeClick(context, chordPracticeMasterGain,
-                zero + beat * (60 / state.tempo), beat === 0));
+            const at = zero + beat * (60 / state.tempo);
+            chordPracticeSources.push({
+                source: scheduleMetronomeClick(context, chordPracticeMasterGain, at, beat === 0),
+                endsAt: at + METRONOME_CLICK_SECONDS
+            });
         }
     }
 
@@ -3533,33 +3602,10 @@ function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {})
     state.anchorContextTime = musicStart;
     state.setPlaying(true);
 
-    const armPass = (passStartContext, passFrom) => {
-        const endsAt = scheduleChordPracticePass(state, passFrom, passStartContext);
-        if (chordPracticeHasNextPass(state)) {
-            // Armed early enough that the next pass is in the graph before this one runs out.
-            chordPracticeTimers.push(setTimeout(() => {
-                if (myToken !== chordPracticeToken) return;
-                state.pass += 1;
-                state.anchorSeconds = 0;
-                state.anchorContextTime = endsAt;
-                armPass(endsAt, 0);
-                // Nothing is announced on a repeat. The point of looping is to keep playing, and a
-                // live region firing every time round talks over the music it is counting. B says
-                // which repeat you are on for anyone who wants to know.
-            }, Math.max(0, (endsAt - context.currentTime - 1.5) * 1000)));
-            return;
-        }
-        chordPracticeTimers.push(setTimeout(() => {
-            if (myToken !== chordPracticeToken) return;
-            state.anchorSeconds = 0;
-            state.anchorContextTime = null;
-            state.pass = 1;
-            state.setPlaying(false);
-            state.announce('End of progression.');
-        }, Math.max(0, (endsAt - context.currentTime + CHORD_PRACTICE_RING_SECONDS) * 1000)));
-    };
-
-    armPass(musicStart, fromSeconds);
+    // The cursor walks music time while carrying the exact context time each chunk starts at, so
+    // repeats join without drift and nothing is ever re-derived from a timer.
+    state.scheduler = { pass: state.pass, cursorSeconds: fromSeconds, cursorContext: musicStart };
+    chordPracticeTopUp(state, myToken);
 }
 
 async function chordPracticePrepare(state) {
