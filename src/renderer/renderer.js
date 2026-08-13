@@ -2365,66 +2365,122 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
  * context time carried forward from the previous one, never re-derived from a timer. When the
  * final pass has been fully scheduled, the end timer takes over.
  */
-function audioTrackTopUp(state, myToken) {
-    if (myToken !== audioTrackPlaybackToken) return;
-    const context = getSharedAudioContext();
-    const sched = state.scheduler;
-    const horizon = context.currentTime + AUDIO_TRACK_LOOKAHEAD_SECONDS;
+/**
+ * The rolling-window scheduler, shared by both things that play audio.
+ *
+ * WHY THIS IS SHARED. Scheduling a whole piece up front puts one source and one gain node per note
+ * into the graph at once, and the audio thread visits every scheduled node each render quantum: a
+ * long or dense piece blows its budget and the missed deadlines are audible as crackling. Worse,
+ * every re-anchor -- pausing, seeking, changing tempo, toggling the metronome -- rebuilds all of
+ * it while the clock keeps running. A short horizon topped up on a timer keeps the work per step
+ * bounded no matter how long the piece is.
+ *
+ * The audio track learned that when a thirty measure file became a hundred measure one. Chord
+ * practice then learned it again, separately and later, because the same walk had been written
+ * twice. This is that walk, once.
+ *
+ * The cursor moves through music time while carrying the exact context time each chunk begins at,
+ * so repeats join sample-accurately: nothing is ever re-derived from a timer.
+ *
+ * WHAT IT DOES NOT DO. It never announces anything, touches a button, or decides what a key press
+ * means. It only decides when sound is handed to the graph. Everything either panel says, and
+ * every difference between what they say, lives outside this and stays free to differ.
+ *
+ * Callers supply:
+ *   isCurrent()        whether this run is still the live one; a stale token stops the walk
+ *   range()            { startSeconds, endSeconds } of the music, re-read each step so a
+ *                      selection changed mid-play is picked up
+ *   hasNextPass(pass)  whether a repeat follows this one
+ *   scheduleChunk(...) put this slice of music into the graph
+ *   onWrap(context)    starting a repeat; returns seconds consumed before it, such as a count-in
+ *   onEnd(endsAt)      the last pass is fully scheduled and will finish at `endsAt`
+ *   prune(now)         drop sources that have already finished
+ *   armTopUp(step)     hold the timer for the next step wherever the caller keeps its timers
+ */
+function runRollingScheduler({
+    scheduler, isCurrent, range, hasNextPass, scheduleChunk, onWrap, onEnd, prune, armTopUp,
+    lookaheadSeconds, topUpIntervalMs, endTailSeconds
+}) {
+    const step = () => {
+        if (!isCurrent()) return;
+        const context = getSharedAudioContext();
+        const horizon = context.currentTime + lookaheadSeconds;
 
-    while (true) {
-        // A meaningful minimum chunk, not just > 0: a sliver below float resolution would
-        // advance the cursor by nothing and spin this loop forever, freezing the renderer.
-        const available = horizon - sched.cursorContext;
-        if (available < 0.05) break;
+        while (true) {
+            // A meaningful minimum chunk, not just > 0: a sliver below float resolution would
+            // advance the cursor by nothing and spin this loop forever, freezing the renderer.
+            const available = horizon - scheduler.cursorContext;
+            if (available < 0.05) break;
 
-        const range = audioTrackRange(state);
-        const hasNextPass = remainingPassesAfter(state, sched.pass) > 0;
-        const chunkEnd = Math.min(range.endSeconds, sched.cursorSeconds + available);
+            const { startSeconds, endSeconds } = range();
+            const more = hasNextPass(scheduler.pass);
+            const chunkEnd = Math.min(endSeconds, scheduler.cursorSeconds + available);
 
-        if (chunkEnd > sched.cursorSeconds + 1e-6) {
-            scheduleAudioTrackChunk(state, {
-                fromSeconds: sched.cursorSeconds,
-                toSeconds: chunkEnd,
-                baseContext: sched.cursorContext,
-                hasNextPass,
-                includeRinging: sched.firstChunk
-            });
-            sched.firstChunk = false;
-            sched.cursorContext += chunkEnd - sched.cursorSeconds;
-            sched.cursorSeconds = chunkEnd;
-        }
+            if (chunkEnd > scheduler.cursorSeconds + 1e-6) {
+                scheduleChunk({
+                    fromSeconds: scheduler.cursorSeconds,
+                    toSeconds: chunkEnd,
+                    baseContext: scheduler.cursorContext,
+                    hasNextPass: more,
+                    firstChunk: scheduler.firstChunk
+                });
+                scheduler.firstChunk = false;
+                scheduler.cursorContext += chunkEnd - scheduler.cursorSeconds;
+                scheduler.cursorSeconds = chunkEnd;
+            }
 
-        if (sched.cursorSeconds >= range.endSeconds - 1e-9) {
-            if (!hasNextPass) {
-                const remainingMs = (sched.cursorContext - context.currentTime + 2) * 1000;
-                audioTrackEndTimer = setTimeout(() => {
-                    if (myToken !== audioTrackPlaybackToken) return;
-                    state.anchorSeconds = range.startSeconds;
-                    state.anchorContextTime = null;
-                    state.anchorPass = 1;
-                    // A finished run starts over from the top next time: a first play again.
-                    state.countInArmed = true;
-                    setAudioTrackPlayingState(state, false);
-                    announceAudioTrack(state, 'End of track.');
-                }, remainingMs);
+            if (scheduler.cursorSeconds < endSeconds - 1e-9) continue;
+            if (!more) {
+                onEnd(scheduler.cursorContext + endTailSeconds);
                 return;
             }
-            sched.pass += 1;
-            sched.cursorSeconds = range.startSeconds;
-
-            // A repeat is counted in only when asked for, and only with the metronome running.
-            // Read now rather than when playback started, so ticking the box mid-loop takes effect
-            // from the next repeat instead of needing the track rebuilt.
-            sched.cursorContext += scheduleAudioTrackCountIn(
-                state, audioTrackMasterGain, sched.cursorContext, range.startSeconds,
-                state.countInEachPass);
+            scheduler.pass += 1;
+            scheduler.cursorSeconds = startSeconds;
+            scheduler.cursorContext += onWrap(scheduler.cursorContext) || 0;
         }
-    }
 
-    const now = context.currentTime;
-    audioTrackSources = audioTrackSources.filter(entry => entry.endsAt > now);
-    audioTrackPassTimer = setTimeout(
-        () => audioTrackTopUp(state, myToken), AUDIO_TRACK_TOPUP_INTERVAL_MS);
+        prune(getSharedAudioContext().currentTime);
+        armTopUp(step, topUpIntervalMs);
+    };
+
+    step();
+}
+
+function audioTrackTopUp(state, myToken) {
+    runRollingScheduler({
+        scheduler: state.scheduler,
+        lookaheadSeconds: AUDIO_TRACK_LOOKAHEAD_SECONDS,
+        topUpIntervalMs: AUDIO_TRACK_TOPUP_INTERVAL_MS,
+        endTailSeconds: 2,
+        isCurrent: () => myToken === audioTrackPlaybackToken,
+        range: () => audioTrackRange(state),
+        hasNextPass: pass => remainingPassesAfter(state, pass) > 0,
+        scheduleChunk: ({ fromSeconds, toSeconds, baseContext, hasNextPass, firstChunk }) =>
+            scheduleAudioTrackChunk(state, {
+                fromSeconds, toSeconds, baseContext, hasNextPass, includeRinging: firstChunk
+            }),
+        // A repeat is counted in only when asked for, and only with the metronome running. Read
+        // now rather than when playback started, so ticking the box mid-loop takes effect from the
+        // next repeat instead of needing the track rebuilt.
+        onWrap: cursorContext => scheduleAudioTrackCountIn(
+            state, audioTrackMasterGain, cursorContext, audioTrackRange(state).startSeconds,
+            state.countInEachPass),
+        onEnd: endsAt => {
+            const remainingMs = (endsAt - getSharedAudioContext().currentTime) * 1000;
+            audioTrackEndTimer = setTimeout(() => {
+                if (myToken !== audioTrackPlaybackToken) return;
+                state.anchorSeconds = audioTrackRange(state).startSeconds;
+                state.anchorContextTime = null;
+                state.anchorPass = 1;
+                // A finished run starts over from the top next time: a first play again.
+                state.countInArmed = true;
+                setAudioTrackPlayingState(state, false);
+                announceAudioTrack(state, 'End of track.');
+            }, remainingMs);
+        },
+        prune: now => { audioTrackSources = audioTrackSources.filter(entry => entry.endsAt > now); },
+        armTopUp: (step, intervalMs) => { audioTrackPassTimer = setTimeout(step, intervalMs); }
+    });
 }
 
 function startAudioTrackPlayback(state, fromSeconds, { countIn = false } = {}) {
@@ -3524,28 +3580,27 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext) 
 
 /** Fills the schedule up to the horizon, wrapping into repeats, and arms the next top-up. */
 function chordPracticeTopUp(state, myToken) {
-    if (myToken !== chordPracticeToken) return;
-    const context = getSharedAudioContext();
-    const scheduler = state.scheduler;
-    const total = chordPracticeTotalSeconds(state);
-    const horizon = context.currentTime + CHORD_PRACTICE_LOOKAHEAD_SECONDS;
-
-    while (true) {
-        const available = horizon - scheduler.cursorContext;
-        // A meaningful minimum, not just above zero: a sliver below float resolution would advance
-        // the cursor by nothing and spin this loop forever.
-        if (available < 0.05) break;
-
-        const chunkEnd = Math.min(total, scheduler.cursorSeconds + available);
-        if (chunkEnd > scheduler.cursorSeconds + 1e-6) {
-            scheduleChordPracticeChunk(state, scheduler.cursorSeconds, chunkEnd, scheduler.cursorContext);
-            scheduler.cursorContext += chunkEnd - scheduler.cursorSeconds;
-            scheduler.cursorSeconds = chunkEnd;
-        }
-
-        if (scheduler.cursorSeconds < total - 1e-9) continue;
-        if (!chordPracticeHasNextPass(state)) {
-            const endsAt = scheduler.cursorContext + CHORD_PRACTICE_RING_SECONDS;
+    runRollingScheduler({
+        scheduler: state.scheduler,
+        lookaheadSeconds: CHORD_PRACTICE_LOOKAHEAD_SECONDS,
+        topUpIntervalMs: CHORD_PRACTICE_TOPUP_INTERVAL_MS,
+        endTailSeconds: CHORD_PRACTICE_RING_SECONDS,
+        isCurrent: () => myToken === chordPracticeToken,
+        // A progression is its own selection: there is no measure range to choose within it.
+        range: () => ({ startSeconds: 0, endSeconds: chordPracticeTotalSeconds(state) }),
+        hasNextPass: () => chordPracticeHasNextPass(state),
+        scheduleChunk: ({ fromSeconds, toSeconds, baseContext }) =>
+            scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext),
+        // The anchor moves with the repeat so the reported position stays right. No count-in
+        // between passes, so no time is consumed here.
+        onWrap: cursorContext => {
+            state.pass += 1;
+            state.anchorSeconds = 0;
+            state.anchorContextTime = cursorContext;
+            return 0;
+        },
+        onEnd: endsAt => {
+            const remainingMs = Math.max(0, (endsAt - getSharedAudioContext().currentTime) * 1000);
             chordPracticeTimers.push(setTimeout(() => {
                 if (myToken !== chordPracticeToken) return;
                 state.anchorSeconds = 0;
@@ -3553,22 +3608,15 @@ function chordPracticeTopUp(state, myToken) {
                 state.pass = 1;
                 state.setPlaying(false);
                 state.announce('End of progression.');
-            }, Math.max(0, (endsAt - context.currentTime) * 1000)));
-            return;
+            }, remainingMs));
+        },
+        prune: now => {
+            chordPracticeSources = chordPracticeSources.filter(entry => entry.endsAt > now);
+        },
+        armTopUp: (step, intervalMs) => {
+            chordPracticeTimers.push(setTimeout(step, intervalMs));
         }
-        // Wrapping to the next pass. The anchor moves with it so the reported position stays
-        // right, and nothing is announced: looping exists to keep playing.
-        state.pass += 1;
-        state.anchorSeconds = 0;
-        state.anchorContextTime = scheduler.cursorContext;
-        scheduler.pass += 1;
-        scheduler.cursorSeconds = 0;
-    }
-
-    const now = context.currentTime;
-    chordPracticeSources = chordPracticeSources.filter(entry => entry.endsAt > now);
-    chordPracticeTimers.push(setTimeout(
-        () => chordPracticeTopUp(state, myToken), CHORD_PRACTICE_TOPUP_INTERVAL_MS));
+    });
 }
 
 /** Whether another pass should follow this one. 0 repeats means until stopped. */
