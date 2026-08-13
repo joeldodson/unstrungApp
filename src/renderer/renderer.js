@@ -3486,24 +3486,39 @@ async function chordPracticeLoadSpeech(state, myToken) {
     return byName;
 }
 
-function scheduleChordPracticeStrum(state, midi, at) {
+/**
+ * Sounds one strum.
+ *
+ * `skipSeconds` enters the samples partway through, for a chord that was already ringing when
+ * playback restarted. Without it a restart cuts whatever is sounding and waits for the next beat,
+ * which at a practice tempo is most of a second of silence.
+ */
+function scheduleChordPracticeStrum(state, midi, at, skipSeconds = 0) {
     const context = getSharedAudioContext();
     const secondsPerBeat = 60 / state.tempo;
     for (const [stringIndex, note] of midi.entries()) {
         const buffer = state.buffers.get(note);
         if (!buffer) continue;
+
+        const spread = stringIndex * CHORD_PRACTICE_STRUM_DELAY_SECONDS;
+        const ring = Math.min(secondsPerBeat * 1.8, buffer.duration);
+        // Each string of a strum begins a little later, so a resumed strum is that much less far
+        // into its own sample -- and a string the sweep had not yet reached starts from the top.
+        const into = Math.max(0, skipSeconds - spread);
+        const remaining = ring - into;
+        if (remaining <= 0.01) continue;
+
+        const start = at + Math.max(0, spread - skipSeconds);
         const source = context.createBufferSource();
         source.buffer = buffer;
         const gain = context.createGain();
-        const ring = Math.min(secondsPerBeat * 1.8, buffer.duration);
-        const start = at + stringIndex * CHORD_PRACTICE_STRUM_DELAY_SECONDS;
         gain.gain.setValueAtTime(CHORD_PRACTICE_NOTE_GAIN, start);
-        gain.gain.setValueAtTime(CHORD_PRACTICE_NOTE_GAIN, start + ring - 0.15);
-        gain.gain.linearRampToValueAtTime(0, start + ring);
+        gain.gain.setValueAtTime(CHORD_PRACTICE_NOTE_GAIN, start + remaining - 0.15);
+        gain.gain.linearRampToValueAtTime(0, start + remaining);
         source.connect(gain).connect(chordPracticeMasterGain);
-        source.start(start);
-        source.stop(start + ring + 0.01);
-        chordPracticeSources.push({ source, endsAt: start + ring + 0.01 });
+        source.start(start, into);
+        source.stop(start + remaining + 0.01);
+        chordPracticeSources.push({ source, endsAt: start + remaining + 0.01 });
     }
 }
 
@@ -3528,7 +3543,7 @@ const CHORD_PRACTICE_TOPUP_INTERVAL_MS = 3000;
  * time, and on a repeat the previous pass is still sounding there. Both are the chunk's own base
  * minus a beat. Only a seek can put it genuinely in the past, which the clock check drops.
  */
-function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext) {
+function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, includeRinging) {
     const context = getSharedAudioContext();
     const secondsPerBeat = 60 / state.tempo;
     const measureSeconds = chordPracticeMeasureSeconds(state);
@@ -3548,7 +3563,19 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext) 
 
         for (let beat = 0; beat < state.beatsPerBar; beat++) {
             const beatSeconds = measureStart + beat * secondsPerBeat;
-            if (beatSeconds < fromSeconds - 1e-6 || beatSeconds >= toSeconds - 1e-6) continue;
+
+            // A strum that began before this window and has not finished ringing. Only on the
+            // first chunk of a run, since later windows scheduled these when their beat fell
+            // inside them. The click is not re-entered: it has already happened.
+            if (beatSeconds < fromSeconds - 1e-6) {
+                if (!includeRinging) continue;
+                const into = fromSeconds - beatSeconds;
+                if (into < secondsPerBeat * 1.8) {
+                    scheduleChordPracticeStrum(state, midi, baseContext, into);
+                }
+                continue;
+            }
+            if (beatSeconds >= toSeconds - 1e-6) continue;
             if (state.metronome) {
                 chordPracticeSources.push({
                     source: scheduleMetronomeClick(
@@ -3589,8 +3616,8 @@ function chordPracticeTopUp(state, myToken) {
         // A progression is its own selection: there is no measure range to choose within it.
         range: () => ({ startSeconds: 0, endSeconds: chordPracticeTotalSeconds(state) }),
         hasNextPass: () => chordPracticeHasNextPass(state),
-        scheduleChunk: ({ fromSeconds, toSeconds, baseContext }) =>
-            scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext),
+        scheduleChunk: ({ fromSeconds, toSeconds, baseContext, firstChunk }) =>
+            scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, firstChunk),
         // The anchor moves with the repeat so the reported position stays right. No count-in
         // between passes, so no time is consumed here.
         onWrap: cursorContext => {
@@ -3661,7 +3688,11 @@ function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {})
 
     // The cursor walks music time while carrying the exact context time each chunk starts at, so
     // repeats join without drift and nothing is ever re-derived from a timer.
-    state.scheduler = { pass: state.pass, cursorSeconds: fromSeconds, cursorContext: musicStart };
+    // `firstChunk` is what lets the opening window pick up chords still ringing from before a
+    // restart, so resuming mid-measure does not cut the sound and wait for the next beat.
+    state.scheduler = {
+        pass: state.pass, cursorSeconds: fromSeconds, cursorContext: musicStart, firstChunk: true
+    };
     chordPracticeTopUp(state, myToken);
 }
 
