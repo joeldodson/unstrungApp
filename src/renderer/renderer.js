@@ -3682,14 +3682,18 @@ function seekChordPracticeByMeasure(state, delta) {
     seekChordPractice(state, (measure + delta) * measureSeconds);
 }
 
+/**
+ * Where you are and what chord it is.
+ *
+ * Which time round is deliberately left out. A progression set to repeat until stopped has no
+ * total to count towards, and the number carries nothing a player can act on -- unlike the audio
+ * track, where a repeat count is part of how a passage was set up to be practised.
+ */
 function announceChordPracticeMeasure(state) {
     const measure = chordPracticeMeasureAt(state, chordPracticePosition(state));
     const chord = state.progression.chords[measure];
-    const passText = state.repeatCount === 1 ? ''
-        : state.repeatCount === 0 ? `, play ${state.pass}`
-            : `, play ${state.pass} of ${state.repeatCount}`;
     state.announce(`Measure ${measure + 1} of ${state.progression.chords.length}, ` +
-        `${chordDisplayName(chord)}${passText}.`);
+        `${chordDisplayName(chord)}.`);
 }
 
 function stepChordPracticeTempo(state, delta) {
@@ -4042,7 +4046,7 @@ async function generateChordPractice() {
         key, mode, seed,
         levelId: chordPracticeLevelSelect.value,
         borrowingId: chordPracticeBorrowingSelect.value,
-        chordCount: Math.max(2, Number(chordPracticeCountInput.value) || 8),
+        chordCount: Math.max(2, Math.min(256, Number(chordPracticeCountInput.value) || 8)),
         library: chordPracticeLibrary
     });
 
