@@ -3371,9 +3371,11 @@ function chordPracticePosition(state) {
     const elapsed = sharedAudioContext.currentTime - state.anchorContextTime;
     if (elapsed <= 0) return state.anchorSeconds; // still counting in
     const total = chordPracticeTotalSeconds(state);
-    let position = state.anchorSeconds + elapsed;
-    while (position >= total) position -= total;
-    return position;
+    // Modulo rather than subtracting in a loop. The anchor moves with each repeat so the elapsed
+    // time is normally under one pass, but nothing guarantees it: if the top-up timer is held off
+    // -- a busy machine, a backgrounded window -- the loop would run once per missed pass.
+    const position = (state.anchorSeconds + elapsed) % total;
+    return position < 0 ? position + total : position;
 }
 
 function chordPracticeMeasureAt(state, seconds) {
@@ -3476,7 +3478,14 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext) 
     const measureSeconds = chordPracticeMeasureSeconds(state);
     const at = seconds => baseContext + (seconds - fromSeconds);
 
-    for (const [index, chord] of state.progression.chords.entries()) {
+    // Start at the measure the window opens in rather than walking from the first every time. With
+    // a chunk scanning the whole progression, the work per pass grew with the square of its length:
+    // fine for eight measures, not fine for two hundred. The measure before the first is included
+    // because a chord's spoken name is scheduled one beat ahead of it.
+    const firstMeasure = Math.max(0, Math.floor(fromSeconds / measureSeconds) - 1);
+
+    for (let index = firstMeasure; index < state.progression.chords.length; index++) {
+        const chord = state.progression.chords[index];
         const measureStart = index * measureSeconds;
         if (measureStart >= toSeconds) break;
         const midi = chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? [];
