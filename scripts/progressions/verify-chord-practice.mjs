@@ -314,18 +314,31 @@ console.log(`  B  -> ${afterB.announcement}`);
 check('B announces the measure, the chord and which play this is',
     /^Measure 1 of 8, [A-G][^,]*, play 1\.$/.test(afterB.announcement), afterB.announcement);
 
+// Moving around is silent, as in the audio track. Where a seek landed is confirmed with B, which
+// is the key that exists to ask.
+const beforeSeek = (await panelState()).announcement;
 const afterRight = await press('ArrowRight');
-console.log(`  Right -> ${afterRight.announcement}`);
-check('Right moves forward a bar', /^Measure 2, /.test(afterRight.announcement), afterRight.announcement);
+check('Right says nothing', afterRight.announcement === beforeSeek, afterRight.announcement);
+const rightThenB = await press('b');
+console.log(`  Right then B -> ${rightThenB.announcement}`);
+check('Right moved forward a measure', /^Measure 2 of 8, /.test(rightThenB.announcement),
+    rightThenB.announcement);
 
-const afterLeft = await press('ArrowLeft');
-console.log(`  Left  -> ${afterLeft.announcement}`);
-check('Left moves back a bar', /^Measure 1, /.test(afterLeft.announcement), afterLeft.announcement);
+await press('ArrowLeft');
+const leftThenB = await press('b');
+check('Left moved back a measure', /^Measure 1 of 8, /.test(leftThenB.announcement),
+    leftThenB.announcement);
 
-const afterDown = await press('ArrowDown');
-console.log(`  Down  -> ${afterDown.announcement}`);
-check('Down returns to the start of this bar', /^Measure 1, /.test(afterDown.announcement),
-    afterDown.announcement);
+await press('ArrowDown');
+const downThenB = await press('b');
+check('Down returns to the start of this measure', /^Measure 1 of 8, /.test(downThenB.announcement),
+    downThenB.announcement);
+
+// The one deliberate divergence from the audio track: a measure there can hold anything, so the
+// number is all that can be said. Here a measure is exactly one chord, and which chord it is is
+// the thing worth knowing.
+check('B names the chord as well as the measure, unlike the audio track',
+    /^Measure \d+ of \d+, [A-G][^,]*, play/.test(downThenB.announcement), downThenB.announcement);
 
 const afterSlower = await press('s');
 console.log(`  S  -> "${afterSlower.announcement}", tempo box now ${afterSlower.tempo}`);

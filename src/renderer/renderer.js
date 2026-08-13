@@ -3657,7 +3657,14 @@ async function toggleChordPracticePlayback(state) {
         { countIn: state.anchorSeconds < 1e-6 });
 }
 
-function seekChordPractice(state, seconds, { announce = true } = {}) {
+/**
+ * Moves to a point in the progression, silently.
+ *
+ * Moving around says nothing, the same as the audio track: a live region firing on every arrow
+ * press talks over the music it is moving through. B is the key that exists to ask where you are,
+ * and it answers every time it is pressed.
+ */
+function seekChordPractice(state, seconds) {
     const total = chordPracticeTotalSeconds(state);
     const target = Math.max(0, Math.min(total - 1e-3, seconds));
     const wasPlaying = state.playing;
@@ -3667,12 +3674,6 @@ function seekChordPractice(state, seconds, { announce = true } = {}) {
 
     if (wasPlaying) startChordPracticePlayback(state, target, { countIn: false });
     else state.setPlaying(false);
-
-    if (announce) {
-        const measure = chordPracticeMeasureAt(state, target);
-        state.announce(
-            `Measure ${measure + 1}, ${chordDisplayName(state.progression.chords[measure])}.`);
-    }
 }
 
 function seekChordPracticeByMeasure(state, delta) {
