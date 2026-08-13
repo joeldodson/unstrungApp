@@ -3277,7 +3277,7 @@ function chordPracticeVoicing(entry) {
  * the chords in order, and anything else on that line is read every time -- so whether a fingering
  * is known is a fact inside, not a qualifier on the name.
  */
-function buildChordPracticeRow(chord, position) {
+function buildChordPracticeRow(chord) {
     const item = document.createElement('li');
     const details = document.createElement('details');
     const summary = document.createElement('summary');
@@ -3286,10 +3286,9 @@ function buildChordPracticeRow(chord, position) {
     const list = document.createElement('ul');
     const entry = chordPracticeLibraryEntry(chord);
     const voicing = chordPracticeVoicing(entry);
-    const rows = [`Measure ${position + 1}`];
+    const rows = [];
 
     if (entry) rows.push(`${entry.name} - ${baseQualityLabel(entry)}`);
-    if (chord.repeatOfPrevious) rows.push('Held over from the measure before');
     if (chord.borrowed) {
         // Said here rather than on the summary, which stays the chord name and nothing else. Why a
         // chord is outside the key is worth knowing when you stop to look at it, not on every pass.
@@ -3517,7 +3516,10 @@ function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {})
     // A count-in bar is also where the first chord gets announced, so it is scheduled even with
     // the metronome off -- silent, but occupying the time the announcement needs.
     const leadIn = countIn ? state.beatsPerBar * (60 / state.tempo) : 0;
-    const zero = context.currentTime + 0.25;
+    // The same head start the audio track uses. It was twice this, which was audible as a longer
+    // gap whenever playback re-anchors -- toggling the metronome, changing tempo, seeking -- since
+    // every one of those stops and restarts from the current position.
+    const zero = context.currentTime + 0.12;
     const musicStart = zero + leadIn;
 
     if (countIn && state.metronome) {
@@ -3671,7 +3673,12 @@ function setChordPracticeMetronome(state, enabled) {
     startChordPracticePlayback(state, position, { countIn: false });
 }
 
-/** Back to the top, counting in again and keeping the repeat setting. */
+/**
+ * Back to the top, counting in again and keeping the repeat setting.
+ *
+ * Says nothing, as the audio track's restart says nothing: the count-in is the answer, and B is
+ * there for anyone who wants the measure number confirmed.
+ */
 function restartChordPractice(state) {
     const wasPlaying = state.playing;
     stopChordPracticePlayback();
@@ -3680,7 +3687,6 @@ function restartChordPractice(state) {
     state.pass = 1;
     if (wasPlaying) startChordPracticePlayback(state, 0, { countIn: true });
     else state.setPlaying(false);
-    state.announce('Back to measure 1.');
 }
 
 // The same keys as the audio track, deliberately: a player should not have to remember which panel
@@ -3737,7 +3743,7 @@ function buildChordPracticeTab(progression, options) {
     container.append(heading);
 
     const summaryHeading = document.createElement('h3');
-    summaryHeading.textContent = 'Progression';
+    summaryHeading.textContent = 'Metadata';
     container.append(summaryHeading);
 
     const summaryList = document.createElement('ul');
@@ -3758,16 +3764,39 @@ function buildChordPracticeTab(progression, options) {
     ]);
     container.append(summaryList);
 
-    const chordsHeading = document.createElement('h3');
-    chordsHeading.textContent = `Chords (${progression.chords.length})`;
-    container.append(chordsHeading);
+    // Each distinct chord once, with everything known about it. This is what you study before
+    // playing: the progression below repeats chords, and repeating their fingerings with them
+    // would mean reading the same shape four times to get through eight measures.
+    const distinct = [];
+    const seen = new Set();
+    for (const chord of progression.chords) {
+        const name = chordDisplayName(chord);
+        if (seen.has(name)) continue;
+        seen.add(name);
+        distinct.push(chord);
+    }
+
+    const usedHeading = document.createElement('h3');
+    usedHeading.textContent = `Chords Used (${distinct.length})`;
+    container.append(usedHeading);
+
+    const usedList = document.createElement('ul');
+    usedList.className = 'chord-progression chords-used';
+    for (const chord of distinct) usedList.append(buildChordPracticeRow(chord));
+    container.append(usedList);
+
+    // The progression itself is names only. Anything more is read on every pass through it, and
+    // the fingerings are already above.
+    const progressionHeading = document.createElement('h3');
+    progressionHeading.textContent = `Progression (${progression.chords.length} measures)`;
+    container.append(progressionHeading);
 
     const list = document.createElement('ul');
-    // Read one after another, so no bullets and no numbering; see .chord-progression in the
-    // stylesheet.
-    list.className = 'chord-progression';
-    for (const [position, chord] of progression.chords.entries()) {
-        list.append(buildChordPracticeRow(chord, position));
+    list.className = 'chord-progression progression-list';
+    for (const chord of progression.chords) {
+        const item = document.createElement('li');
+        item.textContent = chordDisplayName(chord);
+        list.append(item);
     }
     container.append(list);
 

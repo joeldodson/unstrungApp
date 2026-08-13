@@ -83,7 +83,7 @@ const borrowedTab = await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
     const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
         .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent);
-    const rows = [...panel.querySelectorAll('ul.chord-progression > li > details')].map(d => ({
+    const rows = [...panel.querySelectorAll('ul.chords-used > li > details')].map(d => ({
         name: d.querySelector('summary').textContent,
         rows: [...d.querySelectorAll('li')].map(li => li.textContent)
     }));
@@ -129,7 +129,7 @@ const tab = await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
     if (!panel) return null;
     // Only the chord rows, which are the one list carrying that class.
-    const details = [...panel.querySelectorAll('ul.chord-progression > li > details')];
+    const details = [...panel.querySelectorAll('ul.chords-used > li > details')];
     return {
         dialogClosed: !document.getElementById('chord-practice-dialog').open,
         tabName: [...document.querySelectorAll('[role="tab"]')]
@@ -140,7 +140,9 @@ const tab = await page.evaluate(() => {
             .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent),
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
         liveRegions: [...panel.querySelectorAll('[aria-live]')].length,
-        chordCount: details.length,
+        chordCount: panel.querySelectorAll('ul.progression-list > li').length,
+        progressionNames: [...panel.querySelectorAll('ul.progression-list > li')].map(li => li.textContent),
+        progressionHasDetails: panel.querySelectorAll('ul.progression-list details').length,
         summaries: details.map(d => d.querySelector('summary').textContent),
         // Collapsed content must stay out of the accessibility tree, which is what keeps the
         // progression readable as a plain list of chord names.
@@ -152,14 +154,14 @@ const tab = await page.evaluate(() => {
 check('a tab opened and the dialog closed', tab !== null && tab.dialogClosed);
 console.log(`  tab: ${tab.tabName}`);
 console.log(`  headings: ${tab.headings.join(' | ')}`);
-// The same shape as the audio track panel: a heading per section, and the keyboard commands last.
+// The same shape as the audio track panel: a heading per section, keyboard commands last. How many
+// distinct chords a seed produces varies, so the counts are matched rather than spelled out.
+const headingShape = tab.headings.map(h => h.replace(/\(\d+[^)]*\)/, '(n)')).join(' | ');
 check('the sections are laid out in order',
-    tab.headings.join(' | ') ===
-    'H2: Chord practice - C major | H3: Progression | H3: Chords (8) | H3: Playback | ' +
-    'H3: Move around the progression | H3: Keyboard control',
-    tab.headings.join(' | '));
-check('the chords come straight after the metadata',
-    tab.headings.indexOf('H3: Chords (8)') === tab.headings.indexOf('H3: Progression') + 1);
+    headingShape ===
+    'H2: Chord practice - C major | H3: Metadata | H3: Chords Used (n) | H3: Progression (n) | ' +
+    'H3: Playback | H3: Move around the progression | H3: Keyboard control',
+    headingShape);
 check('keyboard control is the last heading',
     tab.headings[tab.headings.length - 1] === 'H3: Keyboard control');
 check('playback has a transport', tab.buttons.includes('Play Progression'), tab.buttons.join(', '));
@@ -173,8 +175,18 @@ check('the seed is stated so the progression can be regenerated',
 check('the time signature is stated', tab.summaryItems.some(r => r.includes('4/4')),
     tab.summaryItems.join(' | '));
 
-console.log(`\n  chords: ${tab.summaries.join('  ')}`);
-check('eight chords were listed', tab.chordCount === 8, `${tab.chordCount}`);
+console.log(`\n  chords used: ${tab.summaries.join('  ')}`);
+console.log(`  progression: ${tab.progressionNames.join('  ')}`);
+check('the progression lists all eight measures', tab.chordCount === 8, `${tab.chordCount}`);
+// The fingerings live once in Chords Used; repeating them per measure would mean reading the same
+// shape four times to get through eight measures.
+check('the progression is names only, with nothing to expand',
+    tab.progressionHasDetails === 0, `${tab.progressionHasDetails} disclosures`);
+check('every distinct chord in the progression appears in Chords Used',
+    [...new Set(tab.progressionNames)].every(name => tab.summaries.includes(name)),
+    `${[...new Set(tab.progressionNames)].join(', ')} against ${tab.summaries.join(', ')}`);
+check('Chords Used lists each chord once', tab.summaries.length === new Set(tab.summaries).size,
+    tab.summaries.join(', '));
 check('every chord is collapsed', tab.allCollapsed);
 check('a summary is the chord name and nothing else',
     tab.summaries.every(s => /^[A-G](#|b)?[^\s]*$/.test(s)), tab.summaries.join(', '));
@@ -187,7 +199,7 @@ console.log('\n=== A chord with no fingering says so inside, not on its name ===
 const unfingered = await page.evaluate(() => {
     // Generated at the advanced level, which admits chords the library has no shape for.
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    return [...panel.querySelectorAll('ul.chord-progression > li > details')].map(d => ({
+    return [...panel.querySelectorAll('ul.chords-used > li > details')].map(d => ({
         summary: d.querySelector('summary').textContent,
         rows: [...d.querySelectorAll('li')].map(li => li.textContent)
     }));
@@ -367,9 +379,14 @@ check('Space pauses and says where it stopped',
     afterPause.playLabel === 'Play Progression' && /^Paused at measure \d+\./.test(afterPause.announcement),
     afterPause.announcement);
 
+// Up says nothing, as the audio track's restart says nothing: the count-in is the answer.
+const beforeUp = (await panelState()).announcement;
 const afterUp = await press('ArrowUp');
-console.log(`  Up -> ${afterUp.announcement}`);
-check('Up returns to bar 1', /Back to measure 1/.test(afterUp.announcement), afterUp.announcement);
+console.log(`  Up -> announcement unchanged: "${afterUp.announcement}"`);
+check('Up says nothing', afterUp.announcement === beforeUp, afterUp.announcement);
+const afterUpB = await press('b');
+check('but B still confirms it went back to measure 1',
+    /^Measure 1 of 8, /.test(afterUpB.announcement), afterUpB.announcement);
 
 console.log('\n=== Looping ===');
 const loopState = await panelState();
@@ -422,7 +439,7 @@ await page.waitForTimeout(1500);
 
 const rebuilt = await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    return [...panel.querySelectorAll('ul.chord-progression > li > details')]
+    return [...panel.querySelectorAll('ul.chords-used > li > details')]
         .map(d => d.querySelector('summary').textContent).join(' ');
 });
 console.log(`  original: ${firstChords}`);
