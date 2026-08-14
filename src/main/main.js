@@ -473,9 +473,17 @@ ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity, maxSe
 // it was arrived at by measurement: see the speakTheNotes branch and its SPEAK_THE_NOTES.md for
 // the figures behind it.
 //
-// Runs from source, not from a packaged app: the script lives under scripts/, is not in the
-// electron-builder file list, and could not be executed from inside an asar archive anyway.
-const RENDER_PHRASES_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'speech', 'render-phrases.ps1');
+// PowerShell has to be handed a real file on disk, which rules out the asar archive the rest of
+// the app is packed into. electron-builder copies the script into the resources directory instead
+// (extraResources in package.json), so a packaged build looks for it there while one run from
+// source looks where it lives in the tree.
+//
+// Getting this wrong fails quietly rather than loudly: the renderer finds no voices, disables the
+// spoken chord names option, and reports that speech is unavailable -- which is also exactly what
+// it correctly reports on a machine that genuinely has none. 0.3.0 and 0.3.1 shipped that way.
+const RENDER_PHRASES_SCRIPT = app.isPackaged
+    ? path.join(process.resourcesPath, 'render-phrases.ps1')
+    : path.join(__dirname, '..', '..', 'scripts', 'speech', 'render-phrases.ps1');
 
 function runRenderScript(args) {
     return new Promise((resolve, reject) => {
