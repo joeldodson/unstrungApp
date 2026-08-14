@@ -1,7 +1,7 @@
 {
   "voice": "zira",
   "name": "Microsoft Zira Desktop",
-  "label": "Zira (female)",
+  "label": "Zira, SAPI5",
   "sampleRate": 11025,
   "rate": 4,
   "phrases": {

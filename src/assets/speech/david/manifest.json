@@ -1,7 +1,7 @@
 {
   "voice": "david",
   "name": "Microsoft David Desktop",
-  "label": "David (male)",
+  "label": "David, SAPI5",
   "sampleRate": 11025,
   "rate": 4,
   "phrases": {

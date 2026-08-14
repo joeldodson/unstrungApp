@@ -36,9 +36,36 @@ const RATE = 4;
 // System.Speech only sees the SAPI5 "Desktop" voices. Mark exists on this machine as a OneCore
 // voice, which a different API would be needed to reach.
 const VOICES = [
-    { id: 'david', name: 'Microsoft David Desktop', label: 'David (male)' },
-    { id: 'zira', name: 'Microsoft Zira Desktop', label: 'Zira (female)' }
+    { id: 'david', name: 'Microsoft David Desktop', label: 'David, SAPI5', engine: 'sapi' },
+    { id: 'zira', name: 'Microsoft Zira Desktop', label: 'Zira, SAPI5', engine: 'sapi' },
+    // OneCore: newer recordings, and the only place Mark exists. Rendered at 16 kHz whatever we
+    // ask, so these are resampled down to match the SAPI ones.
+    { id: 'david-onecore', name: 'Microsoft David', label: 'David, OneCore', engine: 'onecore' },
+    { id: 'zira-onecore', name: 'Microsoft Zira', label: 'Zira, OneCore', engine: 'onecore' },
+    { id: 'mark-onecore', name: 'Microsoft Mark', label: 'Mark, OneCore', engine: 'onecore' }
 ];
+
+const ONECORE_SCRIPT = `${HERE}/render-phrases-onecore.ps1`;
+
+/**
+ * Linear resampling, which is plenty for speech at these rates.
+ *
+ * WinRT picks its own output format and gives 16 kHz regardless of what is asked for, so OneCore
+ * voices have to be brought down to match rather than simply requested at the right rate.
+ */
+function resample(samples, fromRate, toRate) {
+    if (fromRate === toRate) return samples;
+    const ratio = fromRate / toRate;
+    const out = new Int16Array(Math.floor(samples.length / ratio));
+    for (let i = 0; i < out.length; i++) {
+        const at = i * ratio;
+        const low = Math.floor(at);
+        const high = Math.min(samples.length - 1, low + 1);
+        const t = at - low;
+        out[i] = Math.round(samples[low] * (1 - t) + samples[high] * t);
+    }
+    return out;
+}
 
 const measureOnly = process.argv.includes('--measure');
 
@@ -110,11 +137,14 @@ for (const voice of VOICES) {
     await writeFile(`${workDir}/phrases.json`, JSON.stringify(phrases), 'utf8');
 
     const startedAt = Date.now();
-    await execFileAsync('powershell.exe', [
-        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', SCRIPT,
-        '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
-        '-Rate', String(RATE), '-Voice', voice.name, '-SampleRate', String(SAMPLE_RATE)
-    ], { maxBuffer: 16 * 1024 * 1024 });
+    const args = voice.engine === 'onecore'
+        ? ['-File', ONECORE_SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
+            '-Rate', String(RATE), '-Voice', voice.name]
+        : ['-File', SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
+            '-Rate', String(RATE), '-Voice', voice.name, '-SampleRate', String(SAMPLE_RATE)];
+    await execFileAsync('powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args],
+        { maxBuffer: 16 * 1024 * 1024 });
 
     const outDir = `${ASSETS}/${voice.id}`;
     if (!measureOnly) {
@@ -137,7 +167,8 @@ for (const voice of VOICES) {
         const { startSeconds, speechSeconds } = trimSilence(wav.floats, wav.sampleRate);
         const from = Math.floor(startSeconds * wav.sampleRate);
         const to = Math.min(wav.samples.length, from + Math.ceil(speechSeconds * wav.sampleRate));
-        const trimmed = writeWav(wav.samples.subarray(from, to), wav.sampleRate);
+        const trimmed = writeWav(
+            resample(wav.samples.subarray(from, to), wav.sampleRate, SAMPLE_RATE), SAMPLE_RATE);
         kept += trimmed.length;
 
         const fileName = `${index}.wav`;
