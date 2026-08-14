@@ -8,7 +8,8 @@ import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
 import helpContent from '../assets/help/help-content.json';
 import progressionModel from '../assets/progressions/progression-model.json';
 import {
-    generateProgression, chordDisplayName, usableKeys, KEY_ROOTS
+    generateProgression, chordDisplayName, usableKeys, formatProgressionCode, parseProgressionCode,
+    KEY_ROOTS
 } from '../shared/chordProgressions.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 
@@ -3984,11 +3985,25 @@ function buildChordPracticeTab(progression, options) {
         `Spoken chord names - ${options.speak
             ? `on, at ${Math.round(options.speechVolume * 100)} percent volume`
             : 'off'}`,
-        // The seed is the only reason a progression worth practising is not lost, and the only
-        // way to hand one to somebody else.
-        `Seed - ${progression.seed}, which regenerates this exact progression`
+        // Everything needed to rebuild this exact progression, in one line: pasting it into the
+        // seed field sets the key, level, borrowing and length along with the seed.
+        `Seed - ${formatProgressionCode({ ...progression, chordCount: progression.chords.length })}`
     ]);
     container.append(summaryList);
+
+    // Right under the line it copies, so it is the next thing reached after reading the seed.
+    const seedCode = formatProgressionCode({
+        ...progression, chordCount: progression.chords.length
+    });
+    const copyParagraph = document.createElement('p');
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.textContent = 'Copy Seed Information';
+    copyParagraph.append(copyButton);
+    container.append(copyParagraph);
+    // What it says goes to the panel's one live region, wired up with the other listeners once
+    // that exists. A second live region here would sit ahead of it in the document and become the
+    // first one a reader meets, which is not what a copy confirmation should be.
 
     // Each distinct chord once, with everything known about it. This is what you study before
     // playing: the progression below repeats chords, and repeating their fingerings with them
@@ -4174,6 +4189,16 @@ function buildChordPracticeTab(progression, options) {
         }
     };
 
+    copyButton.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(seedCode);
+            state.announce(`Copied ${seedCode}`);
+        } catch (error) {
+            // Still says the seed, so it can be written down when the clipboard is unavailable.
+            state.announce(`Could not copy: ${error.message}. The seed is ${seedCode}`);
+        }
+    });
+
     playButton.addEventListener('click', () => toggleChordPracticePlayback(state));
     for (const { button, action } of transportButtons) {
         button.addEventListener('click', () => action(state));
@@ -4219,21 +4244,29 @@ async function generateChordPractice() {
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
     };
 
-    // An empty seed field means a new progression; a seed reproduces the one it came from.
+    // Empty means a new progression. A full code carries its own key, level, borrowing and length,
+    // and those win over what is on screen: the point of pasting one in is not having to set the
+    // rest correctly first.
     const seedText = chordPracticeSeedInput.value.trim();
-    const seed = seedText === '' ? null : Number(seedText);
-    if (seedText !== '' && !Number.isFinite(seed)) {
+    const code = seedText === '' ? null : parseProgressionCode(seedText, progressionModel);
+    if (seedText !== '' && code === null) {
         chordPracticeStatus.textContent =
-            'That seed is not a number. Leave the field empty for a new progression.';
+            'That is not a seed. Paste the whole line from a progression you want back, ' +
+            'or leave the field empty for a new one.';
         return;
     }
 
+    const request = {
+        key: code?.key ?? key,
+        mode: code?.mode ?? mode,
+        levelId: code?.levelId ?? chordPracticeLevelSelect.value,
+        borrowingId: code?.borrowingId ?? chordPracticeBorrowingSelect.value,
+        chordCount: code?.chordCount
+            ?? Math.max(2, Math.min(256, Number(chordPracticeCountInput.value) || 8)),
+        seed: code?.seed ?? null
+    };
     const progression = generateProgression(progressionModel, {
-        key, mode, seed,
-        levelId: chordPracticeLevelSelect.value,
-        borrowingId: chordPracticeBorrowingSelect.value,
-        chordCount: Math.max(2, Math.min(256, Number(chordPracticeCountInput.value) || 8)),
-        library: chordPracticeLibrary
+        ...request, library: chordPracticeLibrary
     });
 
     if (progression.warning || progression.chords.length === 0) {

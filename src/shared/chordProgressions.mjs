@@ -406,6 +406,46 @@ export function generateProgression(model, {
     };
 }
 
+/**
+ * Everything needed to rebuild a progression, as one string.
+ *
+ * A bare seed number reproduces nothing on its own: the same number in another key, at another
+ * level or another length gives a different progression, so sharing one meant reciting four
+ * settings and hoping they were all entered correctly. This carries them along with it.
+ *
+ * Written out rather than encoded, because it has to survive being read aloud and typed back in.
+ * A compact code would be shorter and much easier to get wrong by one character.
+ *
+ *     C-major-beginner-occasional-8-1462460118
+ */
+export function formatProgressionCode({ key, mode, levelId, borrowingId, chordCount, seed }) {
+    return [key, mode, levelId, borrowingId ?? 'none', chordCount, seed].join('-');
+}
+
+/**
+ * Reads a code back, or returns null if it is not one.
+ *
+ * A bare number is still accepted and means only the seed, leaving the other settings as they are
+ * on screen -- which is what a seed alone could ever have meant.
+ */
+export function parseProgressionCode(text, model) {
+    const trimmed = String(text ?? '').trim();
+    if (trimmed === '') return null;
+    if (/^\d+$/.test(trimmed)) return { seed: Number(trimmed) };
+
+    const parts = trimmed.split('-');
+    if (parts.length !== 6) return null;
+    const [key, mode, levelId, borrowingId, chordCount, seed] = parts;
+
+    if (!KEY_ROOTS.includes(key)) return null;
+    if (!model.modes[mode]) return null;
+    if (!model.levels.some(level => level.id === levelId)) return null;
+    if (!(model.borrowing?.tiers ?? []).some(tier => tier.id === borrowingId)) return null;
+    if (!/^\d+$/.test(chordCount) || !/^\d+$/.test(seed)) return null;
+
+    return { key, mode, levelId, borrowingId, chordCount: Number(chordCount), seed: Number(seed) };
+}
+
 /** The written name of a generated chord: "C", "Am7", "F#m7b5". */
 export function chordDisplayName(chord) {
     if (chord.suffix === 'major') return chord.root;
