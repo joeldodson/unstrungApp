@@ -2592,7 +2592,18 @@ function stepAudioTrackTempo(state, deltaBpm) {
 
 function announceCurrentMeasure(state) {
     const measure = measureIndexAt(state, audioTrackPosition(state)) + 1;
-    let text = `Measure ${measure} of ${state.audioTrack.barCount}`;
+    const range = audioTrackRange(state);
+    const first = range.firstIndex + 1;
+    const last = range.lastIndex + 1;
+
+    // Against the selection rather than the whole song, when they differ. Saying "measure 17 of
+    // 102" while only 7 to 21 are being played gives a number with nothing to measure it against:
+    // how far through the passage that is, which is the thing being asked, cannot be worked out
+    // from it. When the whole song is selected the two readings are the same.
+    const whole = first === 1 && last === state.audioTrack.barCount;
+    let text = whole
+        ? `Measure ${measure} of ${state.audioTrack.barCount}`
+        : `Measure ${measure} of measures ${first} through ${last}`;
     // When the selection repeats, which play-through we are on matters just as much.
     if (state.repeatCount !== 1) {
         const pass = currentPassAt(state);
@@ -3434,6 +3445,24 @@ function chordPracticePosition(state) {
     return position < 0 ? position + total : position;
 }
 
+/**
+ * Which time round the music has actually reached, worked out from elapsed time.
+ *
+ * Not from the scheduler, which is deliberately ahead of the sound. With a count-in before every
+ * repeat this drifts by one count-in per pass, since the elapsed time then includes bars that are
+ * not part of the progression; the position it reports stays right and only the tally can lag.
+ */
+function chordPracticeCurrentPass(state) {
+    if (!state.playing || state.anchorContextTime === null || !sharedAudioContext) return state.pass;
+    const elapsed = sharedAudioContext.currentTime - state.anchorContextTime;
+    if (elapsed <= 0) return state.pass;
+    const total = chordPracticeTotalSeconds(state);
+    const passesDone = Math.floor((state.anchorSeconds + elapsed) / total);
+    return state.repeatCount === 0
+        ? state.pass + passesDone
+        : Math.min(state.repeatCount, state.pass + passesDone);
+}
+
 function chordPracticeMeasureAt(state, seconds) {
     return Math.min(state.progression.chords.length - 1,
         Math.max(0, Math.floor(seconds / chordPracticeMeasureSeconds(state))));
@@ -3605,6 +3634,27 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, 
     }
 }
 
+/**
+ * One measure of clicks before the music, and how long it lasts.
+ *
+ * Returns 0 without scheduling anything when there should be no count-in, so a caller can add the
+ * result to its cursor either way. With the metronome off there is nothing to count in with, so
+ * the silence would be a delay with nothing to show for it.
+ */
+function scheduleChordPracticeCountIn(state, contextStart) {
+    if (!state.metronome) return 0;
+    const context = getSharedAudioContext();
+    const secondsPerBeat = 60 / state.tempo;
+    for (let beat = 0; beat < state.beatsPerBar; beat++) {
+        const at = contextStart + beat * secondsPerBeat;
+        chordPracticeSources.push({
+            source: scheduleMetronomeClick(context, chordPracticeMasterGain, at, beat === 0),
+            endsAt: at + METRONOME_CLICK_SECONDS
+        });
+    }
+    return state.beatsPerBar * secondsPerBeat;
+}
+
 /** Fills the schedule up to the horizon, wrapping into repeats, and arms the next top-up. */
 function chordPracticeTopUp(state, myToken) {
     runRollingScheduler({
@@ -3615,17 +3665,20 @@ function chordPracticeTopUp(state, myToken) {
         isCurrent: () => myToken === chordPracticeToken,
         // A progression is its own selection: there is no measure range to choose within it.
         range: () => ({ startSeconds: 0, endSeconds: chordPracticeTotalSeconds(state) }),
-        hasNextPass: () => chordPracticeHasNextPass(state),
+        hasNextPass: pass => chordPracticeHasNextPass(state, pass),
         scheduleChunk: ({ fromSeconds, toSeconds, baseContext, firstChunk }) =>
             scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, firstChunk),
-        // The anchor moves with the repeat so the reported position stays right. No count-in
-        // between passes, so no time is consumed here.
-        onWrap: cursorContext => {
-            state.pass += 1;
-            state.anchorSeconds = 0;
-            state.anchorContextTime = cursorContext;
-            return 0;
-        },
+        // A repeat is counted in only when asked for, and only with the metronome running. Read
+        // now rather than when playback started, so ticking the box mid-loop takes effect from the
+        // next repeat. The anchor moves past the count-in so the reported position stays right.
+        //
+        // Nothing about where playback *is* may be touched here. This runs when a repeat is
+        // scheduled, which is up to a whole horizon ahead of it being heard: advancing the pass or
+        // the anchor from here made B report how far the scheduler had got rather than where the
+        // music was, and pinned the reported measure at the first one. Both are worked out from
+        // elapsed time instead.
+        onWrap: cursorContext => (state.countInEachPass
+            ? scheduleChordPracticeCountIn(state, cursorContext) : 0),
         onEnd: endsAt => {
             const remainingMs = Math.max(0, (endsAt - getSharedAudioContext().currentTime) * 1000);
             chordPracticeTimers.push(setTimeout(() => {
@@ -3647,8 +3700,8 @@ function chordPracticeTopUp(state, myToken) {
 }
 
 /** Whether another pass should follow this one. 0 repeats means until stopped. */
-function chordPracticeHasNextPass(state) {
-    return state.repeatCount === 0 || state.pass < state.repeatCount;
+function chordPracticeHasNextPass(state, pass = state.pass) {
+    return state.repeatCount === 0 || pass < state.repeatCount;
 }
 
 function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {}) {
@@ -3672,15 +3725,7 @@ function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {})
     const zero = context.currentTime + 0.12;
     const musicStart = zero + leadIn;
 
-    if (countIn && state.metronome) {
-        for (let beat = 0; beat < state.beatsPerBar; beat++) {
-            const at = zero + beat * (60 / state.tempo);
-            chordPracticeSources.push({
-                source: scheduleMetronomeClick(context, chordPracticeMasterGain, at, beat === 0),
-                endsAt: at + METRONOME_CLICK_SECONDS
-            });
-        }
-    }
+    if (countIn) scheduleChordPracticeCountIn(state, zero);
 
     state.anchorSeconds = fromSeconds;
     state.anchorContextTime = musicStart;
@@ -3723,7 +3768,10 @@ async function chordPracticePrepare(state) {
 async function toggleChordPracticePlayback(state) {
     if (state.playing) {
         const position = chordPracticePosition(state);
-        stopChordPracticePlayback();
+        // The pass is derived from elapsed time, so it has to be captured before the anchor it is
+    // measured from is thrown away. Safe to repeat: once stopped, this returns what it just set.
+    state.pass = chordPracticeCurrentPass(state);
+    stopChordPracticePlayback();
         state.anchorSeconds = position;
         state.anchorContextTime = null;
         state.setPlaying(false);
@@ -3747,6 +3795,9 @@ function seekChordPractice(state, seconds) {
     const total = chordPracticeTotalSeconds(state);
     const target = Math.max(0, Math.min(total - 1e-3, seconds));
     const wasPlaying = state.playing;
+    // The pass is derived from elapsed time, so it has to be captured before the anchor it is
+    // measured from is thrown away. Safe to repeat: once stopped, this returns what it just set.
+    state.pass = chordPracticeCurrentPass(state);
     stopChordPracticePlayback();
     state.anchorSeconds = target;
     state.anchorContextTime = null;
@@ -3780,8 +3831,8 @@ function announceChordPracticeMeasure(state) {
         `${chordDisplayName(chord)}`;
     if (state.repeatCount !== 1) {
         text += state.repeatCount === 0
-            ? `, play ${state.pass}`
-            : `, play ${state.pass} of ${state.repeatCount}`;
+            ? `, play ${chordPracticeCurrentPass(state)}`
+            : `, play ${chordPracticeCurrentPass(state)} of ${state.repeatCount}`;
     }
     state.announce(`${text}.`);
 }
@@ -3795,6 +3846,9 @@ function stepChordPracticeTempo(state, delta) {
     // music rather than leave it where it was on the clock.
     const bar = chordPracticeMeasureAt(state, chordPracticePosition(state));
     const wasPlaying = state.playing;
+    // The pass is derived from elapsed time, so it has to be captured before the anchor it is
+    // measured from is thrown away. Safe to repeat: once stopped, this returns what it just set.
+    state.pass = chordPracticeCurrentPass(state);
     stopChordPracticePlayback();
     state.tempo = tempo;
     state.ui.tempoInput.value = String(tempo);
@@ -3819,22 +3873,31 @@ function setChordPracticeMetronome(state, enabled) {
     state.ui.metronomeCheckbox.checked = enabled;
     if (!state.playing) return;
     const position = chordPracticePosition(state);
+    // The pass is derived from elapsed time, so it has to be captured before the anchor it is
+    // measured from is thrown away. Safe to repeat: once stopped, this returns what it just set.
+    state.pass = chordPracticeCurrentPass(state);
     stopChordPracticePlayback();
     startChordPracticePlayback(state, position, { countIn: false });
 }
 
 /**
- * Back to the top, counting in again and keeping the repeat setting.
+ * Back to the first measure, counting in again and keeping count of which time round it is.
+ *
+ * The pass is deliberately not reset, the same as the audio track: restarting during the third of
+ * five plays replays the third, then the remaining two. Resetting it would silently turn a run
+ * that was nearly finished back into a whole one.
  *
  * Says nothing, as the audio track's restart says nothing: the count-in is the answer, and B is
- * there for anyone who wants the measure number confirmed.
+ * there for anyone who wants the measure confirmed.
  */
 function restartChordPractice(state) {
     const wasPlaying = state.playing;
+    // The pass is derived from elapsed time, so it has to be captured before the anchor it is
+    // measured from is thrown away. Safe to repeat: once stopped, this returns what it just set.
+    state.pass = chordPracticeCurrentPass(state);
     stopChordPracticePlayback();
     state.anchorSeconds = 0;
     state.anchorContextTime = null;
-    state.pass = 1;
     if (wasPlaying) startChordPracticePlayback(state, 0, { countIn: true });
     else state.setPlaying(false);
 }
@@ -3992,7 +4055,21 @@ function buildChordPracticeTab(progression, options) {
         'Metronome, with one measure of clicks counting in the first time through';
     metronomeParagraph.append(metronomeCheckbox, metronomeLabel);
 
-    container.append(tempoParagraph, repeatParagraph, metronomeParagraph);
+    // Only ever relevant to a progression that repeats, so it sits with the repeat count. The
+    // metronome still decides whether any clicks happen at all; this only says whether a repeat
+    // gets counted in the way the first pass did.
+    const countInEachPassParagraph = document.createElement('p');
+    const countInEachPassCheckbox = document.createElement('input');
+    countInEachPassCheckbox.type = 'checkbox';
+    countInEachPassCheckbox.id = `chord-practice-tab-count-in-${nextTabId}`;
+    countInEachPassCheckbox.checked = false;
+    const countInEachPassLabel = document.createElement('label');
+    countInEachPassLabel.htmlFor = countInEachPassCheckbox.id;
+    countInEachPassLabel.textContent =
+        'Count in before every repeat, not just the first time through. Needs the metronome on.';
+    countInEachPassParagraph.append(countInEachPassCheckbox, countInEachPassLabel);
+
+    container.append(tempoParagraph, repeatParagraph, countInEachPassParagraph, metronomeParagraph);
 
     const actions = document.createElement('p');
     const playButton = document.createElement('button');
@@ -4066,6 +4143,7 @@ function buildChordPracticeTab(progression, options) {
         speak: options.speak,
         speechVolume: options.speechVolume,
         metronome: options.metronome,
+        countInEachPass: false,
         repeatCount: options.repeatCount,
         pass: 1,
         playing: false,
@@ -4074,7 +4152,7 @@ function buildChordPracticeTab(progression, options) {
         speech: null,
         anchorSeconds: 0,
         anchorContextTime: null,
-        ui: { tempoInput, metronomeCheckbox, repeatInput, playButton },
+        ui: { tempoInput, metronomeCheckbox, repeatInput, countInEachPassCheckbox, playButton },
         announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
@@ -4089,6 +4167,10 @@ function buildChordPracticeTab(progression, options) {
     }
     metronomeCheckbox.addEventListener('change',
         () => setChordPracticeMetronome(state, metronomeCheckbox.checked));
+    // Read at each wrap rather than when playback starts, so ticking it mid-loop takes effect from
+    // the next repeat instead of needing playback restarted.
+    countInEachPassCheckbox.addEventListener('change',
+        () => { state.countInEachPass = countInEachPassCheckbox.checked; });
     repeatInput.addEventListener('change', () => {
         const wanted = Number(repeatInput.value);
         state.repeatCount = Number.isFinite(wanted)
@@ -4149,7 +4231,10 @@ async function generateChordPractice() {
     const tab = createTab(`Practice - ${key} ${mode}`, container, {
         kind: 'chord-practice',
         onClose: () => {
-            stopChordPracticePlayback();
+            // The pass is derived from elapsed time, so it has to be captured before the anchor it is
+    // measured from is thrown away. Safe to repeat: once stopped, this returns what it just set.
+    state.pass = chordPracticeCurrentPass(state);
+    stopChordPracticePlayback();
             chordPracticeStates = chordPracticeStates.filter(entry => entry.state !== state);
         }
     });
