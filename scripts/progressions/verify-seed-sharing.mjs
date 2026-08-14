@@ -43,6 +43,7 @@ await page.waitForTimeout(400);
 await page.selectOption('#chord-practice-key-select', 'Eb|minor');
 await page.selectOption('#chord-practice-borrowing-select', 'frequent');
 await page.fill('#chord-practice-count-input', '12');
+await page.fill('#chord-practice-beats-input', '3');
 await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
@@ -50,8 +51,8 @@ const first = await readTab();
 const code = first.seedLine.replace('Seed - ', '').trim();
 console.log(`  ${first.seedLine}`);
 console.log(`  chords: ${first.chords}`);
-check('the seed carries key, mode, level, borrowing, length and number',
-    /^Eb-minor-advanced-frequent-12-\d+$/.test(code), code);
+check('the seed carries key, mode, level, borrowing, length, time signature and number',
+    /^Eb-minor-advanced-frequent-12-3-4-\d+$/.test(code), code);
 check('a Copy Seed Information button is offered', first.copyButton);
 
 console.log('\n=== Pasting it back with every other control set wrongly ===');
@@ -62,6 +63,7 @@ await page.waitForTimeout(400);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.selectOption('#chord-practice-borrowing-select', 'none');
 await page.fill('#chord-practice-count-input', '4');
+await page.fill('#chord-practice-beats-input', '4');
 await page.fill('#chord-practice-seed-input', code);
 await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
@@ -73,6 +75,8 @@ check('the same chords come back', second.chords === first.chords, second.chords
 check('the seed line round-trips unchanged', second.seedLine === first.seedLine, second.seedLine);
 check('the key came from the seed, not the dialog',
     second.meta.some(m => m.startsWith('Key - Eb minor')), second.meta[0]);
+check('the time signature came from the seed, not the dialog',
+    second.meta.some(m => m === 'Time signature - 3/4'), second.meta.join(' | '));
 check('the length came from the seed, not the dialog',
     second.meta.some(m => m === 'Length - 12 measures'), second.meta.join(' | '));
 
@@ -86,7 +90,7 @@ await page.waitForTimeout(1500);
 const bare = await readTab();
 console.log(`  ${bare.seedLine}`);
 check('a bare number is taken as the seed and the dialog supplies the rest',
-    /^Seed - C-\w+-\w+-\w+-6-4242$/.test(bare.seedLine), bare.seedLine);
+    /^Seed - C-\w+-\w+-\w+-6-\d+-\d+-4242$/.test(bare.seedLine), bare.seedLine);
 
 await openDialog();
 await page.fill('#chord-practice-seed-input', 'not a seed at all');
@@ -115,7 +119,7 @@ const copied = await page.evaluate(async () => {
 });
 console.log(`  clipboard now holds: ${copied.clipboard}`);
 check('the clipboard holds a full seed',
-    /^[A-G][#b]?-\w+-\w+-\w+-\d+-\d+$/.test(copied.clipboard ?? ''), String(copied.clipboard));
+    /^[A-G][#b]?-\w+-\w+-\w+-\d+-\d+-\d+-\d+$/.test(copied.clipboard ?? ''), String(copied.clipboard));
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 await app.close();

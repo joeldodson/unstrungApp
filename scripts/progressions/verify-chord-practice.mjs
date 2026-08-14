@@ -436,8 +436,10 @@ await page.waitForTimeout(400);
 
 console.log('\n=== A seed rebuilds the same progression ===');
 const firstChords = tab.summaries.join(' ');
+// The whole line, not a bare number: the seed carries the key, level, borrowing, length and time
+// signature along with it.
 const seedRow = tab.summaryItems.find(row => row.startsWith('Seed - '));
-const seed = seedRow.match(/Seed - (\d+)/)[1];
+const seed = seedRow.replace('Seed - ', '').trim();
 console.log(`  seed from the first tab: ${seed}`);
 
 await app.evaluate(({ BrowserWindow }) =>
@@ -471,8 +473,8 @@ const seedRejected = await page.evaluate(async () => {
     };
 });
 console.log(`  bad seed -> ${seedRejected.status}`);
-check('a seed that is not a number is refused rather than ignored',
-    seedRejected.stillOpen && /not a number/.test(seedRejected.status), seedRejected.status);
+check('a seed that cannot be read is refused rather than ignored',
+    seedRejected.stillOpen && /not a seed/.test(seedRejected.status), seedRejected.status);
 await page.evaluate(() => document.getElementById('chord-practice-dialog').close());
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

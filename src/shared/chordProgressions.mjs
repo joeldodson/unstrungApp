@@ -416,10 +416,16 @@ export function generateProgression(model, {
  * Written out rather than encoded, because it has to survive being read aloud and typed back in.
  * A compact code would be shorter and much easier to get wrong by one character.
  *
- *     C-major-beginner-occasional-8-1462460118
+ *     C-major-beginner-occasional-8-4-4-1462460118
+ *
+ * The time signature is in here because it is fixed when the progression is made, the same as the
+ * key and the length. Tempo and the metronome are not, since both can be changed while it plays.
  */
-export function formatProgressionCode({ key, mode, levelId, borrowingId, chordCount, seed }) {
-    return [key, mode, levelId, borrowingId ?? 'none', chordCount, seed].join('-');
+export function formatProgressionCode({
+    key, mode, levelId, borrowingId, chordCount, beatsPerBar = 4, beatUnit = 4, seed
+}) {
+    return [key, mode, levelId, borrowingId ?? 'none', chordCount, beatsPerBar, beatUnit, seed]
+        .join('-');
 }
 
 /**
@@ -433,17 +439,29 @@ export function parseProgressionCode(text, model) {
     if (trimmed === '') return null;
     if (/^\d+$/.test(trimmed)) return { seed: Number(trimmed) };
 
+    // Six parts is the form written before the time signature was carried; it means 4/4, which is
+    // what every code of that form was generated with.
     const parts = trimmed.split('-');
-    if (parts.length !== 6) return null;
-    const [key, mode, levelId, borrowingId, chordCount, seed] = parts;
+    if (parts.length !== 8 && parts.length !== 6) return null;
+    const [key, mode, levelId, borrowingId, chordCount] = parts;
+    const [beatsPerBar, beatUnit] = parts.length === 8 ? parts.slice(5, 7) : ['4', '4'];
+    const seed = parts[parts.length - 1];
 
     if (!KEY_ROOTS.includes(key)) return null;
     if (!model.modes[mode]) return null;
     if (!model.levels.some(level => level.id === levelId)) return null;
     if (!(model.borrowing?.tiers ?? []).some(tier => tier.id === borrowingId)) return null;
-    if (!/^\d+$/.test(chordCount) || !/^\d+$/.test(seed)) return null;
+    for (const number of [chordCount, beatsPerBar, beatUnit, seed]) {
+        if (!/^\d+$/.test(number)) return null;
+    }
 
-    return { key, mode, levelId, borrowingId, chordCount: Number(chordCount), seed: Number(seed) };
+    return {
+        key, mode, levelId, borrowingId,
+        chordCount: Number(chordCount),
+        beatsPerBar: Number(beatsPerBar),
+        beatUnit: Number(beatUnit),
+        seed: Number(seed)
+    };
 }
 
 /** The written name of a generated chord: "C", "Am7", "F#m7b5". */

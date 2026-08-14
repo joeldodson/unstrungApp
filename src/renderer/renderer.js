@@ -3987,13 +3987,17 @@ function buildChordPracticeTab(progression, options) {
             : 'off'}`,
         // Everything needed to rebuild this exact progression, in one line: pasting it into the
         // seed field sets the key, level, borrowing and length along with the seed.
-        `Seed - ${formatProgressionCode({ ...progression, chordCount: progression.chords.length })}`
+        `Seed - ${formatProgressionCode({
+            ...progression, chordCount: progression.chords.length,
+            beatsPerBar: options.beatsPerBar, beatUnit: options.beatUnit
+        })}`
     ]);
     container.append(summaryList);
 
     // Right under the line it copies, so it is the next thing reached after reading the seed.
     const seedCode = formatProgressionCode({
-        ...progression, chordCount: progression.chords.length
+        ...progression, chordCount: progression.chords.length,
+        beatsPerBar: options.beatsPerBar, beatUnit: options.beatUnit
     });
     const copyParagraph = document.createElement('p');
     const copyButton = document.createElement('button');
@@ -4231,22 +4235,9 @@ async function generateChordPractice() {
     const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
     const repeatWanted = Number(chordPracticeRepeatInput.value);
 
-    const options = {
-        // The lower number is how the signature is written, not how it plays: the tempo is
-        // already counted in beats, so 6/8 at 90 is ninety eighth notes a minute.
-        timeSignature: `${beatsPerBar}/${beatUnit}`,
-        beatsPerBar,
-        tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
-        speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
-        speechVolume: Math.min(1, Math.max(0, Number(chordPracticeSpeechVolumeInput.value) / 100)),
-        metronome: chordPracticeMetronomeCheckbox.checked,
-        countInEachPass: chordPracticeCountInEachPassCheckbox.checked,
-        repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
-    };
-
-    // Empty means a new progression. A full code carries its own key, level, borrowing and length,
-    // and those win over what is on screen: the point of pasting one in is not having to set the
-    // rest correctly first.
+    // Read before anything is built from it. A full code carries key, level, borrowing, length and
+    // time signature, and those win over what is on screen: the point of pasting one in is not
+    // having to set the rest correctly first.
     const seedText = chordPracticeSeedInput.value.trim();
     const code = seedText === '' ? null : parseProgressionCode(seedText, progressionModel);
     if (seedText !== '' && code === null) {
@@ -4255,6 +4246,25 @@ async function generateChordPractice() {
             'or leave the field empty for a new one.';
         return;
     }
+
+    // The time signature belongs to the seed rather than to playback: it is fixed when the
+    // progression is made, unlike tempo and the metronome, which can be changed while it plays.
+    const beats = code?.beatsPerBar ?? beatsPerBar;
+    const unit = code?.beatUnit ?? beatUnit;
+
+    const options = {
+        // The lower number is how the signature is written, not how it plays: the tempo is
+        // already counted in beats, so 6/8 at 90 is ninety eighth notes a minute.
+        timeSignature: `${beats}/${unit}`,
+        beatsPerBar: beats,
+        beatUnit: unit,
+        tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
+        speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
+        speechVolume: Math.min(1, Math.max(0, Number(chordPracticeSpeechVolumeInput.value) / 100)),
+        metronome: chordPracticeMetronomeCheckbox.checked,
+        countInEachPass: chordPracticeCountInEachPassCheckbox.checked,
+        repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
+    };
 
     const request = {
         key: code?.key ?? key,
