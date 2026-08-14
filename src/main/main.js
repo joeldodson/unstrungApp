@@ -1,7 +1,6 @@
 const { app, BrowserWindow, Menu, dialog, shell, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs/promises');
-const { execFile } = require('node:child_process');
 
 const OPEN_FILE_FILTERS = [
     { name: 'Music notation files', extensions: ['gp', 'gpx', 'gp5', 'gp4', 'gp3', 'musicxml', 'xml'] },
@@ -457,97 +456,54 @@ ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity, maxSe
 });
 // --- end Green Gretsch guitar sample playback ---
 
-// --- Rendering spoken phrases to audio ---
+// --- Spoken phrases, rendered ahead of time ---
 //
-// THIS IS THE ONLY PLATFORM SPECIFIC CODE IN UNSTRUNG. It exists because the browser's
-// speechSynthesis hands out sound, never audio data: nothing in the renderer can hold a spoken
-// phrase as samples. Rendering to a WAV is the only way to get them, and samples are what allow a
-// phrase's exact length to be known before it is scheduled, its placement on the audio clock
-// rather than on a timer, and its pitch to be moved by playing it faster or slower.
+// The chord names are committed under src/assets/speech, one directory per voice with a manifest
+// mapping each phrase to its file. Nothing is synthesized here, at run time or at build time.
 //
-// It costs no dependency -- System.Speech is part of .NET on Windows -- and costs portability.
-// macOS and Linux have equivalent one-line commands ("say -o", "espeak -w"), so this is a shim to
-// write two more of rather than a design to redo.
-//
-// Nothing calls this yet. It is here for spoken chord names in practice mode, and was kept because
-// it was arrived at by measurement: see the speakTheNotes branch and its SPEAK_THE_NOTES.md for
-// the figures behind it.
-//
-// PowerShell has to be handed a real file on disk, which rules out the asar archive the rest of
-// the app is packed into. electron-builder copies the script into the resources directory instead
-// (extraResources in package.json), so a packaged build looks for it there while one run from
-// source looks where it lives in the tree.
-//
-// Getting this wrong fails quietly rather than loudly: the renderer finds no voices, disables the
-// spoken chord names option, and reports that speech is unavailable -- which is also exactly what
-// it correctly reports on a machine that genuinely has none. 0.3.0 and 0.3.1 shipped that way.
-const RENDER_PHRASES_SCRIPT = app.isPackaged
-    ? path.join(process.resourcesPath, 'render-phrases.ps1')
-    : path.join(__dirname, '..', '..', 'scripts', 'speech', 'render-phrases.ps1');
+// That is the whole point of them. Speaking chord names used to shell out to PowerShell, which
+// worked from source and silently did not work once installed, cannot work inside an app store
+// sandbox, and had no equivalent on macOS or Linux. Reading a file has none of those problems.
+const SPEECH_DIR = path.join(__dirname, '..', 'assets', 'speech');
+let speechManifests = null;
 
-function runRenderScript(args) {
-    return new Promise((resolve, reject) => {
-        execFile('powershell.exe', [
-            '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-            '-File', RENDER_PHRASES_SCRIPT, ...args
-        ], { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
-            if (error) return reject(new Error(stderr.trim() || error.message));
-            resolve(stdout);
-        });
-    });
+async function loadSpeechManifests() {
+    if (speechManifests) return speechManifests;
+    speechManifests = {};
+    for (const id of await fs.readdir(SPEECH_DIR)) {
+        try {
+            const raw = await fs.readFile(path.join(SPEECH_DIR, id, 'manifest.json'), 'utf8');
+            speechManifests[id] = JSON.parse(raw);
+        } catch { /* not a voice directory */ }
+    }
+    return speechManifests;
 }
 
 ipcMain.handle('speech:list-voices', async () => {
-    if (process.platform !== 'win32') return { supported: false, voices: [] };
-    try {
-        const stdout = await runRenderScript(['-ListVoices']);
-        return { supported: true, voices: stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean) };
-    } catch (error) {
-        return { supported: false, voices: [], error: error.message };
-    }
+    const manifests = await loadSpeechManifests();
+    const voices = Object.values(manifests)
+        .map(manifest => ({ id: manifest.voice, label: manifest.label }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    return { supported: voices.length > 0, voices };
 });
 
-/**
- * Renders each phrase to a WAV and hands back the bytes.
- *
- * One PowerShell run for the whole batch: starting the process and constructing the synthesizer is
- * the slow part, so per-phrase invocations would turn a fraction of a second into several seconds.
- * A batch of fifteen chord names measured well under a second.
- *
- * The files go to a run-specific temp directory and are removed once read, being an artefact of
- * getting the samples across rather than something worth keeping.
- */
-ipcMain.handle('speech:render', async (_event, { phrases, rate, voice }) => {
-    if (process.platform !== 'win32') throw new Error('Rendering speech is Windows only for now');
-    if (!Array.isArray(phrases) || phrases.length === 0) return [];
+/** The audio for each phrase, skipping any the voice has no recording of. */
+ipcMain.handle('speech:get-phrases', async (_event, { voice, phrases }) => {
+    const manifest = (await loadSpeechManifests())[voice];
+    if (!manifest) throw new Error(`No speech assets for voice "${voice}"`);
 
-    const workDir = path.join(app.getPath('temp'), `unstrung-speech-${Date.now()}`);
-    await fs.mkdir(workDir, { recursive: true });
-    const phrasesPath = path.join(workDir, 'phrases.json');
-
-    try {
-        await fs.writeFile(phrasesPath, JSON.stringify(phrases), 'utf8');
-        const args = ['-OutDir', workDir, '-PhrasesJson', phrasesPath, '-Rate', String(rate ?? 0)];
-        if (voice) args.push('-Voice', voice);
-        const stdout = await runRenderScript(args);
-
-        const rendered = [];
-        for (const line of stdout.split(/\r?\n/)) {
-            // index <tab> file name <tab> the text, which itself contains no tabs.
-            const [index, fileName, text] = line.split('\t');
-            if (fileName === undefined) continue;
-            rendered.push({
-                index: Number(index),
-                text,
-                bytes: new Uint8Array(await fs.readFile(path.join(workDir, fileName)))
-            });
-        }
-        return rendered;
-    } finally {
-        await fs.rm(workDir, { recursive: true, force: true }).catch(() => { /* temp dir */ });
+    const rendered = [];
+    for (const text of phrases ?? []) {
+        const fileName = manifest.phrases[text];
+        if (!fileName) continue;
+        rendered.push({
+            text,
+            bytes: new Uint8Array(await fs.readFile(path.join(SPEECH_DIR, voice, fileName)))
+        });
     }
+    return rendered;
 });
-// --- end rendering spoken phrases ---
+// --- end spoken phrases ---
 
 // --- Chord library (Tools menu) ---
 // Generated by scripts/build-chord-library.mjs. Every voicing in it has already been

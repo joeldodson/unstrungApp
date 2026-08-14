@@ -3321,6 +3321,7 @@ const chordPracticeCountInEachPassCheckbox =
 const chordPracticeSpeakCheckbox = document.getElementById('chord-practice-speak-checkbox');
 const chordPracticeSpeechVolumeInput = document.getElementById('chord-practice-speech-volume-input');
 const chordPracticeSpeechNote = document.getElementById('chord-practice-speech-note');
+const chordPracticeVoiceSelect = document.getElementById('chord-practice-voice-select');
 const chordPracticeStatus = document.getElementById('chord-practice-status');
 const chordPracticeGenerateButton = document.getElementById('chord-practice-generate-button');
 const chordPracticeCancelButton = document.getElementById('chord-practice-cancel-button');
@@ -3329,9 +3330,7 @@ const CHORD_PRACTICE_STRUM_DELAY_SECONDS = 0.022;
 const CHORD_PRACTICE_NOTE_GAIN = 0.55;
 const CHORD_PRACTICE_RING_SECONDS = 2.4;
 const CHORD_PRACTICE_VELOCITY = 'mf';
-// SAPI's scale, not the Web Speech multiplier. Brisk enough to fit inside one beat at a practice
-// tempo without sounding hurried.
-const CHORD_PRACTICE_SPEECH_RATE = 4;
+// No speaking rate here any more: it is fixed in the recordings, chosen when they were made.
 const CHORD_PRACTICE_TEMPO_STEP_BPM = 5;
 const CHORD_PRACTICE_MIN_TEMPO = 30;
 const CHORD_PRACTICE_MAX_TEMPO = 240;
@@ -3546,12 +3545,18 @@ async function chordPracticeLoadNotes(state, myToken) {
     return buffers;
 }
 
-/** Renders the spoken chord names, trimmed so each one's real length is known. */
+/**
+ * Reads the recordings for the chord names this progression uses.
+ *
+ * Nothing is synthesized: these are the files under src/assets/speech, one directory per voice.
+ * The silence was already trimmed when they were made, so trimSilence here finds nothing to
+ * remove -- it is kept because it is what reports where the speech ends, which is what the
+ * scheduler places against the beat.
+ */
 async function chordPracticeLoadSpeech(state, myToken) {
     const names = [...new Set(state.progression.chords.map(c =>
         spokenChordName(c.root, c.suffix)))];
-    const rendered = await window.unstrung.renderSpokenPhrases(
-        names, CHORD_PRACTICE_SPEECH_RATE, null);
+    const rendered = await window.unstrung.getSpokenPhrases(state.voice, names);
     if (myToken !== chordPracticeToken) return null;
 
     const byName = new Map();
@@ -4209,6 +4214,7 @@ function buildChordPracticeTab(progression, options) {
         tempo: options.tempo,
         speak: options.speak,
         speechVolume: options.speechVolume,
+        voice: options.voice,
         metronome: options.metronome,
         countInEachPass: options.countInEachPass,
         repeatCount: options.repeatCount,
@@ -4296,6 +4302,7 @@ async function generateChordPractice() {
         tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
         speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
         speechVolume: Math.min(1, Math.max(0, Number(chordPracticeSpeechVolumeInput.value) / 100)),
+        voice: chordPracticeVoiceSelect.value,
         metronome: chordPracticeMetronomeCheckbox.checked,
         countInEachPass: chordPracticeCountInEachPassCheckbox.checked,
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
@@ -4377,12 +4384,21 @@ async function openChordPracticeDialog() {
     if (chordPracticeSpeechSupported === null) {
         const result = await window.unstrung.listSpokenVoices();
         chordPracticeSpeechSupported = result.supported && result.voices.length > 0;
+        for (const voice of result.voices) {
+            const option = document.createElement('option');
+            option.value = voice.id;
+            option.textContent = voice.label;
+            chordPracticeVoiceSelect.append(option);
+        }
     }
-    chordPracticeSpeakCheckbox.disabled = !chordPracticeSpeechSupported;
-    chordPracticeSpeechVolumeInput.disabled = !chordPracticeSpeechSupported;
+    for (const control of [chordPracticeSpeakCheckbox, chordPracticeSpeechVolumeInput,
+        chordPracticeVoiceSelect]) {
+        control.disabled = !chordPracticeSpeechSupported;
+    }
     chordPracticeSpeechNote.textContent = chordPracticeSpeechSupported
-        ? 'Chord names are rendered to audio, so they land exactly on the beat.'
-        : 'Speaking chord names needs the Windows speech engine, which is not available here.';
+        ? 'Chord names are recordings shipped with Unstrung, so they land exactly on the beat ' +
+          'and nothing has to be installed.'
+        : 'The chord name recordings are missing from this build.';
 
     chordPracticeDialog.showModal();
     chordPracticeDialog.focus();

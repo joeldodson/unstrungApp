@@ -13,11 +13,10 @@ contextBridge.exposeInMainWorld('unstrung', {
     getGuitarSampleAudio: (key, velocity, maxSeconds) =>
         ipcRenderer.invoke('guitar-samples:get-audio', { key, velocity, maxSeconds }),
 
-    // Spoken phrases rendered to audio. Not yet used by any UI: kept because it is the platform
-    // specific half of speaking chord names, and was arrived at by measurement rather than guessing.
+    // Spoken phrases, read from the recordings committed under src/assets/speech. Nothing is
+    // synthesized at run time, which is what lets this work on an installed app and off Windows.
     listSpokenVoices: () => ipcRenderer.invoke('speech:list-voices'),
-    renderSpokenPhrases: (phrases, rate, voice) =>
-        ipcRenderer.invoke('speech:render', { phrases, rate, voice }),
+    getSpokenPhrases: (voice, phrases) => ipcRenderer.invoke('speech:get-phrases', { voice, phrases }),
 
     // Chord practice (Tools menu).
     onChordPracticeOpen: (callback) => ipcRenderer.on('chord-practice:open', () => callback()),

@@ -33,12 +33,6 @@
       "src/assets/**/*",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "scripts/speech/render-phrases.ps1",
-        "to": "render-phrases.ps1"
-      }
-    ],
     "win": {
       "target": [
         "nsis",
