@@ -3280,6 +3280,8 @@ const chordPracticeTempoInput = document.getElementById('chord-practice-tempo-in
 const chordPracticeCountInput = document.getElementById('chord-practice-count-input');
 const chordPracticeRepeatInput = document.getElementById('chord-practice-repeat-input');
 const chordPracticeMetronomeCheckbox = document.getElementById('chord-practice-metronome-checkbox');
+const chordPracticeCountInEachPassCheckbox =
+    document.getElementById('chord-practice-count-in-each-pass-checkbox');
 const chordPracticeSpeakCheckbox = document.getElementById('chord-practice-speak-checkbox');
 const chordPracticeSpeechVolumeInput = document.getElementById('chord-practice-speech-volume-input');
 const chordPracticeSpeechNote = document.getElementById('chord-practice-speech-note');
@@ -4073,7 +4075,7 @@ function buildChordPracticeTab(progression, options) {
     const countInEachPassCheckbox = document.createElement('input');
     countInEachPassCheckbox.type = 'checkbox';
     countInEachPassCheckbox.id = `chord-practice-tab-count-in-${nextTabId}`;
-    countInEachPassCheckbox.checked = false;
+    countInEachPassCheckbox.checked = options.countInEachPass;
     const countInEachPassLabel = document.createElement('label');
     countInEachPassLabel.htmlFor = countInEachPassCheckbox.id;
     countInEachPassLabel.textContent =
@@ -4154,7 +4156,7 @@ function buildChordPracticeTab(progression, options) {
         speak: options.speak,
         speechVolume: options.speechVolume,
         metronome: options.metronome,
-        countInEachPass: false,
+        countInEachPass: options.countInEachPass,
         repeatCount: options.repeatCount,
         pass: 1,
         playing: false,
@@ -4213,6 +4215,7 @@ async function generateChordPractice() {
         speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
         speechVolume: Math.min(1, Math.max(0, Number(chordPracticeSpeechVolumeInput.value) / 100)),
         metronome: chordPracticeMetronomeCheckbox.checked,
+        countInEachPass: chordPracticeCountInEachPassCheckbox.checked,
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
     };
 
