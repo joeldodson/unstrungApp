@@ -63,6 +63,65 @@ export const QUALITY_LABELS = {
     'mmaj7b5': 'minor major 7th, flat 5th'
 };
 
+// Which scale degree each interval usually is, so a note can be given the right letter name.
+// A chord's third is always some kind of third, so it takes the letter two above the root
+// whether it is major or minor; the accidental then follows from the pitch.
+const DEFAULT_INTERVAL_DEGREE = {
+    0: 1, 1: 2, 2: 2, 3: 3, 4: 3, 5: 4, 6: 5, 7: 5, 8: 5, 9: 6, 10: 7, 11: 7
+};
+
+// The few chords where an interval means a different degree from the usual reading. A sharp ninth
+// is a ninth however far it is raised, an eleventh raised is still an eleventh, and a diminished
+// seventh is a seventh rather than a sixth.
+const INTERVAL_DEGREE_OVERRIDES = {
+    '7#9': { 3: 2 },
+    aug9: { 3: 2 },
+    '9#11': { 6: 4 },
+    dim7: { 9: 7 }
+};
+
+const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const LETTER_SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+/**
+ * Names one chord tone the way the chord itself requires.
+ *
+ * A single name per pitch class is not enough once the names are read out. C sharp minor is
+ * C#, E, G# -- never C#, E, Ab -- because a chord's fifth takes the letter four above its root,
+ * and only then does the accidental follow from the pitch. Spelling every note from one fixed
+ * table gets the sound right and the name wrong, which is worse than useless to someone reading
+ * the notes to work out a shape.
+ *
+ * `degree` is which chord tone this is: 1 root, 3 third, 5 fifth, 7 seventh, and so on.
+ *
+ * Falls back to the plain spelling where the correct one would need a double accidental. B double
+ * flat is right for the seventh of C diminished 7, and is also not what a learner wants read to
+ * them; the pitch is identical either way.
+ */
+export function spellChordTone(rootName, semitones, degree) {
+    const rootIndex = LETTERS.indexOf(rootName[0]);
+    const rootPc = PITCH_CLASSES[rootName];
+    if (rootIndex < 0 || rootPc === undefined) return PITCH_CLASS_NAMES[((semitones % 12) + 12) % 12];
+
+    const letter = LETTERS[(rootIndex + degree - 1) % 7];
+    const targetPc = (rootPc + semitones) % 12;
+    let offset = (((targetPc - LETTER_SEMITONES[letter]) % 12) + 12) % 12;
+    if (offset > 6) offset -= 12;
+
+    if (Math.abs(offset) > 1) return PITCH_CLASS_NAMES[targetPc];
+    return letter + (offset > 0 ? '#' : offset < 0 ? 'b' : '');
+}
+
+/** Every note of a chord, spelled as that chord requires, lowest interval first. */
+export function spellChordNotes(rootName, suffix) {
+    const { base } = parseSuffix(suffix);
+    const formula = CHORD_FORMULAS[base];
+    if (!formula || PITCH_CLASSES[rootName] === undefined) return [];
+    const overrides = INTERVAL_DEGREE_OVERRIDES[base] ?? {};
+    return formula.map(interval =>
+        spellChordTone(rootName, interval, overrides[interval] ?? DEFAULT_INTERVAL_DEGREE[interval]));
+}
+
 /** Splits "m9/Ab" into { base: "m9", bass: "Ab" }. A bare "/G" means a major chord. */
 export function parseSuffix(suffix) {
     const match = suffix.match(/^(.*?)\/([A-G][#b]?)$/);
@@ -152,14 +211,27 @@ export function verifyVoicing(voicing, rootName, suffix) {
     const seventhInterval = formula.includes(10) ? 10 : formula.includes(11) ? 11 : null;
     const hasSeventh = seventhInterval === null ? true : sounded.has((rootPc + seventhInterval) % 12);
 
+    // Spelled as this chord requires rather than from the fixed table, since these names are read
+    // out. A pitch the chord does not contain has no degree to spell it by, so it keeps the plain
+    // name -- it is being reported as foreign anyway.
+    const spelled = new Map();
+    for (const name of spellChordNotes(rootName, suffix)) {
+        spelled.set(PITCH_CLASSES[name] ?? -1, name);
+    }
+    const spell = pc => spelled.get(pc) ?? PITCH_CLASS_NAMES[pc];
+    // Root first, then up through the chord. Sorting by pitch class instead put F#m as "C#, F#, A",
+    // which is the right notes in an order nobody builds a shape from.
+    const fromRoot = pc => ((pc - rootPc) % 12 + 12) % 12;
+    const byInterval = (a, b) => fromRoot(a) - fromRoot(b);
+
     return {
         status: foreign.length === 0 && hasSeventh ? 'pass' : 'fail',
         foreign,
         hasRoot,
         hasThird,
         hasSeventh,
-        notes: [...sounded].sort((a, b) => a - b).map(pc => PITCH_CLASS_NAMES[pc]),
-        expected: [...allowed].sort((a, b) => a - b).map(pc => PITCH_CLASS_NAMES[pc])
+        notes: [...sounded].sort(byInterval).map(spell),
+        expected: [...allowed].sort(byInterval).map(spell)
     };
 }
 

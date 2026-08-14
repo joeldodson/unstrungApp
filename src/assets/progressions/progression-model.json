@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "note": "Weights are starting assumptions, not received wisdom. They are data rather than code precisely so they can be adjusted -- by hand here, or from Settings later -- without touching the generator. Larger numbers are chosen more often; they are relative within each row, not percentages.",
+
+  "modes": {
+    "major": {
+      "name": "major",
+      "degrees": {
+        "I":   { "semitones": 0,  "suffix": "major", "function": "tonic" },
+        "ii":  { "semitones": 2,  "suffix": "minor", "function": "subdominant" },
+        "iii": { "semitones": 4,  "suffix": "minor", "function": "tonic" },
+        "IV":  { "semitones": 5,  "suffix": "major", "function": "subdominant" },
+        "V":   { "semitones": 7,  "suffix": "major", "function": "dominant" },
+        "vi":  { "semitones": 9,  "suffix": "minor", "function": "tonic" },
+        "vii": { "semitones": 11, "suffix": "dim",   "function": "dominant" }
+      },
+      "startWeights": { "I": 8, "vi": 3, "IV": 2 },
+      "transitions": {
+        "I":   { "IV": 4, "V": 4, "vi": 3, "ii": 2, "iii": 1 },
+        "ii":  { "V": 6, "IV": 2, "vii": 1, "I": 1 },
+        "iii": { "vi": 4, "IV": 3, "ii": 1 },
+        "IV":  { "V": 5, "I": 3, "ii": 2, "vi": 1 },
+        "V":   { "I": 6, "vi": 2, "IV": 1 },
+        "vi":  { "IV": 4, "ii": 3, "V": 2, "I": 1 },
+        "vii": { "I": 5, "iii": 1 }
+      },
+      "cadences": [
+        { "name": "authentic", "chords": ["V", "I"], "weight": 6 },
+        { "name": "plagal", "chords": ["IV", "I"], "weight": 2 },
+        { "name": "deceptive", "chords": ["V", "vi"], "weight": 1 },
+        { "name": "half", "chords": ["ii", "V"], "weight": 1 }
+      ],
+      "skeletons": [
+        { "slots": ["I", "?", "?", "V"], "weight": 3 },
+        { "slots": ["I", "V", "vi", "IV"], "weight": 3 },
+        { "slots": ["vi", "IV", "I", "V"], "weight": 2 },
+        { "slots": ["I", "?", "IV", "V"], "weight": 2 },
+        { "slots": ["I", "vi", "ii", "V"], "weight": 2 }
+      ]
+    },
+
+    "minor": {
+      "name": "minor",
+      "degrees": {
+        "i":   { "semitones": 0,  "suffix": "minor", "function": "tonic" },
+        "ii":  { "semitones": 2,  "suffix": "dim",   "function": "subdominant" },
+        "III": { "semitones": 3,  "suffix": "major", "function": "tonic" },
+        "iv":  { "semitones": 5,  "suffix": "minor", "function": "subdominant" },
+        "v":   { "semitones": 7,  "suffix": "minor", "function": "dominant" },
+        "V":   { "semitones": 7,  "suffix": "major", "function": "dominant" },
+        "VI":  { "semitones": 8,  "suffix": "major", "function": "subdominant" },
+        "VII": { "semitones": 10, "suffix": "major", "function": "dominant" }
+      },
+      "startWeights": { "i": 8, "VI": 2, "iv": 2 },
+      "transitions": {
+        "i":   { "VII": 4, "iv": 4, "VI": 3, "v": 2, "III": 2, "V": 2 },
+        "ii":  { "V": 5, "v": 2, "i": 1 },
+        "III": { "VII": 3, "VI": 3, "iv": 2 },
+        "iv":  { "V": 4, "v": 3, "i": 3, "VII": 2 },
+        "v":   { "i": 5, "VI": 2, "iv": 1 },
+        "V":   { "i": 6, "VI": 2 },
+        "VI":  { "VII": 4, "iv": 2, "III": 2, "V": 2 },
+        "VII": { "i": 4, "III": 3, "VI": 2 }
+      },
+      "cadences": [
+        { "name": "authentic", "chords": ["V", "i"], "weight": 5 },
+        { "name": "minor authentic", "chords": ["v", "i"], "weight": 2 },
+        { "name": "aeolian", "chords": ["VII", "i"], "weight": 3 },
+        { "name": "plagal", "chords": ["iv", "i"], "weight": 2 }
+      ],
+      "skeletons": [
+        { "slots": ["i", "?", "?", "V"], "weight": 3 },
+        { "slots": ["i", "VII", "VI", "VII"], "weight": 3 },
+        { "slots": ["i", "VI", "III", "VII"], "weight": 2 },
+        { "slots": ["i", "iv", "?", "V"], "weight": 2 }
+      ]
+    }
+  },
+
+  "borrowing": {
+    "note": "How often a chord from outside the key is used. Secondary dominants point at the chord that follows them and must resolve to it; mixture chords stand in for a diatonic chord of the same position. `circleSteps` records how far the chord's home key sits from this one on the circle of fifths, and gates which are offered.",
+    "tiers": [
+      { "id": "none", "name": "Stay in the key", "probability": 0, "maxCircleSteps": 0 },
+      { "id": "occasional", "name": "Occasional chord from outside the key", "probability": 0.18, "maxCircleSteps": 1 },
+      { "id": "frequent", "name": "Frequent chords from outside the key", "probability": 0.38, "maxCircleSteps": 2 }
+    ],
+    "chords": {
+      "major": [
+        { "label": "V/V", "semitones": 2, "suffix": "7", "beforeDegree": "V", "circleSteps": 1, "weight": 5, "why": "dominant of the dominant; the D7 in a song in C" },
+        { "label": "V/vi", "semitones": 4, "suffix": "7", "beforeDegree": "vi", "circleSteps": 1, "weight": 4, "why": "dominant of the relative minor; the E7 in a song in C" },
+        { "label": "V/ii", "semitones": 9, "suffix": "7", "beforeDegree": "ii", "circleSteps": 1, "weight": 3, "why": "dominant of the supertonic; the A7 in a song in C" },
+        { "label": "V/IV", "semitones": 0, "suffix": "7", "beforeDegree": "IV", "circleSteps": 1, "weight": 2, "why": "the tonic turned dominant to point at the fourth" },
+        { "label": "bVII", "semitones": 10, "suffix": "major", "replacesDegree": "V", "circleSteps": 1, "weight": 5, "why": "from the parallel minor; the Bb in a song in C" },
+        { "label": "iv", "semitones": 5, "suffix": "minor", "replacesDegree": "IV", "circleSteps": 1, "weight": 4, "why": "the minor fourth, borrowed from the parallel minor" },
+        { "label": "bVI", "semitones": 8, "suffix": "major", "replacesDegree": "vi", "circleSteps": 2, "weight": 3, "why": "from the parallel minor; the Ab in a song in C" },
+        { "label": "bIII", "semitones": 3, "suffix": "major", "replacesDegree": "iii", "circleSteps": 2, "weight": 2, "why": "from the parallel minor; the Eb in a song in C" },
+        { "label": "v", "semitones": 7, "suffix": "minor", "replacesDegree": "V", "circleSteps": 1, "weight": 2, "why": "the minor fifth, which softens the pull home" },
+        { "label": "V/iii", "semitones": 11, "suffix": "7", "beforeDegree": "iii", "circleSteps": 2, "weight": 1, "why": "dominant of the mediant; the B7 in a song in C" }
+      ],
+      "minor": [
+        { "label": "V/V", "semitones": 2, "suffix": "7", "beforeDegree": "V", "circleSteps": 1, "weight": 3, "why": "dominant of the dominant" },
+        { "label": "V/iv", "semitones": 0, "suffix": "7", "beforeDegree": "iv", "circleSteps": 1, "weight": 3, "why": "the tonic turned dominant to point at the fourth" },
+        { "label": "V/VI", "semitones": 3, "suffix": "7", "beforeDegree": "VI", "circleSteps": 1, "weight": 2, "why": "dominant of the sixth" },
+        { "label": "IV", "semitones": 5, "suffix": "major", "replacesDegree": "iv", "circleSteps": 1, "weight": 3, "why": "the major fourth, borrowed from the parallel major" },
+        { "label": "V/VII", "semitones": 5, "suffix": "7", "beforeDegree": "VII", "circleSteps": 2, "weight": 2, "why": "dominant of the seventh" },
+        { "label": "bII", "semitones": 1, "suffix": "major", "replacesDegree": "ii", "circleSteps": 2, "weight": 1, "why": "the Neapolitan, a flattened second before the dominant" }
+      ]
+    }
+  },
+
+  "levels": [
+    {
+      "id": "beginner",
+      "name": "Beginner - open chords only",
+      "description": "Major and minor shapes in open position, no barres. The chords a first year of playing covers.",
+      "degrees": { "major": ["I", "ii", "IV", "V", "vi"], "minor": ["i", "iv", "v", "VI", "VII"] },
+      "playability": "open",
+      "alsoAllow": [
+        { "root": "F", "suffix": "major", "why": "the three and four string cheats are how everyone first plays it" }
+      ],
+      "repeatProbability": 0.25,
+      "upgrades": []
+    },
+    {
+      "id": "intermediate",
+      "name": "Intermediate - barre chords and sevenths",
+      "description": "Every diatonic chord, plus dominant and minor sevenths and the odd suspension. Barre shapes allowed.",
+      "degrees": { "major": ["I", "ii", "iii", "IV", "V", "vi"], "minor": ["i", "III", "iv", "v", "V", "VI", "VII"] },
+      "playability": "fingered",
+      "repeatProbability": 0.15,
+      "upgrades": [
+        { "degrees": ["V"], "suffix": "7", "probability": 0.45 },
+        { "degrees": ["ii", "vi", "iii", "iv"], "suffix": "m7", "probability": 0.25 },
+        { "degrees": ["I", "V"], "suffix": "sus4", "probability": 0.1 }
+      ]
+    },
+    {
+      "id": "advanced",
+      "name": "Advanced - extensions and borrowed chords",
+      "description": "Sevenths and ninths throughout, secondary dominants, and chords borrowed from the parallel key. Includes chords with no fingering in the library.",
+      "degrees": { "major": ["I", "ii", "iii", "IV", "V", "vi", "vii"], "minor": ["i", "ii", "III", "iv", "v", "V", "VI", "VII"] },
+      "playability": "any",
+      "repeatProbability": 0.1,
+      "upgrades": [
+        { "degrees": ["V"], "suffix": "7", "probability": 0.55 },
+        { "degrees": ["V"], "suffix": "9", "probability": 0.12 },
+        { "degrees": ["ii", "vi", "iii", "iv"], "suffix": "m7", "probability": 0.5 },
+        { "degrees": ["I", "IV"], "suffix": "maj7", "probability": 0.3 },
+        { "degrees": ["vii"], "suffix": "m7b5", "probability": 0.6 },
+        { "degrees": ["I", "IV"], "suffix": "add9", "probability": 0.1 }
+      ]
+    }
+  ],
+
+  "playabilityRules": {
+    "open": {
+      "description": "A voicing with no barre, within the first three frets.",
+      "requireVoicing": true,
+      "maxLowestFret": 3,
+      "allowBarres": false,
+      "maxFretSpan": 3,
+      "confidences": ["canonical", "common"]
+    },
+    "fingered": {
+      "description": "Any known fingering that does not span more than four frets.",
+      "requireVoicing": true,
+      "maxLowestFret": 12,
+      "allowBarres": true,
+      "maxFretSpan": 4,
+      "confidences": ["canonical", "common", "advanced"]
+    },
+    "any": {
+      "description": "Any chord at all, including ones with no fingering in the library.",
+      "requireVoicing": false
+    }
+  }
+}

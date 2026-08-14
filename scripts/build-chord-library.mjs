@@ -14,7 +14,7 @@ import { createRequire } from 'node:module';
 import {
     CHORD_FORMULAS, FINGER_NAMES, IDENTIFY_SUFFIXES, PITCH_CLASSES, PITCH_CLASS_NAMES,
     QUALITY_LABELS, STANDARD_TUNING_MIDI, STANDARD_TUNING_NAMES, STRING_NUMBERS,
-    fretToMidi, fretSpan, parseSuffix, verifyVoicing, voicingSoundedNotes
+    fretToMidi, fretSpan, parseSuffix, spellChordNotes, verifyVoicing, voicingSoundedNotes
 } from '../src/shared/musicTheory.mjs';
 
 const require = createRequire(import.meta.url);
@@ -399,9 +399,9 @@ for (const rootName of PITCH_CLASS_NAMES) {
     for (const suffix of IDENTIFY_SUFFIXES) {
         if (present.has(`${rootName}|${suffix}`)) continue;
 
-        const { base } = parseSuffix(suffix);
-        const rootPc = PITCH_CLASSES[rootName];
-        const notes = CHORD_FORMULAS[base].map(i => PITCH_CLASS_NAMES[(rootPc + i) % 12]);
+        // Spelled as the chord requires: C# minor is C#, E, G#, not C#, E, Ab. These names are the
+        // only thing a player has to go on for a chord with no fingering.
+        const notes = spellChordNotes(rootName, suffix);
 
         chords.push({
             name: displayName(rootName, suffix),

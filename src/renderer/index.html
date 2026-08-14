@@ -162,6 +162,133 @@
         <button type="button" id="guitar-samples-ok-button">OK</button>
     </dialog>
 
+    <dialog id="chord-practice-dialog" aria-labelledby="chord-practice-dialog-heading" tabindex="-1">
+        <h2 id="chord-practice-dialog-heading">Chord Practice</h2>
+
+        <p>
+            Generates a chord progression to play along with, and an audio track for it. The
+            progression opens in its own tab, with every chord listed and its fingering and notes
+            inside a collapsed region.
+        </p>
+
+        <p>
+            Chords are chosen from weights that follow how chords tend to move in a key, so a
+            progression is different each time but still goes somewhere. Only chords playable at
+            the experience level chosen are used.
+        </p>
+
+        <p>
+            <label for="chord-practice-seed-input">Seed (leave empty for a new progression)</label>
+            <input type="text" id="chord-practice-seed-input" inputmode="numeric" />
+        </p>
+
+        <p>
+            Every progression reports the seed it was built from. Entering one here rebuilds that
+            exact progression, so a sequence worth practising can be written down or passed on. The
+            key, level and length must match the ones it was generated with.
+        </p>
+
+        <p>
+            <label for="chord-practice-level-select">Experience level</label>
+            <select id="chord-practice-level-select"></select>
+        </p>
+
+        <p id="chord-practice-level-description"></p>
+
+        <p>
+            <label for="chord-practice-key-select">Key</label>
+            <select id="chord-practice-key-select"></select>
+        </p>
+
+        <p>
+            Keys are listed only where enough chords can be played at the level chosen. Open
+            position does not cover all twelve.
+        </p>
+
+        <p>
+            <label for="chord-practice-borrowing-select">Chords from outside the key</label>
+            <select id="chord-practice-borrowing-select"></select>
+        </p>
+
+        <p>
+            Songs rarely stay strictly inside one key. Most of what sounds like a chord from a
+            neighbouring key is one of two things: a chord that points at the one after it, like the
+            D7 before a G in a song in C, or a chord taken from the parallel minor, like a B flat or
+            an F minor in C. Both are offered here. The frequent setting also reaches a second step
+            around the circle of fifths, which starts to sound like the song has genuinely changed
+            key rather than borrowed a colour.
+        </p>
+
+        <p>
+            <label for="chord-practice-beats-input">Beats per measure</label>
+            <input type="number" id="chord-practice-beats-input" min="1" max="16" step="1" value="4" />
+        </p>
+
+        <p>
+            <label for="chord-practice-beat-unit-input">Note value that gets one beat</label>
+            <input type="number" id="chord-practice-beat-unit-input" min="1" max="16" step="1" value="4" />
+        </p>
+
+        <p>
+            These are the two numbers of a time signature: 4 and 4 is four quarter-note beats to the
+            measure, 3 and 4 is a waltz, 6 and 8 is six eighth-note beats. The lower number changes
+            how the time signature is written and read, not how fast it plays, because the tempo
+            below is already counted in beats.
+        </p>
+
+        <p>
+            <label for="chord-practice-tempo-input">Tempo (beats per minute)</label>
+            <input type="number" id="chord-practice-tempo-input" min="30" max="240" step="1" value="80" />
+        </p>
+
+        <p>
+            <label for="chord-practice-count-input">Number of measures</label>
+            <input type="number" id="chord-practice-count-input" min="2" max="256" step="1" value="8" />
+        </p>
+
+        <p>
+            One chord to a measure, strummed on every beat. A chord may be held for two measures,
+            the way a progression usually breathes, so a progression uses fewer distinct chords
+            than it has measures.
+        </p>
+
+        <p>
+            <label for="chord-practice-repeat-input">Times to play the progression, up to 50; 0 repeats until stopped</label>
+            <input type="number" id="chord-practice-repeat-input" min="0" max="50" step="1" value="0" />
+        </p>
+
+        <p>
+            <input type="checkbox" id="chord-practice-count-in-each-pass-checkbox" />
+            <label for="chord-practice-count-in-each-pass-checkbox">
+                Count in before every repeat, not just the first time through. Needs the metronome on.
+            </label>
+        </p>
+
+        <p>
+            <input type="checkbox" id="chord-practice-metronome-checkbox" checked />
+            <label for="chord-practice-metronome-checkbox">Metronome</label>
+        </p>
+
+        <p>
+            <input type="checkbox" id="chord-practice-speak-checkbox" />
+            <label for="chord-practice-speak-checkbox">
+                Speak the name of the next chord on the last beat of each bar
+            </label>
+        </p>
+
+        <p>
+            <label for="chord-practice-speech-volume-input">Spoken chord volume (percent)</label>
+            <input type="number" id="chord-practice-speech-volume-input" min="0" max="100" step="5" value="100" />
+        </p>
+
+        <p id="chord-practice-speech-note"></p>
+
+        <p id="chord-practice-status" aria-live="polite"></p>
+
+        <button type="button" id="chord-practice-generate-button">Generate Progression</button>
+        <button type="button" id="chord-practice-cancel-button">Cancel</button>
+    </dialog>
+
     <!-- The chord library opens as a tab rather than a dialog: it is a place you browse and
          build up a comparison set in, not a decision you commit or cancel. Cloned into a tab
          panel on demand, and only ever one instance, so these ids stay unique. -->
