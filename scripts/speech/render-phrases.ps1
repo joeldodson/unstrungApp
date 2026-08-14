@@ -38,6 +38,7 @@ param(
     [string]$PhrasesJson = '',
     [int]$Rate = 0,
     [string]$Voice = '',
+    [int]$SampleRate = 0,
     [switch]$ListVoices
 )
 
@@ -83,7 +84,17 @@ try {
         $fileName = "phrase-$i.wav"
         $path = Join-Path $OutDir $fileName
 
-        $synth.SetOutputToWaveFile($path)
+        # Speech carries almost nothing above 5 kHz, so 11025 is indistinguishable from the 22050
+        # default here and half the bytes. Left at the default when no rate is asked for.
+        if ($SampleRate -gt 0) {
+            $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(
+                $SampleRate,
+                [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen,
+                [System.Speech.AudioFormat.AudioChannel]::Mono)
+            $synth.SetOutputToWaveFile($path, $format)
+        } else {
+            $synth.SetOutputToWaveFile($path)
+        }
         $synth.Speak($text)
         # The file stays locked and its header stays unfinished until the output is redirected
         # away again, so this is not optional tidying: without it the WAV cannot be read.

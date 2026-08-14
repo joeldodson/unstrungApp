@@ -1,15 +1,20 @@
-// Renders every chord name the app can produce, so spoken chord names need no platform code at
-// run time.
+// Renders every chord name to audio, into src/assets/speech, to be committed.
 //
-// The vocabulary is finite and small: twelve roots by the suffixes the chord identifier knows.
-// Rendering them once here and shipping the audio removes PowerShell from the installed app
-// entirely, which is what makes the feature work inside an app store sandbox -- and on macOS and
-// Linux, where the runtime path does not exist at all.
+// These are committed rather than built during a release, deliberately. What gets tested is then
+// exactly what ships, and `npm run dist` does not depend on which voices happen to be installed on
+// the machine doing the packaging. They are assets like the guitar samples: generated once,
+// reviewed, and thereafter just files.
 //
-// Volume is not baked in. Playback runs each phrase through a gain node, so the volume control
-// stays fully dynamic; only the voice and the rate are fixed at build time.
+// Having them at all is what removes PowerShell from the installed app -- the reason spoken chord
+// names could not work inside an app store sandbox, and could not work on macOS or Linux at all.
 //
-// Run with --measure to report sizes without writing anything into the tree.
+// The vocabulary is finite: twelve roots by the suffixes the chord identifier knows.
+//
+// Volume is NOT baked in. Playback runs each phrase through a gain node, so the volume control
+// stays dynamic; only the voice and the speaking rate are fixed here.
+//
+//   node scripts/speech/build-chord-speech.mjs            write the assets
+//   node scripts/speech/build-chord-speech.mjs --measure  report sizes, write nothing
 
 import { execFile } from 'node:child_process';
 import { readFile, writeFile, mkdir, rm, readdir } from 'node:fs/promises';
@@ -21,9 +26,21 @@ import { spokenChordName, trimSilence } from '../../src/shared/spokenPhrases.mjs
 const execFileAsync = promisify(execFile);
 const HERE = `${import.meta.dirname}`.replace(/\\/g, '/');
 const SCRIPT = `${HERE}/render-phrases.ps1`;
+const ASSETS = `${HERE}/../../src/assets/speech`;
 
-const VOICE = process.env.UNSTRUNG_VOICE ?? 'Microsoft Zira Desktop';
-const RATE = Number(process.env.UNSTRUNG_RATE ?? 4);
+// Speech carries almost nothing above 5 kHz. Half the bytes of the 22050 default, and no audible
+// difference on a chord name.
+const SAMPLE_RATE = 11025;
+const RATE = 4;
+
+// System.Speech only sees the SAPI5 "Desktop" voices. Mark exists on this machine as a OneCore
+// voice, which a different API would be needed to reach.
+const VOICES = [
+    { id: 'david', name: 'Microsoft David Desktop', label: 'David (male)' },
+    { id: 'zira', name: 'Microsoft Zira Desktop', label: 'Zira (female)' }
+];
+
+const measureOnly = process.argv.includes('--measure');
 
 /** Every chord name the app can speak, once each. */
 export function chordSpeechVocabulary() {
@@ -34,7 +51,6 @@ export function chordSpeechVocabulary() {
     return [...phrases].sort();
 }
 
-/** Minimal PCM WAV reader, enough for what System.Speech writes. */
 function readWav(bytes) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     let offset = 12, format = null, dataStart = null, dataLength = 0;
@@ -51,47 +67,95 @@ function readWav(bytes) {
         offset += 8 + size + (size % 2);
     }
     const count = Math.floor(dataLength / 2 / format.channels);
-    const samples = new Float32Array(count);
+    const samples = new Int16Array(count);
+    const floats = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-        samples[i] = view.getInt16(dataStart + i * 2 * format.channels, true) / 32768;
+        samples[i] = view.getInt16(dataStart + i * 2 * format.channels, true);
+        floats[i] = samples[i] / 32768;
     }
-    return { ...format, samples, seconds: count / format.sampleRate, bytes: bytes.length };
+    return { ...format, samples, floats };
+}
+
+/** A 16-bit mono WAV around a run of samples. */
+function writeWav(samples, sampleRate) {
+    const out = new Uint8Array(44 + samples.length * 2);
+    const view = new DataView(out.buffer);
+    const ascii = (offset, text) => {
+        for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+    };
+    ascii(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    ascii(8, 'WAVEfmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);           // PCM
+    view.setUint16(22, 1, true);           // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    ascii(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+    for (let i = 0; i < samples.length; i++) view.setInt16(44 + i * 2, samples[i], true);
+    return out;
 }
 
 const phrases = chordSpeechVocabulary();
-console.log(`voice ${VOICE}, rate ${RATE}`);
-console.log(`${phrases.length} distinct chord names\n`);
+console.log(`${phrases.length} distinct chord names, ${SAMPLE_RATE} Hz, rate ${RATE}`);
+console.log(measureOnly ? 'measuring only, nothing will be written\n' : `writing into ${ASSETS}\n`);
 
-const workDir = `${tmpdir()}/unstrung-chord-speech-${Date.now()}`;
-await mkdir(workDir, { recursive: true });
-const phrasesPath = `${workDir}/phrases.json`;
-await writeFile(phrasesPath, JSON.stringify(phrases), 'utf8');
+const totals = [];
+for (const voice of VOICES) {
+    const workDir = `${tmpdir()}/unstrung-speech-${voice.id}-${Date.now()}`;
+    await mkdir(workDir, { recursive: true });
+    await writeFile(`${workDir}/phrases.json`, JSON.stringify(phrases), 'utf8');
 
-const startedAt = Date.now();
-await execFileAsync('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', SCRIPT,
-    '-OutDir', workDir, '-PhrasesJson', phrasesPath, '-Rate', String(RATE), '-Voice', VOICE
-], { maxBuffer: 16 * 1024 * 1024 });
-console.log(`rendered in ${((Date.now() - startedAt) / 1000).toFixed(1)} s\n`);
+    const startedAt = Date.now();
+    await execFileAsync('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', SCRIPT,
+        '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
+        '-Rate', String(RATE), '-Voice', voice.name, '-SampleRate', String(SAMPLE_RATE)
+    ], { maxBuffer: 16 * 1024 * 1024 });
 
-let rawBytes = 0, trimmedBytes = 0, totalSpeech = 0, longest = { seconds: 0, text: '' };
-const files = (await readdir(workDir)).filter(name => name.endsWith('.wav'));
-for (const [index, name] of files.entries()) {
-    const wav = readWav(new Uint8Array(await readFile(`${workDir}/${name}`)));
-    const { speechSeconds } = trimSilence(wav.samples, wav.sampleRate);
-    rawBytes += wav.bytes;
-    // 16-bit mono: two bytes a sample, plus a 44 byte header.
-    trimmedBytes += Math.round(speechSeconds * wav.sampleRate) * 2 + 44;
-    totalSpeech += speechSeconds;
-    if (speechSeconds > longest.seconds) longest = { seconds: speechSeconds, text: phrases[index] };
+    const outDir = `${ASSETS}/${voice.id}`;
+    if (!measureOnly) {
+        await rm(outDir, { recursive: true, force: true }).catch(() => {});
+        await mkdir(outDir, { recursive: true });
+    }
+
+    // The manifest maps a phrase to its file, so nothing has to guess a name from the text.
+    const manifest = { voice: voice.id, name: voice.name, label: voice.label,
+        sampleRate: SAMPLE_RATE, rate: RATE, phrases: {} };
+    let raw = 0, kept = 0;
+
+    const files = (await readdir(workDir)).filter(name => name.endsWith('.wav'))
+        .sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+
+    for (const [index, name] of files.entries()) {
+        const bytes = new Uint8Array(await readFile(`${workDir}/${name}`));
+        raw += bytes.length;
+        const wav = readWav(bytes);
+        const { startSeconds, speechSeconds } = trimSilence(wav.floats, wav.sampleRate);
+        const from = Math.floor(startSeconds * wav.sampleRate);
+        const to = Math.min(wav.samples.length, from + Math.ceil(speechSeconds * wav.sampleRate));
+        const trimmed = writeWav(wav.samples.subarray(from, to), wav.sampleRate);
+        kept += trimmed.length;
+
+        const fileName = `${index}.wav`;
+        manifest.phrases[phrases[index]] = fileName;
+        if (!measureOnly) await writeFile(`${outDir}/${fileName}`, trimmed);
+    }
+
+    if (!measureOnly) {
+        await writeFile(`${outDir}/manifest.json`, JSON.stringify(manifest, null, 2), 'utf8');
+    }
+    await rm(workDir, { recursive: true, force: true }).catch(() => {});
+
+    totals.push({ voice, raw, kept, seconds: (Date.now() - startedAt) / 1000 });
+    const mb = bytes => `${(bytes / 1048576).toFixed(1)} MB`;
+    console.log(`${voice.label.padEnd(16)} ${mb(kept).padStart(8)}   ` +
+        `(${mb(raw)} before trimming, ${Math.round(kept / files.length)} bytes each, ` +
+        `${totals[totals.length - 1].seconds.toFixed(1)} s to render)`);
 }
 
-const mb = bytes => `${(bytes / 1048576).toFixed(1)} MB`;
-console.log(`as rendered          ${mb(rawBytes)}   (${Math.round(rawBytes / files.length)} bytes each)`);
-console.log(`with silence trimmed ${mb(trimmedBytes)}   (${Math.round(trimmedBytes / files.length)} bytes each)`);
-console.log(`saving               ${mb(rawBytes - trimmedBytes)}, ` +
-    `${Math.round((1 - trimmedBytes / rawBytes) * 100)}%`);
-console.log(`\ntotal speech ${totalSpeech.toFixed(1)} s, average ${(totalSpeech / files.length * 1000).toFixed(0)} ms`);
-console.log(`longest "${longest.text}" at ${(longest.seconds * 1000).toFixed(0)} ms`);
-
-await rm(workDir, { recursive: true, force: true }).catch(() => {});
+const grand = totals.reduce((sum, t) => sum + t.kept, 0);
+console.log(`\nall voices ${(grand / 1048576).toFixed(1)} MB`);
