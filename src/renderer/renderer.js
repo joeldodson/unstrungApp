@@ -1181,6 +1181,10 @@ function updateChordResultsHeading() {
         : `Search Results: ${chordCount} chord${chordCount === 1 ? '' : 's'}`;
     if (queuedCount > 0) text += `, ${queuedCount} selected for playback`;
     chordsUi.resultsHeading.textContent = text;
+
+    // Every path that changes the selection already comes through here, so the Playback list is
+    // kept in step from one place rather than from each of them.
+    refreshChordPlaybackList();
 }
 
 /**
@@ -1485,6 +1489,34 @@ function setChordStatus(text) {
     if (chordsUi) chordsUi.status.textContent = text;
 }
 
+/**
+ * The chords queued for playback, in the order they will be heard.
+ *
+ * This used to be recited into the status line at the end of the document, which put a list of
+ * unknown length into a live region and left it somewhere you had to travel to. As a plain list
+ * ahead of the button it can be read at leisure, and it is exactly where you land after jumping
+ * to the Playback heading. No bullets: the order is the information, and a marker before every
+ * chord is one more thing announced on every line.
+ */
+function refreshChordPlaybackList() {
+    if (!chordsUi) return;
+    const picked = chordPlaybackSelection();
+    const list = chordsUi.playbackList;
+    list.replaceChildren();
+
+    if (picked.length === 0) {
+        const item = document.createElement('li');
+        item.textContent = 'Nothing selected. Tick a chord in the search results.';
+        list.append(item);
+        return;
+    }
+    for (const [position, entry] of picked.entries()) {
+        const item = document.createElement('li');
+        item.textContent = `${position + 1}. ${entry.chord.name}, voicing option ${entry.index + 1}`;
+        list.append(item);
+    }
+}
+
 // --- Wiring -------------------------------------------------------------------------
 function wireChordLibrary() {
     // A filter or search change alters the match set, so a full rebuild is correct here.
@@ -1549,10 +1581,12 @@ function wireChordLibrary() {
             setChordStatus('Tick a chord in the search results first.');
             return;
         }
+        // The names are in the Playback list above the button now, so the live region says only
+        // that something is happening. Reciting them here read out a list of unknown length every
+        // time Play was pressed.
         const label = picked.length === 1
             ? `${picked[0].chord.name}, voicing option ${picked[0].index + 1}`
-            : `${picked.length} selections in turn: ` +
-              picked.map(p => `${p.chord.name} option ${p.index + 1}`).join(', ');
+            : `${picked.length} selections in turn`;
         playChordSelection(picked.map(p => p.voicing), label);
     });
 
@@ -1597,6 +1631,7 @@ async function openChordLibraryTab() {
         resultsHeading: document.getElementById('chords-results-heading'),
         resultsList: document.getElementById('chords-results-list'),
         status: document.getElementById('chords-status'),
+        playbackList: document.getElementById('chords-playback-list'),
         playButton: document.getElementById('chords-play-button'),
         clearButton: document.getElementById('chords-clear-button')
     };
