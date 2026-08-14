@@ -311,7 +311,7 @@ const afterB = await press('b');
 console.log(`  B  -> ${afterB.announcement}`);
 // Which time round is deliberately left out: a progression repeating until stopped has no total
 check('B announces the measure, the chord and which play this is',
-    /^Measure 1 of 8, [A-G][^,]*\.$/.test(afterB.announcement), afterB.announcement);
+    /^Measure 1 of 8, [A-G][^,]*, play 1\.$/.test(afterB.announcement), afterB.announcement);
 
 // Moving around is silent, as in the audio track. Where a seek landed is confirmed with B, which
 // is the key that exists to ask.
@@ -337,7 +337,7 @@ check('Down returns to the start of this measure', /^Measure 1 of 8, /.test(down
 // number is all that can be said. Here a measure is exactly one chord, and which chord it is is
 // the thing worth knowing.
 check('B names the chord as well as the measure, unlike the audio track',
-    /^Measure \d+ of \d+, [A-G][^,]*\.$/.test(downThenB.announcement), downThenB.announcement);
+    /^Measure \d+ of \d+, [A-G][^,]*, play \d+\.$/.test(downThenB.announcement), downThenB.announcement);
 
 const afterSlower = await press('s');
 console.log(`  S  -> "${afterSlower.announcement}", tempo box now ${afterSlower.tempo}`);
@@ -429,8 +429,8 @@ check('nothing is announced on a repeat', !/repeat/i.test(looping.announcement),
     looping.announcement);
 const afterLoopB = await press('b');
 console.log(`  B while looping -> ${afterLoopB.announcement}`);
-check('B still answers while looping',
-    /^Measure \d+ of \d+, [A-G]/.test(afterLoopB.announcement), afterLoopB.announcement);
+check('B says which time round you are on while looping',
+    /, play [2-9]\d*\.$/.test(afterLoopB.announcement), afterLoopB.announcement);
 await page.keyboard.press(' ');
 await page.waitForTimeout(400);
 

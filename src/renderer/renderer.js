@@ -3762,17 +3762,28 @@ function seekChordPracticeByMeasure(state, delta) {
 }
 
 /**
- * Where you are and what chord it is.
+ * Where you are, what chord it is, and which time round.
  *
- * Which time round is deliberately left out. A progression set to repeat until stopped has no
- * total to count towards, and the number carries nothing a player can act on -- unlike the audio
- * track, where a repeat count is part of how a passage was set up to be practised.
+ * The play count is worded exactly as the audio track words it, and for the same reason: nothing
+ * else reports it, so without this there is no way to know how many times round you have been.
+ * Left out when the progression plays once, where there is nothing to count.
+ *
+ * The chord name is the one deliberate difference between the two panels. A measure in a song can
+ * hold anything, so its number is all that can usefully be said; a measure here is exactly one
+ * chord, and which chord it is is the thing worth knowing.
  */
 function announceChordPracticeMeasure(state) {
     const measure = chordPracticeMeasureAt(state, chordPracticePosition(state));
     const chord = state.progression.chords[measure];
-    state.announce(`Measure ${measure + 1} of ${state.progression.chords.length}, ` +
-        `${chordDisplayName(chord)}.`);
+
+    let text = `Measure ${measure + 1} of ${state.progression.chords.length}, ` +
+        `${chordDisplayName(chord)}`;
+    if (state.repeatCount !== 1) {
+        text += state.repeatCount === 0
+            ? `, play ${state.pass}`
+            : `, play ${state.pass} of ${state.repeatCount}`;
+    }
+    state.announce(`${text}.`);
 }
 
 function stepChordPracticeTempo(state, delta) {
