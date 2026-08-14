@@ -4285,7 +4285,9 @@ async function generateChordPractice() {
     }
 
     const { container, state } = buildChordPracticeTab(progression, options);
-    const tab = createTab(`Practice - ${key} ${mode}`, container, {
+    // From the progression, not from the dialog. A pasted seed overrides the key on screen, and
+    // naming the tab after the control rather than the result labelled it with a key it was not in.
+    const tab = createTab(`Practice - ${progression.key} ${progression.mode}`, container, {
         kind: 'chord-practice',
         onClose: () => {
             // The pass is derived from elapsed time, so it has to be captured before the anchor it is
@@ -4298,7 +4300,8 @@ async function generateChordPractice() {
     chordPracticeStates.push({ tabId: tab.id, state });
     chordPracticeDialog.close();
     activateTab(tab.id, { focusContent: true });
-    setStatus(`Generated ${progression.chords.length} bars in ${key} ${mode}.`);
+    setStatus(`Generated ${progression.chords.length} measures in ` +
+        `${progression.key} ${progression.mode}.`);
 }
 
 chordPracticeLevelSelect.addEventListener('change', chordPracticeRefreshKeys);

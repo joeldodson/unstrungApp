@@ -32,7 +32,10 @@ const readTab = () => page.evaluate(() => {
         seedLine: meta.find(m => m.startsWith('Seed - ')) ?? '',
         meta,
         chords: [...p.querySelectorAll('ul.progression-list > li')].map(li => li.textContent).join(' '),
-        copyButton: [...p.querySelectorAll('button')].some(b => b.textContent === 'Copy Seed Information')
+        copyButton: [...p.querySelectorAll('button')].some(b => b.textContent === 'Copy Seed Information'),
+        tabName: [...document.querySelectorAll('[role="tab"]')]
+            .find(t => t.getAttribute('aria-selected') === 'true')?.textContent ?? '',
+        status: document.getElementById('status').textContent
     };
 });
 
@@ -79,6 +82,14 @@ check('the time signature came from the seed, not the dialog',
     second.meta.some(m => m === 'Time signature - 3/4'), second.meta.join(' | '));
 check('the length came from the seed, not the dialog',
     second.meta.some(m => m === 'Length - 12 measures'), second.meta.join(' | '));
+// The tab strip is read far more often than the metadata, so a tab named after the control rather
+// than the result is a wrong answer given repeatedly.
+console.log(`  tab name: "${second.tabName}"`);
+console.log(`  status  : "${second.status}"`);
+check('the tab is named after the progression, not the dialog',
+    second.tabName === 'Practice - Eb minor', second.tabName);
+check('the status names the progression too',
+    /in Eb minor\.$/.test(second.status), second.status);
 
 console.log('\n=== A bare number still works, and nonsense is refused ===');
 await openDialog();
