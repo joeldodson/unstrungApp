@@ -29,7 +29,7 @@ Hopefully you will find the app fairly intuitive.
 It has standard menus and helpful text along the way.
 The Help-> About dialog tells you files supported (e.g., gp* and music xml) and will be kept current.
 I mention the About dialog because that is written by Claude and much more likely to be current.
-This text is being written by a real person, not one devoted to documentation.
+This text is (mostly) written by a real person, not one devoted to documentation.
 
 The core usefulness of unstrung is reading in a file with musical notation, parsing it, and displaying the tracks and measures in very accessible, semantic HTML.
 Once parsed, an audio track can be generated for any of the guitar tracks.
@@ -68,6 +68,21 @@ You can search for a chord in the chord library and hear it strummed.
 You can look up a chord given a description of strings and frets played.
 You can even listen to the guitar samples used to generate the audio tracks.
 There will hopefully be more tools soon.
+
+## Chord Practice
+
+Claude and I had quite an educational, for me, back and forth regarding keys and chords and musical structure.
+The chat led to a feature where the user can select a key, whether or not to "borrow" chords from other keys, and a few other settings.
+Unstrung then generates a sequence of chords for a user to play along.
+I've found it a great way to simulate playing with others and practice chord changes.
+
+And thus begins the dysfunctional AI relationship.
+FYI, Claude prefers amber ales, just like me, go figure.
+
+Chord practice is, as of version 0.3.0, accessed through the tools menu.
+I'm calling it out specifically though as I expect it to be a commonly used feature.
+I consider tools as functionality used occasionally, not a core feature.
+It's highly likely the menu/feature access structure will change as I iterate.
 
 ## Audio Samples
 
