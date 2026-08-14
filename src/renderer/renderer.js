@@ -2673,12 +2673,23 @@ const TEXT_ENTRY_INPUT_TYPES = new Set([
     'date', 'time', 'datetime-local', 'month', 'week', 'range', 'color', 'file'
 ]);
 
+// What a spinner genuinely uses. Arrows step it and the rest edit the value; a letter does
+// nothing there, so a letter belongs to playback even while a spinner has focus. Without this a
+// tempo or repeat field quietly ate M, B, S and F for as long as focus sat in it, which reads as
+// the shortcuts having stopped working.
+const NUMBER_FIELD_KEYS = new Set([
+    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    'Backspace', 'Delete', 'Home', 'End', 'Tab', 'Enter', '.', ',', '-', '+'
+]);
+
 function eventTargetSwallowsKey(target, key) {
     const tag = target && target.tagName ? target.tagName.toLowerCase() : '';
     if (tag === 'select' || tag === 'textarea') return true;
     if (tag !== 'input') return false;
 
     const type = (target.type || 'text').toLowerCase();
+    // A number field takes digits and the keys above, and nothing else.
+    if (type === 'number') return /^\d$/.test(key) || NUMBER_FIELD_KEYS.has(key);
     if (TEXT_ENTRY_INPUT_TYPES.has(type)) return true;
     // Checkbox or radio: let space toggle it, but pass everything else through.
     return key === ' ';
