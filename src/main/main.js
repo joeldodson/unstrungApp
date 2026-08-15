@@ -92,7 +92,7 @@ const DEFAULT_SCREEN_READER_SETTINGS = { terseBeatDescriptions: false, autoColla
 
 // Which recorded voice speaks chord names, and how loud it sits against the guitar. Zira by
 // default, and below full volume: the name is there to be heard under the playing, not over it.
-const DEFAULT_CHORD_VOICE_SETTINGS = { chordVoice: 'zira', chordVoicePercent: 75 };
+const DEFAULT_CHORD_VOICE_SETTINGS = { chordVoice: 'zira', chordVoicePercent: 50 };
 
 let appState = {
     recentFiles: [], defaultOpenDirectory: '',

@@ -340,6 +340,11 @@
             <ul id="chords-playback-list" class="chord-progression"></ul>
 
             <p>
+                <input type="checkbox" id="chords-speak-names-checkbox" />
+                <label for="chords-speak-names-checkbox">Speak chord name before playing</label>
+            </p>
+
+            <p>
                 <button type="button" id="chords-play-button">Play selected chords</button>
                 <button type="button" id="chords-clear-button">Clear selected</button>
             </p>
@@ -422,7 +427,7 @@
             <p>
                 <label for="settings-chord-volume-input">Spoken chord volume (percent)</label>
                 <input type="number" id="settings-chord-volume-input" min="0" max="100" step="5"
-                    value="75" aria-describedby="settings-chord-volume-hint" />
+                    value="50" aria-describedby="settings-chord-volume-hint" />
                 <span id="settings-chord-volume-hint">Relative to the guitar.</span>
             </p>
 

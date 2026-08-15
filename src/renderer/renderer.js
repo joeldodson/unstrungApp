@@ -1402,10 +1402,15 @@ function buildStrokePlan(voicing, direction) {
  * upstroke cutting off the downstroke and, when comparing several chords, each chord cutting
  * off the one before it, because re-strumming really does stop the strings you re-strike.
  */
-function buildStrumSequence(voicings) {
+function buildStrumSequence(voicings, leadSeconds = []) {
     const strokes = [];
+    const starts = [];
     let chordStart = 0;
-    for (const voicing of voicings) {
+    for (const [index, voicing] of voicings.entries()) {
+        // Time before this chord for its name to be spoken, when names are being spoken. The name
+        // runs to completion first: hearing half of "F sharp minor 7" is worse than not hearing it.
+        chordStart += leadSeconds[index] ?? 0;
+        starts.push(chordStart);
         strokes.push({ at: chordStart, voicing, direction: 'down' });
         strokes.push({ at: chordStart + UPSTROKE_DELAY_MS / 1000, voicing, direction: 'up' });
         chordStart += CHORD_SEQUENCE_GAP_SECONDS;
@@ -1424,6 +1429,8 @@ function buildStrumSequence(voicings) {
             laterIndex > index && later.string === note.string);
         note.ringSeconds = restrike ? restrike.at - note.at : null;
     }
+    // `starts` is where each chord begins, which is what the spoken names are placed against.
+    notes.chordStarts = starts;
     return notes;
 }
 
@@ -1449,13 +1456,33 @@ async function loadChordSample(note) {
     return sampleBufferCache.get(cacheKey);
 }
 
-async function playChordSelection(voicings, label) {
+/**
+ * Plays the ticked voicings in turn, optionally saying each chord's name first.
+ *
+ * A name runs to completion before its chord is struck -- hearing half of "F sharp minor 7" is
+ * worse than not hearing it -- so every chord after the first is pushed later by the length of its
+ * own name. The next name then starts once the chord before it has mostly died away rather than
+ * waiting for the recording to run out, which would leave a silence longer than the chord.
+ */
+async function playChordSelection(voicings, label, spokenNames = []) {
     stopChordPlayback();
     const myToken = chordPlaybackToken;
     const context = getSharedAudioContext();
     if (context.state === 'suspended') await context.resume();
 
-    const plan = buildStrumSequence(voicings);
+    // Fetched before anything is scheduled, so a name and its chord are placed against one clock.
+    let phrases = null;
+    if (spokenNames.length > 0) {
+        try {
+            phrases = await chordLibrarySpeech(spokenNames);
+        } catch { phrases = null; }
+        if (myToken !== chordPlaybackToken) return;
+    }
+
+    const leadSeconds = phrases
+        ? spokenNames.map(name => (phrases.get(name)?.buffer.duration ?? 0) + CHORD_NAME_GAP_SECONDS)
+        : [];
+    const plan = buildStrumSequence(voicings, leadSeconds);
 
     // Resolve each distinct note once; several strings can share a sample and length.
     const buffers = new Map();
@@ -1499,7 +1526,52 @@ async function playChordSelection(voicings, label) {
         chordActiveSources.push(source);
     }
 
+    // Each name just before its chord, on the same clock as the strums.
+    if (phrases) {
+        for (const [index, name] of spokenNames.entries()) {
+            const phrase = phrases.get(name);
+            const chordAt = plan.chordStarts?.[index];
+            if (!phrase || chordAt === undefined) continue;
+
+            const source = context.createBufferSource();
+            source.buffer = phrase.buffer;
+            const gain = context.createGain();
+            gain.gain.value = chordVoiceSettings.chordVoicePercent / 100;
+            source.connect(gain).connect(masterGain);
+            // Ends exactly where the chord begins, less the small gap built into the lead.
+            source.start(start + chordAt - phrase.buffer.duration - CHORD_NAME_GAP_SECONDS);
+            chordActiveSources.push(source);
+        }
+    }
+
     setChordStatus(`Playing ${label}.`);
+}
+
+// Between a name finishing and its chord being struck. Long enough to read as two events rather
+// than one run-on, short enough not to be heard as a pause.
+const CHORD_NAME_GAP_SECONDS = 0.12;
+
+const chordNameBufferCache = new Map();
+
+/** The recordings for a set of chord names, decoded once and kept for the session. */
+async function chordLibrarySpeech(names) {
+    const voice = chordVoiceSettings.chordVoice;
+    const missing = [...new Set(names)].filter(name => !chordNameBufferCache.has(`${voice}:${name}`));
+    if (missing.length > 0) {
+        for (const entry of await window.unstrung.getSpokenPhrases(voice, missing)) {
+            const bytes = entry.bytes;
+            const arrayBuffer = bytes.buffer.slice(
+                bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+            chordNameBufferCache.set(`${voice}:${entry.text}`,
+                { buffer: await getSharedAudioContext().decodeAudioData(arrayBuffer) });
+        }
+    }
+    const found = new Map();
+    for (const name of names) {
+        const hit = chordNameBufferCache.get(`${voice}:${name}`);
+        if (hit) found.set(name, hit);
+    }
+    return found;
 }
 
 /** Every ticked voicing, in the order they appear in the results. */
@@ -1618,7 +1690,12 @@ function wireChordLibrary() {
         const label = picked.length === 1
             ? `${picked[0].chord.name}, voicing option ${picked[0].index + 1}`
             : `${picked.length} selections in turn`;
-        playChordSelection(picked.map(p => p.voicing), label);
+        // Named from root and suffix rather than the written name: "F#m7" does not survive being
+        // read aloud, and the recordings are keyed by the spoken form.
+        const names = chordsUi.speakNamesCheckbox.checked
+            ? picked.map(p => spokenChordName(p.chord.root, p.chord.suffix))
+            : [];
+        playChordSelection(picked.map(p => p.voicing), label, names);
     });
 
     chordsUi.clearButton.addEventListener('click', () => {
@@ -1663,6 +1740,7 @@ async function openChordLibraryTab() {
         resultsList: document.getElementById('chords-results-list'),
         status: document.getElementById('chords-status'),
         playbackList: document.getElementById('chords-playback-list'),
+        speakNamesCheckbox: document.getElementById('chords-speak-names-checkbox'),
         playButton: document.getElementById('chords-play-button'),
         clearButton: document.getElementById('chords-clear-button')
     };
