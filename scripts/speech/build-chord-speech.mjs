@@ -26,6 +26,8 @@ import { spokenChordName, trimSilence } from '../../src/shared/spokenPhrases.mjs
 const execFileAsync = promisify(execFile);
 const HERE = `${import.meta.dirname}`.replace(/\\/g, '/');
 const ASSETS = `${HERE}/../../src/assets/speech`;
+const library = JSON.parse(
+    await readFile(`${HERE}/../../src/assets/chords/chord-library.json`, 'utf8'));
 
 
 // One step below the fastest we tried. Rate 4 was quicker but read as hurried; this is the pace
@@ -42,9 +44,18 @@ const RENDER_SCRIPT = `${HERE}/render-phrases.ps1`;
 
 const measureOnly = process.argv.includes('--measure');
 
-/** Every chord name the app can speak, once each. */
+/**
+ * Every chord name the app can speak, once each.
+ *
+ * Taken from the chord library itself rather than from roots crossed with suffixes. The crossing
+ * missed every slash chord -- "C/E" is not a root and a suffix -- so forty-eight chords in the
+ * library had no recording and were passed over in silence. Reading the library cannot drift from
+ * it.
+ */
 export function chordSpeechVocabulary() {
     const phrases = new Set();
+    for (const chord of library.chords) phrases.add(spokenChordName(chord.root, chord.suffix));
+    // The identifier can name chords the library has no entry for, so include those too.
     for (const root of PITCH_CLASS_NAMES) {
         for (const suffix of IDENTIFY_SUFFIXES) phrases.add(spokenChordName(root, suffix));
     }

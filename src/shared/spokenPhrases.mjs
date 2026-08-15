@@ -133,6 +133,14 @@ export const SPOKEN_QUALITY_LABELS = {
  * spent on it is one the player does not have before the change.
  */
 export function spokenChordName(root, suffix = 'major') {
+    // A slash chord names its bass after the chord: "C slash G", "F sharp minor 7 slash A".
+    // Written out rather than said as "over", which is how a musician reads it aloud but is easy
+    // to mishear as part of the chord itself.
+    const slash = String(suffix).match(/^(.*?)\/([A-G][#b]?)$/);
+    if (slash) {
+        const base = slash[1] === '' ? 'major' : slash[1];
+        return `${spokenChordName(root, base)} slash ${spokenRootName(slash[2])}`;
+    }
     const quality = SPOKEN_QUALITY_LABELS[suffix] ?? suffix;
     return quality ? `${spokenRootName(root)} ${quality}` : spokenRootName(root);
 }
