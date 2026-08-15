@@ -421,14 +421,24 @@
 
             <p>
                 <label for="settings-chord-volume-input">Spoken chord volume (percent)</label>
-                <input type="number" id="settings-chord-volume-input" min="0" max="100" step="5" value="75" />
+                <input type="number" id="settings-chord-volume-input" min="0" max="100" step="5"
+                    value="75" aria-describedby="settings-chord-volume-hint" />
+                <span id="settings-chord-volume-hint">Relative to the guitar.</span>
             </p>
 
-            <p>
-                This is how loud a spoken chord name is against the guitar, not how loud Unstrung is
-                overall. Below a hundred the name sits under the playing rather than over it, which
-                is usually what you want while playing along.
-            </p>
+            <!-- The longer explanation is behind a disclosure on purpose. Opening this dialog
+                 reads what is in it, so loose prose in a panel is heard every single time before
+                 anything can be done. Collapsed content stays out of the accessibility tree, and
+                 the one line above is carried by aria-describedby, which is announced on reaching
+                 the field rather than on arriving in the dialog. -->
+            <details>
+                <summary>About spoken chord volume</summary>
+                <p>
+                    This is how loud a spoken chord name is against the guitar, not how loud
+                    Unstrung is overall. Below a hundred the name sits under the playing rather
+                    than over it, which is usually what you want while playing along.
+                </p>
+            </details>
         </section>
 
         <section id="settings-panel-files" role="tabpanel" aria-labelledby="settings-tab-files" tabindex="0" hidden>

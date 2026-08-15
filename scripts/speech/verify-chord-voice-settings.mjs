@@ -10,9 +10,20 @@ const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-c
 let failures = 0;
 const check = (l, ok, d = '') => { if (!ok) failures++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${l}${d ? `  -- ${d}` : ''}`); };
 
+// A throwaway profile, so this never touches the real settings.
+//
+// It did once: an earlier run of this script left chordVoice at david and the volume at 100 in
+// the actual app-state.json, and those were then what Unstrung started with. A test that writes
+// settings has to be given somewhere else to write them.
+const { mkdtempSync } = await import('node:fs');
+const { tmpdir } = await import('node:os');
+const { join } = await import('node:path');
+const PROFILE = mkdtempSync(join(tmpdir(), 'unstrung-test-profile-'));
+
 const launch = () => _electron.launch(process.argv.includes('--packaged')
-    ? { executablePath: `${APP_DIR}/release/win-unpacked/Unstrung.exe`, args: [] }
-    : { args: ['.'], cwd: APP_DIR });
+    ? { executablePath: `${APP_DIR}/release/win-unpacked/Unstrung.exe`,
+        args: [`--user-data-dir=${PROFILE}`] }
+    : { args: ['.', `--user-data-dir=${PROFILE}`], cwd: APP_DIR });
 
 let app = await launch();
 let page = await app.firstWindow();
@@ -63,6 +74,35 @@ check('the fields show a saved voice and volume',
     ['zira', 'david'].includes(section.voice) && Number(section.volume) >= 0,
     `${section.voice} at ${section.volume}%`);
 check('the percentage is explained', section.explained);
+
+// Opening a dialog reads what is in it, so loose prose in a panel is heard every time before
+// anything can be done. Anything longer than a few words belongs behind a disclosure or on the
+// control it describes.
+const quiet = await page.evaluate(() => {
+    const panel = document.getElementById('settings-panel-general');
+    const collapsed = [...panel.querySelectorAll('details')];
+    // A paragraph holding a labelled control is the control, not prose.
+    const proseOutsideControls = [...panel.querySelectorAll(':scope > p')]
+        .filter(p => !p.querySelector('input, select, textarea, button'))
+        .map(p => p.textContent.replace(/\s+/g, ' ').trim());
+    return {
+        collapsed: collapsed.length,
+        allClosed: collapsed.every(d => !d.open),
+        proseOutsideControls,
+        describedBy: document.getElementById('settings-chord-volume-input')
+            .getAttribute('aria-describedby'),
+        hint: document.getElementById('settings-chord-volume-hint')?.textContent.trim()
+    };
+});
+console.log(`  loose prose in the panel: ${quiet.proseOutsideControls.length === 0 ? 'none' : quiet.proseOutsideControls.join(' / ')}`);
+console.log(`  hint on the volume field: "${quiet.hint}"`);
+check('nothing is read out on opening beyond the controls themselves',
+    quiet.proseOutsideControls.length === 0, quiet.proseOutsideControls.join(' / '));
+check('the longer explanation is behind a collapsed disclosure',
+    quiet.collapsed === 1 && quiet.allClosed, `${quiet.collapsed} disclosures`);
+check('the volume field describes itself on focus',
+    quiet.describedBy === 'settings-chord-volume-hint' && quiet.hint.length < 40,
+    `${quiet.describedBy}: ${quiet.hint}`);
 
 console.log('\n=== The chord practice dialog no longer carries them ===');
 await page.evaluate(() => document.getElementById('settings-dialog').close());
