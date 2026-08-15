@@ -47,7 +47,7 @@ const declared = await page.evaluate(() => ({
 }));
 console.log(`  declared defaults: ${declared.voice} at ${declared.volume}%`);
 check('Zira is the declared default voice', declared.voice === 'zira', String(declared.voice));
-check('75 is the declared default volume', declared.volume === '75', String(declared.volume));
+check('50 is the declared default volume', declared.volume === '50', String(declared.volume));
 const section = await page.evaluate(() => {
     const panel = document.getElementById('settings-panel-general');
     const voice = document.getElementById('settings-chord-voice-select');
