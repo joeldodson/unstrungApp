@@ -2,7 +2,7 @@
   "voice": "david-onecore",
   "name": "Microsoft David",
   "label": "David, OneCore",
-  "sampleRate": 11025,
+  "sampleRate": 16000,
   "rate": 4,
   "phrases": {
     "A": "0.wav",

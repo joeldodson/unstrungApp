@@ -154,7 +154,7 @@ for (const voice of VOICES) {
 
     // The manifest maps a phrase to its file, so nothing has to guess a name from the text.
     const manifest = { voice: voice.id, name: voice.name, label: voice.label,
-        sampleRate: SAMPLE_RATE, rate: RATE, phrases: {} };
+        sampleRate: null, rate: RATE, phrases: {} };
     let raw = 0, kept = 0;
 
     const files = (await readdir(workDir)).filter(name => name.endsWith('.wav'))
@@ -164,11 +164,16 @@ for (const voice of VOICES) {
         const bytes = new Uint8Array(await readFile(`${workDir}/${name}`));
         raw += bytes.length;
         const wav = readWav(bytes);
+        manifest.sampleRate = wav.sampleRate;
         const { startSeconds, speechSeconds } = trimSilence(wav.floats, wav.sampleRate);
         const from = Math.floor(startSeconds * wav.sampleRate);
         const to = Math.min(wav.samples.length, from + Math.ceil(speechSeconds * wav.sampleRate));
-        const trimmed = writeWav(
-            resample(wav.samples.subarray(from, to), wav.sampleRate, SAMPLE_RATE), SAMPLE_RATE);
+        // Kept at whatever rate the engine produced. Downsampling here was a mistake: linear
+        // interpolation with no lowpass folds everything above the new Nyquist back into the
+        // audible band, which is heard as harshness. decodeAudioData resamples to the output
+        // rate at playback and does it properly, so there is nothing to gain by doing it badly
+        // first. System.Speech is asked for 11025 and gives it; WinRT gives 16000 regardless.
+        const trimmed = writeWav(wav.samples.subarray(from, to), wav.sampleRate);
         kept += trimmed.length;
 
         const fileName = `${index}.wav`;

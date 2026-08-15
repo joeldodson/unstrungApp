@@ -2,7 +2,7 @@
   "voice": "mark-onecore",
   "name": "Microsoft Mark",
   "label": "Mark, OneCore",
-  "sampleRate": 11025,
+  "sampleRate": 16000,
   "rate": 4,
   "phrases": {
     "A": "0.wav",
