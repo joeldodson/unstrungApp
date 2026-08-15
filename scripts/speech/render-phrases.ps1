@@ -1,37 +1,19 @@
 <#
 .SYNOPSIS
-Renders spoken phrases to WAV files with the Windows speech engine.
+Renders spoken phrases to WAV, for the chord name recordings Unstrung ships.
 
 .DESCRIPTION
-The browser's speechSynthesis hands out sound, never audio data, so nothing in the renderer can
-hold a spoken phrase as samples. This is the only way to get one: System.Speech is part of .NET on
-Windows, so it costs no dependency, but it is the piece that makes the feature platform specific.
+Uses Windows.Media.SpeechSynthesis, a WinRT API whose calls are all asynchronous. The older
+System.Speech API was tried first and rejected: its voices read as slower and flatter at a matched
+pace, and a spoken chord name has to finish before the beat it belongs to.
+Windows PowerShell 5.1 can project WinRT types but has no await, so the helper below turns an
+IAsyncOperation into a task and blocks on it. PowerShell 7 dropped the built-in projection, so this
+must be run with powershell.exe rather than pwsh.
 
-Having the samples buys three things the browser path cannot give. The exact length is known before
-anything is scheduled. The phrase can be placed on the audio clock rather than started on a timer
-and hoped for. And it can be played faster or slower, which moves its pitch, which is the whole
-point of the experiment.
+Unlike System.Speech, the synthesizer chooses its own output format; there is no equivalent of
+SetOutputToWaveFile taking a format. Whatever it produces is written as-is and resampled later.
 
-Output goes to stdout as one tab separated line per phrase: index, file name, and the text. Errors
-go to stderr and set a non-zero exit code.
-
-.PARAMETER OutDir
-Directory to write the WAV files into. Created if missing.
-
-.PARAMETER PhrasesJson
-Path to a UTF-8 JSON file holding an array of strings. Passed as a file rather than as arguments
-because phrase text is arbitrary and quoting it through a command line is a reliable way to lose
-characters.
-
-.PARAMETER Rate
-Speech rate, -10 to 10, where 0 is the voice's normal speed. This is the SAPI scale, not the Web
-Speech multiplier: they are unrelated numbers.
-
-.PARAMETER Voice
-Name of an installed voice. Empty selects the system default.
-
-.PARAMETER ListVoices
-Print the installed voice names, one per line, and exit without rendering.
+Output is one tab separated line per phrase: index, file name, text.
 #>
 param(
     [string]$OutDir = '',
@@ -43,51 +25,68 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Add-Type -AssemblyName System.Speech
+# Loading the type is what triggers the WinRT projection; the assignment is discarded.
+[void][Windows.Media.SpeechSynthesis.SpeechSynthesizer, Windows.Media, ContentType = WindowsRuntime]
+[void][Windows.Storage.Streams.DataReader, Windows.Storage.Streams, ContentType = WindowsRuntime]
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+
+$asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+    $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and
+    $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
+})[0]
+
+function Await($operation, $resultType) {
+    $asTask = $asTaskGeneric.MakeGenericMethod($resultType)
+    $task = $asTask.Invoke($null, @($operation))
+    [void]$task.Wait(-1)
+    $task.Result
+}
 
 if ($ListVoices) {
-    $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
-    try {
-        foreach ($installed in $synth.GetInstalledVoices()) {
-            if ($installed.Enabled) { Write-Output $installed.VoiceInfo.Name }
-        }
-    } finally {
-        $synth.Dispose()
+    foreach ($v in [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices) {
+        Write-Output $v.DisplayName
     }
     exit 0
 }
 
 if (-not $OutDir) { Write-Error 'OutDir is required unless -ListVoices is given'; exit 1 }
-if (-not $PhrasesJson) { Write-Error 'PhrasesJson is required unless -ListVoices is given'; exit 1 }
 if (-not (Test-Path $PhrasesJson)) { Write-Error "No such phrases file: $PhrasesJson"; exit 1 }
-
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-# Parsed in two steps on purpose. ConvertFrom-Json emits the whole array as one object rather than
-# streaming its elements, so wrapping the pipeline in @() yields a single-element array holding the
-# array -- which then stringifies as every phrase joined by spaces, and renders one long WAV.
-# Assigning first and wrapping the variable gives the array itself.
+# Two steps, not a pipeline: ConvertFrom-Json hands on the whole array as one object, so wrapping
+# the pipeline in @() gives a single element holding every phrase.
 $parsed = Get-Content -Path $PhrasesJson -Raw -Encoding UTF8 | ConvertFrom-Json
 $phrases = @($parsed)
 if ($phrases.Count -eq 0) { Write-Error 'The phrases file holds no phrases'; exit 1 }
 
-# One synthesizer for the whole batch. Constructing it is the slow part -- spinning one up per
-# phrase turns a fraction of a second into several seconds for a song's worth of announcements.
-$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+$synth = New-Object Windows.Media.SpeechSynthesis.SpeechSynthesizer
 try {
-    if ($Voice) { $synth.SelectVoice($Voice) }
-    $synth.Rate = $Rate
+    if ($Voice) {
+        $chosen = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices |
+            Where-Object { $_.DisplayName -eq $Voice }
+        if (-not $chosen) { Write-Error "No such voice: $Voice"; exit 1 }
+        $synth.Voice = $chosen
+    }
+    # SAPI's -10..10 against WinRT's 0.5..6.0 multiplier. Rate 4 on the SAPI scale is roughly
+    # 2.5x normal speed, which is what the committed SAPI assets were rendered at.
+    if ($Rate -ne 0) {
+        $synth.Options.SpeakingRate = [Math]::Min(6.0, [Math]::Max(0.5, 1.0 + ($Rate * 0.375)))
+    }
 
     for ($i = 0; $i -lt $phrases.Count; $i++) {
         $text = [string]$phrases[$i]
         $fileName = "phrase-$i.wav"
         $path = Join-Path $OutDir $fileName
 
-        $synth.SetOutputToWaveFile($path)
-        $synth.Speak($text)
-        # The file stays locked and its header stays unfinished until the output is redirected
-        # away again, so this is not optional tidying: without it the WAV cannot be read.
-        $synth.SetOutputToNull()
+        $stream = Await $synth.SynthesizeTextToStreamAsync($text) ([Windows.Media.SpeechSynthesis.SpeechSynthesisStream])
+        $size = [uint32]$stream.Size
+        $reader = New-Object Windows.Storage.Streams.DataReader($stream.GetInputStreamAt(0))
+        [void](Await $reader.LoadAsync($size) ([uint32]))
+        $bytes = New-Object byte[] $size
+        $reader.ReadBytes($bytes)
+        $reader.Dispose()
+        $stream.Dispose()
+        [System.IO.File]::WriteAllBytes($path, $bytes)
 
         Write-Output ("{0}`t{1}`t{2}" -f $i, $fileName, $text)
     }

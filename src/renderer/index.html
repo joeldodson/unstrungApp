@@ -277,8 +277,7 @@
         </p>
 
         <p>
-            <label for="chord-practice-speech-volume-input">Spoken chord volume (percent)</label>
-            <input type="number" id="chord-practice-speech-volume-input" min="0" max="100" step="5" value="100" />
+            The voice and how loud it is are set once, under Settings, General, Chord voices.
         </p>
 
         <p id="chord-practice-speech-note"></p>
@@ -339,6 +338,11 @@
                  rows, and jumping to the next heading reaches the play button in one move. -->
             <h3 id="chords-playback-heading">Playback</h3>
             <ul id="chords-playback-list" class="chord-progression"></ul>
+
+            <p>
+                <input type="checkbox" id="chords-speak-names-checkbox" />
+                <label for="chords-speak-names-checkbox">Speak chord name before playing</label>
+            </p>
 
             <p>
                 <button type="button" id="chords-play-button">Play selected chords</button>
@@ -410,7 +414,36 @@
         </div>
 
         <section id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
-            <p>There are no general settings yet.</p>
+            <h3>Chord voices</h3>
+
+            <p>
+                <label for="settings-chord-voice-select">Voice for spoken chord names</label>
+                <select id="settings-chord-voice-select">
+                    <option value="zira" selected>Zira</option>
+                    <option value="david">David</option>
+                </select>
+            </p>
+
+            <p>
+                <label for="settings-chord-volume-input">Spoken chord volume (percent)</label>
+                <input type="number" id="settings-chord-volume-input" min="0" max="100" step="5"
+                    value="50" aria-describedby="settings-chord-volume-hint" />
+                <span id="settings-chord-volume-hint">Relative to the guitar.</span>
+            </p>
+
+            <!-- The longer explanation is behind a disclosure on purpose. Opening this dialog
+                 reads what is in it, so loose prose in a panel is heard every single time before
+                 anything can be done. Collapsed content stays out of the accessibility tree, and
+                 the one line above is carried by aria-describedby, which is announced on reaching
+                 the field rather than on arriving in the dialog. -->
+            <details>
+                <summary>About spoken chord volume</summary>
+                <p>
+                    This is how loud a spoken chord name is against the guitar, not how loud
+                    Unstrung is overall. Below a hundred the name sits under the playing rather
+                    than over it, which is usually what you want while playing along.
+                </p>
+            </details>
         </section>
 
         <section id="settings-panel-files" role="tabpanel" aria-labelledby="settings-tab-files" tabindex="0" hidden>

@@ -703,6 +703,8 @@ const settingsClearRecentButton = document.getElementById('settings-clear-recent
 const settingsRemoveStaleButton = document.getElementById('settings-remove-stale-button');
 const settingsFilesStatusElement = document.getElementById('settings-files-status');
 const settingsOkButton = document.getElementById('settings-ok-button');
+const settingsChordVoiceSelect = document.getElementById('settings-chord-voice-select');
+const settingsChordVolumeInput = document.getElementById('settings-chord-volume-input');
 const settingsTablistElement = document.getElementById('settings-tablist');
 
 const directoryErrorDialog = document.getElementById('directory-error-dialog');
@@ -814,6 +816,29 @@ settingsTerseBeatsCheckbox.addEventListener('change', async () => {
 // Nothing to rebuild: this one only changes what happens on the next tab switch.
 settingsAutoCollapseCheckbox.addEventListener('change', saveScreenReaderSettings);
 
+/**
+ * Which voice speaks chord names, and how loud it sits against the guitar.
+ *
+ * Held here rather than in the chord practice dialog: it is a preference, set once and left alone,
+ * where everything in that dialog describes the progression being made. A progression already
+ * generated keeps whatever was in force when it was made, so changing this does not reach back
+ * into a tab that is open.
+ */
+let chordVoiceSettings = { chordVoice: 'zira', chordVoicePercent: 75 };
+
+async function saveChordVoiceSettings() {
+    chordVoiceSettings = await window.unstrung.saveChordVoiceSettings({
+        chordVoice: settingsChordVoiceSelect.value,
+        chordVoicePercent: Number(settingsChordVolumeInput.value)
+    });
+    // Clamped by the main process, so read the stored value back rather than leaving whatever was
+    // typed on screen.
+    settingsChordVolumeInput.value = String(chordVoiceSettings.chordVoicePercent);
+}
+
+settingsChordVoiceSelect.addEventListener('change', saveChordVoiceSettings);
+settingsChordVolumeInput.addEventListener('change', saveChordVoiceSettings);
+
 settingsOkButton.addEventListener('click', () => settingsDialog.close());
 
 settingsDialog.addEventListener('close', () => {
@@ -829,6 +854,12 @@ async function openSettingsDialog() {
     settingsDirectoryInput.value = settings.defaultOpenDirectory ?? '';
     settingsTerseBeatsCheckbox.checked = settings.terseBeatDescriptions === true;
     settingsAutoCollapseCheckbox.checked = settings.autoCollapseOnTabChange !== false;
+    chordVoiceSettings = {
+        chordVoice: settings.chordVoice ?? 'zira',
+        chordVoicePercent: settings.chordVoicePercent ?? 75
+    };
+    settingsChordVoiceSelect.value = chordVoiceSettings.chordVoice;
+    settingsChordVolumeInput.value = String(chordVoiceSettings.chordVoicePercent);
     settingsFilesStatusElement.textContent = '';
     activateSettingsTab('general');
     settingsDialog.showModal();
@@ -1155,6 +1186,17 @@ function rebuildChordResults() {
     if (!chordLibrary || !chordsUi) return;
 
     chordsMatches = matchingChords();
+
+    // A selection only means anything among the chords on screen. Searching "C", ticking a few,
+    // then searching "F" used to leave those C chords selected but with nowhere to appear: the
+    // heading still counted them, while the Playback list and the Play button -- which both work
+    // from the current results -- did not. The count disagreed with what would actually play, and
+    // because something was still selected, F major was never queued as the default.
+    const visible = new Set(chordsMatches.map(chord => chord.name));
+    for (const name of [...chordsSelection.keys()]) {
+        if (!visible.has(name)) chordsSelection.delete(name);
+    }
+
     chordRowsByName.clear();
     chordsUi.resultsList.replaceChildren();
 
@@ -1371,10 +1413,15 @@ function buildStrokePlan(voicing, direction) {
  * upstroke cutting off the downstroke and, when comparing several chords, each chord cutting
  * off the one before it, because re-strumming really does stop the strings you re-strike.
  */
-function buildStrumSequence(voicings) {
+function buildStrumSequence(voicings, leadSeconds = []) {
     const strokes = [];
+    const starts = [];
     let chordStart = 0;
-    for (const voicing of voicings) {
+    for (const [index, voicing] of voicings.entries()) {
+        // Time before this chord for its name to be spoken, when names are being spoken. The name
+        // runs to completion first: hearing half of "F sharp minor 7" is worse than not hearing it.
+        chordStart += leadSeconds[index] ?? 0;
+        starts.push(chordStart);
         strokes.push({ at: chordStart, voicing, direction: 'down' });
         strokes.push({ at: chordStart + UPSTROKE_DELAY_MS / 1000, voicing, direction: 'up' });
         chordStart += CHORD_SEQUENCE_GAP_SECONDS;
@@ -1393,6 +1440,8 @@ function buildStrumSequence(voicings) {
             laterIndex > index && later.string === note.string);
         note.ringSeconds = restrike ? restrike.at - note.at : null;
     }
+    // `starts` is where each chord begins, which is what the spoken names are placed against.
+    notes.chordStarts = starts;
     return notes;
 }
 
@@ -1418,13 +1467,33 @@ async function loadChordSample(note) {
     return sampleBufferCache.get(cacheKey);
 }
 
-async function playChordSelection(voicings, label) {
+/**
+ * Plays the ticked voicings in turn, optionally saying each chord's name first.
+ *
+ * A name runs to completion before its chord is struck -- hearing half of "F sharp minor 7" is
+ * worse than not hearing it -- so every chord after the first is pushed later by the length of its
+ * own name. The next name then starts once the chord before it has mostly died away rather than
+ * waiting for the recording to run out, which would leave a silence longer than the chord.
+ */
+async function playChordSelection(voicings, label, spokenNames = []) {
     stopChordPlayback();
     const myToken = chordPlaybackToken;
     const context = getSharedAudioContext();
     if (context.state === 'suspended') await context.resume();
 
-    const plan = buildStrumSequence(voicings);
+    // Fetched before anything is scheduled, so a name and its chord are placed against one clock.
+    let phrases = null;
+    if (spokenNames.length > 0) {
+        try {
+            phrases = await chordLibrarySpeech(spokenNames);
+        } catch { phrases = null; }
+        if (myToken !== chordPlaybackToken) return;
+    }
+
+    const leadSeconds = phrases
+        ? spokenNames.map(name => (phrases.get(name)?.buffer.duration ?? 0) + CHORD_NAME_GAP_SECONDS)
+        : [];
+    const plan = buildStrumSequence(voicings, leadSeconds);
 
     // Resolve each distinct note once; several strings can share a sample and length.
     const buffers = new Map();
@@ -1468,7 +1537,52 @@ async function playChordSelection(voicings, label) {
         chordActiveSources.push(source);
     }
 
+    // Each name just before its chord, on the same clock as the strums.
+    if (phrases) {
+        for (const [index, name] of spokenNames.entries()) {
+            const phrase = phrases.get(name);
+            const chordAt = plan.chordStarts?.[index];
+            if (!phrase || chordAt === undefined) continue;
+
+            const source = context.createBufferSource();
+            source.buffer = phrase.buffer;
+            const gain = context.createGain();
+            gain.gain.value = chordVoiceSettings.chordVoicePercent / 100;
+            source.connect(gain).connect(masterGain);
+            // Ends exactly where the chord begins, less the small gap built into the lead.
+            source.start(start + chordAt - phrase.buffer.duration - CHORD_NAME_GAP_SECONDS);
+            chordActiveSources.push(source);
+        }
+    }
+
     setChordStatus(`Playing ${label}.`);
+}
+
+// Between a name finishing and its chord being struck. Long enough to read as two events rather
+// than one run-on, short enough not to be heard as a pause.
+const CHORD_NAME_GAP_SECONDS = 0.12;
+
+const chordNameBufferCache = new Map();
+
+/** The recordings for a set of chord names, decoded once and kept for the session. */
+async function chordLibrarySpeech(names) {
+    const voice = chordVoiceSettings.chordVoice;
+    const missing = [...new Set(names)].filter(name => !chordNameBufferCache.has(`${voice}:${name}`));
+    if (missing.length > 0) {
+        for (const entry of await window.unstrung.getSpokenPhrases(voice, missing)) {
+            const bytes = entry.bytes;
+            const arrayBuffer = bytes.buffer.slice(
+                bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+            chordNameBufferCache.set(`${voice}:${entry.text}`,
+                { buffer: await getSharedAudioContext().decodeAudioData(arrayBuffer) });
+        }
+    }
+    const found = new Map();
+    for (const name of names) {
+        const hit = chordNameBufferCache.get(`${voice}:${name}`);
+        if (hit) found.set(name, hit);
+    }
+    return found;
 }
 
 /** Every ticked voicing, in the order they appear in the results. */
@@ -1587,7 +1701,12 @@ function wireChordLibrary() {
         const label = picked.length === 1
             ? `${picked[0].chord.name}, voicing option ${picked[0].index + 1}`
             : `${picked.length} selections in turn`;
-        playChordSelection(picked.map(p => p.voicing), label);
+        // Named from root and suffix rather than the written name: "F#m7" does not survive being
+        // read aloud, and the recordings are keyed by the spoken form.
+        const names = chordsUi.speakNamesCheckbox.checked
+            ? picked.map(p => spokenChordName(p.chord.root, p.chord.suffix))
+            : [];
+        playChordSelection(picked.map(p => p.voicing), label, names);
     });
 
     chordsUi.clearButton.addEventListener('click', () => {
@@ -1632,6 +1751,7 @@ async function openChordLibraryTab() {
         resultsList: document.getElementById('chords-results-list'),
         status: document.getElementById('chords-status'),
         playbackList: document.getElementById('chords-playback-list'),
+        speakNamesCheckbox: document.getElementById('chords-speak-names-checkbox'),
         playButton: document.getElementById('chords-play-button'),
         clearButton: document.getElementById('chords-clear-button')
     };
@@ -3319,7 +3439,6 @@ const chordPracticeMetronomeCheckbox = document.getElementById('chord-practice-m
 const chordPracticeCountInEachPassCheckbox =
     document.getElementById('chord-practice-count-in-each-pass-checkbox');
 const chordPracticeSpeakCheckbox = document.getElementById('chord-practice-speak-checkbox');
-const chordPracticeSpeechVolumeInput = document.getElementById('chord-practice-speech-volume-input');
 const chordPracticeSpeechNote = document.getElementById('chord-practice-speech-note');
 const chordPracticeStatus = document.getElementById('chord-practice-status');
 const chordPracticeGenerateButton = document.getElementById('chord-practice-generate-button');
@@ -3329,9 +3448,7 @@ const CHORD_PRACTICE_STRUM_DELAY_SECONDS = 0.022;
 const CHORD_PRACTICE_NOTE_GAIN = 0.55;
 const CHORD_PRACTICE_RING_SECONDS = 2.4;
 const CHORD_PRACTICE_VELOCITY = 'mf';
-// SAPI's scale, not the Web Speech multiplier. Brisk enough to fit inside one beat at a practice
-// tempo without sounding hurried.
-const CHORD_PRACTICE_SPEECH_RATE = 4;
+// No speaking rate here any more: it is fixed in the recordings, chosen when they were made.
 const CHORD_PRACTICE_TEMPO_STEP_BPM = 5;
 const CHORD_PRACTICE_MIN_TEMPO = 30;
 const CHORD_PRACTICE_MAX_TEMPO = 240;
@@ -3546,12 +3663,18 @@ async function chordPracticeLoadNotes(state, myToken) {
     return buffers;
 }
 
-/** Renders the spoken chord names, trimmed so each one's real length is known. */
+/**
+ * Reads the recordings for the chord names this progression uses.
+ *
+ * Nothing is synthesized: these are the files under src/assets/speech, one directory per voice.
+ * The silence was already trimmed when they were made, so trimSilence here finds nothing to
+ * remove -- it is kept because it is what reports where the speech ends, which is what the
+ * scheduler places against the beat.
+ */
 async function chordPracticeLoadSpeech(state, myToken) {
     const names = [...new Set(state.progression.chords.map(c =>
         spokenChordName(c.root, c.suffix)))];
-    const rendered = await window.unstrung.renderSpokenPhrases(
-        names, CHORD_PRACTICE_SPEECH_RATE, null);
+    const rendered = await window.unstrung.getSpokenPhrases(state.voice, names);
     if (myToken !== chordPracticeToken) return null;
 
     const byName = new Map();
@@ -4209,6 +4332,7 @@ function buildChordPracticeTab(progression, options) {
         tempo: options.tempo,
         speak: options.speak,
         speechVolume: options.speechVolume,
+        voice: options.voice,
         metronome: options.metronome,
         countInEachPass: options.countInEachPass,
         repeatCount: options.repeatCount,
@@ -4295,7 +4419,10 @@ async function generateChordPractice() {
         beatUnit: unit,
         tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
         speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
-        speechVolume: Math.min(1, Math.max(0, Number(chordPracticeSpeechVolumeInput.value) / 100)),
+        // From Settings, read once when the progression is made: a tab already open keeps whatever
+        // was in force when it was generated.
+        speechVolume: Math.min(1, Math.max(0, chordVoiceSettings.chordVoicePercent / 100)),
+        voice: chordVoiceSettings.chordVoice,
         metronome: chordPracticeMetronomeCheckbox.checked,
         countInEachPass: chordPracticeCountInEachPassCheckbox.checked,
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
@@ -4378,11 +4505,17 @@ async function openChordPracticeDialog() {
         const result = await window.unstrung.listSpokenVoices();
         chordPracticeSpeechSupported = result.supported && result.voices.length > 0;
     }
+    // Which voice and how loud now live in Settings; this dialog only decides whether to speak.
+    const settings = await window.unstrung.getSettings();
+    chordVoiceSettings = {
+        chordVoice: settings.chordVoice ?? 'zira',
+        chordVoicePercent: settings.chordVoicePercent ?? 75
+    };
     chordPracticeSpeakCheckbox.disabled = !chordPracticeSpeechSupported;
-    chordPracticeSpeechVolumeInput.disabled = !chordPracticeSpeechSupported;
     chordPracticeSpeechNote.textContent = chordPracticeSpeechSupported
-        ? 'Chord names are rendered to audio, so they land exactly on the beat.'
-        : 'Speaking chord names needs the Windows speech engine, which is not available here.';
+        ? 'Chord names are recordings shipped with Unstrung, so they land exactly on the beat ' +
+          'and nothing has to be installed.'
+        : 'The chord name recordings are missing from this build.';
 
     chordPracticeDialog.showModal();
     chordPracticeDialog.focus();
