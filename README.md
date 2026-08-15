@@ -77,7 +77,7 @@ Unstrung then generates a sequence of chords for a user to play along.
 I've found it a great way to simulate playing with others and practice chord changes.
 
 And thus begins the dysfunctional AI relationship.
-FYI, Claude prefers amber ales, just like me, go figure.
+And you know what? Claude prefers amber ales, just like me! Who knew?
 
 Chord practice is, as of version 0.3.0, accessed through the tools menu.
 I'm calling it out specifically though as I expect it to be a commonly used feature.
