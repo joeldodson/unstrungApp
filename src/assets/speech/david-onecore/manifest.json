@@ -3,7 +3,7 @@
   "name": "Microsoft David",
   "label": "David",
   "sampleRate": 16000,
-  "rate": 4,
+  "rate": 3,
   "phrases": {
     "A": "0.wav",
     "A 11": "1.wav",

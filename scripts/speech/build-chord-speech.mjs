@@ -28,7 +28,9 @@ const HERE = `${import.meta.dirname}`.replace(/\\/g, '/');
 const ASSETS = `${HERE}/../../src/assets/speech`;
 
 
-const RATE = 4;
+// One step below the fastest we tried. Rate 4 was quicker but read as hurried; this is the pace
+// a chord name is actually useful at, and it costs about fifteen beats a minute of tempo ceiling.
+const RATE = 3;
 
 // The two voices Unstrung ships. Both OneCore: newer recordings than the SAPI5 "Desktop" voices,
 // and noticeably snappier, which matters because a spoken name has to finish before its beat.
