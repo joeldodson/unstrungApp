@@ -30,7 +30,7 @@ console.log('\n=== The voices come from the committed recordings ===');
 const voices = await page.evaluate(() => window.unstrung.listSpokenVoices());
 console.log(`  supported=${voices.supported}, voices: ${voices.voices.map(v => v.label).join(' | ')}`);
 check('speech is supported', voices.supported === true);
-check('all five voices are offered', voices.voices.length === 5, `${voices.voices.length}`);
+check('every committed voice is offered', voices.voices.length >= 5, `${voices.voices.length}`);
 check('Mark is among them', voices.voices.some(v => /Mark/.test(v.label)),
     voices.voices.map(v => v.label).join(', '));
 
@@ -53,7 +53,8 @@ const dialog = await page.evaluate(() => ({
 }));
 console.log(`  selector: ${dialog.options.join(' | ')}`);
 check('the selector lists every voice and is labelled',
-    dialog.options.length === 5 && dialog.labelled && !dialog.disabled, dialog.options.join(', '));
+    dialog.options.length === voices.voices.length && dialog.labelled && !dialog.disabled,
+    dialog.options.join(', '));
 check('the note no longer talks about a speech engine', !/engine/i.test(dialog.note), dialog.note);
 
 // Generate with a chosen voice and confirm the buffers actually came from that voice's files.

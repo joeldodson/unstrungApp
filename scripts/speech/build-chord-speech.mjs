@@ -42,7 +42,16 @@ const VOICES = [
     // ask, so these are resampled down to match the SAPI ones.
     { id: 'david-onecore', name: 'Microsoft David', label: 'David, OneCore', engine: 'onecore' },
     { id: 'zira-onecore', name: 'Microsoft Zira', label: 'Zira, OneCore', engine: 'onecore' },
-    { id: 'mark-onecore', name: 'Microsoft Mark', label: 'Mark, OneCore', engine: 'onecore' }
+    { id: 'mark-onecore', name: 'Microsoft Mark', label: 'Mark, OneCore', engine: 'onecore' },
+    // The same OneCore voices one step slower, to be compared against the ones above. A slower
+    // voice takes longer to say the same thing, so these are proportionally larger -- and they
+    // eat into the tempo ceiling, since an announcement still has to finish before its beat.
+    { id: 'david-onecore-slow', name: 'Microsoft David', label: 'David, OneCore, slower',
+        engine: 'onecore', rate: 3 },
+    { id: 'zira-onecore-slow', name: 'Microsoft Zira', label: 'Zira, OneCore, slower',
+        engine: 'onecore', rate: 3 },
+    { id: 'mark-onecore-slow', name: 'Microsoft Mark', label: 'Mark, OneCore, slower',
+        engine: 'onecore', rate: 3 }
 ];
 
 const ONECORE_SCRIPT = `${HERE}/render-phrases-onecore.ps1`;
@@ -139,9 +148,9 @@ for (const voice of VOICES) {
     const startedAt = Date.now();
     const args = voice.engine === 'onecore'
         ? ['-File', ONECORE_SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
-            '-Rate', String(RATE), '-Voice', voice.name]
+            '-Rate', String(voice.rate ?? RATE), '-Voice', voice.name]
         : ['-File', SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
-            '-Rate', String(RATE), '-Voice', voice.name, '-SampleRate', String(SAMPLE_RATE)];
+            '-Rate', String(voice.rate ?? RATE), '-Voice', voice.name, '-SampleRate', String(SAMPLE_RATE)];
     await execFileAsync('powershell.exe',
         ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args],
         { maxBuffer: 16 * 1024 * 1024 });
@@ -154,7 +163,7 @@ for (const voice of VOICES) {
 
     // The manifest maps a phrase to its file, so nothing has to guess a name from the text.
     const manifest = { voice: voice.id, name: voice.name, label: voice.label,
-        sampleRate: null, rate: RATE, phrases: {} };
+        sampleRate: null, rate: voice.rate ?? RATE, phrases: {} };
     let raw = 0, kept = 0;
 
     const files = (await readdir(workDir)).filter(name => name.endsWith('.wav'))
