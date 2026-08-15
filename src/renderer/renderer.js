@@ -1186,6 +1186,17 @@ function rebuildChordResults() {
     if (!chordLibrary || !chordsUi) return;
 
     chordsMatches = matchingChords();
+
+    // A selection only means anything among the chords on screen. Searching "C", ticking a few,
+    // then searching "F" used to leave those C chords selected but with nowhere to appear: the
+    // heading still counted them, while the Playback list and the Play button -- which both work
+    // from the current results -- did not. The count disagreed with what would actually play, and
+    // because something was still selected, F major was never queued as the default.
+    const visible = new Set(chordsMatches.map(chord => chord.name));
+    for (const name of [...chordsSelection.keys()]) {
+        if (!visible.has(name)) chordsSelection.delete(name);
+    }
+
     chordRowsByName.clear();
     chordsUi.resultsList.replaceChildren();
 
