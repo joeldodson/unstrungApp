@@ -32,18 +32,13 @@ const ASSETS = `${HERE}/../../src/assets/speech`;
 // a chord name is actually useful at, and it costs about fifteen beats a minute of tempo ceiling.
 const RATE = 3;
 
-// The two voices Unstrung ships. Both OneCore: newer recordings than the SAPI5 "Desktop" voices,
-// and noticeably snappier, which matters because a spoken name has to finish before its beat.
-//
-// Reaching them means Windows.Media.SpeechSynthesis, which is fiddlier than System.Speech -- WinRT
-// projection, manual task-awaiting, and powershell.exe rather than PowerShell 7. That cost is paid
-// once, here, on the rare occasion the recordings are regenerated. It is not paid by the app or by
-// anyone installing it.
+// The two voices Unstrung ships. `synth` is the name the renderer asks the system for; everything
+// the app itself shows is the plain label.
 const VOICES = [
-    { id: 'david-onecore', name: 'Microsoft David', label: 'David' },
-    { id: 'zira-onecore', name: 'Microsoft Zira', label: 'Zira' }
+    { id: 'david', synth: 'Microsoft David', label: 'David' },
+    { id: 'zira', synth: 'Microsoft Zira', label: 'Zira' }
 ];
-const ONECORE_SCRIPT = `${HERE}/render-phrases-onecore.ps1`;
+const RENDER_SCRIPT = `${HERE}/render-phrases.ps1`;
 
 const measureOnly = process.argv.includes('--measure');
 
@@ -117,8 +112,8 @@ for (const voice of VOICES) {
     const startedAt = Date.now();
     await execFileAsync('powershell.exe', [
         '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-        '-File', ONECORE_SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
-        '-Rate', String(RATE), '-Voice', voice.name
+        '-File', RENDER_SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
+        '-Rate', String(RATE), '-Voice', voice.synth
     ], { maxBuffer: 16 * 1024 * 1024 });
 
     const outDir = `${ASSETS}/${voice.id}`;
@@ -128,7 +123,7 @@ for (const voice of VOICES) {
     }
 
     // The manifest maps a phrase to its file, so nothing has to guess a name from the text.
-    const manifest = { voice: voice.id, name: voice.name, label: voice.label,
+    const manifest = { voice: voice.id, label: voice.label,
         sampleRate: null, rate: voice.rate ?? RATE, phrases: {} };
     let raw = 0, kept = 0;
 

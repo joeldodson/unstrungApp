@@ -277,13 +277,7 @@
         </p>
 
         <p>
-            <label for="chord-practice-voice-select">Voice for spoken chord names</label>
-            <select id="chord-practice-voice-select"></select>
-        </p>
-
-        <p>
-            <label for="chord-practice-speech-volume-input">Spoken chord volume (percent)</label>
-            <input type="number" id="chord-practice-speech-volume-input" min="0" max="100" step="5" value="100" />
+            The voice and how loud it is are set once, under Settings, General, Chord voices.
         </p>
 
         <p id="chord-practice-speech-note"></p>
@@ -415,7 +409,26 @@
         </div>
 
         <section id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
-            <p>There are no general settings yet.</p>
+            <h3>Chord voices</h3>
+
+            <p>
+                <label for="settings-chord-voice-select">Voice for spoken chord names</label>
+                <select id="settings-chord-voice-select">
+                    <option value="zira" selected>Zira</option>
+                    <option value="david">David</option>
+                </select>
+            </p>
+
+            <p>
+                <label for="settings-chord-volume-input">Spoken chord volume (percent)</label>
+                <input type="number" id="settings-chord-volume-input" min="0" max="100" step="5" value="75" />
+            </p>
+
+            <p>
+                This is how loud a spoken chord name is against the guitar, not how loud Unstrung is
+                overall. Below a hundred the name sits under the playing rather than over it, which
+                is usually what you want while playing along.
+            </p>
         </section>
 
         <section id="settings-panel-files" role="tabpanel" aria-labelledby="settings-tab-files" tabindex="0" hidden>

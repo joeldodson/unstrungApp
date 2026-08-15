@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('unstrung', {
     clearRecentFiles: () => ipcRenderer.invoke('settings:clear-recent-files'),
     removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files'),
     saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings),
+    saveChordVoiceSettings: (settings) => ipcRenderer.invoke('settings:save-chord-voice', settings),
 
     // Help documents (Help menu). The content itself is generated at build time and bundled with
     // the renderer, so only the menu signal crosses over.

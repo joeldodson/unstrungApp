@@ -703,6 +703,8 @@ const settingsClearRecentButton = document.getElementById('settings-clear-recent
 const settingsRemoveStaleButton = document.getElementById('settings-remove-stale-button');
 const settingsFilesStatusElement = document.getElementById('settings-files-status');
 const settingsOkButton = document.getElementById('settings-ok-button');
+const settingsChordVoiceSelect = document.getElementById('settings-chord-voice-select');
+const settingsChordVolumeInput = document.getElementById('settings-chord-volume-input');
 const settingsTablistElement = document.getElementById('settings-tablist');
 
 const directoryErrorDialog = document.getElementById('directory-error-dialog');
@@ -814,6 +816,29 @@ settingsTerseBeatsCheckbox.addEventListener('change', async () => {
 // Nothing to rebuild: this one only changes what happens on the next tab switch.
 settingsAutoCollapseCheckbox.addEventListener('change', saveScreenReaderSettings);
 
+/**
+ * Which voice speaks chord names, and how loud it sits against the guitar.
+ *
+ * Held here rather than in the chord practice dialog: it is a preference, set once and left alone,
+ * where everything in that dialog describes the progression being made. A progression already
+ * generated keeps whatever was in force when it was made, so changing this does not reach back
+ * into a tab that is open.
+ */
+let chordVoiceSettings = { chordVoice: 'zira', chordVoicePercent: 75 };
+
+async function saveChordVoiceSettings() {
+    chordVoiceSettings = await window.unstrung.saveChordVoiceSettings({
+        chordVoice: settingsChordVoiceSelect.value,
+        chordVoicePercent: Number(settingsChordVolumeInput.value)
+    });
+    // Clamped by the main process, so read the stored value back rather than leaving whatever was
+    // typed on screen.
+    settingsChordVolumeInput.value = String(chordVoiceSettings.chordVoicePercent);
+}
+
+settingsChordVoiceSelect.addEventListener('change', saveChordVoiceSettings);
+settingsChordVolumeInput.addEventListener('change', saveChordVoiceSettings);
+
 settingsOkButton.addEventListener('click', () => settingsDialog.close());
 
 settingsDialog.addEventListener('close', () => {
@@ -829,6 +854,12 @@ async function openSettingsDialog() {
     settingsDirectoryInput.value = settings.defaultOpenDirectory ?? '';
     settingsTerseBeatsCheckbox.checked = settings.terseBeatDescriptions === true;
     settingsAutoCollapseCheckbox.checked = settings.autoCollapseOnTabChange !== false;
+    chordVoiceSettings = {
+        chordVoice: settings.chordVoice ?? 'zira',
+        chordVoicePercent: settings.chordVoicePercent ?? 75
+    };
+    settingsChordVoiceSelect.value = chordVoiceSettings.chordVoice;
+    settingsChordVolumeInput.value = String(chordVoiceSettings.chordVoicePercent);
     settingsFilesStatusElement.textContent = '';
     activateSettingsTab('general');
     settingsDialog.showModal();
@@ -3319,9 +3350,7 @@ const chordPracticeMetronomeCheckbox = document.getElementById('chord-practice-m
 const chordPracticeCountInEachPassCheckbox =
     document.getElementById('chord-practice-count-in-each-pass-checkbox');
 const chordPracticeSpeakCheckbox = document.getElementById('chord-practice-speak-checkbox');
-const chordPracticeSpeechVolumeInput = document.getElementById('chord-practice-speech-volume-input');
 const chordPracticeSpeechNote = document.getElementById('chord-practice-speech-note');
-const chordPracticeVoiceSelect = document.getElementById('chord-practice-voice-select');
 const chordPracticeStatus = document.getElementById('chord-practice-status');
 const chordPracticeGenerateButton = document.getElementById('chord-practice-generate-button');
 const chordPracticeCancelButton = document.getElementById('chord-practice-cancel-button');
@@ -4301,8 +4330,10 @@ async function generateChordPractice() {
         beatUnit: unit,
         tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
         speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
-        speechVolume: Math.min(1, Math.max(0, Number(chordPracticeSpeechVolumeInput.value) / 100)),
-        voice: chordPracticeVoiceSelect.value,
+        // From Settings, read once when the progression is made: a tab already open keeps whatever
+        // was in force when it was generated.
+        speechVolume: Math.min(1, Math.max(0, chordVoiceSettings.chordVoicePercent / 100)),
+        voice: chordVoiceSettings.chordVoice,
         metronome: chordPracticeMetronomeCheckbox.checked,
         countInEachPass: chordPracticeCountInEachPassCheckbox.checked,
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
@@ -4384,17 +4415,14 @@ async function openChordPracticeDialog() {
     if (chordPracticeSpeechSupported === null) {
         const result = await window.unstrung.listSpokenVoices();
         chordPracticeSpeechSupported = result.supported && result.voices.length > 0;
-        for (const voice of result.voices) {
-            const option = document.createElement('option');
-            option.value = voice.id;
-            option.textContent = voice.label;
-            chordPracticeVoiceSelect.append(option);
-        }
     }
-    for (const control of [chordPracticeSpeakCheckbox, chordPracticeSpeechVolumeInput,
-        chordPracticeVoiceSelect]) {
-        control.disabled = !chordPracticeSpeechSupported;
-    }
+    // Which voice and how loud now live in Settings; this dialog only decides whether to speak.
+    const settings = await window.unstrung.getSettings();
+    chordVoiceSettings = {
+        chordVoice: settings.chordVoice ?? 'zira',
+        chordVoicePercent: settings.chordVoicePercent ?? 75
+    };
+    chordPracticeSpeakCheckbox.disabled = !chordPracticeSpeechSupported;
     chordPracticeSpeechNote.textContent = chordPracticeSpeechSupported
         ? 'Chord names are recordings shipped with Unstrung, so they land exactly on the beat ' +
           'and nothing has to be installed.'

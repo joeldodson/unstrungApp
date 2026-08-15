@@ -1,6 +1,5 @@
 {
-  "voice": "david-onecore",
-  "name": "Microsoft David",
+  "voice": "david",
   "label": "David",
   "sampleRate": 16000,
   "rate": 3,

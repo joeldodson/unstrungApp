@@ -42,38 +42,7 @@ for (const voice of voices.voices) {
     check(`${voice.label} returns both phrases`, got.length === 2 && got.every(g => g.bytes.byteLength > 500), sizes);
 }
 
-console.log('\n=== The dialog offers them, and playback uses the chosen one ===');
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
-await page.waitForTimeout(2500);
-const dialog = await page.evaluate(() => ({
-    options: [...document.getElementById('chord-practice-voice-select').options].map(o => o.textContent),
-    disabled: document.getElementById('chord-practice-voice-select').disabled,
-    note: document.getElementById('chord-practice-speech-note').textContent,
-    labelled: Boolean(document.querySelector('label[for="chord-practice-voice-select"]'))
-}));
-console.log(`  selector: ${dialog.options.join(' | ')}`);
-check('the selector lists every voice and is labelled',
-    dialog.options.length === voices.voices.length && dialog.labelled && !dialog.disabled,
-    dialog.options.join(', '));
-check('the note no longer talks about a speech engine', !/engine/i.test(dialog.note), dialog.note);
-
-// Generate with a chosen voice and confirm the buffers actually came from that voice's files.
-await page.selectOption('#chord-practice-voice-select', { index: 1 });
-const chosen = await page.evaluate(() => document.getElementById('chord-practice-voice-select').value);
-await page.selectOption('#chord-practice-key-select', 'C|major');
-await page.fill('#chord-practice-count-input', '4');
-await page.setChecked('#chord-practice-speak-checkbox', true);
-await page.click('#chord-practice-generate-button');
-await page.waitForTimeout(1500);
-const used = await page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
-    return [...p.querySelectorAll('li')]
-        .map(li => li.textContent)
-        .find(text => text.startsWith('Spoken chord names')) ?? '';
-});
-console.log(`  chose "${chosen}", metadata says: ${used}`);
-check('a voice was chosen and carried into the tab', chosen.length > 0 && /on,/.test(used), used);
+// Where the voice is chosen, and that choosing one reaches playback, is verify-chord-voice-settings.
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 await app.close();

@@ -90,7 +90,14 @@ const MAX_RECENT_FILES = 10;
 // description is the more helpful one until a player knows the shapes.
 const DEFAULT_SCREEN_READER_SETTINGS = { terseBeatDescriptions: false, autoCollapseOnTabChange: true };
 
-let appState = { recentFiles: [], defaultOpenDirectory: '', ...DEFAULT_SCREEN_READER_SETTINGS };
+// Which recorded voice speaks chord names, and how loud it sits against the guitar. Zira by
+// default, and below full volume: the name is there to be heard under the playing, not over it.
+const DEFAULT_CHORD_VOICE_SETTINGS = { chordVoice: 'zira', chordVoicePercent: 75 };
+
+let appState = {
+    recentFiles: [], defaultOpenDirectory: '',
+    ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS
+};
 
 function readBoolean(value, fallback) {
     return typeof value === 'boolean' ? value : fallback;
@@ -108,10 +115,19 @@ async function loadAppState() {
             terseBeatDescriptions: readBoolean(parsed.terseBeatDescriptions,
                 DEFAULT_SCREEN_READER_SETTINGS.terseBeatDescriptions),
             autoCollapseOnTabChange: readBoolean(parsed.autoCollapseOnTabChange,
-                DEFAULT_SCREEN_READER_SETTINGS.autoCollapseOnTabChange)
+                DEFAULT_SCREEN_READER_SETTINGS.autoCollapseOnTabChange),
+            // A state file written before these existed comes back with the defaults, the same
+            // way the screen reader settings above do.
+            chordVoice: typeof parsed.chordVoice === 'string'
+                ? parsed.chordVoice : DEFAULT_CHORD_VOICE_SETTINGS.chordVoice,
+            chordVoicePercent: Number.isFinite(parsed.chordVoicePercent)
+                ? parsed.chordVoicePercent : DEFAULT_CHORD_VOICE_SETTINGS.chordVoicePercent
         };
     } catch {
-        return { recentFiles: [], defaultOpenDirectory: '', ...DEFAULT_SCREEN_READER_SETTINGS };
+        return {
+            recentFiles: [], defaultOpenDirectory: '',
+            ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS
+        };
     }
 }
 
@@ -191,8 +207,26 @@ async function pathExists(candidatePath) {
 ipcMain.handle('settings:get', () => ({
     defaultOpenDirectory: appState.defaultOpenDirectory,
     terseBeatDescriptions: appState.terseBeatDescriptions,
-    autoCollapseOnTabChange: appState.autoCollapseOnTabChange
+    autoCollapseOnTabChange: appState.autoCollapseOnTabChange,
+    chordVoice: appState.chordVoice,
+    chordVoicePercent: appState.chordVoicePercent
 }));
+
+/**
+ * Which recorded voice speaks chord names, and how loud it sits against the guitar.
+ *
+ * Clamped here rather than trusted from the renderer: this is what gets written to disk and read
+ * back on every later launch, so a bad value would persist rather than being corrected next time.
+ */
+ipcMain.handle('settings:save-chord-voice', async (_event, settings) => {
+    if (typeof settings?.chordVoice === 'string') appState.chordVoice = settings.chordVoice;
+    const percent = Number(settings?.chordVoicePercent);
+    if (Number.isFinite(percent)) {
+        appState.chordVoicePercent = Math.max(0, Math.min(100, Math.round(percent)));
+    }
+    await saveAppState();
+    return { chordVoice: appState.chordVoice, chordVoicePercent: appState.chordVoicePercent };
+});
 
 ipcMain.handle('settings:save-screen-reader', async (_event, settings) => {
     appState.terseBeatDescriptions = readBoolean(settings?.terseBeatDescriptions,

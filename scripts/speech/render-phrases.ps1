@@ -1,16 +1,11 @@
 <#
 .SYNOPSIS
-Renders spoken phrases to WAV with the Windows OneCore speech voices.
+Renders spoken phrases to WAV, for the chord name recordings Unstrung ships.
 
 .DESCRIPTION
-A second renderer alongside render-phrases.ps1, reaching a different set of voices.
-
-System.Speech sees only the older SAPI5 "Desktop" voices -- David and Zira on a typical machine.
-The OneCore voices are newer recordings, live in their own registry hive, and include ones SAPI5
-has no entry for at all, such as Mark. They are what Chromium lists, which is why the browser
-reported three voices where System.Speech reported two.
-
-Reaching them means Windows.Media.SpeechSynthesis, a WinRT API whose calls are all asynchronous.
+Uses Windows.Media.SpeechSynthesis, a WinRT API whose calls are all asynchronous. The older
+System.Speech API was tried first and rejected: its voices read as slower and flatter at a matched
+pace, and a spoken chord name has to finish before the beat it belongs to.
 Windows PowerShell 5.1 can project WinRT types but has no await, so the helper below turns an
 IAsyncOperation into a task and blocks on it. PowerShell 7 dropped the built-in projection, so this
 must be run with powershell.exe rather than pwsh.
@@ -69,7 +64,7 @@ try {
     if ($Voice) {
         $chosen = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices |
             Where-Object { $_.DisplayName -eq $Voice }
-        if (-not $chosen) { Write-Error "No such OneCore voice: $Voice"; exit 1 }
+        if (-not $chosen) { Write-Error "No such voice: $Voice"; exit 1 }
         $synth.Voice = $chosen
     }
     # SAPI's -10..10 against WinRT's 0.5..6.0 multiplier. Rate 4 on the SAPI scale is roughly
