@@ -30,8 +30,9 @@ console.log('\n=== The voices come from the committed recordings ===');
 const voices = await page.evaluate(() => window.unstrung.listSpokenVoices());
 console.log(`  supported=${voices.supported}, voices: ${voices.voices.map(v => v.label).join(' | ')}`);
 check('speech is supported', voices.supported === true);
-check('every committed voice is offered', voices.voices.length >= 5, `${voices.voices.length}`);
-check('Mark is among them', voices.voices.some(v => /Mark/.test(v.label)),
+check('both shipped voices are offered', voices.voices.length === 2, `${voices.voices.length}`);
+check('they are David and Zira',
+    ['David', 'Zira'].every(n => voices.voices.some(v => v.label === n)),
     voices.voices.map(v => v.label).join(', '));
 
 console.log('\n=== Phrases read back as real audio ===');
@@ -58,7 +59,7 @@ check('the selector lists every voice and is labelled',
 check('the note no longer talks about a speech engine', !/engine/i.test(dialog.note), dialog.note);
 
 // Generate with a chosen voice and confirm the buffers actually came from that voice's files.
-await page.selectOption('#chord-practice-voice-select', { index: 4 });
+await page.selectOption('#chord-practice-voice-select', { index: 1 });
 const chosen = await page.evaluate(() => document.getElementById('chord-practice-voice-select').value);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.fill('#chord-practice-count-input', '4');

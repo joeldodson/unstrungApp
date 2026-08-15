@@ -25,56 +25,23 @@ import { spokenChordName, trimSilence } from '../../src/shared/spokenPhrases.mjs
 
 const execFileAsync = promisify(execFile);
 const HERE = `${import.meta.dirname}`.replace(/\\/g, '/');
-const SCRIPT = `${HERE}/render-phrases.ps1`;
 const ASSETS = `${HERE}/../../src/assets/speech`;
 
-// Speech carries almost nothing above 5 kHz. Half the bytes of the 22050 default, and no audible
-// difference on a chord name.
-const SAMPLE_RATE = 11025;
+
 const RATE = 4;
 
-// System.Speech only sees the SAPI5 "Desktop" voices. Mark exists on this machine as a OneCore
-// voice, which a different API would be needed to reach.
+// The two voices Unstrung ships. Both OneCore: newer recordings than the SAPI5 "Desktop" voices,
+// and noticeably snappier, which matters because a spoken name has to finish before its beat.
+//
+// Reaching them means Windows.Media.SpeechSynthesis, which is fiddlier than System.Speech -- WinRT
+// projection, manual task-awaiting, and powershell.exe rather than PowerShell 7. That cost is paid
+// once, here, on the rare occasion the recordings are regenerated. It is not paid by the app or by
+// anyone installing it.
 const VOICES = [
-    { id: 'david', name: 'Microsoft David Desktop', label: 'David, SAPI5', engine: 'sapi' },
-    { id: 'zira', name: 'Microsoft Zira Desktop', label: 'Zira, SAPI5', engine: 'sapi' },
-    // OneCore: newer recordings, and the only place Mark exists. Rendered at 16 kHz whatever we
-    // ask, so these are resampled down to match the SAPI ones.
-    { id: 'david-onecore', name: 'Microsoft David', label: 'David, OneCore', engine: 'onecore' },
-    { id: 'zira-onecore', name: 'Microsoft Zira', label: 'Zira, OneCore', engine: 'onecore' },
-    { id: 'mark-onecore', name: 'Microsoft Mark', label: 'Mark, OneCore', engine: 'onecore' },
-    // The same OneCore voices one step slower, to be compared against the ones above. A slower
-    // voice takes longer to say the same thing, so these are proportionally larger -- and they
-    // eat into the tempo ceiling, since an announcement still has to finish before its beat.
-    { id: 'david-onecore-slow', name: 'Microsoft David', label: 'David, OneCore, slower',
-        engine: 'onecore', rate: 3 },
-    { id: 'zira-onecore-slow', name: 'Microsoft Zira', label: 'Zira, OneCore, slower',
-        engine: 'onecore', rate: 3 },
-    { id: 'mark-onecore-slow', name: 'Microsoft Mark', label: 'Mark, OneCore, slower',
-        engine: 'onecore', rate: 3 }
+    { id: 'david-onecore', name: 'Microsoft David', label: 'David' },
+    { id: 'zira-onecore', name: 'Microsoft Zira', label: 'Zira' }
 ];
-
 const ONECORE_SCRIPT = `${HERE}/render-phrases-onecore.ps1`;
-
-/**
- * Linear resampling, which is plenty for speech at these rates.
- *
- * WinRT picks its own output format and gives 16 kHz regardless of what is asked for, so OneCore
- * voices have to be brought down to match rather than simply requested at the right rate.
- */
-function resample(samples, fromRate, toRate) {
-    if (fromRate === toRate) return samples;
-    const ratio = fromRate / toRate;
-    const out = new Int16Array(Math.floor(samples.length / ratio));
-    for (let i = 0; i < out.length; i++) {
-        const at = i * ratio;
-        const low = Math.floor(at);
-        const high = Math.min(samples.length - 1, low + 1);
-        const t = at - low;
-        out[i] = Math.round(samples[low] * (1 - t) + samples[high] * t);
-    }
-    return out;
-}
 
 const measureOnly = process.argv.includes('--measure');
 
@@ -136,7 +103,7 @@ function writeWav(samples, sampleRate) {
 }
 
 const phrases = chordSpeechVocabulary();
-console.log(`${phrases.length} distinct chord names, ${SAMPLE_RATE} Hz, rate ${RATE}`);
+console.log(`${phrases.length} distinct chord names at rate ${RATE}, ${VOICES.length} voices`);
 console.log(measureOnly ? 'measuring only, nothing will be written\n' : `writing into ${ASSETS}\n`);
 
 const totals = [];
@@ -146,14 +113,11 @@ for (const voice of VOICES) {
     await writeFile(`${workDir}/phrases.json`, JSON.stringify(phrases), 'utf8');
 
     const startedAt = Date.now();
-    const args = voice.engine === 'onecore'
-        ? ['-File', ONECORE_SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
-            '-Rate', String(voice.rate ?? RATE), '-Voice', voice.name]
-        : ['-File', SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
-            '-Rate', String(voice.rate ?? RATE), '-Voice', voice.name, '-SampleRate', String(SAMPLE_RATE)];
-    await execFileAsync('powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', ...args],
-        { maxBuffer: 16 * 1024 * 1024 });
+    await execFileAsync('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', ONECORE_SCRIPT, '-OutDir', workDir, '-PhrasesJson', `${workDir}/phrases.json`,
+        '-Rate', String(RATE), '-Voice', voice.name
+    ], { maxBuffer: 16 * 1024 * 1024 });
 
     const outDir = `${ASSETS}/${voice.id}`;
     if (!measureOnly) {

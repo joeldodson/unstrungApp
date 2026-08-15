@@ -1,7 +1,7 @@
 {
   "voice": "zira-onecore",
   "name": "Microsoft Zira",
-  "label": "Zira, OneCore",
+  "label": "Zira",
   "sampleRate": 16000,
   "rate": 4,
   "phrases": {

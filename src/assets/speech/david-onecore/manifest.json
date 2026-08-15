@@ -1,7 +1,7 @@
 {
   "voice": "david-onecore",
   "name": "Microsoft David",
-  "label": "David, OneCore",
+  "label": "David",
   "sampleRate": 16000,
   "rate": 4,
   "phrases": {
