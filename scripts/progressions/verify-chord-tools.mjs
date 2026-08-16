@@ -117,6 +117,64 @@ console.log(`  after a search matching nothing: "${afterNonsense}"`);
 check('no matches is stated plainly, without saying "matching" twice',
     afterNonsense === 'Chord Library: no chords match "zzzz".', afterNonsense);
 
+console.log('\n=== A shape that leaves a note out says so, under the notes ===');
+await searchAndLeave('C7');
+const voicings = await page.evaluate(async () => {
+    // Open every disclosure in the results, since collapsed content is deliberately out of the
+    // accessibility tree and cannot be read while it is shut.
+    for (const details of document.querySelectorAll('#chords-results-list details')) details.open = true;
+    await new Promise(resolve => setTimeout(resolve, 200));
+    return [...document.querySelectorAll('#chords-results-list > li')].flatMap(item => {
+        const name = item.querySelector('label, .chord-name')?.textContent?.trim()
+            ?? item.textContent.trim().split('\n')[0];
+        return [...item.querySelectorAll('details')]
+            .filter(details => details.querySelector('summary')?.textContent === 'Fingering and notes')
+            .map(details => ({
+                name,
+                rows: [...(details.querySelector('ul')?.children ?? [])].map(li => li.textContent)
+            }));
+    });
+});
+const withNotes = voicings.filter(v => v.rows.some(row => row.startsWith('Notes: ')));
+console.log(`  shapes read: ${withNotes.length}`);
+for (const v of withNotes.slice(0, 6)) {
+    const notes = v.rows.find(row => row.startsWith('Notes: '));
+    const leaves = v.rows.find(row => row.startsWith('Leaves out '));
+    console.log(`    ${notes}${leaves ? `  /  ${leaves}` : ''}`);
+}
+check('the library was read', withNotes.length > 0, `${withNotes.length}`);
+
+// Whether a shape is complete cannot be told from the number of notes it sounds -- a C7#9 wants
+// five and a C13 wants seven -- so what is checked here is that the line agrees with the notes
+// beside it, and that it appears on some shapes and not others rather than on all of them.
+// check-voicing-omissions.mjs is what checks completeness itself, across all 2061 shapes.
+const said = withNotes.filter(v => v.rows.some(row => row.startsWith('Leaves out ')));
+const silent = withNotes.filter(v => !v.rows.some(row => row.startsWith('Leaves out ')));
+console.log(`  ${said.length} of them leave a note out, ${silent.length} are complete`);
+check('some shapes say it and others say nothing, so it is not printed unconditionally',
+    said.length > 0 && silent.length > 0, `${said.length} said, ${silent.length} silent`);
+check('each line names a degree and a note',
+    said.every(v => /^Leaves out the \w+ \([A-G][#b]?\)(,| and |\.)/.test(
+        v.rows.find(row => row.startsWith('Leaves out ')))),
+    said.map(v => v.rows.find(row => row.startsWith('Leaves out '))).join(' | '));
+const contradicts = said.filter(v => {
+    const notes = v.rows.find(row => row.startsWith('Notes: ')).replace('Notes: ', '').split(', ');
+    const named = [...v.rows.find(row => row.startsWith('Leaves out ')).matchAll(/\(([A-G][#b]?)\)/g)]
+        .map(match => match[1]);
+    return named.some(note => notes.includes(note));
+});
+check('it never names a note the shape actually sounds', contradicts.length === 0,
+    contradicts.map(v => v.rows.slice(0, 2).join(' / ')).join(' | '));
+
+// Directly under the notes it qualifies, so it is heard before the fingering rather than after it.
+const placed = said.every(v => {
+    const notesAt = v.rows.findIndex(row => row.startsWith('Notes: '));
+    const leavesAt = v.rows.findIndex(row => row.startsWith('Leaves out '));
+    return leavesAt === notesAt + 1;
+});
+check('it is read immediately after the notes', placed,
+    said[0]?.rows.slice(0, 3).join(' | '));
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 await app.close();
 process.exit(failures === 0 ? 0 : 1);

@@ -259,7 +259,7 @@ const panelState = () => page.evaluate(() => {
         // Both are number inputs now, so pick them by id rather than by position.
         tempo: panel.querySelector('input[id^="chord-practice-tab-tempo"]').value,
         repeats: panel.querySelector('input[id^="chord-practice-tab-repeat"]').value,
-        metronome: panel.querySelector('input[type="checkbox"]').checked
+        metronome: panel.querySelector('input[id^="chord-practice-tab-metronome"]').checked
     };
 });
 
@@ -475,6 +475,137 @@ const seedRejected = await page.evaluate(async () => {
 console.log(`  bad seed -> ${seedRejected.status}`);
 check('a seed that cannot be read is refused rather than ignored',
     seedRejected.stillOpen && /not a seed/.test(seedRejected.status), seedRejected.status);
+await page.evaluate(() => document.getElementById('chord-practice-dialog').close());
+
+console.log('\n=== Speaking the names is a control on the tab, not only a choice in the dialog ===');
+const speakUi = await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
+    const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
+    const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
+        .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent);
+    return {
+        firstThingAfterPlayback: Boolean(box),
+        label: box ? panel.querySelector(`label[for="${box.id}"]`)?.textContent
+            .replace(/\s+/g, ' ').trim() : '',
+        checked: box?.checked,
+        disabled: box?.disabled,
+        meta
+    };
+});
+check('the checkbox is the first thing under the Playback heading', speakUi.firstThingAfterPlayback);
+console.log(`  label: "${speakUi.label}"`);
+check('the label warns that changing it rebuilds the audio and starts again',
+    /rebuild/i.test(speakUi.label) && /(again|restart)/i.test(speakUi.label), speakUi.label);
+// A static line in the metadata saying speech is off would contradict the checkbox the moment it
+// is ticked, so the checkbox is the only place that answer lives now.
+check('the metadata no longer states it as well',
+    !speakUi.meta.some(row => /spoken chord names/i.test(row)),
+    speakUi.meta.filter(row => /spoken/i.test(row)).join(' | '));
+
+if (speakUi.disabled) {
+    console.log('  (no recordings available, so the toggle is disabled and cannot be exercised)');
+} else {
+    // Move away from the start, so "back to measure 1" is a claim that can fail.
+    await page.evaluate(() =>
+        [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+    await press('ArrowRight');
+    await press('ArrowRight');
+    const beforeToggle = await press('b');
+    console.log(`  before toggling -> ${beforeToggle.announcement}`);
+
+    await page.evaluate(() => {
+        const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+        const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
+        const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
+        box.checked = !box.checked;
+        box.dispatchEvent(new Event('change'));
+    });
+    await page.waitForTimeout(1500);
+    await page.evaluate(() =>
+        [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+    const afterToggle = await press('b');
+    console.log(`  after toggling  -> ${afterToggle.announcement}`);
+    check('toggling starts the progression again from the first measure',
+        /^Measure 1 of \d+, /.test(afterToggle.announcement), afterToggle.announcement);
+    check('and from the first play, since the audio it was counting is gone',
+        /, play 1\.$/.test(afterToggle.announcement), afterToggle.announcement);
+
+    // The names have to actually be in the audio now. Speech sources are the only ones started
+    // with an explicit duration, the same tell the timing section uses.
+    await page.evaluate(() => { window.__starts = []; });
+    await page.keyboard.press(' ');
+    await page.waitForTimeout(7000);
+    await page.keyboard.press(' ');
+    const spokenAfterToggle = await page.evaluate(() =>
+        window.__starts.filter(s => s.hasDuration).length);
+    console.log(`  spoken names scheduled after turning it on: ${spokenAfterToggle}`);
+    check('turning it on puts the names into the audio', spokenAfterToggle > 0,
+        `${spokenAfterToggle}`);
+}
+
+console.log('\n=== The dialog opens with every field back to its default ===');
+await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await page.waitForTimeout(1200);
+const readDialog = () => page.evaluate(() => ({
+    seed: document.getElementById('chord-practice-seed-input').value,
+    level: document.getElementById('chord-practice-level-select').value,
+    key: document.getElementById('chord-practice-key-select').value,
+    firstKey: document.getElementById('chord-practice-key-select').options[0]?.value,
+    borrowing: document.getElementById('chord-practice-borrowing-select').value,
+    beats: document.getElementById('chord-practice-beats-input').value,
+    beatUnit: document.getElementById('chord-practice-beat-unit-input').value,
+    tempo: document.getElementById('chord-practice-tempo-input').value,
+    count: document.getElementById('chord-practice-count-input').value,
+    repeat: document.getElementById('chord-practice-repeat-input').value,
+    countIn: document.getElementById('chord-practice-count-in-each-pass-checkbox').checked,
+    metronome: document.getElementById('chord-practice-metronome-checkbox').checked,
+    speak: document.getElementById('chord-practice-speak-checkbox').checked
+}));
+const defaults = await readDialog();
+console.log(`  on open: ${JSON.stringify(defaults)}`);
+
+// Change everything, including the seed, which is the field that caused this: left behind from an
+// earlier progression it silently overrode the key, level and length chosen beside it.
+await page.fill('#chord-practice-seed-input', 'C-major-beginner-none-8-4-4-12345');
+await page.selectOption('#chord-practice-level-select', 'advanced');
+await page.waitForTimeout(300);
+await page.selectOption('#chord-practice-borrowing-select', 'frequent');
+await page.selectOption('#chord-practice-key-select', 'F#|minor');
+await page.fill('#chord-practice-beats-input', '3');
+await page.fill('#chord-practice-beat-unit-input', '8');
+await page.fill('#chord-practice-tempo-input', '150');
+await page.fill('#chord-practice-count-input', '32');
+await page.fill('#chord-practice-repeat-input', '4');
+await page.setChecked('#chord-practice-count-in-each-pass-checkbox', true);
+await page.setChecked('#chord-practice-metronome-checkbox', false);
+await page.setChecked('#chord-practice-speak-checkbox', true).catch(() => {});
+const changed = await readDialog();
+check('the fields really were changed', changed.seed !== '' && changed.level === 'advanced',
+    JSON.stringify(changed));
+
+await page.click('#chord-practice-cancel-button');
+await page.waitForTimeout(500);
+await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await page.waitForTimeout(1200);
+const reopened = await readDialog();
+console.log(`  reopened: ${JSON.stringify(reopened)}`);
+
+check('the seed field is empty again', reopened.seed === '', reopened.seed);
+check('the level is back to the first one offered', reopened.level === 'beginner', reopened.level);
+check('the key is back to the first one the level allows',
+    reopened.key === reopened.firstKey, `${reopened.key} against ${reopened.firstKey}`);
+check('borrowing is back to occasional', reopened.borrowing === 'occasional', reopened.borrowing);
+check('the time signature is back to 4/4',
+    reopened.beats === '4' && reopened.beatUnit === '4', `${reopened.beats}/${reopened.beatUnit}`);
+check('the tempo is back to 80', reopened.tempo === '80', reopened.tempo);
+check('the length is back to 8 measures', reopened.count === '8', reopened.count);
+check('the repeat count is back to 0', reopened.repeat === '0', reopened.repeat);
+check('count in before every repeat is off again', reopened.countIn === false);
+check('the metronome is on again', reopened.metronome === true);
+check('speaking the names is off again', reopened.speak === false);
 await page.evaluate(() => document.getElementById('chord-practice-dialog').close());
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

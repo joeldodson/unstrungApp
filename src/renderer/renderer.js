@@ -2,7 +2,7 @@ import * as alphaTab from '@coderline/alphatab';
 import { extractScoreMetadata } from '../shared/scoreMetadata.mjs';
 import {
     FINGER_NAMES, PITCH_CLASSES, QUALITY_LABELS, STANDARD_TUNING_MIDI, STRING_NUMBERS, TUNINGS,
-    fretToMidi, identifyChordFromNotes, midiToPitchClassName, midiToPitchName
+    fretToMidi, identifyChordFromNotes, midiToPitchClassName, midiToPitchName, describeVoicingOmissions
 } from '../shared/musicTheory.mjs';
 import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
 import helpContent from '../assets/help/help-content.json';
@@ -1044,8 +1044,13 @@ function bassNoteRow(chord, voicing) {
 
 function describeVoicingRows(chord, voicing) {
     const bass = bassNoteRow(chord, voicing);
+    // Sits directly under the notes it qualifies. Without it, an open C7 reads as "Notes: C, E, Bb"
+    // against a chord the player knows is C, E, G, Bb, with nothing to say whether the shape leaves
+    // the fifth out or the app has the chord wrong.
+    const missing = describeVoicingOmissions(chord.root, chord.suffix, voicing);
     return [
         `Notes: ${voicing.notes.join(', ')}`,
+        ...(missing ? [missing] : []),
         voicing.shape
             ? `Shape: ${voicing.shape}`
             : `Position: ${voicing.lowestFret === 0 ? 'open' : 'from fret ' + voicing.lowestFret}`,
@@ -4053,6 +4058,40 @@ function setChordPracticeMetronome(state, enabled) {
 }
 
 /**
+ * Turns the spoken chord names on or off, which costs a restart.
+ *
+ * Every other playback setting can be changed in place, because the scheduler only has to be told
+ * a new number. This one changes what has to be in hand before anything can be scheduled: the
+ * recordings for this progression's names have to be fetched and decoded, and each one displaces
+ * the beat it precedes. There is no way to splice that into a run already in flight, so the run
+ * is abandoned and rebuilt -- which the checkbox's label says plainly rather than leaving it to
+ * be discovered.
+ *
+ * The pass count goes back to one as well. This is a fresh run of the whole progression, not the
+ * resumption of the one that was interrupted, so carrying the count over would leave a player who
+ * asked for five plays somewhere in the middle of an audio track that no longer exists.
+ */
+async function setChordPracticeSpeak(state, enabled) {
+    if (state.speak === enabled) return;
+    const wasPlaying = state.playing;
+    stopChordPracticePlayback();
+    state.speak = enabled;
+    state.ui.speakCheckbox.checked = enabled;
+    // Dropping `ready` is what sends the next play back through chordPracticePrepare, which is
+    // where the recordings are read; dropping the recordings is what stops them being used when
+    // the answer is no.
+    state.ready = false;
+    state.speech = null;
+    state.pass = 1;
+    state.anchorSeconds = 0;
+    state.anchorContextTime = null;
+    state.setPlaying(false);
+    if (!wasPlaying) return;
+    if (!await chordPracticePrepare(state)) return;
+    startChordPracticePlayback(state, 0, { countIn: true });
+}
+
+/**
  * Back to the first measure, counting in again and keeping count of which time round it is.
  *
  * The pass is deliberately not reset, the same as the audio track: restarting during the third of
@@ -4131,6 +4170,9 @@ function buildChordPracticeTab(progression, options) {
     summaryHeading.textContent = 'Metadata';
     container.append(summaryHeading);
 
+    // Only what shaped this progression. Whether the names are spoken used to be listed here too,
+    // but it is now a checkbox under Playback that can be changed while the tab is open, and a
+    // static line saying otherwise is worse than no line at all.
     const summaryList = document.createElement('ul');
     appendTextItems(summaryList, [
         `Key - ${progression.key} ${progression.mode}`,
@@ -4140,9 +4182,6 @@ function buildChordPracticeTab(progression, options) {
         `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
         `Chords from outside the key - ${progression.borrowing ?? 'stay in the key'}` +
             (progression.borrowedCount > 0 ? `, ${progression.borrowedCount} used` : ''),
-        `Spoken chord names - ${options.speak
-            ? `on, at ${Math.round(options.speechVolume * 100)} percent volume`
-            : 'off'}`,
         // Everything needed to rebuild this exact progression, in one line: pasting it into the
         // seed field sets the key, level, borrowing and length along with the seed.
         `Seed - ${formatProgressionCode({
@@ -4206,6 +4245,22 @@ function buildChordPracticeTab(progression, options) {
     const playbackHeading = document.createElement('h3');
     playbackHeading.textContent = 'Playback';
     container.append(playbackHeading);
+
+    // First thing under the heading, because it is the one playback setting that cannot be
+    // changed in place: the names have to be fetched and the whole run laid out again around
+    // them, so it costs a restart where tempo and the metronome do not.
+    const speakParagraph = document.createElement('p');
+    const speakCheckbox = document.createElement('input');
+    speakCheckbox.type = 'checkbox';
+    speakCheckbox.id = `chord-practice-tab-speak-${nextTabId}`;
+    speakCheckbox.checked = options.speak;
+    speakCheckbox.disabled = !chordPracticeSpeechSupported;
+    const speakLabel = document.createElement('label');
+    speakLabel.htmlFor = speakCheckbox.id;
+    speakLabel.textContent = 'Speak the name of the next chord. Changing this rebuilds the audio ' +
+        'and starts the progression again from the first measure.';
+    speakParagraph.append(speakCheckbox, speakLabel);
+    container.append(speakParagraph);
 
     const tempoParagraph = document.createElement('p');
     const tempoInput = document.createElement('input');
@@ -4343,7 +4398,8 @@ function buildChordPracticeTab(progression, options) {
         speech: null,
         anchorSeconds: 0,
         anchorContextTime: null,
-        ui: { tempoInput, metronomeCheckbox, repeatInput, countInEachPassCheckbox, playButton },
+        ui: { tempoInput, metronomeCheckbox, repeatInput, countInEachPassCheckbox,
+            speakCheckbox, playButton },
         announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
@@ -4368,6 +4424,8 @@ function buildChordPracticeTab(progression, options) {
     }
     metronomeCheckbox.addEventListener('change',
         () => setChordPracticeMetronome(state, metronomeCheckbox.checked));
+    speakCheckbox.addEventListener('change',
+        () => setChordPracticeSpeak(state, speakCheckbox.checked));
     // Read at each wrap rather than when playback starts, so ticking it mid-loop takes effect from
     // the next repeat instead of needing playback restarted.
     countInEachPassCheckbox.addEventListener('change',
@@ -4476,6 +4534,34 @@ chordPracticeDialog.addEventListener('close', () => {
     chordPracticeDialogOpener = null;
 });
 
+/**
+ * Puts every field back to the value the markup declares.
+ *
+ * A dialog that remembers is a trap when one of the things it remembers is invisible in its
+ * effect: a seed left in the field from an earlier session silently overrode the key, level,
+ * length and time signature chosen beside it, so asking for a new progression in a new key gave
+ * back the old one. Nothing here is a preference -- these describe one progression -- so the
+ * dialog opens ready to describe the next one.
+ *
+ * Read from the markup rather than listed here, so a default changed in the HTML cannot drift
+ * from what this restores.
+ */
+function resetChordPracticeDialog() {
+    const dialog = chordPracticeDialog;
+    for (const input of dialog.querySelectorAll('input')) {
+        if (input.type === 'checkbox' || input.type === 'radio') input.checked = input.defaultChecked;
+        else input.value = input.defaultValue;
+    }
+    for (const select of dialog.querySelectorAll('select')) {
+        // Key and level are filled in from data, so the markup declares no default for them;
+        // falling back to the first option is what an untouched select would have shown.
+        const declared = [...select.options].find(option => option.defaultSelected);
+        select.value = (declared ?? select.options[0])?.value ?? '';
+    }
+    // The key list depends on the level, which has just been put back.
+    chordPracticeRefreshKeys();
+}
+
 async function openChordPracticeDialog() {
     chordPracticeDialogOpener = document.activeElement;
     chordPracticeStatus.textContent = '';
@@ -4495,11 +4581,12 @@ async function openChordPracticeDialog() {
             const option = document.createElement('option');
             option.value = tier.id;
             option.textContent = tier.name;
-            if (tier.id === 'occasional') option.selected = true;
+            if (tier.id === 'occasional') option.defaultSelected = true;
             chordPracticeBorrowingSelect.append(option);
         }
     }
-    chordPracticeRefreshKeys();
+    // Rebuilds the key list on the way through, so this covers the first open too.
+    resetChordPracticeDialog();
 
     if (chordPracticeSpeechSupported === null) {
         const result = await window.unstrung.listSpokenVoices();

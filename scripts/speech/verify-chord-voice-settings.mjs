@@ -144,13 +144,38 @@ await page.fill('#chord-practice-count-input', '4');
 await page.setChecked('#chord-practice-speak-checkbox', true);
 await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
-const said = await page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
-    return [...p.querySelectorAll('li')].map(li => li.textContent)
-        .find(t => t.startsWith('Spoken chord names')) ?? '';
+// Read off the audio graph rather than off the page. The tab used to state the volume in its
+// metadata, but that line has gone: speaking the names is now a checkbox that can be changed while
+// the tab is open, and a static line beside it would go stale the moment it was. The gain each
+// spoken name is played through is the thing that actually matters anyway.
+await page.evaluate(() => {
+    window.__speechGains = [];
+    const destinations = new WeakMap();
+    const realConnect = AudioBufferSourceNode.prototype.connect;
+    AudioBufferSourceNode.prototype.connect = function (destination) {
+        destinations.set(this, destination);
+        return realConnect.call(this, destination);
+    };
+    // Spoken names are the only sources started with an explicit duration.
+    const realStart = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (when, offset, duration) {
+        if (duration !== undefined) {
+            const gain = destinations.get(this)?.gain;
+            if (gain) window.__speechGains.push(gain.value);
+        }
+        return realStart.call(this, when, offset, duration);
+    };
 });
-console.log(`  ${said}`);
-check('the progression used the volume from Settings', /40 percent/.test(said), said);
+await page.evaluate(() =>
+    [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden).focus());
+await page.keyboard.press(' ');
+await page.waitForTimeout(6000);
+await page.keyboard.press(' ');
+const speechGains = await page.evaluate(() => window.__speechGains);
+console.log(`  spoken names played at gain: ${speechGains.map(g => g.toFixed(2)).join(', ')}`);
+check('the progression used the volume from Settings',
+    speechGains.length > 0 && speechGains.every(g => Math.abs(g - 0.4) < 1e-6),
+    speechGains.map(g => g.toFixed(3)).join(', '));
 
 // Out of range must be corrected where it is stored, not left to be read back wrongly later.
 await page.evaluate(() => document.getElementById('chord-practice-dialog')?.close());

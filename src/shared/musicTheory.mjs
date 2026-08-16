@@ -235,6 +235,83 @@ export function verifyVoicing(voicing, rootName, suffix) {
     };
 }
 
+// What each scale degree is called when a chord is short of it. Two readings of the same degree:
+// the note two letters above the root is the ninth of a chord that has a seventh and the second of
+// one that does not, and likewise the fourth against the eleventh and the sixth against the
+// thirteenth. Which one is meant follows from the rest of the chord, so both are kept here.
+const DEGREE_NAMES = {
+    1: ['root', 'root'],
+    2: ['second', 'ninth'],
+    3: ['third', 'third'],
+    4: ['fourth', 'eleventh'],
+    5: ['fifth', 'fifth'],
+    6: ['sixth', 'thirteenth'],
+    7: ['seventh', 'seventh']
+};
+
+/**
+ * The notes of a chord that a particular shape does not sound.
+ *
+ * A guitar has six strings and a chord can want seven notes, so shapes leave notes out -- 448 of
+ * the 2061 in the library do. The open C7 is the everyday case: x32310 is C, E and Bb, with no
+ * fifth anywhere in it. That is the shape every teacher gives for C7 and it is not an error, but a
+ * player reading "Notes: C, E, Bb" against a chord they know is C, E, G, Bb has no way to tell
+ * whether the shape is short of a note or the app is wrong about the chord.
+ *
+ * The fifth is what usually goes, because it carries none of the chord's identity: drop the third
+ * or the seventh and it stops being a dominant 7th, drop the fifth and it still is one.
+ *
+ * Returns `{ note, degree }` in the order the chord is built up, empty when the shape is complete.
+ */
+export function voicingOmissions(rootName, suffix, voicing) {
+    const rootPc = PITCH_CLASSES[rootName];
+    const { base } = parseSuffix(suffix);
+    const formula = CHORD_FORMULAS[base];
+    if (rootPc === undefined || !formula) return [];
+
+    // What the shape sounds, against what the chord asks for. `expected` is preferred where the
+    // library has recorded it, because for a slash chord it also carries the bass note.
+    const sounded = new Set((voicing.notes ?? []).map(name => PITCH_CLASSES[name]));
+    const expected = voicing.theory?.expected?.length
+        ? voicing.theory.expected
+        : spellChordNotes(rootName, suffix);
+
+    // An extended chord is one built past the seventh, which is what turns a second into a ninth.
+    const extended = formula.includes(10) || formula.includes(11) ? 1 : 0;
+    const overrides = INTERVAL_DEGREE_OVERRIDES[base] ?? {};
+
+    const missing = [];
+    for (const note of expected) {
+        const pc = PITCH_CLASSES[note];
+        if (pc === undefined || sounded.has(pc)) continue;
+        const interval = ((pc - rootPc) % 12 + 12) % 12;
+        const degree = overrides[interval] ?? DEFAULT_INTERVAL_DEGREE[interval];
+        // Ordered as the chord is built, not as the notes lie within an octave. A ninth is a
+        // semitone or two above the root once it is folded down, so sorting by pitch would report
+        // C13 as leaving out "the ninth, the eleventh and the fifth", which is not how anyone
+        // counts through a chord.
+        const rank = extended && degree <= 6 && degree % 2 === 0 ? degree + 7 : degree;
+        missing.push({ note, degree: DEGREE_NAMES[degree]?.[extended] ?? 'note', interval, rank });
+    }
+    return missing.sort((a, b) => a.rank - b.rank);
+}
+
+/**
+ * The same, as a line to be read: "Leaves out the fifth (G).", or null when nothing is left out.
+ *
+ * Written as a sentence because it is read aloud in among the other rows of a chord's disclosure,
+ * where a bare list of degrees would be heard as part of the notes above it.
+ */
+export function describeVoicingOmissions(rootName, suffix, voicing) {
+    const missing = voicingOmissions(rootName, suffix, voicing);
+    if (missing.length === 0) return null;
+    const parts = missing.map(item => `the ${item.degree} (${item.note})`);
+    const list = parts.length === 1
+        ? parts[0]
+        : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+    return `Leaves out ${list}.`;
+}
+
 // Suffixes to try when working backwards from notes to a chord name, simplest first and with
 // no aliases, so identification returns one name per distinct sound rather than duplicates
 // like "minor" and "m".
