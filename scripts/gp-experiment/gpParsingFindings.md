@@ -236,3 +236,43 @@ own addition.
 - `brushDuration` is honoured. The two marked brushes now spread over 14.9 ms
   and 13.9 ms, as the file asks, instead of the 20 ms per string that would
   have stretched them to 20 ms and 80 ms.
+
+---
+
+# What a chord symbol is, confirmed on a second song
+
+Mazzy Star's *Into Dust* settled the question the Ripple files only suggested.
+Its acoustic part is fingerpicked throughout, never strummed, and carries 82
+chord symbols over 116 bars.
+
+- **Never more than one per measure.** Across all five files tested, 169 bars
+  carry a symbol and there are exactly 169 symbols.
+- **Almost always at the start of the measure.** 167 of the 169. The two
+  exceptions are real mid-measure chord changes: Ripple's capo part at bar 44
+  (beat 2) and Into Dust at bar 115 (a triplet into beat 1).
+- **It has nothing to do with what the beat plays.** In Into Dust every symbol
+  sits on a single picked note — measure 1's D is anchored to string 4 open —
+  and that D governs four measures of picking before C arrives at measure 5.
+
+So a chord symbol is a property of the *measure*, not of the note Guitar Pro
+anchors it to. It is written where the harmony turns over, which is why the
+symbols in a fingerpicked part map exactly onto its chord changes.
+
+Reported on the beat, as it was, a D governing four bars arrived as a footnote
+to one eighth note of the first — easy to miss, and attached to the wrong
+thing. It now rides on the measure heading instead:
+
+    Measure 1 - chord symbol D
+    Measure 5 - chord symbol C
+    Measure 44 - chord symbol G on beat 2
+    Measure 115 - chord symbol D during beat 1
+
+A position is given only when the symbol is not at the start of its measure.
+It counts beats of the time signature, not notes played: a bar of eight eighth
+notes still has four beats. A symbol landing between beats is placed by the
+beat it falls inside rather than given a fraction to decode.
+
+Beat descriptions no longer mention symbols at all, so the "chord C" prefix
+that used to mark a labelled strum is gone too. The name is still there when
+the notes spell it — the beat reads "C, strings 1 through 5" — but where the
+score prints its label is now a fact about the measure.

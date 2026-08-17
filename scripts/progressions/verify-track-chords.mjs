@@ -88,6 +88,33 @@ check('the row carries chord information', after.firstRowFacts.length > 1);
 check('the row says how much of the track it covers',
     after.firstRowFacts.some(t => /Sounds on \d+ beats? of this track/.test(t)));
 
+console.log('\n=== Chord symbols ride on the measure heading ===');
+const headings = await page.evaluate(async () => {
+    const regions = [...document.querySelectorAll('details')].filter(x =>
+        /^Measures - /.test(x.querySelector('summary')?.textContent ?? ''));
+    // The capo track: bar 2 carries a C, bar 44 a G that arrives mid-measure.
+    const measures = regions[1];
+    measures.open = true;
+    await new Promise(r => setTimeout(r, 500));
+    const h4s = [...measures.querySelectorAll('h4')];
+    return {
+        withSymbol: h4s.filter(h => /chord symbol/.test(h.textContent)).map(h => h.textContent),
+        plain: h4s.filter(h => !/chord symbol/.test(h.textContent)).length,
+        beatsMentioningSymbol: [...measures.querySelectorAll('li')]
+            .filter(li => /chord symbol/.test(li.textContent)).length
+    };
+});
+console.log(`  headings carrying a symbol: ${headings.withSymbol.length}`);
+console.log(`  first four: ${headings.withSymbol.slice(0, 4).join(' | ')}`);
+check('a symbol reaches the measure heading',
+    headings.withSymbol.some(h => /^Measure \d+ - chord symbol [A-G]/.test(h)), headings.withSymbol[0]);
+check('a mid-measure change keeps its position',
+    headings.withSymbol.some(h => /chord symbol [A-G][^,]* on beat \d/.test(h)),
+    headings.withSymbol.find(h => /on beat/.test(h)) ?? 'none found');
+check('measures without a symbol keep a bare heading', headings.plain > 0, `${headings.plain} plain headings`);
+check('no beat line mentions a chord symbol any more',
+    headings.beatsMentioningSymbol === 0, `${headings.beatsMentioningSymbol} beats still do`);
+
 console.log('\n=== A part with no chords says so ===');
 const bass = await page.evaluate(async () => {
     const regions = [...document.querySelectorAll('details')].filter(x =>

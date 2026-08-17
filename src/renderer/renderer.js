@@ -136,7 +136,11 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
                 // h4: the next level under the track's h3, now that the old "Measures" h4
                 // has become the disclosure's summary rather than a heading.
                 const measureHeading = document.createElement('h4');
-                measureHeading.textContent = `Measure ${measureIndex + 1}`;
+                // A chord symbol governs the measure it is printed over, not the one note Guitar
+                // Pro anchors it to, so it rides on the heading. Navigating by heading is how a
+                // long track gets read, which puts the chord changes on the path already taken.
+                measureHeading.textContent = `Measure ${measureIndex + 1}` +
+                    (measure.chordSymbols ? ` - ${measure.chordSymbols}` : '');
                 measuresDetails.append(measureHeading);
 
                 const measureList = document.createElement('ul');

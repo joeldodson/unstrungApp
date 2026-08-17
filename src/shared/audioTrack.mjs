@@ -29,7 +29,7 @@ export const TICKS_PER_QUARTER = 960;
 //    a signal: GP3-5 store a beat's notes as a bitmask of strings, which cannot express an order
 //    at all, and the GPIF formats store whatever order the exporter wrote. Exporting one song
 //    twice put 30 of its beats in opposite order, and the one beat in our files that does state a
-//    brush has its notes listed the other way round. See scripts/gp-experiment/FINDINGS.md.
+//    brush has its notes listed the other way round. See scripts/gp-experiment/gpParsingFindings.md.
 //
 // 3. A beat that carries a chord name sounds the whole chord. Tablature often writes only the
 //    bass note under a chord symbol and leaves the rest to the player, so where a named beat

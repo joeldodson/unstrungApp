@@ -152,7 +152,7 @@ const PICK_NONE = 0, PICK_UP = 1, PICK_DOWN = 2;
  * not one: GP3-5 store a beat's notes as a bitmask of strings, which has no order at all, and the
  * GPIF formats store an order each exporter writes to its own convention. One song exported twice
  * lists 30 of its beats in opposite order, and the single beat in our files that does state a
- * stroke has its notes listed the other way round. See scripts/gp-experiment/FINDINGS.md.
+ * stroke has its notes listed the other way round. See scripts/gp-experiment/gpParsingFindings.md.
  */
 function statedStroke(beat) {
     switch (beat.brushType ?? BRUSH_NONE) {
@@ -278,42 +278,20 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
 }
 
 /**
- * A beat's chord symbol is the name Guitar Pro prints above the staff. It marks the harmony, and
- * it is placed where the harmony changes, so it is a label on a beat rather than a kind of beat:
- * the beat still has its own notes, which used to be discarded in favour of the name.
- *
- * Across our files a symbol sits on a single-note beat as often as on a full chord -- "G" over
- * string 6 fret 3 alone -- and the strums that follow it carry no symbol at all, the same shape
- * struck another eleven times. So the notes are always described, and the symbol is added to that.
- *
- * Naming the chord in the fingered frame is what made this necessary rather than merely better.
- * While a capo VII beat was named from its sounding pitches, a labelled beat reading "chord C" and
- * the identical beat after it reading "G" at least looked like different events. Now that both are
- * C, dropping the strings from only the labelled one leaves two adjacent lines that describe the
- * same strum and disagree about which strings it touches.
+ * A beat's chord symbol is the name Guitar Pro prints above the staff, and it belongs to the
+ * measure rather than to the beat it happens to be anchored to -- see `describeChordSymbols`. So
+ * nothing about it appears here: this describes what the beat plays, and only that.
  */
 function describeBeat(beat, stringCount, terse, capo) {
     let pitchText;
-    let identifiedName = null;
     if (beat.isRest) {
         pitchText = 'rest';
     } else {
         // Only a beat that names a chord can be shortened. A beat listed string by string has no
         // name to fall back on, so terse descriptions leave it exactly as it was.
-        const chorded = describeChordedBeat(beat, stringCount, terse, capo);
-        identifiedName = chorded ? chorded.name : null;
-        pitchText = chorded ? chorded.text
-            : beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
+        pitchText = describeChordedBeat(beat, stringCount, terse, capo)?.text
+            ?? beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
     }
-
-    // The symbol still marks where the score names the harmony, which is worth keeping even when
-    // it agrees with the notes. Where it agrees, one word carries it and the name is not said
-    // twice; where it differs it is given in full, since then it is telling us something the
-    // notes did not. The comparison ignores the bass we add, so a first-inversion F read here as
-    // "F/A" still counts as agreeing with an "F" printed in the file.
-    const symbol = !beat.isRest && beat.hasChord && beat.chord.name ? beat.chord.name : null;
-    if (symbol && symbol === identifiedName) pitchText = `chord ${pitchText}`;
-    else if (symbol) pitchText = `${pitchText}, chord symbol ${symbol}`;
 
     const techniques = new Set();
     if (!beat.isRest) {
@@ -332,15 +310,57 @@ function describeBeat(beat, stringCount, terse, capo) {
 // the fingered frame, so the capo comes back off before anything is identified.
 const staffCapo = staff => (staff.capo > 0 ? staff.capo : 0);
 
+/**
+ * The chord symbols printed over a measure, as a phrase for its heading, or null for none.
+ *
+ * A chord symbol is a property of the measure, not of the note it is attached to. Guitar Pro
+ * anchors it to a beat because it has to anchor it to something, but what it means is "the
+ * harmony here is this", and it is written where the harmony changes. Into Dust makes that plain:
+ * 82 symbols over 116 bars of fingerpicking, one per bar at most, each on the bar where the
+ * chord turns over. Reported on the beat, a D that governs four bars arrived as a footnote to one
+ * eighth note of the first, which is both easy to miss and the wrong thing to attach it to.
+ *
+ * The position is given only when the symbol is not at the start of its measure, which is where a
+ * chord change almost always falls: 167 of the 169 symbols across the files tested. The other two
+ * are real mid-measure changes, and where the chord turns over is exactly what a player needs, so
+ * those keep a position. It is counted in beats of the time signature, not in notes played, since
+ * a bar of eight eighth notes still has four beats.
+ */
+function describeChordSymbols(bar, masterBar) {
+    const beats = bar.voices[0] ? bar.voices[0].beats : [];
+    const found = [];
+    for (const beat of beats) {
+        if (beat.isRest || !beat.hasChord || !beat.chord || !beat.chord.name) continue;
+        found.push({ name: beat.chord.name, start: beat.playbackStart || 0 });
+    }
+    if (found.length === 0) return null;
+
+    const denominator = masterBar ? masterBar.timeSignatureDenominator || 4 : 4;
+    const ticksPerBeat = 960 * (4 / denominator);
+
+    const describe = symbol => {
+        if (symbol.start === 0) return symbol.name;
+        const beatNumber = symbol.start / ticksPerBeat + 1;
+        // A symbol landing between beats -- Into Dust puts one a triplet in -- is placed by the
+        // beat it falls inside rather than given a fraction to decode.
+        return Number.isInteger(beatNumber)
+            ? `${symbol.name} on beat ${beatNumber}`
+            : `${symbol.name} during beat ${Math.floor(beatNumber)}`;
+    };
+
+    return `chord symbol${found.length === 1 ? '' : 's'} ${found.map(describe).join(', ')}`;
+}
+
 // Only the primary voice is described; secondary voices (used for genuinely
 // polyphonic parts, e.g. independent piano hands) are not yet covered.
-function extractMeasures(track, terse) {
+function extractMeasures(track, terse, masterBars) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
     const capo = staffCapo(staff);
 
-    return staff.bars.map(bar => ({
+    return staff.bars.map((bar, index) => ({
+        chordSymbols: describeChordSymbols(bar, masterBars[index]),
         beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount, terse, capo))
     }));
 }
@@ -445,7 +465,7 @@ function describeTuning(staff) {
     return { summary, strings, isStandard: comparable && altered.length === 0, label: staff.tuningName || null };
 }
 
-function describeTrack(track, terse) {
+function describeTrack(track, terse, masterBars) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
 
@@ -458,7 +478,7 @@ function describeTrack(track, terse) {
         tuning: describeTuning(staff),
         capo: staff && staff.capo > 0 ? staff.capo : null,
         chords: extractTrackChords(track),
-        measures: extractMeasures(track, terse)
+        measures: extractMeasures(track, terse, masterBars)
     };
 }
 
@@ -488,6 +508,6 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         timeSignatureVaries,
         keySignature: firstBar ? keySignatureName(firstBar.keySignature) : null,
         keySignatureVaries,
-        tracks: (score.tracks || []).map(track => describeTrack(track, terseBeats))
+        tracks: (score.tracks || []).map(track => describeTrack(track, terseBeats, masterBars))
     };
 }
