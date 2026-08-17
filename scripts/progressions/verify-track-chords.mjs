@@ -108,9 +108,12 @@ console.log(`  headings carrying a symbol: ${headings.withSymbol.length}`);
 console.log(`  first four: ${headings.withSymbol.slice(0, 4).join(' | ')}`);
 check('a symbol reaches the measure heading',
     headings.withSymbol.some(h => /^Measure \d+ - chord symbol [A-G]/.test(h)), headings.withSymbol[0]);
-check('a mid-measure change keeps its position',
-    headings.withSymbol.some(h => /chord symbol [A-G][^,]* on beat \d/.test(h)),
-    headings.withSymbol.find(h => /on beat/.test(h)) ?? 'none found');
+check('every symbol is placed by beat, including the ones on beat 1',
+    headings.withSymbol.every(h => / (at|during) beat \d/.test(h)),
+    headings.withSymbol.find(h => !/ (at|during) beat \d/.test(h)) ?? 'all placed');
+check('a mid-measure change reports the beat it starts on',
+    headings.withSymbol.some(h => / at beat [2-9]/.test(h)),
+    headings.withSymbol.find(h => / at beat [2-9]/.test(h)) ?? 'none found');
 check('measures without a symbol keep a bare heading', headings.plain > 0, `${headings.plain} plain headings`);
 check('no beat line mentions a chord symbol any more',
     headings.beatsMentioningSymbol === 0, `${headings.beatsMentioningSymbol} beats still do`);

@@ -262,15 +262,26 @@ Reported on the beat, as it was, a D governing four bars arrived as a footnote
 to one eighth note of the first — easy to miss, and attached to the wrong
 thing. It now rides on the measure heading instead:
 
-    Measure 1 - chord symbol D
-    Measure 5 - chord symbol C
-    Measure 44 - chord symbol G on beat 2
+    Measure 1 - chord symbol D at beat 1
+    Measure 5 - chord symbol C at beat 1
+    Measure 44 - chord symbol G at beat 2
     Measure 115 - chord symbol D during beat 1
 
-A position is given only when the symbol is not at the start of its measure.
-It counts beats of the time signature, not notes played: a bar of eight eighth
-notes still has four beats. A symbol landing between beats is placed by the
-beat it falls inside rather than given a fraction to decode.
+Every symbol is placed by beat, including the ones on beat 1, where all but two
+of the 169 fall. Stating it even when it is not news is what makes a measure
+carrying two symbols read like one carrying a single symbol, instead of the
+reader having to notice that a position has appeared:
+
+    Measure 2 - chord symbols C at beat 1, G at beat 3
+
+Nothing in these formats stops an author writing a chord change on every beat.
+None of our files does, so that case is covered by attaching a second symbol to
+a beat of Ripple's bar 2 in verify-descriptions.mjs.
+
+Position counts beats of the time signature, not notes played: a bar of eight
+eighth notes still has four beats. A symbol landing between beats is placed by
+the beat it falls inside -- "during beat 1" rather than "at beat 1" -- so it is
+not confused with one squarely on the beat.
 
 Beat descriptions no longer mention symbols at all, so the "chord C" prefix
 that used to mark a labelled strum is gone too. The name is still there when

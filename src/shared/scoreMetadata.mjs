@@ -320,11 +320,17 @@ const staffCapo = staff => (staff.capo > 0 ? staff.capo : 0);
  * chord turns over. Reported on the beat, a D that governs four bars arrived as a footnote to one
  * eighth note of the first, which is both easy to miss and the wrong thing to attach it to.
  *
- * The position is given only when the symbol is not at the start of its measure, which is where a
- * chord change almost always falls: 167 of the 169 symbols across the files tested. The other two
- * are real mid-measure changes, and where the chord turns over is exactly what a player needs, so
- * those keep a position. It is counted in beats of the time signature, not in notes played, since
- * a bar of eight eighth notes still has four beats.
+ * Every symbol is placed by beat, including the overwhelming majority that fall on beat 1: 167 of
+ * the 169 across the files tested. Stating it even when it is not news is what makes a measure
+ * carrying two of them read the same as one carrying a single symbol, rather than the reader
+ * having to notice that a position has appeared. Nothing in these formats stops an author writing
+ * a chord change on every beat, and a heading is worth a few extra words if it saves opening the
+ * measure and walking its beats to find where the second chord starts.
+ *
+ * Position is counted in beats of the time signature, not in notes played, since a bar of eight
+ * eighth notes still has four beats. A symbol landing between beats -- Into Dust has one a triplet
+ * in -- is placed by the beat it falls inside, "during beat 1" rather than "at beat 1", so it is
+ * not confused with one squarely on the beat.
  */
 function describeChordSymbols(bar, masterBar) {
     const beats = bar.voices[0] ? bar.voices[0].beats : [];
@@ -339,12 +345,9 @@ function describeChordSymbols(bar, masterBar) {
     const ticksPerBeat = 960 * (4 / denominator);
 
     const describe = symbol => {
-        if (symbol.start === 0) return symbol.name;
         const beatNumber = symbol.start / ticksPerBeat + 1;
-        // A symbol landing between beats -- Into Dust puts one a triplet in -- is placed by the
-        // beat it falls inside rather than given a fraction to decode.
         return Number.isInteger(beatNumber)
-            ? `${symbol.name} on beat ${beatNumber}`
+            ? `${symbol.name} at beat ${beatNumber}`
             : `${symbol.name} during beat ${Math.floor(beatNumber)}`;
     };
 
