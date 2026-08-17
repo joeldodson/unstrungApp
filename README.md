@@ -91,10 +91,12 @@ I looked into options for generating more realistic sounds using MIDI passed thr
 It was going to introduce more complicated dependencies though which could affect cross platform support.
 So, instead, I found real samples of guitar notes online.
 
-The samples come from
+The samples come from two free libraries by Karoryfer Lecolds,
+both released under CC0, so there's nothing to license and nothing to pay.
+
+The guitar is
 [Black And Green Guitars](https://github.com/sfzinstruments/karoryfer.black-and-green-guitars),
-a free sample library by Karoryfer Lecolds, recorded by Brian Wood.
-It's released under CC0, so there's nothing to license and nothing to pay.
+recorded by Brian Wood.
 That library covers two instruments.
 unstrung ships only the normal picking samples of the green Gretsch Anniversary from it,
 which is 430 recordings covering E2 up to D6.
@@ -103,22 +105,46 @@ and up to four separate recordings of the same note at the same volume.
 Striking the same string twice in a row uses a different recording each time,
 which is why repeated notes sound like someone playing rather than a sound being replayed.
 
+Below E2, which is a guitar's lowest note, the samples come from
+[Black And Blue Basses](https://github.com/sfzinstruments/karoryfer.black-and-blue-basses).
+unstrung ships the plain samples of its "dark black" bass for the seventeen notes
+from B0 up to D#2, which is 204 recordings in the same three volumes with four takes each.
+Together the two cover every semitone from B0 to D6 with no gaps,
+which reaches the low B of a five-string bass and every drop tuning down to drop A.
+Nothing decides between the libraries at playback time; each pitch has exactly one source.
+
+That does mean a bass line crossing E2 changes instrument mid-phrase.
+The pitches stay right and it's still a real recorded string, it just stops sounding like a bass.
+Avoiding that would mean bundling three times as many bass samples
+and choosing a library per track, which is a lot of size and complexity
+for something that matters less than knowing which notes to play.
+
+`scripts/fetch-bass-samples.mjs` is what fetched the bass samples,
+and it exists mostly for one reason.
+The bass library's own sfz files place its recordings an octave above where they actually sound,
+because they're written for bass notation, which sounds an octave below what's written.
+The guitar library does not do that.
+Trusting both would have put every bass note an octave too high, and nothing would have failed
+loudly.
+The script corrects the octave when it writes the map unstrung reads,
+and `scripts/progressions/verify-sample-range.mjs` measures the recordings themselves
+to prove each key sounds at the pitch it claims.
+
 The upside is simply that it's a real guitar.
 Nothing is being modeled or approximated, so it sounds like a guitar without any further work.
 It also needs no plugins, no synthesizer, and no network access at runtime,
 which keeps unstrung to plain web technology and keeps it working the same way on any platform.
 
 The drawbacks are real too.
-The samples are about 266 MB, and they're committed to the repo rather than downloaded on demand,
+The samples are about 396 MB, and they're committed to the repo rather than downloaded on demand,
 so cloning takes a while and the installer is much larger than the code alone would need.
 I decided that was worth it.
 A download step depends on someone else's server still being there years from now,
 and I would rather unstrung just work.
-The other limitation is range.
-Nothing below E2 exists in these samples, and a bass guitar goes a full octave lower,
-so bass tracks cannot be generated yet.
-When you try, unstrung tells you which measures it could not play instead of quietly leaving them out.
-Filling in the bass range is on the list.
+There is still a range limit, just a much higher one:
+nothing above D6 or below B0 exists in these samples.
+When a track goes outside that, unstrung tells you which measures it could not play
+instead of quietly leaving them out.
 
 ## Screen Reader Users
 

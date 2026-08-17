@@ -37,6 +37,7 @@ const ALLOWED_EXTERNAL_URLS = new Set([
     'https://github.com/joeldodson/unstrungApp/blob/main/README.md',
     'https://claude.ai',
     'https://github.com/sfzinstruments/karoryfer.black-and-green-guitars',
+    'https://github.com/sfzinstruments/karoryfer.black-and-blue-basses',
     // Whatever the Help documents link to, collected when they were generated. First-party content
     // either way.
     ...(Array.isArray(helpContent.urls) ? helpContent.urls : [])
@@ -309,14 +310,35 @@ async function openFileAndCreateTab(window) {
     await openFilePath(window, result.filePaths[0]);
 }
 
-// --- Green Gretsch guitar sample playback (Tools menu) ---
-// Samples are bundled with the app under src/assets/samples/green-gretsch, copied from the
-// Black And Green Guitars pack (https://github.com/sfzinstruments/karoryfer.black-and-green-guitars),
-// preserving that repo's own relative folder structure so its .sfz path resolution rules
+// --- Instrument sample playback (Tools menu) ---
+// Samples are bundled with the app under src/assets/samples, copied from two Karoryfer packs,
+// each preserving that repo's own relative folder structure so its .sfz path resolution rules
 // (sample= paths resolve relative to the Programs/ directory) keep working unmodified.
-const GREEN_GRETSCH_ROOT = path.join(__dirname, '..', 'assets', 'samples', 'green-gretsch');
-const GREEN_GRETSCH_PROGRAMS_DIR = path.join(GREEN_GRETSCH_ROOT, 'Programs');
-const GREEN_ORD_MAP_PATH = path.join(GREEN_GRETSCH_PROGRAMS_DIR, 'modules', 'maps_green', 'ord.sfz');
+//
+// Two packs, one pool. The guitar bottoms out at its own low E, MIDI 40, and everything below
+// that had no sample at all: a bass part could not be played, nor a guitar in a drop tuning. The
+// bass fills exactly that gap and stops where the guitar starts, so each pitch is still served by
+// one recording and nothing has to choose between them. The seam is audible -- a bass line
+// crossing E2 changes instrument -- and that is the accepted cost of not special-casing by track.
+const SAMPLES_ROOT = path.join(__dirname, '..', 'assets', 'samples');
+const GREEN_GRETSCH_PROGRAMS_DIR = path.join(SAMPLES_ROOT, 'green-gretsch', 'Programs');
+const BLACK_BASS_PROGRAMS_DIR = path.join(SAMPLES_ROOT, 'black-and-blue-bass', 'Programs');
+
+// Each map's keys are sounding pitch. That is how the guitar pack ships; the bass pack's own maps
+// are an octave above sounding, being written for bass notation, and scripts/fetch-bass-samples.mjs
+// corrects them when it writes the map read here.
+const SAMPLE_SOURCES = [
+    {
+        name: 'green Gretsch guitar',
+        programsDir: GREEN_GRETSCH_PROGRAMS_DIR,
+        mapPath: path.join(GREEN_GRETSCH_PROGRAMS_DIR, 'modules', 'maps_green', 'ord.sfz')
+    },
+    {
+        name: 'dark black bass',
+        programsDir: BLACK_BASS_PROGRAMS_DIR,
+        mapPath: path.join(BLACK_BASS_PROGRAMS_DIR, 'modules', 'maps_black', 'reg.sfz')
+    }
+];
 
 const NOTE_LETTER_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 function midiKeyToPitchName(midiKey) {
@@ -427,9 +449,10 @@ function sliceWavToDuration(buffer, maxSeconds) {
     return out;
 }
 
-// Green Gretsch "ord" (normal picking) velocity tiers, confirmed directly against the sample
-// filenames (twang_<note>_<p|mf|f>_rr<N>.wav): "p" (soft) always has 2 round-robins; "mf" and
-// "f" have 4 for most notes but only 2 for the ten highest notes in range.
+// Velocity tiers, confirmed directly against the sample filenames of both packs, which agree on
+// the <note>_<p|mf|f>_rr<N>.wav shape. On the guitar "p" always has 2 round-robins while "mf" and
+// "f" have 4 for most notes and 2 for the ten highest; the bass has 4 throughout. The bass also
+// records an "mp" tier, which nothing here can ask for and which is therefore not bundled.
 const VELOCITY_LABELS = ['p', 'mf', 'f'];
 
 let cachedOrdRegionsByKey = null;
@@ -440,15 +463,19 @@ const roundRobinCursors = new Map();
 
 async function getOrdRegionsByKey() {
     if (!cachedOrdRegionsByKey) {
-        const regions = await parseSfzRegions(GREEN_ORD_MAP_PATH);
         const byKey = new Map();
-        for (const region of regions) {
-            const match = region.sample.match(/_(p|mf|f)_rr\d+\.wav$/i);
-            if (!match) continue;
-            const velocity = match[1].toLowerCase();
-            if (!byKey.has(region.key)) byKey.set(region.key, {});
-            const forKey = byKey.get(region.key);
-            (forKey[velocity] ??= []).push(region);
+        for (const source of SAMPLE_SOURCES) {
+            const regions = await parseSfzRegions(source.mapPath);
+            for (const region of regions) {
+                const match = region.sample.match(/_(p|mf|f)_rr\d+\.wav$/i);
+                if (!match) continue;
+                const velocity = match[1].toLowerCase();
+                if (!byKey.has(region.key)) byKey.set(region.key, {});
+                const forKey = byKey.get(region.key);
+                // The base each region's sample path resolves against travels with it, so the
+                // two packs keep their own layouts and neither has to be rewritten.
+                (forKey[velocity] ??= []).push({ ...region, programsDir: source.programsDir });
+            }
         }
         // Play the takes in the order the pack specifies. Note that a cycle can revisit the
         // same file: several notes alternate two recordings across four sequence positions,
@@ -484,7 +511,7 @@ ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity, maxSe
     const next = ((roundRobinCursors.get(cursorKey) ?? -1) + 1) % candidates.length;
     roundRobinCursors.set(cursorKey, next);
     const region = candidates[next];
-    const filePath = resolveSamplePath(GREEN_GRETSCH_PROGRAMS_DIR, region.sample);
+    const filePath = resolveSamplePath(region.programsDir, region.sample);
     const buffer = await fs.readFile(filePath);
     return new Uint8Array(sliceWavToDuration(buffer, maxSeconds));
 });
