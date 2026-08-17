@@ -148,6 +148,16 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
                 measuresDetails.append(measureHeading);
 
                 const measureList = document.createElement('ul');
+                // The words sung over this measure lead the list, one line per singing part.
+                // They are the clearest landmark a measure has, and they are shown on every
+                // track, since the part being read is rarely the one carrying them. Kept as
+                // separate items rather than run together: a duet's two lines are two thoughts,
+                // and one long line is harder to follow than two short ones.
+                for (const lyricLine of measure.lyrics ?? []) {
+                    const li = document.createElement('li');
+                    li.textContent = lyricLine;
+                    measureList.append(li);
+                }
                 for (const beatText of measure.beats) {
                     const li = document.createElement('li');
                     li.textContent = beatText;

@@ -96,5 +96,91 @@ console.log('\n=== A section name reaches the measure it starts on ===');
     check('whitespace is not a section name', measures[3].section, null);
 }
 
+console.log('\n=== Lyrics reach every track, labelled per singer ===');
+{
+    // Invented words, so no real lyric is reproduced in this repository. "sil-" and "ver" are a
+    // hyphenated pair, which is how Guitar Pro says one word spans two notes.
+    const note = { isStringed: true, string: 6, fret: 3, realValue: 43, isDead: false };
+    const sung = (realValue, syllable) => ({ isStringed: true, string: 2, fret: 3, realValue, isDead: false });
+
+    const vocalTrack = (name, wordsPerBar) => ({
+        name, isPercussion: false, playbackInfo: { program: 85 },
+        staves: [{
+            isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+            bars: wordsPerBar.map(words => bar(words.map(syllable =>
+                beat([sung(62, syllable)], { lyrics: [syllable] }))))
+        }]
+    });
+
+    const guitar = {
+        name: 'Guitar', isPercussion: false, playbackInfo: { program: 25 },
+        staves: [{
+            isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+            bars: [bar([beat([note])]), bar([beat([note])])]
+        }]
+    };
+
+    // One singer: no label needed, and the hyphen joins the word back together.
+    const solo = extractScoreMetadata({
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar(), masterBar()],
+        tracks: [guitar, vocalTrack('Some Singer | Vocals', [['sil-', 'ver', 'rain'], []])]
+    });
+    check('one singer needs no label', solo.tracks[0].measures[0].lyrics[0], 'Words: silver rain');
+    check('a measure with no words gets none', solo.tracks[0].measures[1].lyrics.length, 0);
+    check('the guitar track gets the words too', solo.tracks[0].measures[0].lyrics.length, 1);
+    check('and so does the singer', solo.tracks[1].measures[0].lyrics[0], 'Words: silver rain');
+
+    // Two singers, differing in the first part of the name.
+    const duet = extractScoreMetadata({
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar(), masterBar()],
+        tracks: [
+            guitar,
+            vocalTrack('Ada Lovelace | Lead Vocals', [['one', 'two'], []]),
+            vocalTrack('Alan Turing | Lead Vocals', [['three'], ['four']])
+        ]
+    });
+    check('two singers get one line each, in track order',
+        duet.tracks[0].measures[0].lyrics.join(' / '),
+        'Words, Ada Lovelace: one two / Words, Alan Turing: three');
+    check('and a measure only one of them sings gets only that one',
+        duet.tracks[0].measures[1].lyrics.join(' / '), 'Words, Alan Turing: four');
+
+    // Two parts sung by the same person: the differing part is the role, not the name.
+    const roles = extractScoreMetadata({
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar()],
+        tracks: [
+            guitar,
+            vocalTrack('Ada Lovelace | Lead Vocals', [['high']]),
+            vocalTrack('Ada Lovelace | Backing Vocals', [['low']])
+        ]
+    });
+    check('the label is whichever part of the name differs',
+        roles.tracks[0].measures[0].lyrics.join(' / '),
+        'Words, Lead Vocals: high / Words, Backing Vocals: low');
+}
+
+console.log('\n=== A sung note is a pitch, and carries its syllable ===');
+{
+    const sungNote = { isStringed: true, string: 2, fret: 3, realValue: 62, isDead: false };
+    const score = {
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar()],
+        tracks: [{
+            name: 'Vocals', isPercussion: false, playbackInfo: { program: 85 },
+            staves: [{
+                isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+                bars: [bar([
+                    beat([sungNote], { lyrics: ['sil-'] }),
+                    beat([sungNote], { lyrics: ['ver'] }),
+                    beat([sungNote])
+                ])]
+            }]
+        }]
+    };
+    const beats = extractScoreMetadata(score).tracks[0].measures[0].beats;
+    check('a sung note is given as a pitch, not a fret', beats[0], 'quarter note, D4, "sil-"');
+    check('the next syllable lands on the next note', beats[1], 'quarter note, D4, "ver"');
+    check('a sung note with no syllable is still a pitch', beats[2], 'quarter note, D4');
+}
+
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

@@ -157,10 +157,16 @@ function describePercussionNote(note, articulations) {
         ?? (articulation.elementType ? articulation.elementType.toLowerCase() : 'unnamed percussion');
 }
 
-// AlphaTab numbers strings low-to-high (1 = low E). Guitarists and tab notation
-// conventionally number high-to-low (1 = high E), so we flip for display.
-function describeNotePitch(note, stringCount, percussion) {
-    if (note.isStringed) {
+/**
+ * AlphaTab numbers strings low-to-high (1 = low E). Guitarists and tab notation conventionally
+ * number high-to-low (1 = high E), so we flip for display.
+ *
+ * A sung note is given as a pitch instead. Guitar Pro models a vocal line on a six-string staff
+ * like everything else, so the notes carry a string and a fret, but nobody sings fret 3 of string
+ * 2. The pitch is the note, and it is what the words are hung on.
+ */
+function describeNotePitch(note, stringCount, percussion, sung) {
+    if (note.isStringed && !sung) {
         const conventionalString = stringCount - note.string + 1;
         if (note.isDead) return `string ${conventionalString}, muted (X)`;
         if (note.fret === 0) return `string ${conventionalString}, open`;
@@ -322,15 +328,22 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
  * measure rather than to the beat it happens to be anchored to -- see `describeChordSymbols`. So
  * nothing about it appears here: this describes what the beat plays, and only that.
  */
-function describeBeat(beat, stringCount, terse, capo, percussion) {
+function describeBeat(beat, stringCount, terse, capo, percussion, sung) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
     } else {
         // Only a beat that names a chord can be shortened. A beat listed string by string has no
-        // name to fall back on, so terse descriptions leave it exactly as it was.
-        pitchText = describeChordedBeat(beat, stringCount, terse, capo)?.text
-            ?? beat.notes.map(note => describeNotePitch(note, stringCount, percussion)).join('; ');
+        // name to fall back on, so terse descriptions leave it exactly as it was. A sung beat is
+        // never named as a chord: two notes of a vocal harmony are a harmony, not a power chord.
+        pitchText = (sung ? null : describeChordedBeat(beat, stringCount, terse, capo)?.text)
+            ?? beat.notes.map(note => describeNotePitch(note, stringCount, percussion, sung)).join('; ');
+
+        // The syllable this note carries. The measure's words are assembled above the beats, so
+        // this is not the way to read the lyric; it is what says which note each syllable lands
+        // on, which is the part a singer cannot get from the words alone.
+        const syllables = beatSyllables(beat);
+        if (syllables.length > 0) pitchText += `, "${syllables.join(' ')}"`;
     }
 
     const techniques = new Set();
@@ -394,6 +407,105 @@ function describeChordSymbols(bar, masterBar) {
     return `chord symbol${found.length === 1 ? '' : 's'} ${found.map(describe).join(', ')}`;
 }
 
+/** Every syllable a beat carries. The array holds one entry per lyric line; only the first is
+ *  used by any file tested, but they are all taken rather than assuming that holds. */
+function beatSyllables(beat) {
+    return (beat.lyrics ?? []).filter(syllable => typeof syllable === 'string' && syllable.trim() !== '');
+}
+
+function trackSings(track) {
+    for (const staff of track.staves || []) {
+        for (const bar of staff.bars || []) {
+            for (const voice of bar.voices || []) {
+                for (const beat of voice.beats || []) if (beatSyllables(beat).length > 0) return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Joins a measure's syllables back into words.
+ *
+ * Guitar Pro stores one syllable per note, and a trailing hyphen is what says the word carries on
+ * to the next one: two beats holding "hea-" and "ven" are one word. About a fifth of the syllables
+ * in the files tested are hyphenated, so read out one at a time they are close to unintelligible,
+ * where a measure's worth joined up is a readable line of eight or nine words.
+ */
+function joinSyllables(syllables) {
+    let line = '';
+    for (const syllable of syllables) {
+        if (line.endsWith('-')) line = line.slice(0, -1) + syllable;
+        else line = line === '' ? syllable : `${line} ${syllable}`;
+    }
+    return line;
+}
+
+/**
+ * What to call each singing track, when a song has more than one.
+ *
+ * Songsterr names a track by pipe-separated parts -- "David Gilmour | Lead Vocals" -- so the
+ * useful label is whichever parts actually differ between the singers. Mother has two people
+ * singing the same role, and differs in the first part, giving "David Gilmour" and "Roger Waters".
+ * Wish You Were Here has one person in two roles, and differs in the second, giving "Lead Vocals"
+ * and "Backing Vocals". Taking the differing parts gets both right without knowing which is which.
+ *
+ * A song with one singing track needs no label at all, and names that share no structure fall back
+ * to the whole track name.
+ */
+function labelSingingTracks(tracks) {
+    if (tracks.length < 2) return new Map(tracks.map(track => [track, null]));
+
+    const parts = tracks.map(track => (track.name || '').split('|').map(part => part.trim()));
+    const partCount = Math.max(...parts.map(p => p.length));
+    const differing = [];
+    for (let i = 0; i < partCount; i++) {
+        if (new Set(parts.map(p => p[i] ?? '')).size > 1) differing.push(i);
+    }
+
+    return new Map(tracks.map((track, index) => {
+        const label = differing.map(i => parts[index][i] ?? '').filter(Boolean).join(' ');
+        return [track, label || track.name || null];
+    }));
+}
+
+/**
+ * The words sung over each measure, as a line per singing track, indexed by measure.
+ *
+ * Lyrics sit on the singing track, but they belong to the song: they are the best landmark there
+ * is for knowing where you are, and a guitarist reading the guitar part had no access to them at
+ * all. So they are gathered here once and handed to every track, the way sections are.
+ *
+ * Each singing track gets its own line rather than being merged into one. Mother is sung by two
+ * people in call and response, and running their words together would lose who sings what and
+ * make a long line longer.
+ */
+function extractSongLyrics(score) {
+    const singing = (score.tracks || []).filter(trackSings);
+    if (singing.length === 0) return [];
+
+    const labels = labelSingingTracks(singing);
+    const byMeasure = [];
+
+    for (const track of singing) {
+        const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
+        if (!staff) continue;
+        const label = labels.get(track);
+
+        (staff.bars || []).forEach((bar, index) => {
+            const syllables = [];
+            for (const voice of bar.voices || []) {
+                for (const beat of voice.beats || []) syllables.push(...beatSyllables(beat));
+            }
+            if (syllables.length === 0) return;
+            if (!byMeasure[index]) byMeasure[index] = [];
+            byMeasure[index].push(`Words${label ? `, ${label}` : ''}: ${joinSyllables(syllables)}`);
+        });
+    }
+
+    return byMeasure;
+}
+
 /**
  * The name of the section starting at this measure, e.g. "Verse 2", or null.
  *
@@ -416,18 +528,20 @@ function describeSection(masterBar) {
 
 // Only the primary voice is described; secondary voices (used for genuinely
 // polyphonic parts, e.g. independent piano hands) are not yet covered.
-function extractMeasures(track, terse, masterBars) {
+function extractMeasures(track, terse, masterBars, songLyrics) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
     const capo = staffCapo(staff);
     const percussion = track.isPercussion ? (track.percussionArticulations ?? []) : null;
+    const sung = trackSings(track);
 
     return staff.bars.map((bar, index) => ({
         section: describeSection(masterBars[index]),
         chordSymbols: describeChordSymbols(bar, masterBars[index]),
+        lyrics: songLyrics[index] ?? [],
         beats: (bar.voices[0] ? bar.voices[0].beats : [])
-            .map(beat => describeBeat(beat, stringCount, terse, capo, percussion))
+            .map(beat => describeBeat(beat, stringCount, terse, capo, percussion, sung))
     }));
 }
 
@@ -531,7 +645,7 @@ function describeTuning(staff) {
     return { summary, strings, isStandard: comparable && altered.length === 0, label: staff.tuningName || null };
 }
 
-function describeTrack(track, terse, masterBars) {
+function describeTrack(track, terse, masterBars, songLyrics) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
 
@@ -544,7 +658,7 @@ function describeTrack(track, terse, masterBars) {
         tuning: describeTuning(staff),
         capo: staff && staff.capo > 0 ? staff.capo : null,
         chords: extractTrackChords(track),
-        measures: extractMeasures(track, terse, masterBars)
+        measures: extractMeasures(track, terse, masterBars, songLyrics)
     };
 }
 
@@ -564,6 +678,10 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
     );
     const keySignatureVaries = masterBars.some(bar => bar.keySignature !== firstBar.keySignature);
 
+    // Gathered once for the whole song, then given to every track: the words are the clearest
+    // landmark in a hundred measures, and the track carrying them is rarely the one being read.
+    const songLyrics = extractSongLyrics(score);
+
     return {
         title: score.title || '(untitled)',
         artist: score.artist || null,
@@ -574,6 +692,6 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         timeSignatureVaries,
         keySignature: firstBar ? keySignatureName(firstBar.keySignature) : null,
         keySignatureVaries,
-        tracks: (score.tracks || []).map(track => describeTrack(track, terseBeats, masterBars))
+        tracks: (score.tracks || []).map(track => describeTrack(track, terseBeats, masterBars, songLyrics))
     };
 }
