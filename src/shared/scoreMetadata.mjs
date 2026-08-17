@@ -152,8 +152,7 @@ const PICK_NONE = 0, PICK_UP = 1, PICK_DOWN = 2;
  * not one: GP3-5 store a beat's notes as a bitmask of strings, which has no order at all, and the
  * GPIF formats store an order each exporter writes to its own convention. One song exported twice
  * lists 30 of its beats in opposite order, and the single beat in our files that does state a
- * stroke has its notes listed the other way round. The evidence, and the scripts that produced
- * it, are on the gpParsing branch.
+ * stroke has its notes listed the other way round. See scripts/gp-experiment/FINDINGS.md.
  */
 function statedStroke(beat) {
     switch (beat.brushType ?? BRUSH_NONE) {
@@ -278,21 +277,46 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
     return { text, name: primary.name, root: primary.root, suffix: primary.suffix };
 }
 
+/**
+ * A beat's chord symbol is the name Guitar Pro prints above the staff. It marks the harmony, and
+ * it is placed where the harmony changes, so it is a label on a beat rather than a kind of beat:
+ * the beat still has its own notes, which used to be discarded in favour of the name.
+ *
+ * Across our files a symbol sits on a single-note beat as often as on a full chord -- "G" over
+ * string 6 fret 3 alone -- and the strums that follow it carry no symbol at all, the same shape
+ * struck another eleven times. So the notes are always described, and the symbol is added to that.
+ *
+ * Naming the chord in the fingered frame is what made this necessary rather than merely better.
+ * While a capo VII beat was named from its sounding pitches, a labelled beat reading "chord C" and
+ * the identical beat after it reading "G" at least looked like different events. Now that both are
+ * C, dropping the strings from only the labelled one leaves two adjacent lines that describe the
+ * same strum and disagree about which strings it touches.
+ */
 function describeBeat(beat, stringCount, terse, capo) {
     let pitchText;
+    let identifiedName = null;
     if (beat.isRest) {
         pitchText = 'rest';
-    } else if (beat.hasChord) {
-        pitchText = `chord ${beat.chord.name}`;
     } else {
         // Only a beat that names a chord can be shortened. A beat listed string by string has no
         // name to fall back on, so terse descriptions leave it exactly as it was.
-        pitchText = describeChordedBeat(beat, stringCount, terse, capo)?.text
-            ?? beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
+        const chorded = describeChordedBeat(beat, stringCount, terse, capo);
+        identifiedName = chorded ? chorded.name : null;
+        pitchText = chorded ? chorded.text
+            : beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
     }
 
+    // The symbol still marks where the score names the harmony, which is worth keeping even when
+    // it agrees with the notes. Where it agrees, one word carries it and the name is not said
+    // twice; where it differs it is given in full, since then it is telling us something the
+    // notes did not. The comparison ignores the bass we add, so a first-inversion F read here as
+    // "F/A" still counts as agreeing with an "F" printed in the file.
+    const symbol = !beat.isRest && beat.hasChord && beat.chord.name ? beat.chord.name : null;
+    if (symbol && symbol === identifiedName) pitchText = `chord ${pitchText}`;
+    else if (symbol) pitchText = `${pitchText}, chord symbol ${symbol}`;
+
     const techniques = new Set();
-    if (!beat.isRest && !beat.hasChord) {
+    if (!beat.isRest) {
         for (const note of beat.notes) {
             for (const technique of describeNoteTechniques(note)) techniques.add(technique);
         }
