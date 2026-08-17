@@ -126,3 +126,69 @@ independent of the stroke question and needs fixing either way.
    rhythm. Saying nothing matches what the file says.
 4. A chord name should ride along with the strings rather than replace them,
    since it is a label on the beat, not a different kind of beat.
+
+---
+
+# What changed as a result
+
+`node scripts/gp-experiment/verify-descriptions.mjs` and
+`node scripts/gp-experiment/verify-sweep.mjs` check the outcome.
+
+## Direction now comes only from the file
+
+`scoreMetadata.mjs` no longer looks at note order. `statedStroke()` reads
+`brushType` and `pickStroke`, and returns nothing when neither is set.
+
+Across 6474 beat descriptions from all four files, exactly two now report a
+direction — the two the GP8 file marks:
+
+    bar 11: quarter note, G5/D, strings 4 and 3, down stroke
+    bar 14: eighth note, G, strings 6 through 2, down stroke
+
+Both formerly read "up stroke". Where the file states the stroke, the string
+run is given in the order the pick travels, so a down stroke counts from the
+lowest-pitched string: "strings 6 through 2".
+
+## "Down" means the lowest string first
+
+`audioTrack.mjs` had `BrushUp` sweeping from the lowest string, which is
+backwards. alphaTab's own MIDI generation settles it: `_fillBrushInfo` walks
+the tuning from index 0 upward for `BrushDown`, giving string 1 (its lowest)
+the zero offset. So Guitar Pro's "down" sounds the low string first, which is
+what a guitarist means by a down stroke. The pair is now swapped.
+
+## Playback sweeps a downstroke when the file says nothing
+
+Previously the sweep followed the file's note order, so every .gp5 strummed
+from the high E — the bitmask artefact, played back as if it were music. Now
+an unstated strum sweeps from the lowest-pitched string, the unmarked default
+in notation, and the same one rule 3 already used for chords filled in from
+their name.
+
+Both exports of `Ripple Chord Solo` now produce identical playback: 73 strums,
+all sweeping low-pitch first, where before they swept opposite ways.
+
+## A chord symbol no longer replaces the beat
+
+`describeBeat` used to see `hasChord` and drop the notes and the techniques.
+Now every beat is described from its notes, and the symbol is added to that:
+
+- symbol agrees with the notes: `quarter note, chord C, strings 1 through 5`
+- symbol on a beat that is not a full chord: `quarter note, string 3, open,
+  chord symbol C`
+- symbol differs from the reading: the reading, then `chord symbol F`
+
+The comparison ignores the bass note, so an F voiced with A at the bottom is
+read "chord F/A" rather than being reported as disagreeing with the file.
+
+## Chord names are now in the fingered frame
+
+Chord identification takes the capo back off the pitches first. On the capo
+VII track the same shape used to be announced "chord C" on the labelled beat
+and "G" on the eleven identical beats after it. All twelve now say C, which
+is also what the file's own symbols say and what the fret numbers alongside
+them mean.
+
+The trade is that a capo track is named by shape rather than by sound. The
+sounding chord is a capo's worth of semitones up, and the track summary still
+reports the capo.

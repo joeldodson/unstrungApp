@@ -20,13 +20,16 @@ export const TICKS_PER_QUARTER = 960;
 //    Its notes are sounded one after another, STRUM_STRING_DELAY_SECONDS apart, the way a pick
 //    crosses the strings rather than hitting them all at once.
 //
-// 2. The order the notes appear in the beat gives the direction of the strum, and it is used
-//    as-is. Notes running from a higher string number down to a lower one (3, 2, 1) are a
-//    downstroke; the reverse (1, 2, 3) is an upstroke. Guitar Pro files carry this ordering
-//    faithfully, and it is often the only signal available: brushType and pickStroke are
-//    frequently unset even where a strum is clearly intended. Because the delay simply follows
-//    the given order, no direction has to be detected, and an unusual order still plays in the
-//    sequence the file specifies.
+// 2. The direction of the strum comes from brushType or pickStroke, and from nothing else. Where
+//    the file states neither, the strum sweeps from the lowest-pitched string upward: the
+//    downstroke, which is what an unmarked strum means in notation, and what rule 3 below already
+//    does for a chord filled in from its name.
+//
+//    The order the notes happen to appear in the beat is NOT used, though it once was. It is not
+//    a signal: GP3-5 store a beat's notes as a bitmask of strings, which cannot express an order
+//    at all, and the GPIF formats store whatever order the exporter wrote. Exporting one song
+//    twice put 30 of its beats in opposite order, and the one beat in our files that does state a
+//    brush has its notes listed the other way round. See scripts/gp-experiment/FINDINGS.md.
 //
 // 3. A beat that carries a chord name sounds the whole chord. Tablature often writes only the
 //    bass note under a chord symbol and leaves the rest to the player, so where a named beat
@@ -120,17 +123,17 @@ const BRUSH_NONE = 0, BRUSH_UP = 1, BRUSH_DOWN = 2, ARPEGGIO_UP = 3, ARPEGGIO_DO
 const PICK_NONE = 0, PICK_UP = 1, PICK_DOWN = 2;
 
 /**
- * The direction a strum should sweep, or null when the file says nothing and note order decides.
+ * The direction a strum should sweep, or null where the file states none.
  *
- * Guitar Pro's "up" means up in pitch: from the lowest string toward the highest, which is what a
- * guitarist calls a downstroke. That reading is applied here but has not been verified against a
- * file that actually sets these, since the scores tested so far leave both unset. If it turns out
- * inverted, swapping the two return values here is the whole fix.
+ * Guitar Pro's "down" sounds the lowest-pitched string first, which is what a guitarist means by a
+ * downstroke. This was previously read the other way round. It is settled by alphaTab's own MIDI
+ * generation, where BrushDown walks the tuning from index 0 upward and so gives string 1 -- the
+ * lowest in alphaTab's numbering -- the zero offset, sounding it first.
  */
 function statedStrumDirection(beat) {
     const brush = beat.brushType ?? BRUSH_NONE;
-    if (brush === BRUSH_UP || brush === ARPEGGIO_UP) return 'lowToHigh';
-    if (brush === BRUSH_DOWN || brush === ARPEGGIO_DOWN) return 'highToLow';
+    if (brush === BRUSH_DOWN || brush === ARPEGGIO_DOWN) return 'lowToHigh';
+    if (brush === BRUSH_UP || brush === ARPEGGIO_UP) return 'highToLow';
 
     const pick = beat.pickStroke ?? PICK_NONE;
     if (pick === PICK_DOWN) return 'lowToHigh';
@@ -310,8 +313,10 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
 
                     const isStrum = beat.notes.length > 1;
 
-                    // Note order gives the sweep unless the file states a stroke, which wins.
-                    const stated = isStrum ? statedStrumDirection(beat) : null;
+                    // The file's stated stroke, or a downstroke where it states none. The order
+                    // the notes are listed in is not consulted: it is an artefact of the format,
+                    // not of the performance.
+                    const stated = isStrum ? (statedStrumDirection(beat) ?? 'lowToHigh') : null;
                     let sweep = beat.notes;
                     if (stated) {
                         sweep = [...beat.notes].sort((a, b) => stated === 'lowToHigh'
@@ -330,8 +335,8 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
                         if (typeof note.realValue !== 'number') { skipped.unpitched++; continue; }
 
                         notes.push({
-                            // Notes of a strum are spread in the order the file lists them, which
-                            // is what makes a downstroke sound different from an upstroke.
+                            // Notes of a strum are spread across the sweep, which is what makes a
+                            // downstroke sound different from an upstroke.
                             startSeconds: beatStartSeconds +
                                 (isStrum ? indexInBeat * STRUM_STRING_DELAY_SECONDS : 0),
                             notatedSeconds,

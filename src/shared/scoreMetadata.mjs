@@ -138,34 +138,72 @@ const RECOGNIZED_STRUM_SUFFIXES = new Set([
     'dim', 'dim7', 'aug', '6', 'm6', 'add9', 'madd9', '9', 'm9', 'maj9', 'mmaj7'
 ]);
 
+// alphaTab's BrushType and PickStroke: the only places a Guitar Pro file actually states which
+// way the pick travelled. Guitar Pro's "down" sounds the lowest-pitched string first, which is
+// what a guitarist means by a down stroke. Confirmed against alphaTab's own MIDI generation,
+// where BrushDown gives string 1 -- the low E in its numbering -- the zero offset.
+const BRUSH_NONE = 0, BRUSH_UP = 1, BRUSH_DOWN = 2, ARPEGGIO_UP = 3, ARPEGGIO_DOWN = 4;
+const PICK_NONE = 0, PICK_UP = 1, PICK_DOWN = 2;
+
 /**
- * Names a beat that strums one unmistakable chord, e.g. "A, up stroke".
+ * The stroke the file states, or null where it states none.
  *
- * Tablature often writes a strum out string by string, leaving the reader to recognise the shape.
+ * The order the notes are listed in is deliberately not consulted. It looks like a signal and is
+ * not one: GP3-5 store a beat's notes as a bitmask of strings, which has no order at all, and the
+ * GPIF formats store an order each exporter writes to its own convention. One song exported twice
+ * lists 30 of its beats in opposite order, and the single beat in our files that does state a
+ * stroke has its notes listed the other way round. See scripts/gp-experiment/FINDINGS.md.
+ */
+function statedStroke(beat) {
+    switch (beat.brushType ?? BRUSH_NONE) {
+        case BRUSH_UP: return { text: 'up stroke', lowestFirst: false };
+        case BRUSH_DOWN: return { text: 'down stroke', lowestFirst: true };
+        case ARPEGGIO_UP: return { text: 'arpeggiated up stroke', lowestFirst: false };
+        case ARPEGGIO_DOWN: return { text: 'arpeggiated down stroke', lowestFirst: true };
+    }
+    switch (beat.pickStroke ?? PICK_NONE) {
+        case PICK_UP: return { text: 'up stroke', lowestFirst: false };
+        case PICK_DOWN: return { text: 'down stroke', lowestFirst: true };
+    }
+    return null;
+}
+
+/**
+ * Names a beat that sounds one unmistakable chord, e.g. "A, strings 1 through 5".
+ *
+ * Tablature often writes a chord out string by string, leaving the reader to recognise the shape.
  * Where the notes spell exactly one everyday chord this says so instead, which is both shorter to
  * listen to and more useful than five string-and-fret pairs.
  *
  * Identification works from the pitches sounded, not from a stored shape, so it is indifferent to
- * how the chord is fingered: a barred B minor is named the same as any other B minor, and a
- * capo or an altered tuning makes no difference.
+ * how the chord is fingered: a barred B minor is named the same as any other B minor, and an
+ * altered tuning makes no difference. A capo is taken back off the pitches first, so the name is
+ * in the same frame as the fret numbers beside it, which are themselves counted from the capo,
+ * and in the same frame as the file's own chord symbols: a capo VII track fingering a C shape is
+ * labelled C in the file even though it sounds G.
  *
  * Where the same notes spell a second chord as well, that reading follows in parentheses, e.g.
- * "Em7 (G6), down stroke".
+ * "Em7 (G6)".
+ *
+ * A stroke direction is given only where the file states one. Where it does not, nothing is said:
+ * the direction is genuinely absent from the file, and a guitarist reading the printed tab does
+ * not learn it either.
  *
  * Returns null, leaving the strings listed, when naming the beat would say less than the strings do:
  * - notes that do not spell a complete chord, such as the top three strings of a G, which give
  *   only G and B: a genuine part-chord the player needs told string by string
  * - notes that spell only chords outside everyday use, where a name would be more work to
  *   interpret than the frets it replaced
- * - notes listed in no consistent direction, which is not a sweep of the pick at all; naming it
- *   without a direction would invite reading it as the unmarked case, a down stroke
  * - notes that leave a gap in the middle, skipping a string the file says nothing about. A pick
- *   cannot cross a string without sounding it, so those notes were plucked, not strummed, and
- *   calling them a stroke would be wrong. A string the file explicitly marks muted does not
- *   break the run: muting a string and strumming through it is exactly how chords like these
- *   are played, so the gap is accounted for.
+ *   cannot cross a string without sounding it, so those notes were plucked rather than swept, and
+ *   a run of strings would be the wrong thing to report. A string the file explicitly marks muted
+ *   does not break the run: muting a string and playing through it is exactly how chords like
+ *   these are played, so the gap is accounted for.
+ *
+ * Returns `{ text, name }`, where `name` is the plain chord name without its bass, for comparing
+ * against a chord symbol the file prints on the same beat.
  */
-function describeStrum(beat, stringCount, terse) {
+function describeChordedBeat(beat, stringCount, terse, capo) {
     if (beat.notes.length < 2 || !stringCount) return null;
     if (!beat.notes.every(note => note.isStringed && typeof note.realValue === 'number')) return null;
 
@@ -180,8 +218,8 @@ function describeStrum(beat, stringCount, terse) {
     if (Math.max(...covered) - Math.min(...covered) + 1 !== covered.size) return null;
 
     // Restricted to everyday chord names: an obscure one is worse than concrete frets, since the
-    // point of naming a strum is to be quicker to take in than the strings it replaces.
-    const readings = identifyChordFromNotes(sounding.map(note => note.realValue))
+    // point of naming a chord is to be quicker to take in than the strings it replaces.
+    const readings = identifyChordFromNotes(sounding.map(note => note.realValue - capo))
         .filter(candidate => RECOGNIZED_STRUM_SUFFIXES.has(candidate.suffix));
     if (readings.length === 0) return null;
 
@@ -197,16 +235,12 @@ function describeStrum(beat, stringCount, terse) {
     const withBass = reading => reading.rootInBass ? reading.name : `${reading.name}/${reading.bass}`;
     const chordText = withBass(primary) + (alternative ? ` (${withBass(alternative)})` : '');
 
-    // The order the file lists the notes in gives the direction of the sweep, the same signal
-    // audio generation uses: low string to high is an up stroke, high to low a down stroke.
-    const strings = sounding.map(tabString);
-    const ascending = strings.every((s, i) => i === 0 || s > strings[i - 1]);
-    const descending = strings.every((s, i) => i === 0 || s < strings[i - 1]);
-    if (!ascending && !descending) return null;
+    const stroke = statedStroke(beat);
+    const strokeText = stroke ? `, ${stroke.text}` : '';
 
     // Which strings to play, which the name only implies. A chord name and its bass do narrow it
     // down against a shape the player already knows, but the same chord is voiced in more than
-    // one position, so the run is given outright, in the order the pick travels.
+    // one position, so the run is given outright.
     //
     // The strings that sound are what bound it. A muted string at either end is struck to no
     // effect, so it is indistinguishable from not playing that string and is left unsaid: a full
@@ -214,7 +248,10 @@ function describeStrum(beat, stringCount, terse) {
     const soundingStrings = sounding.map(tabString);
     const low = Math.min(...soundingStrings);
     const high = Math.max(...soundingStrings);
-    const [from, to] = ascending ? [low, high] : [high, low];
+    // Where the file states the stroke, the run is given in the order the pick travels: a down
+    // stroke starts at the lowest-pitched string, which carries the highest string number.
+    // Otherwise it is only a range, counted the way string numbers run.
+    const [from, to] = stroke && stroke.lowestFirst ? [high, low] : [low, high];
     const rangeText = high - low + 1 === 2
         ? `strings ${from} and ${to}`
         : `strings ${from} through ${to}`;
@@ -228,31 +265,51 @@ function describeStrum(beat, stringCount, terse) {
     const mutedText = muted.length === 0 ? ''
         : `, string${muted.length === 1 ? '' : 's'} ${muted.join(' and ')} muted`;
 
-    const directionText = ascending ? 'up stroke' : 'down stroke';
-
     // A player who knows the shape gets the strings and the mutes from the chord name, so with
-    // terse descriptions those are dropped. The stroke direction stays: it is two syllables and
-    // is not recoverable from the name, unlike everything else being left out here.
-    if (terse) return `${chordText}, ${directionText}`;
+    // terse descriptions those are dropped. A stated stroke stays: it is two syllables and is not
+    // recoverable from the name, unlike everything else being left out here.
+    const text = terse
+        ? `${chordText}${strokeText}`
+        : `${chordText}, ${rangeText}${strokeText}${mutedText}`;
 
-    return `${chordText}, ${rangeText}, ${directionText}${mutedText}`;
+    return { text, name: primary.name };
 }
 
-function describeBeat(beat, stringCount, terse) {
+/**
+ * A beat's chord symbol is the name Guitar Pro prints above the staff. It marks the harmony, and
+ * it is placed where the harmony changes, so it is a label on a beat rather than a kind of beat:
+ * the beat still has its own notes, which used to be discarded in favour of the name.
+ *
+ * Across our files a symbol sits on a single-note beat as often as on a full chord -- "G" over
+ * string 6 fret 3 alone -- and the strums that follow it carry no symbol at all, the same shape
+ * struck another eleven times. So the notes are always described, and the symbol is added only
+ * where it says something the notes did not already give us.
+ */
+function describeBeat(beat, stringCount, terse, capo) {
     let pitchText;
+    let identifiedName = null;
     if (beat.isRest) {
         pitchText = 'rest';
-    } else if (beat.hasChord) {
-        pitchText = `chord ${beat.chord.name}`;
     } else {
-        // Only a named strum can be shortened. A beat listed string by string has no name to fall
-        // back on, so terse descriptions leave it exactly as it was.
-        pitchText = describeStrum(beat, stringCount, terse)
-            ?? beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
+        // Only a beat that names a chord can be shortened. A beat listed string by string has no
+        // name to fall back on, so terse descriptions leave it exactly as it was.
+        const chorded = describeChordedBeat(beat, stringCount, terse, capo);
+        identifiedName = chorded ? chorded.name : null;
+        pitchText = chorded ? chorded.text
+            : beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
     }
 
+    // The symbol still marks where the score names the harmony, which is worth keeping even when
+    // it agrees with the notes. Where it agrees, one word carries it and the name is not said
+    // twice; where it differs it is given in full, since then it is telling us something the
+    // notes did not. The comparison ignores the bass we add, so a first-inversion F read here as
+    // "F/A" still counts as agreeing with an "F" printed in the file.
+    const symbol = !beat.isRest && beat.hasChord && beat.chord.name ? beat.chord.name : null;
+    if (symbol && symbol === identifiedName) pitchText = `chord ${pitchText}`;
+    else if (symbol) pitchText = `${pitchText}, chord symbol ${symbol}`;
+
     const techniques = new Set();
-    if (!beat.isRest && !beat.hasChord) {
+    if (!beat.isRest) {
         for (const note of beat.notes) {
             for (const technique of describeNoteTechniques(note)) techniques.add(technique);
         }
@@ -270,9 +327,12 @@ function extractMeasures(track, terse) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
+    // Pitches carry the capo; fret numbers and the file's chord symbols do not. Chord naming works
+    // in the fingered frame, so the capo comes back off before anything is identified.
+    const capo = staff.capo > 0 ? staff.capo : 0;
 
     return staff.bars.map(bar => ({
-        beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount, terse))
+        beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount, terse, capo))
     }));
 }
 
