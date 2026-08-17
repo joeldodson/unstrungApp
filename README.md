@@ -105,38 +105,41 @@ and up to four separate recordings of the same note at the same volume.
 Striking the same string twice in a row uses a different recording each time,
 which is why repeated notes sound like someone playing rather than a sound being replayed.
 
-Below E2, which is a guitar's lowest note, the samples come from
-[Black And Blue Basses](https://github.com/sfzinstruments/karoryfer.black-and-blue-basses).
-unstrung ships the plain samples of its "dark black" bass for the seventeen notes
-from B0 up to D#2, which is 204 recordings in the same three volumes with four takes each.
-Together the two cover every semitone from B0 to D6 with no gaps,
-which reaches the low B of a five-string bass and every drop tuning down to drop A.
-Nothing decides between the libraries at playback time; each pitch has exactly one source.
+The guitar samples stop at E2, which is a guitar's own lowest note.
+Below that, unstrung uses
+[Black And Blue Basses](https://github.com/sfzinstruments/karoryfer.black-and-blue-basses),
+by the same creator as the guitar samples and also released under CC0.
+The seventeen notes from B0 up to D#2 come from that library's "dark black" bass,
+in its plain articulation, which is 204 recordings in the same three volumes with four takes each.
 
-That does mean a bass line crossing E2 changes instrument mid-phrase.
-The pitches stay right and it's still a real recorded string, it just stops sounding like a bass.
-Avoiding that would mean bundling three times as many bass samples
-and choosing a library per track, which is a lot of size and complexity
-for something that matters less than knowing which notes to play.
+Together the two cover every semitone from B0 to D6 with no gaps.
+That reaches the low B of a five-string bass and every drop tuning down to drop A.
+Before this, nothing below E2 had a sample at all,
+so bass tracks could not be generated and neither could a guitar in a drop tuning.
 
-`scripts/fetch-bass-samples.mjs` is what fetched the bass samples,
-and it exists mostly for one reason.
+There is a slight change in timbre between D#2 and E2, where the recordings switch instrument.
+Each pitch is covered by one instrument only.
+Carrying both across the range where they overlap would mean duplicate notes
+in a package that is already large,
+and it would require unstrung to decide what kind of instrument a track is before playing it.
+Covering the range once, by pitch alone, avoids that special case.
+
+`scripts/fetch-bass-samples.mjs` fetched the bass samples, and exists mostly for one reason.
 The bass library's own sfz files place its recordings an octave above where they actually sound,
-because they're written for bass notation, which sounds an octave below what's written.
+because they are written for bass notation, which sounds an octave below what is written.
 The guitar library does not do that.
-Trusting both would have put every bass note an octave too high, and nothing would have failed
-loudly.
+Trusting both would have put every bass note an octave too high, with nothing failing visibly.
 The script corrects the octave when it writes the map unstrung reads,
 and `scripts/progressions/verify-sample-range.mjs` measures the recordings themselves
-to prove each key sounds at the pitch it claims.
+to confirm each key sounds at the pitch it claims.
 
-The upside is simply that it's a real guitar.
+The upside is simply that these are real instruments.
 Nothing is being modeled or approximated, so it sounds like a guitar without any further work.
 It also needs no plugins, no synthesizer, and no network access at runtime,
 which keeps unstrung to plain web technology and keeps it working the same way on any platform.
 
 The drawbacks are real too.
-The samples are about 396 MB, and they're committed to the repo rather than downloaded on demand,
+The samples are about 397 MB, and they're committed to the repo rather than downloaded on demand,
 so cloning takes a while and the installer is much larger than the code alone would need.
 I decided that was worth it.
 A download step depends on someone else's server still being there years from now,
