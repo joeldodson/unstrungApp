@@ -26,6 +26,9 @@ const beat = (notes, extra = {}) => ({
 });
 const bar = beats => ({ voices: [{ beats }] });
 
+// alphaTab numbers strings from the lowest pitch, so string 1 is the low E and prints as tab
+// string 6. Fret 3 of it is G2, MIDI 43.
+
 console.log('=== A percussion track is named by drum, not by pitch ===');
 {
     // Articulation lists come straight off the track, indexed by note.percussionArticulation.
@@ -71,7 +74,7 @@ console.log('=== A percussion track is named by drum, not by pitch ===');
 
 console.log('\n=== A section name reaches the measure it starts on ===');
 {
-    const note = { isStringed: true, string: 6, fret: 3, realValue: 43, isDead: false };
+    const note = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
     const score = {
         title: 'Synthetic', tempo: 120,
         masterBars: [
@@ -100,7 +103,7 @@ console.log('\n=== Lyrics reach every track, labelled per singer ===');
 {
     // Invented words, so no real lyric is reproduced in this repository. "sil-" and "ver" are a
     // hyphenated pair, which is how Guitar Pro says one word spans two notes.
-    const note = { isStringed: true, string: 6, fret: 3, realValue: 43, isDead: false };
+    const note = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
     const sung = (realValue, syllable) => ({ isStringed: true, string: 2, fret: 3, realValue, isDead: false });
 
     const vocalTrack = (name, wordsPerBar) => ({
@@ -180,6 +183,89 @@ console.log('\n=== A sung note is a pitch, and carries its syllable ===');
     check('a sung note is given as a pitch, not a fret', beats[0], 'quarter note, D4, "sil-"');
     check('the next syllable lands on the next note', beats[1], 'quarter note, D4, "ver"');
     check('a sung note with no syllable is still a pitch', beats[2], 'quarter note, D4');
+}
+
+console.log('\n=== Tuplets change the duration, so they are named ===');
+{
+    const note = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
+    const tuplet = (numerator, denominator, duration = 16) =>
+        beat([note], { duration, hasTuplet: true, tupletNumerator: numerator, tupletDenominator: denominator });
+    const score = {
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar()],
+        tracks: [{
+            name: 'Guitar', isPercussion: false, playbackInfo: { program: 25 },
+            staves: [{
+                isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+                bars: [bar([tuplet(3, 2), tuplet(5, 4, 8), tuplet(7, 3), beat([note])])]
+            }]
+        }]
+    };
+    const beats = extractScoreMetadata(score).tracks[0].measures[0].beats;
+    check('a 3:2 is a triplet', beats[0], 'sixteenth note triplet, string 6, fret 3');
+    check('a 5:4 is a quintuplet', beats[1], 'eighth note quintuplet, string 6, fret 3');
+    check('an unconventional ratio is spelled out',
+        beats[2], 'sixteenth note, 7 in the time of 3, string 6, fret 3');
+    check('a plain note is unchanged', beats[3], 'quarter note, string 6, fret 3');
+}
+
+console.log('\n=== Let ring is marked at the ends of its run, not on every beat ===');
+{
+    const ringing = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false, isLetRing: true };
+    const plain = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
+    const score = {
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar(), masterBar()],
+        tracks: [{
+            name: 'Guitar', isPercussion: false, playbackInfo: { program: 25 },
+            staves: [{
+                isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+                bars: [
+                    // A run that carries on over the bar line, then a single ringing note.
+                    bar([beat([plain]), beat([ringing]), beat([ringing])]),
+                    bar([beat([ringing]), beat([plain]), beat([ringing])])
+                ]
+            }]
+        }]
+    };
+    const measures = extractScoreMetadata(score).tracks[0].measures;
+    check('nothing before the run', measures[0].beats[0], 'quarter note, string 6, fret 3');
+    check('the run begins', measures[0].beats[1], 'quarter note, string 6, fret 3, let ring begins');
+    check('and says nothing in the middle', measures[0].beats[2], 'quarter note, string 6, fret 3');
+    check('the run ends across the bar line', measures[1].beats[0], 'quarter note, string 6, fret 3, let ring ends');
+    check('a single ringing note is just marked', measures[1].beats[2], 'quarter note, string 6, fret 3, let ring');
+}
+
+console.log('\n=== Repeats, beat text, feel and tempo changes ===');
+{
+    const note = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
+    const score = {
+        title: 'Synthetic', tempo: 120,
+        masterBars: [
+            masterBar({ tripletFeel: 2, tempoAutomations: [{ value: 120 }] }),
+            masterBar({ tripletFeel: 2, isRepeatStart: true }),
+            masterBar({ tripletFeel: 2, alternateEndings: 0b1, repeatCount: 2 }),
+            masterBar({ tripletFeel: 2, alternateEndings: 0b110, tempoAutomations: [{ value: 80 }] })
+        ],
+        tracks: [{
+            name: 'Guitar', isPercussion: false, playbackInfo: { program: 25 },
+            staves: [{
+                isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+                bars: [
+                    bar([beat([note], { text: 'tune to Open G' })]),
+                    bar([beat([note])]), bar([beat([note])]), bar([beat([note])])
+                ]
+            }]
+        }]
+    };
+    const meta = extractScoreMetadata(score);
+    const measures = meta.tracks[0].measures;
+    check('a repeat start is reported', measures[1].repeat, 'repeat starts here');
+    check('an ending and a repeat end together', measures[2].repeat, '1st ending, repeat ends here, played 2 times');
+    check('a bar used for two endings names both', measures[3].repeat, '2nd and 3rd ending');
+    check('a bar with no repeat marks says nothing', measures[0].repeat, null);
+    check('beat text is given verbatim', measures[0].beats[0],
+        'quarter note, string 6, fret 3, text "tune to Open G"');
+    check('a swung song says so', meta.feel, 'triplet eighths (swung)');
+    check('and a tempo change is flagged', meta.tempoVaries, true);
 }
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);

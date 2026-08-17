@@ -2,7 +2,7 @@
 // JSON-serializable summary that the renderer can display. Kept free of
 // alphaTab imports and DOM access so it can also run standalone for testing.
 
-import { STANDARD_TUNING_MIDI, identifyChordFromNotes, midiToPitchName } from './musicTheory.mjs';
+import { PITCH_CLASSES, STANDARD_TUNING_MIDI, identifyChordFromNotes, midiToPitchName } from './musicTheory.mjs';
 
 const KEY_SIGNATURE_NAMES = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
 
@@ -74,10 +74,32 @@ const DURATION_NAMES = {
     256: 'two-hundred-fifty-sixth'
 };
 
-function durationName(duration, dots) {
+// What a tuplet is called when its denominator is the conventional partner of its numerator.
+// Anything else is spelled out as a ratio rather than given a name nobody uses.
+const TUPLET_NAMES = {
+    2: { over: 3, name: 'duplet' }, 3: { over: 2, name: 'triplet' }, 4: { over: 3, name: 'quadruplet' },
+    5: { over: 4, name: 'quintuplet' }, 6: { over: 4, name: 'sextuplet' },
+    7: { over: 4, name: 'septuplet' }, 9: { over: 8, name: 'nonuplet' }
+};
+
+/**
+ * How long the beat is, including any tuplet.
+ *
+ * The tuplet was missing, and its absence made the duration wrong rather than merely incomplete:
+ * three sixteenth-note triplets occupy the time of two sixteenths, so calling each of them a
+ * plain "sixteenth note" misstates both the note and the bar it sits in. Every tuplet in the
+ * files tested is a 3:2 triplet, but the ratio is read rather than assumed.
+ */
+function durationName(duration, dots, numerator, denominator) {
     const base = DURATION_NAMES[duration] ?? `1/${duration}`;
     const dotPrefix = dots === 1 ? 'dotted ' : dots === 2 ? 'double-dotted ' : dots > 2 ? `${dots}-dotted ` : '';
-    return `${dotPrefix}${base} note`;
+    const name = `${dotPrefix}${base} note`;
+
+    if (!(numerator > 0) || !(denominator > 0) || (numerator === 1 && denominator === 1)) return name;
+    const known = TUPLET_NAMES[numerator];
+    return known && known.over === denominator
+        ? `${name} ${known.name}`
+        : `${name}, ${numerator} in the time of ${denominator}`;
 }
 
 // HarmonicType, SlideInType, SlideOutType, VibratoType enum values, per alphaTab's model.
@@ -99,6 +121,14 @@ const SLIDE_OUT_NAMES = {
     6: 'pick slide up'
 };
 const VIBRATO_NAMES = { 1: 'slight vibrato', 2: 'wide vibrato' };
+
+// alphaTab's TripletFeel. A swung song is written in straight notes and played long-short, so the
+// notated durations alone are not what a player does with them.
+const TRIPLET_FEEL_NAMES = {
+    1: 'triplet sixteenths (swung)', 2: 'triplet eighths (swung)',
+    3: 'dotted sixteenths', 4: 'dotted eighths',
+    5: 'Scottish sixteenths (snapped)', 6: 'Scottish eighths (snapped)'
+};
 
 function describeNoteTechniques(note) {
     const techniques = [];
@@ -328,7 +358,7 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
  * measure rather than to the beat it happens to be anchored to -- see `describeChordSymbols`. So
  * nothing about it appears here: this describes what the beat plays, and only that.
  */
-function describeBeat(beat, stringCount, terse, capo, percussion, sung) {
+function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
@@ -353,10 +383,41 @@ function describeBeat(beat, stringCount, terse, capo, percussion, sung) {
         }
     }
     if (beat.vibrato) techniques.add(VIBRATO_NAMES[beat.vibrato] ?? 'vibrato');
+    if (letRing) techniques.add(letRing);
 
-    const durationText = durationName(beat.duration, beat.dots);
+    // What the score has written above the beat. It ranges from a one-word instruction to the
+    // player to something the whole track depends on -- Pink Houses opens with "All Guitars tune
+    // to Open G", without which every fret number on that track means the wrong note -- so it is
+    // given verbatim rather than summarised or dropped.
+    const textNote = beat.text ? `, text "${beat.text}"` : '';
+
+    const durationText = durationName(
+        beat.duration, beat.dots,
+        beat.hasTuplet ? beat.tupletNumerator : 0,
+        beat.hasTuplet ? beat.tupletDenominator : 0
+    );
     const techniquesText = techniques.size > 0 ? `, ${[...techniques].join(', ')}` : '';
-    return `${durationText}, ${pitchText}${techniquesText}`;
+    return `${durationText}, ${pitchText}${techniquesText}${textNote}`;
+}
+
+/**
+ * Where each run of let-ring notes starts and stops, one entry per beat.
+ *
+ * Let ring is notated as a bracket over a passage, and the file marks every note under it. Saying
+ * so on every beat would be 2846 repetitions across the files tested, most of them in runs eight
+ * beats long, and one track carries it almost throughout. Marking the two ends of each run says
+ * the same thing in 348 places instead, and matches how it is written.
+ */
+function letRingMarks(beats) {
+    const held = beats.map(beat => !beat.isRest && beat.notes.some(note => note.isLetRing));
+    return held.map((on, index) => {
+        if (!on) return null;
+        const starts = !held[index - 1];
+        const stops = !held[index + 1];
+        if (starts && stops) return 'let ring';
+        if (starts) return 'let ring begins';
+        return stops ? 'let ring ends' : null;
+    });
 }
 
 // Pitches carry the capo; fret numbers and the file's chord symbols do not. Chord naming works in
@@ -506,6 +567,41 @@ function extractSongLyrics(score) {
     return byMeasure;
 }
 
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'];
+
+/**
+ * What a measure does to the playing order: starts a repeat, ends one, or is an alternate ending.
+ *
+ * The measure list runs straight through from 1 to the end, which is not the order the song is
+ * played when it repeats. Ripple doubles back twice, with a first and second ending each time,
+ * and nothing said so. This does not reorder anything -- it reports what the score marks, which
+ * is what a sighted player reads off the barlines.
+ *
+ * `alternateEndings` is a bit per ending, so a bar played on both the first and second time
+ * through has two bits set.
+ */
+function describeRepeat(masterBar) {
+    if (!masterBar) return null;
+    const parts = [];
+
+    if (masterBar.alternateEndings) {
+        const endings = [];
+        for (let bit = 0; bit < 8; bit++) {
+            if (masterBar.alternateEndings & (1 << bit)) endings.push(ORDINALS[bit]);
+        }
+        if (endings.length > 0) parts.push(`${endings.join(' and ')} ending`);
+    }
+    if (masterBar.isRepeatStart) parts.push('repeat starts here');
+    // repeatCount is how many times the passage is played in total, counting the first pass.
+    if (masterBar.repeatCount > 0) {
+        parts.push(masterBar.repeatCount > 1
+            ? `repeat ends here, played ${masterBar.repeatCount} times`
+            : 'repeat ends here');
+    }
+
+    return parts.length === 0 ? null : parts.join(', ');
+}
+
 /**
  * The name of the section starting at this measure, e.g. "Verse 2", or null.
  *
@@ -536,13 +632,43 @@ function extractMeasures(track, terse, masterBars, songLyrics) {
     const percussion = track.isPercussion ? (track.percussionArticulations ?? []) : null;
     const sung = trackSings(track);
 
-    return staff.bars.map((bar, index) => ({
-        section: describeSection(masterBars[index]),
-        chordSymbols: describeChordSymbols(bar, masterBars[index]),
-        lyrics: songLyrics[index] ?? [],
-        beats: (bar.voices[0] ? bar.voices[0].beats : [])
-            .map(beat => describeBeat(beat, stringCount, terse, capo, percussion, sung))
-    }));
+    // Let ring runs across bar lines, so the marks are worked out over the whole track at once and
+    // handed back to each bar by position.
+    const barBeats = staff.bars.map(bar => (bar.voices[0] ? bar.voices[0].beats : []));
+    const marks = letRingMarks(barBeats.flat());
+    let seen = 0;
+
+    return staff.bars.map((bar, index) => {
+        const beats = barBeats[index];
+        const offset = seen;
+        seen += beats.length;
+        return {
+            section: describeSection(masterBars[index]),
+            repeat: describeRepeat(masterBars[index]),
+            chordSymbols: describeChordSymbols(bar, masterBars[index]),
+            lyrics: songLyrics[index] ?? [],
+            beats: beats.map((beat, i) =>
+                describeBeat(beat, stringCount, terse, capo, percussion, sung, marks[offset + i]))
+        };
+    });
+}
+
+/**
+ * What makes two chord names the same chord, for the purpose of listing which a track uses.
+ *
+ * Not the printed name, which was the bug: Sister Golden Hair is in A, so the file spells a chord
+ * G#m and we identify the same notes as Abm, and both appeared in the list with the symbol's
+ * thirteen beats counted twice. The root is reduced to a pitch class, which makes those one entry.
+ *
+ * A bass note is dropped too. C and C/G are one chord to learn, and which note is underneath is a
+ * property of the beat rather than of the chord the track is built from.
+ */
+function chordIdentity(name) {
+    const withoutBass = String(name).trim().split('/')[0];
+    const match = /^([A-G][#b]?)(.*)$/.exec(withoutBass);
+    const pitchClass = match ? PITCH_CLASSES[match[1]] : undefined;
+    // Anything we cannot read as a chord name keys on itself, so it is neither merged nor lost.
+    return pitchClass === undefined ? `name:${name}` : `${pitchClass}|${match[2].trim().toLowerCase()}`;
 }
 
 /**
@@ -570,16 +696,20 @@ function extractTrackChords(track) {
 
     const chords = new Map();
     const add = (name, root, suffix, fromSymbol) => {
-        const existing = chords.get(name);
+        const key = chordIdentity(name);
+        const existing = chords.get(key);
         if (existing) {
             existing.beats++;
             // A symbol beat and an identified beat can name the same chord. Whichever arrives with
             // root and suffix fills them in, so the library can be reached either way.
             if (root && !existing.root) { existing.root = root; existing.suffix = suffix; }
+            // The file's own spelling wins for display: it is following the key signature and we
+            // are not, so a song in A gets G#m rather than our Abm.
+            if (fromSymbol && !existing.fromSymbol) existing.name = name;
             if (fromSymbol) existing.fromSymbol = true;
             return;
         }
-        chords.set(name, { name, root: root ?? null, suffix: suffix ?? null, beats: 1, fromSymbol });
+        chords.set(key, { name, root: root ?? null, suffix: suffix ?? null, beats: 1, fromSymbol });
     };
 
     for (const bar of staff.bars || []) {
@@ -678,6 +808,26 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
     );
     const keySignatureVaries = masterBars.some(bar => bar.keySignature !== firstBar.keySignature);
 
+    // A tempo automation sits on the bar it takes effect from, and there is normally one on bar 1
+    // stating the tempo the song already reports. Only a different value is a change: Sister
+    // Golden Hair slows from 120 to 100 and then to 80 over its last two bars, a ritard into the
+    // ending that the single tempo figure said nothing about.
+    const tempos = new Set();
+    for (const bar of masterBars) {
+        for (const automation of bar.tempoAutomations ?? []) tempos.add(automation.value);
+    }
+    if (score.tempo) tempos.add(score.tempo);
+    const tempoVaries = tempos.size > 1;
+
+    // Triplet feel is a property of the bar, and every bar of a song that has it normally carries
+    // it. It changes how every pair of notes at that level is played, so it belongs with the time
+    // signature rather than being discoverable only by ear.
+    const feels = new Set();
+    for (const bar of masterBars) if (bar.tripletFeel) feels.add(bar.tripletFeel);
+    const feel = feels.size === 0 ? null
+        : [...feels].map(value => TRIPLET_FEEL_NAMES[value] ?? `feel ${value}`).join(', ') +
+            (feels.size === 1 && masterBars.every(bar => bar.tripletFeel) ? '' : ' (in part of the song)');
+
     // Gathered once for the whole song, then given to every track: the words are the clearest
     // landmark in a hundred measures, and the track carrying them is rarely the one being read.
     const songLyrics = extractSongLyrics(score);
@@ -687,6 +837,8 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         artist: score.artist || null,
         album: score.album || null,
         tempo: score.tempo || null,
+        tempoVaries,
+        feel,
         barCount: masterBars.length,
         timeSignature: firstBar ? `${firstBar.timeSignatureNumerator}/${firstBar.timeSignatureDenominator}` : null,
         timeSignatureVaries,

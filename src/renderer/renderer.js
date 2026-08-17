@@ -72,7 +72,13 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
     addSummaryRow(ul, 'Title', meta.title);
     if (meta.artist) addSummaryRow(ul, 'Artist', meta.artist);
     if (meta.album) addSummaryRow(ul, 'Album', meta.album);
-    if (meta.tempo) addSummaryRow(ul, 'Tempo', `${meta.tempo} BPM`);
+    if (meta.tempo) {
+        addSummaryRow(ul, 'Tempo',
+            `${meta.tempo} BPM` + (meta.tempoVaries ? ' (changes later in the song)' : ''));
+    }
+    // Only when there is one: a straight song has nothing to say here, and the row would be a
+    // line to skip on every song to report the ordinary case.
+    if (meta.feel) addSummaryRow(ul, 'Feel', meta.feel);
     addSummaryRow(ul, 'Bars', String(meta.barCount));
     addSummaryRow(
         ul,
@@ -143,6 +149,10 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
                 measureHeading.textContent = [
                     `Measure ${measureIndex + 1}`,
                     measure.section,
+                    // What the barlines say about the playing order. The measures are listed
+                    // straight through, which is not how a song with repeats is played, so a
+                    // repeat mark is as much a part of finding your way as the section is.
+                    measure.repeat,
                     measure.chordSymbols
                 ].filter(Boolean).join(' - ');
                 measuresDetails.append(measureHeading);
