@@ -192,3 +192,47 @@ them mean.
 The trade is that a capo track is named by shape rather than by sound. The
 sounding chord is a capo's worth of semitones up, and the track summary still
 reports the capo.
+
+---
+
+# What alphaTab's own MIDI generation does
+
+`node scripts/gp-experiment/alphatab-midi-spread.mjs` runs alphaTab's
+`MidiFileGenerator` over our files and measures, per beat, how many distinct
+ticks that beat's note-ons land on.
+
+| track | multi-note beats at one tick | beats with any spread |
+|---|---|---|
+| Acoustic Lead (.gp) | 204 | **2** |
+| Acoustic Capo VII (.gp) | 318 | 0 |
+| Mandolin (.gp) | 303 | 0 |
+| Acoustic Guitar (.gp5 / .gpx) | 39 | 0 |
+| Acoustic Lead / Capo VII (Ripple.gp5) | 27 / 68 | 0 |
+
+alphaTab makes **no assumption at all**. Every multi-note beat sounds at a
+single tick — all notes together, no sweep, no direction — except the two beats
+whose file marks a brush. The source agrees: `_getBrushInfo` returns a
+zero-filled array unless `beat.brushType` is set, and that array is the only
+thing that offsets a note within its beat (outside rasgueado, which none of our
+files use).
+
+The two marked beats come out as:
+
+    bar 11: note-ons at +0, +30 ticks     (2 notes, brushDuration 30)
+    bar 14: note-ons at +0, +7, +14, +21, +28 ticks   (5 notes, brushDuration 30)
+
+which is `brushDuration / (noteCount - 1)` per gap, floored — the spacing
+`strumStepSeconds` now reproduces.
+
+So alphaTab is strictly literal: it plays what the file states and invents
+nothing. Anything that makes a chord sound strummed rather than struck is our
+own addition.
+
+## The two remaining fixes
+
+- Chord completion now goes through `statedStrumDirection` instead of always
+  sweeping downward. The learned voicing is stored lowest-string-first, so a
+  stated upstroke reverses it.
+- `brushDuration` is honoured. The two marked brushes now spread over 14.9 ms
+  and 13.9 ms, as the file asks, instead of the 20 ms per string that would
+  have stretched them to 20 ms and 80 ms.

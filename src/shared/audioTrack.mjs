@@ -34,7 +34,8 @@ export const TICKS_PER_QUARTER = 960;
 // 3. A beat that carries a chord name sounds the whole chord. Tablature often writes only the
 //    bass note under a chord symbol and leaves the rest to the player, so where a named beat
 //    sounds fewer than CHORD_COMPLETION_MAX_NOTES notes the remaining strings are filled in and
-//    the beat is strummed as a downstroke.
+//    the beat is strummed. Filling the chord in says nothing about which way the pick went, so
+//    the direction is settled by rule 2 like any other strum.
 //
 //    The voicing comes from the song, not from a chord dictionary: for each chord name we take
 //    the fullest voicing the piece itself ever writes out. A song may deliberately play a chord
@@ -139,6 +140,30 @@ function statedStrumDirection(beat) {
     if (pick === PICK_DOWN) return 'lowToHigh';
     if (pick === PICK_UP) return 'highToLow';
     return null;
+}
+
+/**
+ * How long to leave between one string of a sweep and the next, in seconds.
+ *
+ * A file that marks a brush also says how fast it was: `brushDuration` is the whole sweep in MIDI
+ * ticks, spread over the gaps between the notes, which is how alphaTab's own MIDI generation
+ * reads it. Guitar Pro 8 keeps it well away from the brush direction -- the direction is a beat
+ * Property, the duration an XProperty on the same beat -- which is presumably why it went unread
+ * here for so long.
+ *
+ * These are much tighter than our own spacing: the two brushes in Ripple are 30 ticks, about 15ms
+ * across five strings, where STRUM_STRING_DELAY_SECONDS would have taken 100ms. So a stated brush
+ * really is nearly a chord, and playing it at our own pace overstated it sevenfold.
+ *
+ * STRUM_STRING_DELAY_SECONDS remains the fallback, for the overwhelming majority of beats where
+ * the file marks no brush at all and playing every string at the same instant would not sound
+ * like a guitar.
+ */
+function strumStepSeconds(beat, noteCount, beatTempo) {
+    if (!beat.brushType || !(beat.brushDuration > 0) || noteCount < 2) return STRUM_STRING_DELAY_SECONDS;
+    // Integer ticks per gap, matching alphaTab rather than being fractionally more exact than it.
+    const ticks = Math.floor(beat.brushDuration / (noteCount - 1));
+    return ticks * (60 / (beatTempo * TICKS_PER_QUARTER));
 }
 
 /**
@@ -293,9 +318,17 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
                     if (voicing && beat.notes.length <= CHORD_COMPLETION_MAX_NOTES
                         && voicing.length > beat.notes.length) {
                         const velocity = velocityLayerFor(beat.notes[0]?.dynamics);
-                        for (const [indexInBeat, string] of voicing.entries()) {
+                        // The voicing is stored lowest-pitched string first, which is a
+                        // downstroke; a stated upstroke turns it round. This beat is being filled
+                        // in from a chord name, but that is no reason to ignore a brush the file
+                        // marked on it.
+                        const sweep = statedStrumDirection(beat) === 'highToLow'
+                            ? [...voicing].reverse()
+                            : voicing;
+                        const step = strumStepSeconds(beat, sweep.length, beatTempo);
+                        for (const [indexInBeat, string] of sweep.entries()) {
                             notes.push({
-                                startSeconds: beatStartSeconds + indexInBeat * STRUM_STRING_DELAY_SECONDS,
+                                startSeconds: beatStartSeconds + indexInBeat * step,
                                 notatedSeconds,
                                 midi: string.midi,
                                 string: string.string,
@@ -303,7 +336,7 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
                                 velocity,
                                 bar: bar.index,
                                 indexInBeat,
-                                strumSize: voicing.length,
+                                strumSize: sweep.length,
                                 completedFromChord: chordName
                             });
                         }
@@ -327,6 +360,8 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
 
                     // The index comes from the raw note list so a skipped note still leaves its
                     // place in the sweep: the pick travels past that string either way.
+                    const step = strumStepSeconds(beat, beat.notes.length, beatTempo);
+
                     for (const [indexInBeat, note] of sweep.entries()) {
                         // A tied note is not struck again; the note it continues is simply
                         // still ringing, which the ring-until-restruck rule already gives us.
@@ -337,8 +372,7 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
                         notes.push({
                             // Notes of a strum are spread across the sweep, which is what makes a
                             // downstroke sound different from an upstroke.
-                            startSeconds: beatStartSeconds +
-                                (isStrum ? indexInBeat * STRUM_STRING_DELAY_SECONDS : 0),
+                            startSeconds: beatStartSeconds + (isStrum ? indexInBeat * step : 0),
                             notatedSeconds,
                             midi: note.realValue,
                             // alphaTab numbers strings low-to-high; flip to tab convention.
