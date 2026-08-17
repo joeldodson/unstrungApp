@@ -124,15 +124,6 @@ in a package that is already large,
 and it would require unstrung to decide what kind of instrument a track is before playing it.
 Covering the range once, by pitch alone, avoids that special case.
 
-`scripts/fetch-bass-samples.mjs` fetched the bass samples, and exists mostly for one reason.
-The bass library's own sfz files place its recordings an octave above where they actually sound,
-because they are written for bass notation, which sounds an octave below what is written.
-The guitar library does not do that.
-Trusting both would have put every bass note an octave too high, with nothing failing visibly.
-The script corrects the octave when it writes the map unstrung reads,
-and `scripts/progressions/verify-sample-range.mjs` measures the recordings themselves
-to confirm each key sounds at the pitch it claims.
-
 The upside is simply that these are real instruments.
 Nothing is being modeled or approximated, so it sounds like a guitar without any further work.
 It also needs no plugins, no synthesizer, and no network access at runtime,
