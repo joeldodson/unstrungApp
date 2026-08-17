@@ -1,0 +1,100 @@
+// Checks on scoreMetadata for things no file in this repository contains.
+//
+// Sections and percussion tracks are both absent from musicfiles/ -- Ripple has neither -- and the
+// files that do carry them are licensed to one person and cannot be committed. scoreMetadata.mjs
+// takes plain objects and imports no alphaTab, which was done so it could run standalone; this is
+// that. The shapes below mirror what alphaTab hands it, drawn from real files.
+//
+// Run: node scripts/gp-experiment/verify-synthetic-score.mjs
+
+import { extractScoreMetadata } from '../../src/shared/scoreMetadata.mjs';
+
+let failures = 0;
+const check = (label, actual, expected) => {
+    const ok = actual === expected;
+    if (!ok) failures++;
+    console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${label}`);
+    if (!ok) console.log(`          expected: ${expected}\n          actual:   ${actual}`);
+};
+
+const masterBar = (extra = {}) => ({
+    timeSignatureNumerator: 4, timeSignatureDenominator: 4, keySignature: 0, section: null, ...extra
+});
+const beat = (notes, extra = {}) => ({
+    isRest: false, notes, duration: 4, dots: 0, hasChord: false, chord: null,
+    playbackStart: 0, brushType: 0, pickStroke: 0, vibrato: 0, ...extra
+});
+const bar = beats => ({ voices: [{ beats }] });
+
+console.log('=== A percussion track is named by drum, not by pitch ===');
+{
+    // Articulation lists come straight off the track, indexed by note.percussionArticulation.
+    // These entries are the ones a real Songsterr kit uses; note that Guitar Pro's own name
+    // collapses three hi-hats into "Charley" and two different sounds into "Snare".
+    const articulations = [
+        { elementType: 'Snare', outputMidiNumber: 38 },
+        { elementType: 'Kick Drum', outputMidiNumber: 36 },
+        { elementType: 'Charley', outputMidiNumber: 42 },
+        { elementType: 'Charley', outputMidiNumber: 46 },
+        { elementType: 'Snare', outputMidiNumber: 37 },
+        { elementType: 'Crash High', outputMidiNumber: 49 },
+        { elementType: 'Nonexistent Gadget', outputMidiNumber: 999 }
+    ];
+    const hit = index => ({ isStringed: false, percussionArticulation: index, realValue: 22 });
+
+    const score = {
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar(), masterBar()],
+        tracks: [{
+            name: 'Drums', isPercussion: true, playbackInfo: { program: 0 },
+            percussionArticulations: articulations,
+            staves: [{
+                isStringed: false, tuning: [], capo: 0, tuningName: '',
+                bars: [
+                    bar([beat([hit(1), hit(2)]), beat([hit(0)]), beat([hit(3)]), beat([hit(5), hit(1)])]),
+                    bar([beat([hit(4)]), beat([hit(6)])])
+                ]
+            }]
+        }]
+    };
+
+    const track = extractScoreMetadata(score).tracks[0];
+    check('kick and closed hi-hat together', track.measures[0].beats[0], 'quarter note, bass drum; closed hi-hat');
+    check('snare', track.measures[0].beats[1], 'quarter note, acoustic snare');
+    check('open hi-hat is not confused with the closed one', track.measures[0].beats[2], 'quarter note, open hi-hat');
+    check('crash with kick', track.measures[0].beats[3], 'quarter note, crash cymbal 1; bass drum');
+    check('side stick is not just called a snare', track.measures[1].beats[0], 'quarter note, side stick');
+    check('an articulation outside the map falls back to the file\'s own name',
+        track.measures[1].beats[1], 'quarter note, nonexistent gadget');
+    check('a drum track lists no chords', track.chords.length, 0);
+    check('and is not reported as stringed', track.isStringed, false);
+}
+
+console.log('\n=== A section name reaches the measure it starts on ===');
+{
+    const note = { isStringed: true, string: 6, fret: 3, realValue: 43, isDead: false };
+    const score = {
+        title: 'Synthetic', tempo: 120,
+        masterBars: [
+            masterBar({ section: { text: 'Intro', marker: '' } }),
+            masterBar(),
+            masterBar({ section: { text: '', marker: 'B' } }),
+            masterBar({ section: { text: '   ', marker: '' } })
+        ],
+        tracks: [{
+            name: 'Guitar', isPercussion: false, playbackInfo: { program: 25 },
+            staves: [{
+                isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+                bars: [bar([beat([note])]), bar([beat([note])]), bar([beat([note])]), bar([beat([note])])]
+            }]
+        }]
+    };
+
+    const measures = extractScoreMetadata(score).tracks[0].measures;
+    check('the section is on the measure it begins', measures[0].section, 'Intro');
+    check('and on no other', measures[1].section, null);
+    check('a marker stands in when there is no text', measures[2].section, 'B');
+    check('whitespace is not a section name', measures[3].section, null);
+}
+
+console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
+process.exit(failures === 0 ? 0 : 1);

@@ -118,15 +118,55 @@ function describeNoteTechniques(note) {
     return techniques;
 }
 
+// The General MIDI percussion key map, which is what a drum note's articulation resolves to. Kept
+// here rather than taken from alphaTab so this file stays free of alphaTab imports, the same
+// reason the melodic instrument names above are spelled out.
+const GENERAL_MIDI_PERCUSSION = {
+    35: 'acoustic bass drum', 36: 'bass drum', 37: 'side stick', 38: 'acoustic snare',
+    39: 'hand clap', 40: 'electric snare', 41: 'low floor tom', 42: 'closed hi-hat',
+    43: 'high floor tom', 44: 'pedal hi-hat', 45: 'low tom', 46: 'open hi-hat',
+    47: 'low-mid tom', 48: 'hi-mid tom', 49: 'crash cymbal 1', 50: 'high tom',
+    51: 'ride cymbal 1', 52: 'china cymbal', 53: 'ride bell', 54: 'tambourine',
+    55: 'splash cymbal', 56: 'cowbell', 57: 'crash cymbal 2', 58: 'vibraslap',
+    59: 'ride cymbal 2', 60: 'high bongo', 61: 'low bongo', 62: 'muted high conga',
+    63: 'open high conga', 64: 'low conga', 65: 'high timbale', 66: 'low timbale',
+    67: 'high agogo', 68: 'low agogo', 69: 'cabasa', 70: 'maracas',
+    71: 'short whistle', 72: 'long whistle', 73: 'short guiro', 74: 'long guiro',
+    75: 'claves', 76: 'high wood block', 77: 'low wood block', 78: 'muted cuica',
+    79: 'open cuica', 80: 'muted triangle', 81: 'open triangle'
+};
+
+/**
+ * Which drum or cymbal a percussion note strikes.
+ *
+ * `note.percussionArticulation` is an index into the track's own articulation list, and each entry
+ * carries both a name and the General MIDI number it sounds. The MIDI number is preferred because
+ * the file's own names collapse distinctions a drummer needs: Guitar Pro calls 42, 44 and 46 all
+ * "Charley", where the map has them as closed, pedal and open hi-hat, and calls both 37 and 38
+ * "Snare" where one is a side stick.
+ *
+ * Without this a drum part was described by pitch -- "A#0" for a kick drum -- which is not what
+ * the file says and is nothing a player can act on.
+ */
+function describePercussionNote(note, articulations) {
+    const articulation = articulations[note.percussionArticulation];
+    if (!articulation) return 'unnamed percussion';
+    return GENERAL_MIDI_PERCUSSION[articulation.outputMidiNumber]
+        // The file's own name, lowercased to sit with the rest, for anything outside the map:
+        // electronic kits and hand percussion can carry articulations the map has no entry for.
+        ?? (articulation.elementType ? articulation.elementType.toLowerCase() : 'unnamed percussion');
+}
+
 // AlphaTab numbers strings low-to-high (1 = low E). Guitarists and tab notation
 // conventionally number high-to-low (1 = high E), so we flip for display.
-function describeNotePitch(note, stringCount) {
+function describeNotePitch(note, stringCount, percussion) {
     if (note.isStringed) {
         const conventionalString = stringCount - note.string + 1;
         if (note.isDead) return `string ${conventionalString}, muted (X)`;
         if (note.fret === 0) return `string ${conventionalString}, open`;
         return `string ${conventionalString}, fret ${note.fret}`;
     }
+    if (percussion) return describePercussionNote(note, percussion);
     return pitchName(note.realValue);
 }
 
@@ -282,7 +322,7 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
  * measure rather than to the beat it happens to be anchored to -- see `describeChordSymbols`. So
  * nothing about it appears here: this describes what the beat plays, and only that.
  */
-function describeBeat(beat, stringCount, terse, capo) {
+function describeBeat(beat, stringCount, terse, capo, percussion) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
@@ -290,7 +330,7 @@ function describeBeat(beat, stringCount, terse, capo) {
         // Only a beat that names a chord can be shortened. A beat listed string by string has no
         // name to fall back on, so terse descriptions leave it exactly as it was.
         pitchText = describeChordedBeat(beat, stringCount, terse, capo)?.text
-            ?? beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
+            ?? beat.notes.map(note => describeNotePitch(note, stringCount, percussion)).join('; ');
     }
 
     const techniques = new Set();
@@ -354,6 +394,26 @@ function describeChordSymbols(bar, masterBar) {
     return `chord symbol${found.length === 1 ? '' : 's'} ${found.map(describe).join(', ')}`;
 }
 
+/**
+ * The name of the section starting at this measure, e.g. "Verse 2", or null.
+ *
+ * Guitar Pro marks a section on the bar it begins, so this is set on that bar alone and stays null
+ * for the rest of the section. Seven of the eleven Songsterr files tested carry them and they are
+ * the structure of the song: Intro, Verse 1, Guitar Solo 2, Chorus, Outro. A measure list without
+ * them is a hundred numbered rows with nothing to say which is the chorus.
+ *
+ * Sections live on the master bar, so every track of a song shares them.
+ *
+ * `text` is what those files fill in; `marker` is a short label Guitar Pro can show instead and is
+ * empty throughout the corpus, so it is only a fallback.
+ */
+function describeSection(masterBar) {
+    const section = masterBar ? masterBar.section : null;
+    if (!section) return null;
+    const name = (section.text || section.marker || '').trim();
+    return name === '' ? null : name;
+}
+
 // Only the primary voice is described; secondary voices (used for genuinely
 // polyphonic parts, e.g. independent piano hands) are not yet covered.
 function extractMeasures(track, terse, masterBars) {
@@ -361,10 +421,13 @@ function extractMeasures(track, terse, masterBars) {
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
     const capo = staffCapo(staff);
+    const percussion = track.isPercussion ? (track.percussionArticulations ?? []) : null;
 
     return staff.bars.map((bar, index) => ({
+        section: describeSection(masterBars[index]),
         chordSymbols: describeChordSymbols(bar, masterBars[index]),
-        beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount, terse, capo))
+        beats: (bar.voices[0] ? bar.voices[0].beats : [])
+            .map(beat => describeBeat(beat, stringCount, terse, capo, percussion))
     }));
 }
 
