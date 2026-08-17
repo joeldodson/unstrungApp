@@ -178,7 +178,12 @@ function statedStroke(beat) {
  *
  * Identification works from the pitches sounded, not from a stored shape, so it is indifferent to
  * how the chord is fingered: a barred B minor is named the same as any other B minor, and an
- * capo or an altered tuning makes no difference.
+ * altered tuning makes no difference. A capo is taken back off the pitches first, so the name is
+ * in the same frame as the fret numbers beside it, which are themselves counted from the capo,
+ * and in the same frame as the file's own chord symbols: a capo VII track fingering a C shape is
+ * labelled C in the file even though it sounds G. Without this the chords a track uses cannot be
+ * listed at all, since the file's symbols and our own readings would name the same shape
+ * differently and both would appear.
  *
  * Where the same notes spell a second chord as well, that reading follows in parentheses, e.g.
  * "Em7 (G6)".
@@ -197,8 +202,11 @@ function statedStroke(beat) {
  *   a run of strings would be the wrong thing to report. A string the file explicitly marks muted
  *   does not break the run: muting a string and playing through it is exactly how chords like
  *   these are played, so the gap is accounted for.
+ *
+ * Returns `{ text, name, root, suffix }`. The name is the plain chord without its bass, and root
+ * and suffix are what the chord library is keyed by, so a beat's reading can be looked up there.
  */
-function describeChordedBeat(beat, stringCount, terse) {
+function describeChordedBeat(beat, stringCount, terse, capo) {
     if (beat.notes.length < 2 || !stringCount) return null;
     if (!beat.notes.every(note => note.isStringed && typeof note.realValue === 'number')) return null;
 
@@ -214,7 +222,7 @@ function describeChordedBeat(beat, stringCount, terse) {
 
     // Restricted to everyday chord names: an obscure one is worse than concrete frets, since the
     // point of naming a chord is to be quicker to take in than the strings it replaces.
-    const readings = identifyChordFromNotes(sounding.map(note => note.realValue))
+    const readings = identifyChordFromNotes(sounding.map(note => note.realValue - capo))
         .filter(candidate => RECOGNIZED_STRUM_SUFFIXES.has(candidate.suffix));
     if (readings.length === 0) return null;
 
@@ -267,10 +275,10 @@ function describeChordedBeat(beat, stringCount, terse) {
         ? `${chordText}${strokeText}`
         : `${chordText}, ${rangeText}${strokeText}${mutedText}`;
 
-    return text;
+    return { text, name: primary.name, root: primary.root, suffix: primary.suffix };
 }
 
-function describeBeat(beat, stringCount, terse) {
+function describeBeat(beat, stringCount, terse, capo) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
@@ -279,7 +287,7 @@ function describeBeat(beat, stringCount, terse) {
     } else {
         // Only a beat that names a chord can be shortened. A beat listed string by string has no
         // name to fall back on, so terse descriptions leave it exactly as it was.
-        pitchText = describeChordedBeat(beat, stringCount, terse)
+        pitchText = describeChordedBeat(beat, stringCount, terse, capo)?.text
             ?? beat.notes.map(note => describeNotePitch(note, stringCount)).join('; ');
     }
 
@@ -296,16 +304,81 @@ function describeBeat(beat, stringCount, terse) {
     return `${durationText}, ${pitchText}${techniquesText}`;
 }
 
+// Pitches carry the capo; fret numbers and the file's chord symbols do not. Chord naming works in
+// the fingered frame, so the capo comes back off before anything is identified.
+const staffCapo = staff => (staff.capo > 0 ? staff.capo : 0);
+
 // Only the primary voice is described; secondary voices (used for genuinely
 // polyphonic parts, e.g. independent piano hands) are not yet covered.
 function extractMeasures(track, terse) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
+    const capo = staffCapo(staff);
 
     return staff.bars.map(bar => ({
-        beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount, terse))
+        beats: (bar.voices[0] ? bar.voices[0].beats : []).map(beat => describeBeat(beat, stringCount, terse, capo))
     }));
+}
+
+/**
+ * Every chord the track uses, the ones it is actually built from first.
+ *
+ * Two sources, because neither covers a track on its own. The file's own chord symbols are the
+ * authority where they exist, but a file labels only what its author chose to: the lead track of
+ * Ripple prints one symbol across a hundred bars of arrangement. So beats the parser can name from
+ * their notes count too, which is what makes the list useful on a part that carries no symbols at
+ * all, like the mandolin.
+ *
+ * Both sources have to be in the same frame or the same shape is listed twice under two names.
+ * Symbols are always as fingered, so identification is too -- see describeChordedBeat.
+ *
+ * Only the plain chord is kept, never its bass: a C and a C/G are one chord to learn, and the
+ * inversion is a property of the beat rather than of the chord the track uses. `root` and `suffix`
+ * are what the chord library is keyed by, and are null for a symbol the parser did not also
+ * identify, since a printed name alone does not say how the library spells it.
+ */
+function extractTrackChords(track) {
+    const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
+    if (!staff || !staff.isStringed) return [];
+    const stringCount = staff.tuning ? staff.tuning.length : 0;
+    const capo = staffCapo(staff);
+
+    const chords = new Map();
+    const add = (name, root, suffix, fromSymbol) => {
+        const existing = chords.get(name);
+        if (existing) {
+            existing.beats++;
+            // A symbol beat and an identified beat can name the same chord. Whichever arrives with
+            // root and suffix fills them in, so the library can be reached either way.
+            if (root && !existing.root) { existing.root = root; existing.suffix = suffix; }
+            if (fromSymbol) existing.fromSymbol = true;
+            return;
+        }
+        chords.set(name, { name, root: root ?? null, suffix: suffix ?? null, beats: 1, fromSymbol });
+    };
+
+    for (const bar of staff.bars || []) {
+        for (const beat of (bar.voices[0] ? bar.voices[0].beats : [])) {
+            if (beat.isRest) continue;
+            if (beat.hasChord && beat.chord && beat.chord.name) {
+                add(beat.chord.name, null, null, true);
+            }
+            // Identification runs on symbol beats too, so the list does not depend on which beats
+            // their author happened to label.
+            const reading = describeChordedBeat(beat, stringCount, true, capo);
+            if (reading) add(reading.name, reading.root, reading.suffix, false);
+        }
+    }
+
+    // Ordered by how much of the track each chord accounts for, not by where it first appears.
+    // A strummed part throws off fragments -- two strings of a C read as C5, a passing tone that
+    // completes an Em7 for one beat -- and those are real readings of those beats but are not what
+    // the track is built from. Ripple's capo part spells its five chords across 450 beats and
+    // seven fragments across ten, so frequency puts the useful answer at the top and leaves the
+    // rest below it rather than filtering out beats the file really does contain. The beat count
+    // travels with each chord so a 208-beat C is distinguishable from a one-beat oddity.
+    return [...chords.values()].sort((a, b) => b.beats - a.beats);
 }
 
 /**
@@ -360,6 +433,7 @@ function describeTrack(track, terse) {
         tuningName: staff && staff.isStringed ? staff.tuningName : null,
         tuning: describeTuning(staff),
         capo: staff && staff.capo > 0 ? staff.capo : null,
+        chords: extractTrackChords(track),
         measures: extractMeasures(track, terse)
     };
 }

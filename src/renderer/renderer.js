@@ -113,17 +113,7 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
         addSummaryRow(trackList, 'Capo', track.capo ? `Fret ${track.capo}` : 'None');
         container.append(trackList);
 
-        // Placed with the track's own details rather than after its measures, so reaching it
-        // does not mean travelling past every bar in the song.
-        if (onCreateAudioTrack) {
-            const actions = document.createElement('p');
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = 'Create Audio Track';
-            button.addEventListener('click', () => onCreateAudioTrack(index));
-            actions.append(button);
-            container.append(actions);
-        }
+        container.append(buildTrackChordsRegion(track));
 
         // The measures are almost all of a song's content: hundreds of short text lines per
         // track. They sit behind a collapsed disclosure, and are only built when it is first
@@ -160,6 +150,19 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
         });
 
         container.append(measuresDetails);
+
+        // Last in the track, after the measures. It is the one control here rather than something
+        // to read, so it sits at the end of the track's content instead of interrupting it: the
+        // two collapsed regions above are one line each when closed, so reaching it is short.
+        if (onCreateAudioTrack) {
+            const actions = document.createElement('p');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Create Audio Track';
+            button.addEventListener('click', () => onCreateAudioTrack(index));
+            actions.append(button);
+            container.append(actions);
+        }
     });
 
     return container;
@@ -3548,6 +3551,121 @@ function buildChordPracticeRow(chord) {
     details.append(summary, list);
     item.append(details);
     return item;
+}
+
+/**
+ * The chord library keyed by the name it displays, so a chord symbol printed in a file can be
+ * looked up without parsing it.
+ *
+ * The parser gives a root and suffix for any chord it worked out from notes, but a symbol the file
+ * printed is only ever a string. Rather than teach this a chord-name grammar -- "Dm", "G7",
+ * "F#m7b5", each with its own spellings -- the library's own names are matched, so exactly the
+ * chords Unstrung knows how to describe are the ones that resolve, and anything else is honestly
+ * unknown rather than mis-parsed.
+ */
+let chordsByDisplayName = null;
+
+function libraryChordByName(name) {
+    if (!chordPracticeLibrary) return null;
+    if (!chordsByDisplayName) {
+        chordsByDisplayName = new Map();
+        for (const entry of chordPracticeLibrary.chords ?? []) {
+            const display = chordDisplayName(entry);
+            if (!chordsByDisplayName.has(display)) chordsByDisplayName.set(display, entry);
+        }
+    }
+    return chordsByDisplayName.get(name) ?? null;
+}
+
+/**
+ * One chord of a track, as the same collapsed region chord practice uses.
+ *
+ * Reusing buildChordPracticeRow is the point: a chord should read the same everywhere in the app,
+ * so what a player learns to listen for in the practice tool is what they get here. It needs a
+ * root and suffix, which come from the parser's reading of the notes where it had one, and
+ * otherwise from matching the printed symbol against the library.
+ */
+function buildTrackChordRow(chord) {
+    const resolved = chord.root
+        ? { root: chord.root, suffix: chord.suffix }
+        : libraryChordByName(chord.name);
+
+    if (resolved) {
+        const item = buildChordPracticeRow(resolved);
+        // How much of the track this chord accounts for. The list is ordered by it, and without it
+        // there is nothing to separate the chords the part is built from and a one-beat fragment
+        // of a strum that happens to spell something nameable.
+        const list = item.querySelector('ul');
+        if (list) {
+            const beats = document.createElement('li');
+            beats.textContent = `Sounds on ${chord.beats} beat${chord.beats === 1 ? '' : 's'} of this track`;
+            list.append(beats);
+        }
+        return item;
+    }
+
+    // A symbol the file printed that the library does not carry. Named anyway: the score says the
+    // harmony here is this, and that is worth knowing even where we cannot show a fingering.
+    const item = document.createElement('li');
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = chord.name;
+    const list = document.createElement('ul');
+    appendTextItems(list, [
+        `Printed in the file as ${chord.name}`,
+        'There is no chord in the Unstrung database matching that name, so no notes or fingering',
+        `Sounds on ${chord.beats} beat${chord.beats === 1 ? '' : 's'} of this track`
+    ]);
+    details.append(summary, list);
+    item.append(details);
+    return item;
+}
+
+/**
+ * The chords a track uses, collapsed.
+ *
+ * Built on first open, like the measures, and for the same reason: collapsed content stays out of
+ * the accessibility tree, so a song with several tracks does not pay for chord regions nobody
+ * opened. The chord library is fetched on that first open too, since the summary panel is built
+ * the moment a file is parsed and waiting on the library then would delay every file.
+ */
+function buildTrackChordsRegion(track) {
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    const chords = track.chords ?? [];
+    summary.textContent = `Chords Used - ${chords.length}`;
+    details.append(summary);
+
+    let built = false;
+    details.addEventListener('toggle', async () => {
+        if (!details.open || built) return;
+        built = true;
+
+        if (chords.length === 0) {
+            const p = document.createElement('p');
+            // Says which of the two it is. A bass line names no chords because it sounds one note
+            // at a time, which is different from a part whose chords we failed to work out.
+            p.textContent = track.isStringed
+                ? 'No chords. This part sounds one note at a time, and the file prints no chord symbols over it.'
+                : 'No chords. This part is not written for a stringed instrument.';
+            details.append(p);
+            return;
+        }
+
+        if (!chordPracticeLibrary) {
+            const loading = document.createElement('p');
+            loading.textContent = 'Loading chord library…';
+            details.append(loading);
+            chordPracticeLibrary = await window.unstrung.getChordLibrary();
+            loading.remove();
+        }
+
+        const list = document.createElement('ul');
+        for (const chord of chords) list.append(buildTrackChordRow(chord));
+        details.append(list);
+    });
+
+    return details;
 }
 
 // --- Playing a progression -------------------------------------------------------------
