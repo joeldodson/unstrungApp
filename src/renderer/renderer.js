@@ -38,6 +38,23 @@ const tabs = [];
 let nextTabId = 1;
 let activeTabId = null;
 
+const APP_TITLE = 'Unstrung';
+
+/**
+ * Keeps the window title naming the tab that is current.
+ *
+ * A screen reader can be asked for the title of the focused window at any moment -- NVDA reads it
+ * on its own key -- and with several songs open, "Unstrung" alone does not answer the question
+ * being asked, which is which of them is in front. The title takes the tab's own label rather
+ * than its file name so that it matches what the tab strip says, including the note on a file
+ * that could not be read. With nothing open there is nothing to add and it goes back to the plain
+ * application name.
+ */
+function updateWindowTitle() {
+    const tab = tabs.find(t => t.id === activeTabId);
+    document.title = tab ? `${APP_TITLE} - ${tab.buttonEl.textContent}` : APP_TITLE;
+}
+
 // Read at startup rather than fetched when needed: a tab can be built before the settings dialog
 // has ever been opened, and the beat descriptions have to be right the first time.
 let screenReaderSettings = { terseBeatDescriptions: false, autoCollapseOnTabChange: true };
@@ -293,6 +310,7 @@ function activateTab(id, { focusContent = false } = {}) {
         t.panelEl.hidden = !isActive;
     }
     activeTabId = id;
+    updateWindowTitle();
     if (focusContent) tab.panelEl.focus();
     else tab.buttonEl.focus();
 }
@@ -309,6 +327,7 @@ function closeTab(id) {
 
     if (tabs.length === 0) {
         activeTabId = null;
+        updateWindowTitle();
         setStatus(`Closed "${closed.fileName}". No files are open.`);
         emptyStateElement.focus();
         return;

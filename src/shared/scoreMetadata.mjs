@@ -668,6 +668,33 @@ function structuralLabel(text) {
     return SECTION_PATTERN.test(trimmed.toLowerCase()) ? trimmed : null;
 }
 
+const ROMAN_VALUES = { i: 1, v: 5, x: 10 };
+
+/**
+ * Two ways of writing the same section, reduced to one string.
+ *
+ * The 2009 Pink Houses marks bar 10 as "Verse 1" and writes "Verse I" on the beat inside it. They
+ * are the same section named twice, so the numbering is normalised to compare them: case, spacing
+ * and roman numerals all vary between files by the same transcriber. Only used for comparison --
+ * what gets read out is always the file's own spelling.
+ */
+function normalizedSection(label) {
+    if (!label) return null;
+    const words = label.toLowerCase().split(/\s+/).filter(Boolean);
+    const last = words[words.length - 1];
+    if (words.length > 1 && /^[ivx]+$/.test(last)) {
+        // Standard subtractive form, which is all a section number is ever written in.
+        let total = 0;
+        for (let i = 0; i < last.length; i++) {
+            const value = ROMAN_VALUES[last[i]];
+            const next = i + 1 < last.length ? ROMAN_VALUES[last[i + 1]] : 0;
+            total += value < next ? -value : value;
+        }
+        words[words.length - 1] = String(total);
+    }
+    return words.join(' ');
+}
+
 /**
  * Section names that the file wrote as beat text instead of as section markers, gathered for the
  * whole song.
@@ -716,7 +743,15 @@ function extractPromotedSections(score, masterBars) {
 
             for (const { index, beat } of texts) {
                 const label = structuralLabel(beat.text);
-                if (!label || describeSection(masterBars[index])) continue;
+                if (!label) continue;
+
+                const marked = describeSection(masterBars[index]);
+                if (marked) {
+                    // The bar keeps its own marker. Where the beat was saying the same thing in
+                    // different words, it stops saying it: the heading above already has it.
+                    if (normalizedSection(marked) === normalizedSection(label)) beats.add(beat);
+                    continue;
+                }
 
                 const entry = `${label}${sectionBeatPosition(beat, masterBars[index])}`;
                 if (!byMeasure[index]) byMeasure[index] = [];
