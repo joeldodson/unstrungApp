@@ -89,10 +89,16 @@ await page.evaluate(() => [...document.querySelectorAll('button')]
 await page.waitForTimeout(3000);
 
 await page.evaluate(() => {
-    document.getElementById('audio-track-first-measure-input').value = '7';
-    document.getElementById('audio-track-first-measure-input').dispatchEvent(new Event('change'));
-    document.getElementById('audio-track-last-measure-input').value = '21';
-    document.getElementById('audio-track-last-measure-input').dispatchEvent(new Event('change'));
+    // Control ids carry a per-page suffix so two audio track pages cannot collide, so these match
+    // the prefix within the current panel rather than a fixed id.
+    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const set = (prefix, value) => {
+        const input = panel.querySelector(`[id^="${prefix}"]`);
+        input.value = value;
+        input.dispatchEvent(new Event('change'));
+    };
+    set('audio-track-first-measure-input', '7');
+    set('audio-track-last-measure-input', '21');
 });
 await page.waitForTimeout(600);
 await page.evaluate(() => [...document.querySelectorAll('[role="tabpanel"]')]

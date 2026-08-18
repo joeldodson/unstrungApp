@@ -38,6 +38,23 @@ const tabs = [];
 let nextTabId = 1;
 let activeTabId = null;
 
+let nextControlId = 1;
+
+/**
+ * An id for a form control that no other control will have.
+ *
+ * A label is tied to its control by id, and `for` resolves to the first element in the document
+ * carrying that id. So a page built with fixed ids works until a second copy of it is open, and
+ * then the two sets collide: one page's controls collect both labels and read them out twice, and
+ * the other page's controls have no name at all -- a checkbox that announces only "checkbox, not
+ * checked". Ripple has four tracks, so a second audio track page is one click away.
+ *
+ * Anything built more than once per document has to take its ids from here.
+ */
+function uniqueControlId(prefix) {
+    return `${prefix}-${nextControlId++}`;
+}
+
 const APP_TITLE = 'Unstrung';
 
 /**
@@ -3158,12 +3175,12 @@ function buildAudioTrackPanel(state) {
 
     const tempoParagraph = document.createElement('p');
     const tempoLabel = document.createElement('label');
-    tempoLabel.htmlFor = 'audio-track-tempo-input';
     tempoLabel.textContent =
         `Tempo in beats per minute, ${AUDIO_TRACK_MIN_BPM} to ${AUDIO_TRACK_MAX_BPM}`;
     const tempoInput = document.createElement('input');
     tempoInput.type = 'number';
-    tempoInput.id = 'audio-track-tempo-input';
+    tempoInput.id = uniqueControlId('audio-track-tempo-input');
+    tempoLabel.htmlFor = tempoInput.id;
     tempoInput.min = String(AUDIO_TRACK_MIN_BPM);
     tempoInput.max = String(AUDIO_TRACK_MAX_BPM);
     tempoInput.step = '1';
@@ -3178,11 +3195,11 @@ function buildAudioTrackPanel(state) {
 
     const firstParagraph = document.createElement('p');
     const firstLabel = document.createElement('label');
-    firstLabel.htmlFor = 'audio-track-first-measure-input';
     firstLabel.textContent = 'First measure to play';
     const firstInput = document.createElement('input');
     firstInput.type = 'number';
-    firstInput.id = 'audio-track-first-measure-input';
+    firstInput.id = uniqueControlId('audio-track-first-measure-input');
+    firstLabel.htmlFor = firstInput.id;
     firstInput.min = '1';
     firstInput.max = String(state.audioTrack.barCount);
     firstInput.step = '1';
@@ -3192,11 +3209,11 @@ function buildAudioTrackPanel(state) {
 
     const lastParagraph = document.createElement('p');
     const lastLabel = document.createElement('label');
-    lastLabel.htmlFor = 'audio-track-last-measure-input';
     lastLabel.textContent = 'Last measure to play';
     const lastInput = document.createElement('input');
     lastInput.type = 'number';
-    lastInput.id = 'audio-track-last-measure-input';
+    lastInput.id = uniqueControlId('audio-track-last-measure-input');
+    lastLabel.htmlFor = lastInput.id;
     lastInput.min = '1';
     lastInput.max = String(state.audioTrack.barCount);
     lastInput.step = '1';
@@ -3206,11 +3223,11 @@ function buildAudioTrackPanel(state) {
 
     const repeatParagraph = document.createElement('p');
     const repeatLabel = document.createElement('label');
-    repeatLabel.htmlFor = 'audio-track-repeat-input';
     repeatLabel.textContent = 'Times to play the selection, up to 50; 0 repeats until stopped';
     const repeatInput = document.createElement('input');
     repeatInput.type = 'number';
-    repeatInput.id = 'audio-track-repeat-input';
+    repeatInput.id = uniqueControlId('audio-track-repeat-input');
+    repeatLabel.htmlFor = repeatInput.id;
     repeatInput.min = '0';
     repeatInput.max = '50';
     repeatInput.step = '1';
@@ -3224,7 +3241,7 @@ function buildAudioTrackPanel(state) {
     const countInEachPassParagraph = document.createElement('p');
     const countInEachPassCheckbox = document.createElement('input');
     countInEachPassCheckbox.type = 'checkbox';
-    countInEachPassCheckbox.id = 'audio-track-count-in-each-pass-checkbox';
+    countInEachPassCheckbox.id = uniqueControlId('audio-track-count-in-each-pass-checkbox');
     countInEachPassCheckbox.checked = state.countInEachPass;
     const countInEachPassLabel = document.createElement('label');
     countInEachPassLabel.htmlFor = countInEachPassCheckbox.id;
@@ -3238,7 +3255,7 @@ function buildAudioTrackPanel(state) {
     const metronomeParagraph = document.createElement('p');
     const metronomeCheckbox = document.createElement('input');
     metronomeCheckbox.type = 'checkbox';
-    metronomeCheckbox.id = 'audio-track-metronome-checkbox';
+    metronomeCheckbox.id = uniqueControlId('audio-track-metronome-checkbox');
     metronomeCheckbox.checked = state.metronome;
     const metronomeLabel = document.createElement('label');
     metronomeLabel.htmlFor = metronomeCheckbox.id;
@@ -4417,7 +4434,7 @@ function buildChordPracticeTab(progression, options) {
     const speakParagraph = document.createElement('p');
     const speakCheckbox = document.createElement('input');
     speakCheckbox.type = 'checkbox';
-    speakCheckbox.id = `chord-practice-tab-speak-${nextTabId}`;
+    speakCheckbox.id = uniqueControlId('chord-practice-tab-speak');
     speakCheckbox.checked = options.speak;
     speakCheckbox.disabled = !chordPracticeSpeechSupported;
     const speakLabel = document.createElement('label');
@@ -4430,7 +4447,7 @@ function buildChordPracticeTab(progression, options) {
     const tempoParagraph = document.createElement('p');
     const tempoInput = document.createElement('input');
     tempoInput.type = 'number';
-    tempoInput.id = `chord-practice-tab-tempo-${nextTabId}`;
+    tempoInput.id = uniqueControlId('chord-practice-tab-tempo');
     tempoInput.min = String(CHORD_PRACTICE_MIN_TEMPO);
     tempoInput.max = String(CHORD_PRACTICE_MAX_TEMPO);
     tempoInput.step = '1';
@@ -4443,7 +4460,7 @@ function buildChordPracticeTab(progression, options) {
     const repeatParagraph = document.createElement('p');
     const repeatInput = document.createElement('input');
     repeatInput.type = 'number';
-    repeatInput.id = `chord-practice-tab-repeat-${nextTabId}`;
+    repeatInput.id = uniqueControlId('chord-practice-tab-repeat');
     repeatInput.min = '0';
     repeatInput.max = '50';
     repeatInput.step = '1';
@@ -4457,7 +4474,7 @@ function buildChordPracticeTab(progression, options) {
     const metronomeParagraph = document.createElement('p');
     const metronomeCheckbox = document.createElement('input');
     metronomeCheckbox.type = 'checkbox';
-    metronomeCheckbox.id = `chord-practice-tab-metronome-${nextTabId}`;
+    metronomeCheckbox.id = uniqueControlId('chord-practice-tab-metronome');
     metronomeCheckbox.checked = options.metronome;
     const metronomeLabel = document.createElement('label');
     metronomeLabel.htmlFor = metronomeCheckbox.id;
@@ -4471,7 +4488,7 @@ function buildChordPracticeTab(progression, options) {
     const countInEachPassParagraph = document.createElement('p');
     const countInEachPassCheckbox = document.createElement('input');
     countInEachPassCheckbox.type = 'checkbox';
-    countInEachPassCheckbox.id = `chord-practice-tab-count-in-${nextTabId}`;
+    countInEachPassCheckbox.id = uniqueControlId('chord-practice-tab-count-in');
     countInEachPassCheckbox.checked = options.countInEachPass;
     const countInEachPassLabel = document.createElement('label');
     countInEachPassLabel.htmlFor = countInEachPassCheckbox.id;

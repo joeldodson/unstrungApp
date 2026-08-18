@@ -56,8 +56,9 @@ const panelState = () => page.evaluate(() => {
         playDisabled: play?.disabled ?? null,
         announcement: live[0]?.textContent ?? '',
         status: live.map(el => el.textContent).join(' | '),
-        // By id: the panel's first checkbox is the count-in one, inside the measures disclosure.
-        metronome: document.getElementById('audio-track-metronome-checkbox')?.checked ?? null
+        // Control ids carry a per-page suffix so two audio track pages cannot collide, so this
+        // matches the prefix within the panel rather than a fixed id.
+        metronome: panel.querySelector('[id^="audio-track-metronome-checkbox"]')?.checked ?? null
     };
 });
 
