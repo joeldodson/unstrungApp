@@ -2213,10 +2213,33 @@ function formatMinutesSeconds(totalSeconds) {
     return `${minutes}:${seconds} (${rounded} seconds)`;
 }
 
+/**
+ * The measure this part first sounds on, counting from 1, or null if it never does.
+ *
+ * A track's note count says how much there is to play but not when it starts, and plenty of parts
+ * do not come in until well into the song -- the bass on Wish You Were Here is silent for the
+ * first stretch of it. Told only the count, there is no way to know whether the opening is
+ * supposed to be quiet or the track was built wrong.
+ *
+ * Notes are sorted by time, so the earliest one decides it. A note landing exactly on a barline
+ * belongs to the bar it starts, which is what comparing against the bar's end gives; the epsilon
+ * keeps a note a rounding error short of the line out of the bar before.
+ */
+function firstSoundingBar(audioTrack) {
+    const first = audioTrack.notes[0];
+    if (!first) return null;
+    const bar = audioTrack.bars.find(candidate => first.startSeconds + 1e-6 < candidate.endSeconds);
+    return bar ? bar.index + 1 : null;
+}
+
 function describeAudioTrack(state) {
     const { audioTrack } = state;
+    const startsAt = firstSoundingBar(audioTrack);
     const rows = [
-        `Notes - ${audioTrack.notes.length}`,
+        // Saying "starting at measure 1" of a part that opens the song would be noise, so the
+        // measure is only named where the part comes in later than the song does.
+        `Notes - ${audioTrack.notes.length}` +
+            (startsAt > 1 ? `, starting at measure ${startsAt}` : ''),
         `Bars - ${audioTrack.barCount}`,
         `Length - ${formatMinutesSeconds(audioTrack.totalSeconds)}`,
         `Tempo - ${audioTrack.tempo} BPM` +
