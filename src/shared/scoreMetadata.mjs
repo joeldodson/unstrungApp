@@ -358,7 +358,7 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
  * measure rather than to the beat it happens to be anchored to -- see `describeChordSymbols`. So
  * nothing about it appears here: this describes what the beat plays, and only that.
  */
-function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing) {
+function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing, textPromoted) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
@@ -388,8 +388,9 @@ function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing)
     // What the score has written above the beat. It ranges from a one-word instruction to the
     // player to something the whole track depends on -- Pink Houses opens with "All Guitars tune
     // to Open G", without which every fret number on that track means the wrong note -- so it is
-    // given verbatim rather than summarised or dropped.
-    const textNote = beat.text ? `, text "${beat.text}"` : '';
+    // given verbatim rather than summarised or dropped. The exception is text that was a section
+    // name in disguise: it now heads the measure, and saying it twice is noise.
+    const textNote = beat.text && !textPromoted ? `, text "${beat.text}"` : '';
 
     const durationText = durationName(
         beat.duration, beat.dots,
@@ -622,9 +623,134 @@ function describeSection(masterBar) {
     return name === '' ? null : name;
 }
 
+/**
+ * The words that name a part of a song, as opposed to telling the player how to play something.
+ *
+ * Kept deliberately narrow. `beat.text` is a free field and the corpus shows it used for at least
+ * four unrelated purposes -- a tuning instruction, an amp setting, a dedication, and one file's
+ * entire lyric -- so anything not on this list stays where the file put it.
+ */
+const SECTION_NOUNS = [
+    'intro', 'outro', 'verse', 'chorus', 'pre-chorus', 'prechorus', 'bridge', 'solo',
+    'interlude', 'break', 'refrain', 'coda', 'ending', 'tag', 'vamp', 'head', 'instrumental'
+];
+
+// What a section noun is allowed to be qualified by, which in practice is which instrument takes
+// it: "Guitar Solo 1" in Wish You Were Here.
+const SECTION_MODIFIERS = [
+    'guitar', 'bass', 'drum', 'drums', 'piano', 'keyboard', 'keys', 'organ', 'sax', 'saxophone',
+    'harmonica', 'lead', 'rhythm', 'acoustic', 'electric', 'violin', 'cello', 'mandolin',
+    'banjo', 'fiddle', 'slide', 'vocal'
+];
+
+// "End Intro", "Guitar Solo 2", "Verse III". The number may be arabic or roman, since the same
+// transcriber writes "Verse 1" in one file and "Verse II" in another. Matched against text whose
+// whitespace has already been collapsed to single spaces, so a literal space is enough here.
+const SECTION_PATTERN = new RegExp(
+    `^(?:(?:end|start|begin) )?(?:(?:${SECTION_MODIFIERS.join('|')}) )?` +
+    `(?:${SECTION_NOUNS.join('|')})(?: (?:[0-9]{1,2}|[ivx]{1,5}))?$`
+);
+
+/**
+ * The beat text as written if it names a section, or null if it is anything else.
+ *
+ * Returns the original spelling rather than the matched form: the file's own "Verse II" is what
+ * the player sees on the page, and normalising it to "verse 2" would be us rewriting the score.
+ */
+function structuralLabel(text) {
+    if (typeof text !== 'string') return null;
+    // Brackets and trailing punctuation are decoration around the same word: "[Intro]", "Outro:".
+    const trimmed = text.split(/\s+/).join(' ').trim()
+        .replace(/^[[({]+/, '')
+        .replace(/[)}\].:;,]+$/, '')
+        .trim();
+    if (trimmed === '') return null;
+    return SECTION_PATTERN.test(trimmed.toLowerCase()) ? trimmed : null;
+}
+
+/**
+ * Section names that the file wrote as beat text instead of as section markers, gathered for the
+ * whole song.
+ *
+ * Guitar Pro offers a transcriber two separate places to write "Intro": a section marker on the
+ * bar, which belongs to the song and which every track shares, and a text annotation stuck to one
+ * note on one track. They are not interchangeable in the file, but transcribers use them
+ * interchangeably. Ripple carries no section markers at all -- its Intro, End Intro and Outro are
+ * beat text on the Acoustic Lead -- so a reader moving by heading finds a hundred numbered
+ * measures and no structure, while the same publisher's other files have it.
+ *
+ * Promoting text to a heading is a guess about what the transcriber meant, so it is fenced three
+ * ways, each of which a real file in the corpus fails:
+ *
+ * 1. The bar must not already carry a section marker. Where a file has both, they overlap rather
+ *    than agree: the 2009 Pink Houses marks six sections and writes eight as beat text, and this
+ *    keeps the six it marked while gaining the Interlude, Chorus and Outro it did not.
+ * 2. The text must name a section. Wish You Were Here writes amp settings on beats, Mother writes
+ *    "rake", and Pink Houses opens with the tuning the whole track depends on. None are structure
+ *    and all must stay on their beat.
+ * 3. The track must not carry beat text in bulk. Falling Slowly stores its entire lyric this way,
+ *    185 texts over 59 bars. A track writing on nearly every beat is not labelling structure,
+ *    whatever the individual words happen to say.
+ *
+ * Returns the labels by measure index, and the set of beats they came from, so the beat itself
+ * can stop repeating what is now in the heading above it.
+ */
+function extractPromotedSections(score, masterBars) {
+    const byMeasure = [];
+    const beats = new Set();
+    // Roughly one label every eight bars is generous for real structure -- the corpus's densest
+    // is one per 12 bars -- and nowhere near a lyric. The floor keeps a short song workable.
+    const limit = Math.max(3, masterBars.length / 8);
+
+    for (const track of score.tracks || []) {
+        for (const staff of track.staves || []) {
+            // Only the primary voice, matching what the measure list describes.
+            const texts = [];
+            (staff.bars || []).forEach((bar, index) => {
+                const voice = bar.voices && bar.voices.length > 0 ? bar.voices[0] : null;
+                for (const beat of (voice ? voice.beats : []) || []) {
+                    if (beat.text) texts.push({ index, beat });
+                }
+            });
+            if (texts.length === 0 || texts.length > limit) continue;
+
+            for (const { index, beat } of texts) {
+                const label = structuralLabel(beat.text);
+                if (!label || describeSection(masterBars[index])) continue;
+
+                const entry = `${label}${sectionBeatPosition(beat, masterBars[index])}`;
+                if (!byMeasure[index]) byMeasure[index] = [];
+                // Two tracks may carry the same label on the same bar; it is one section.
+                if (!byMeasure[index].includes(entry)) byMeasure[index].push(entry);
+                beats.add(beat);
+            }
+        }
+    }
+
+    return { byMeasure: byMeasure.map(labels => (labels ? labels.join(', ') : null)), beats };
+}
+
+/**
+ * Where in the measure a promoted label sits, phrased as chord symbols already phrase it.
+ *
+ * A section marker can only fall on a barline, but beat text lands wherever the note it is
+ * attached to lands, and it means something different there: Ripple's "End Intro" is on the and
+ * of three in bar 18, not at the top of it. Saying nothing for the first beat keeps the common
+ * case short.
+ */
+function sectionBeatPosition(beat, masterBar) {
+    const denominator = masterBar ? masterBar.timeSignatureDenominator || 4 : 4;
+    const ticksPerBeat = 960 * (4 / denominator);
+    const beatNumber = (beat.playbackStart || 0) / ticksPerBeat + 1;
+    if (beatNumber === 1) return '';
+    return Number.isInteger(beatNumber)
+        ? ` at beat ${beatNumber}`
+        : ` during beat ${Math.floor(beatNumber)}`;
+}
+
 // Only the primary voice is described; secondary voices (used for genuinely
 // polyphonic parts, e.g. independent piano hands) are not yet covered.
-function extractMeasures(track, terse, masterBars, songLyrics) {
+function extractMeasures(track, terse, masterBars, songLyrics, promotedSections) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
@@ -643,12 +769,15 @@ function extractMeasures(track, terse, masterBars, songLyrics) {
         const offset = seen;
         seen += beats.length;
         return {
-            section: describeSection(masterBars[index]),
+            // A marker the file actually placed always wins; a name lifted out of beat text only
+            // fills a bar that has none. See `extractPromotedSections`.
+            section: describeSection(masterBars[index]) ?? promotedSections.byMeasure[index] ?? null,
             repeat: describeRepeat(masterBars[index]),
             chordSymbols: describeChordSymbols(bar, masterBars[index]),
             lyrics: songLyrics[index] ?? [],
             beats: beats.map((beat, i) =>
-                describeBeat(beat, stringCount, terse, capo, percussion, sung, marks[offset + i]))
+                describeBeat(beat, stringCount, terse, capo, percussion, sung, marks[offset + i],
+                    promotedSections.beats.has(beat)))
         };
     });
 }
@@ -775,7 +904,7 @@ function describeTuning(staff) {
     return { summary, strings, isStandard: comparable && altered.length === 0, label: staff.tuningName || null };
 }
 
-function describeTrack(track, terse, masterBars, songLyrics) {
+function describeTrack(track, terse, masterBars, songLyrics, promotedSections) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
 
@@ -788,7 +917,7 @@ function describeTrack(track, terse, masterBars, songLyrics) {
         tuning: describeTuning(staff),
         capo: staff && staff.capo > 0 ? staff.capo : null,
         chords: extractTrackChords(track),
-        measures: extractMeasures(track, terse, masterBars, songLyrics)
+        measures: extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
     };
 }
 
@@ -832,6 +961,10 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
     // landmark in a hundred measures, and the track carrying them is rarely the one being read.
     const songLyrics = extractSongLyrics(score);
 
+    // Likewise gathered once for the whole song: a section name written as beat text sits on one
+    // track, but it names a part of the song, so every track's measure heading gets it.
+    const promotedSections = extractPromotedSections(score, masterBars);
+
     return {
         title: score.title || '(untitled)',
         artist: score.artist || null,
@@ -844,6 +977,7 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         timeSignatureVaries,
         keySignature: firstBar ? keySignatureName(firstBar.keySignature) : null,
         keySignatureVaries,
-        tracks: (score.tracks || []).map(track => describeTrack(track, terseBeats, masterBars, songLyrics))
+        tracks: (score.tracks || []).map(track =>
+            describeTrack(track, terseBeats, masterBars, songLyrics, promotedSections))
     };
 }

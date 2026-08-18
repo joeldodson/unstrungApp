@@ -99,6 +99,9 @@ They live on `masterBar.section` (`text` and `marker`). We show a flat list of
 the measure heading, the way chord symbols now ride there, would make the whole
 measure list navigable by structure.
 
+**Since done.** Sections ride the measure heading. Beat text that names a
+section is promoted onto a heading that has no marker of its own — see item 7.
+
 ### 6. Lyrics
 
 Six vocal tracks carry them, 44 to 171 syllables each — *Fade Into You*, *Into
@@ -124,6 +127,14 @@ Sixteen tracks carry `beat.text`, and it is not decoration:
   than in the lyrics field
 
 We drop all of it.
+
+**Since done.** Beat text is now read out on the beat that carries it, and the
+part of it that names a section is lifted onto the measure heading instead. The
+five uses above are exactly why the promotion is fenced: only *Ripple*'s three
+and the three the 2009 *Pink Houses* markers omit are promoted across all
+eleven files, and the other 208 texts stay on their beat. The rule and its
+guards are in `extractPromotedSections`; `scripts/gp-experiment/check-section-promotion.mjs`
+prints the verdict on every text in a corpus directory.
 
 ### 8. Let ring
 
