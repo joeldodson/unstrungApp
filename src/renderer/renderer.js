@@ -4635,12 +4635,24 @@ function buildChordPracticeTab(progression, options) {
     // the next repeat instead of needing playback restarted.
     countInEachPassCheckbox.addEventListener('change',
         () => { state.countInEachPass = countInEachPassCheckbox.checked; });
+    // A new repeat count starts the tally again from the play in progress. Carrying the old tally
+    // over broke the obvious sequence: set 0 to play until stopped, go round a dozen times, then
+    // ask for 10 -- the run was already past 10, so it stopped at the end of the current play.
+    // Playback keeps going from where it is; only the count is restarted.
     repeatInput.addEventListener('change', () => {
         const wanted = Number(repeatInput.value);
+        const wasPlaying = state.playing;
+        const position = chordPracticePosition(state);
+        stopChordPracticePlayback();
         state.repeatCount = Number.isFinite(wanted)
             ? Math.max(0, Math.min(50, Math.trunc(wanted)))
             : state.repeatCount;
         repeatInput.value = String(state.repeatCount);
+        state.pass = 1;
+        state.anchorSeconds = position;
+        state.anchorContextTime = null;
+        if (wasPlaying) startChordPracticePlayback(state, position, { countIn: false });
+        else state.setPlaying(false);
     });
     tempoInput.addEventListener('change', () => {
         const wanted = Math.max(CHORD_PRACTICE_MIN_TEMPO,
