@@ -118,7 +118,7 @@
       "alsoAllow": [
         { "root": "F", "suffix": "major", "why": "the three and four string cheats are how everyone first plays it" }
       ],
-      "repeatProbability": 0.25,
+      "repeatProbability": 0.12,
       "upgrades": []
     },
     {
@@ -127,7 +127,7 @@
       "description": "Every diatonic chord, plus dominant and minor sevenths and the odd suspension. Barre shapes allowed.",
       "degrees": { "major": ["I", "ii", "iii", "IV", "V", "vi"], "minor": ["i", "III", "iv", "v", "V", "VI", "VII"] },
       "playability": "fingered",
-      "repeatProbability": 0.15,
+      "repeatProbability": 0.07,
       "upgrades": [
         { "degrees": ["V"], "suffix": "7", "probability": 0.45 },
         { "degrees": ["ii", "vi", "iii", "iv"], "suffix": "m7", "probability": 0.25 },
@@ -140,7 +140,7 @@
       "description": "Sevenths and ninths throughout, secondary dominants, and chords borrowed from the parallel key. Includes chords with no fingering in the library.",
       "degrees": { "major": ["I", "ii", "iii", "IV", "V", "vi", "vii"], "minor": ["i", "ii", "III", "iv", "v", "V", "VI", "VII"] },
       "playability": "any",
-      "repeatProbability": 0.1,
+      "repeatProbability": 0.05,
       "upgrades": [
         { "degrees": ["V"], "suffix": "7", "probability": 0.55 },
         { "degrees": ["V"], "suffix": "9", "probability": 0.12 },
