@@ -16,6 +16,18 @@ body {
     padding: 0.15rem 0;
 }
 
+/* Buttons side by side, each its own block. Buttons are inline, so buttons sharing a paragraph
+   share one line in a screen reader's browse mode, and reaching that line reads every label.
+   Flex items are blockified, which gives each button a line of its own there while they still
+   sit in one row on screen. Wraps rather than overflowing in a narrow window. */
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
 #status:empty {
     display: none;
 }

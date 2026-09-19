@@ -58,6 +58,20 @@ function uniqueControlId(prefix) {
     return `${prefix}-${nextControlId++}`;
 }
 
+/**
+ * A row for two or more buttons, laid out side by side.
+ *
+ * Not a paragraph. Buttons are inline, so buttons sharing a paragraph share one line in a screen
+ * reader's browse mode, and moving to it reads every label at once. Inside this row they are flex
+ * items, which makes each one a block of its own: one line per button for the screen reader, still
+ * one row on screen.
+ */
+function createButtonRow() {
+    const row = document.createElement('div');
+    row.className = 'button-row';
+    return row;
+}
+
 const APP_TITLE = 'Unstrung';
 
 /**
@@ -3352,7 +3366,7 @@ function buildAudioTrackPanel(state) {
     const summary = document.createElement('ul');
     container.append(summary);
 
-    const actions = document.createElement('p');
+    const actions = createButtonRow();
     const createButton = document.createElement('button');
     createButton.type = 'button';
     createButton.textContent = 'Create Track';
@@ -3381,7 +3395,7 @@ function buildAudioTrackPanel(state) {
     transportHeading.textContent = 'Move around the track';
     extraControls.append(transportHeading);
 
-    const transportParagraph = document.createElement('p');
+    const transportParagraph = createButtonRow();
     const transportButtons = [];
     const transportActions = [
         ['Previous Measure', state2 => seekAudioTrackByMeasure(state2, -1)],
@@ -4487,7 +4501,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
 
     // Straight after the list they act on. Save and Save As name their shortcuts, which work from
     // anywhere in the tab and in either screen reader mode.
-    const fileActions = document.createElement('p');
+    const fileActions = createButtonRow();
     const makeButton = (label, shortcut) => {
         const button = document.createElement('button');
         button.type = 'button';
@@ -4589,7 +4603,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     transportHeading.textContent = 'Move around the progression';
     container.append(transportHeading);
 
-    const transportParagraph = document.createElement('p');
+    const transportParagraph = createButtonRow();
     const transportActions = [
         ['Previous Measure', s => seekChordPracticeByMeasure(s, -1)],
         ['Next Measure', s => seekChordPracticeByMeasure(s, 1)],

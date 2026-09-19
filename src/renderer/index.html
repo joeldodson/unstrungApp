@@ -169,8 +169,10 @@
 
         <p id="guitar-samples-status" role="status" aria-live="polite"></p>
 
-        <button type="button" id="guitar-samples-play-button" aria-pressed="false">Play Normal Notes</button>
-        <button type="button" id="guitar-samples-ok-button">OK</button>
+        <div class="button-row">
+            <button type="button" id="guitar-samples-play-button" aria-pressed="false">Play Normal Notes</button>
+            <button type="button" id="guitar-samples-ok-button">OK</button>
+        </div>
     </dialog>
 
     <dialog id="chord-practice-dialog" aria-labelledby="chord-practice-dialog-heading" tabindex="-1">
@@ -188,10 +190,10 @@
             the experience level chosen are used.
         </p>
 
-        <p>
+        <div class="button-row">
             <button type="button" id="chord-practice-open-saved-button">Open Saved Progression…</button>
             <button type="button" id="chord-practice-new-button">Create Progression by Hand…</button>
-        </p>
+        </div>
 
         <p>
             A progression can be saved from its tab and opened again here, or written chord by
@@ -294,8 +296,10 @@
 
         <p id="chord-practice-status" aria-live="polite"></p>
 
-        <button type="button" id="chord-practice-generate-button">Generate Progression</button>
-        <button type="button" id="chord-practice-cancel-button">Cancel</button>
+        <div class="button-row">
+            <button type="button" id="chord-practice-generate-button">Generate Progression</button>
+            <button type="button" id="chord-practice-cancel-button">Cancel</button>
+        </div>
     </dialog>
 
     <dialog id="progression-open-dialog" aria-labelledby="progression-open-heading" tabindex="-1">
@@ -319,11 +323,11 @@
 
         <p id="progression-open-status" aria-live="polite"></p>
 
-        <p>
+        <div class="button-row">
             <button type="button" id="progression-open-button">Open</button>
             <button type="button" id="progression-open-folder-button">Open Folder</button>
             <button type="button" id="progression-open-cancel-button">Cancel</button>
-        </p>
+        </div>
     </dialog>
 
     <dialog id="progression-editor-dialog" aria-labelledby="progression-editor-heading" tabindex="-1">
@@ -364,13 +368,13 @@
         </p>
         <ul id="progression-editor-suggestions" role="listbox" aria-label="Chords" hidden></ul>
 
-        <p>
+        <div class="button-row">
             <button type="button" id="progression-editor-insert-button">Insert Measure After</button>
             <button type="button" id="progression-editor-duplicate-button">Duplicate Measure</button>
             <button type="button" id="progression-editor-remove-button">Remove Measure</button>
             <button type="button" id="progression-editor-up-button">Move Measure Up</button>
             <button type="button" id="progression-editor-down-button">Move Measure Down</button>
-        </p>
+        </div>
 
         <details>
             <summary>How the chord field works</summary>
@@ -384,21 +388,21 @@
 
         <p id="progression-editor-status" aria-live="polite"></p>
 
-        <p>
+        <div class="button-row">
             <button type="button" id="progression-editor-apply-button">Apply Changes</button>
             <button type="button" id="progression-editor-cancel-button">Cancel</button>
-        </p>
+        </div>
     </dialog>
 
     <dialog id="unsaved-dialog" aria-labelledby="unsaved-dialog-heading"
         aria-describedby="unsaved-dialog-message" tabindex="-1">
         <h2 id="unsaved-dialog-heading">Unsaved Changes</h2>
         <p id="unsaved-dialog-message"></p>
-        <p>
+        <div class="button-row">
             <button type="button" id="unsaved-dialog-save-button">Save</button>
             <button type="button" id="unsaved-dialog-discard-button">Don't Save</button>
             <button type="button" id="unsaved-dialog-cancel-button">Cancel</button>
-        </p>
+        </div>
     </dialog>
 
     <!-- The chord library opens as a tab rather than a dialog: it is a place you browse and
@@ -457,10 +461,10 @@
                 <label for="chords-speak-names-checkbox">Speak chord name before playing</label>
             </p>
 
-            <p>
+            <div class="button-row">
                 <button type="button" id="chords-play-button">Play selected chords</button>
                 <button type="button" id="chords-clear-button">Clear selected</button>
-            </p>
+            </div>
 
             <p id="chords-status" role="status" aria-live="polite"></p>
         </div>
@@ -508,10 +512,10 @@
         <h3 id="frets-result-heading">Identified Chord</h3>
         <ul id="frets-result-list"></ul>
 
-        <p>
+        <div class="button-row">
             <button type="button" id="frets-view-button">View in Chord Library</button>
             <button type="button" id="frets-ok-button">OK</button>
-        </p>
+        </div>
     </dialog>
 
     <dialog id="settings-dialog" aria-labelledby="settings-dialog-heading" tabindex="-1">
@@ -564,10 +568,12 @@
                 <label for="settings-progressions-directory-input">Folder for saved chord progressions</label>
                 <input type="text" id="settings-progressions-directory-input"
                     aria-describedby="settings-progressions-directory-hint" />
-                <button type="button" id="settings-progressions-browse-button">Browse…</button>
-                <button type="button" id="settings-progressions-default-button">Use Default Folder</button>
                 <span id="settings-progressions-directory-hint"></span>
             </p>
+            <div class="button-row">
+                <button type="button" id="settings-progressions-browse-button">Browse…</button>
+                <button type="button" id="settings-progressions-default-button">Use Default Folder</button>
+            </div>
 
             <details>
                 <summary>About the progressions folder</summary>
@@ -589,10 +595,10 @@
                 <button type="button" id="settings-browse-button">Browse…</button>
             </p>
 
-            <p>
+            <div class="button-row">
                 <button type="button" id="settings-clear-recent-button">Clear all recent files</button>
                 <button type="button" id="settings-remove-stale-button">Remove stale files from recents</button>
-            </p>
+            </div>
 
             <p id="settings-files-status" role="status" aria-live="polite"></p>
         </section>
