@@ -23,10 +23,14 @@
 // key simply has its weight removed before anything is drawn.
 
 /**
- * Deterministic random numbers, so a progression can be written down and played again.
+ * Deterministic random numbers, so a test can run the generator many times and get the same runs.
  *
  * mulberry32: small, fast, and good enough for choosing between a handful of weighted options.
  * Nothing here needs cryptographic quality, but it does need to be reproducible from a seed.
+ *
+ * The seed is for testing only and is never shown. It used to be the way to get a progression
+ * back, and that was fragile: any change to the generator changes what a seed produces. A
+ * progression worth keeping is now saved as its list of chords.
  */
 export function makeRandom(seed) {
     let state = seed >>> 0;
@@ -353,7 +357,7 @@ export function generateProgression(model, {
         const suggestions = usableKeys(model, mode, levelId, library)
             .filter(entry => entry.usable).map(entry => entry.key);
         return {
-            key, mode, levelId, level: level.name, seed: usedSeed,
+            key, mode, levelId, level: level.name,
             chords: [], cadence: null, skeleton: null, excludedDegrees: [],
             warning: `${key} ${mode} has only ${allowed.length} chord` +
                 `${allowed.length === 1 ? '' : 's'} playable at the ${level.name} level, ` +
@@ -398,69 +402,11 @@ export function generateProgression(model, {
     applyBorrowing(model, mode, key, tier, chords, isPlayable, random);
 
     return {
-        key, mode, levelId, level: level.name, seed: usedSeed,
+        key, mode, levelId, level: level.name,
         borrowingId, borrowing: tier ? tier.name : null,
         borrowedCount: chords.filter(chord => chord.borrowed).length,
         cadence, skeleton, chords,
         excludedDegrees: (level.degrees[mode] ?? []).filter(degree => !allowed.includes(degree))
-    };
-}
-
-/**
- * Everything needed to rebuild a progression, as one string.
- *
- * A bare seed number reproduces nothing on its own: the same number in another key, at another
- * level or another length gives a different progression, so sharing one meant reciting four
- * settings and hoping they were all entered correctly. This carries them along with it.
- *
- * Written out rather than encoded, because it has to survive being read aloud and typed back in.
- * A compact code would be shorter and much easier to get wrong by one character.
- *
- *     C-major-beginner-occasional-8-4-4-1462460118
- *
- * The time signature is in here because it is fixed when the progression is made, the same as the
- * key and the length. Tempo and the metronome are not, since both can be changed while it plays.
- */
-export function formatProgressionCode({
-    key, mode, levelId, borrowingId, chordCount, beatsPerBar = 4, beatUnit = 4, seed
-}) {
-    return [key, mode, levelId, borrowingId ?? 'none', chordCount, beatsPerBar, beatUnit, seed]
-        .join('-');
-}
-
-/**
- * Reads a code back, or returns null if it is not one.
- *
- * A bare number is still accepted and means only the seed, leaving the other settings as they are
- * on screen -- which is what a seed alone could ever have meant.
- */
-export function parseProgressionCode(text, model) {
-    const trimmed = String(text ?? '').trim();
-    if (trimmed === '') return null;
-    if (/^\d+$/.test(trimmed)) return { seed: Number(trimmed) };
-
-    // Six parts is the form written before the time signature was carried; it means 4/4, which is
-    // what every code of that form was generated with.
-    const parts = trimmed.split('-');
-    if (parts.length !== 8 && parts.length !== 6) return null;
-    const [key, mode, levelId, borrowingId, chordCount] = parts;
-    const [beatsPerBar, beatUnit] = parts.length === 8 ? parts.slice(5, 7) : ['4', '4'];
-    const seed = parts[parts.length - 1];
-
-    if (!KEY_ROOTS.includes(key)) return null;
-    if (!model.modes[mode]) return null;
-    if (!model.levels.some(level => level.id === levelId)) return null;
-    if (!(model.borrowing?.tiers ?? []).some(tier => tier.id === borrowingId)) return null;
-    for (const number of [chordCount, beatsPerBar, beatUnit, seed]) {
-        if (!/^\d+$/.test(number)) return null;
-    }
-
-    return {
-        key, mode, levelId, borrowingId,
-        chordCount: Number(chordCount),
-        beatsPerBar: Number(beatsPerBar),
-        beatUnit: Number(beatUnit),
-        seed: Number(seed)
     };
 }
 

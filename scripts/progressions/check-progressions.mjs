@@ -3,7 +3,7 @@
 // The weights are assumptions, so the useful thing a script can do is not assert that they are
 // right -- nobody can -- but show what they actually produce, and prove the hard guarantees:
 // every chord is playable at the level asked for, every progression ends on a cadence, and the
-// same seed gives the same progression twice.
+// same seed gives the same progression twice. The seed exists for these checks only.
 
 import { readFile } from 'node:fs/promises';
 import {
@@ -85,7 +85,9 @@ console.log('\n=== The same seed gives the same progression ===');
     const names = r => r.chords.map(chordDisplayName).join(' ');
     check('same seed, same chords', names(a) === names(b), names(a));
     check('a different seed gives something else', names(a) !== names(c), names(c));
-    check('a seed is reported so it can be written down', typeof a.seed === 'number');
+    // Only the tests use a seed. A progression worth keeping is saved as its chords, so nothing
+    // the app shows should carry one.
+    check('the result does not report a seed', !('seed' in a), String(a.seed));
 }
 
 console.log('\n=== Degree distribution against the weights ===');

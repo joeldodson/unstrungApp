@@ -8,8 +8,7 @@ import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
 import helpContent from '../assets/help/help-content.json';
 import progressionModel from '../assets/progressions/progression-model.json';
 import {
-    generateProgression, chordDisplayName, usableKeys, formatProgressionCode, parseProgressionCode,
-    KEY_ROOTS
+    generateProgression, chordDisplayName, usableKeys, KEY_ROOTS
 } from '../shared/chordProgressions.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 
@@ -3523,7 +3522,6 @@ const chordPracticeDialog = document.getElementById('chord-practice-dialog');
 const chordPracticeLevelSelect = document.getElementById('chord-practice-level-select');
 const chordPracticeLevelDescription = document.getElementById('chord-practice-level-description');
 const chordPracticeKeySelect = document.getElementById('chord-practice-key-select');
-const chordPracticeSeedInput = document.getElementById('chord-practice-seed-input');
 const chordPracticeBorrowingSelect = document.getElementById('chord-practice-borrowing-select');
 const chordPracticeBeatsInput = document.getElementById('chord-practice-beats-input');
 const chordPracticeBeatUnitInput = document.getElementById('chord-practice-beat-unit-input');
@@ -4386,30 +4384,9 @@ function buildChordPracticeTab(progression, options) {
         `Length - ${progression.chords.length} measures`,
         `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
         `Chords from outside the key - ${progression.borrowing ?? 'stay in the key'}` +
-            (progression.borrowedCount > 0 ? `, ${progression.borrowedCount} used` : ''),
-        // Everything needed to rebuild this exact progression, in one line: pasting it into the
-        // seed field sets the key, level, borrowing and length along with the seed.
-        `Seed - ${formatProgressionCode({
-            ...progression, chordCount: progression.chords.length,
-            beatsPerBar: options.beatsPerBar, beatUnit: options.beatUnit
-        })}`
+            (progression.borrowedCount > 0 ? `, ${progression.borrowedCount} used` : '')
     ]);
     container.append(summaryList);
-
-    // Right under the line it copies, so it is the next thing reached after reading the seed.
-    const seedCode = formatProgressionCode({
-        ...progression, chordCount: progression.chords.length,
-        beatsPerBar: options.beatsPerBar, beatUnit: options.beatUnit
-    });
-    const copyParagraph = document.createElement('p');
-    const copyButton = document.createElement('button');
-    copyButton.type = 'button';
-    copyButton.textContent = 'Copy Seed Information';
-    copyParagraph.append(copyButton);
-    container.append(copyParagraph);
-    // What it says goes to the panel's one live region, wired up with the other listeners once
-    // that exists. A second live region here would sit ahead of it in the document and become the
-    // first one a reader meets, which is not what a copy confirmation should be.
 
     // Each distinct chord once, with everything known about it. This is what you study before
     // playing: the progression below repeats chords, and repeating their fingerings with them
@@ -4613,16 +4590,6 @@ function buildChordPracticeTab(progression, options) {
         }
     };
 
-    copyButton.addEventListener('click', async () => {
-        try {
-            await navigator.clipboard.writeText(seedCode);
-            state.announce(`Copied ${seedCode}`);
-        } catch (error) {
-            // Still says the seed, so it can be written down when the clipboard is unavailable.
-            state.announce(`Could not copy: ${error.message}. The seed is ${seedCode}`);
-        }
-    });
-
     playButton.addEventListener('click', () => toggleChordPracticePlayback(state));
     for (const { button, action } of transportButtons) {
         button.addEventListener('click', () => action(state));
@@ -4669,29 +4636,12 @@ async function generateChordPractice() {
     const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
     const repeatWanted = Number(chordPracticeRepeatInput.value);
 
-    // Read before anything is built from it. A full code carries key, level, borrowing, length and
-    // time signature, and those win over what is on screen: the point of pasting one in is not
-    // having to set the rest correctly first.
-    const seedText = chordPracticeSeedInput.value.trim();
-    const code = seedText === '' ? null : parseProgressionCode(seedText, progressionModel);
-    if (seedText !== '' && code === null) {
-        chordPracticeStatus.textContent =
-            'That is not a seed. Paste the whole line from a progression you want back, ' +
-            'or leave the field empty for a new one.';
-        return;
-    }
-
-    // The time signature belongs to the seed rather than to playback: it is fixed when the
-    // progression is made, unlike tempo and the metronome, which can be changed while it plays.
-    const beats = code?.beatsPerBar ?? beatsPerBar;
-    const unit = code?.beatUnit ?? beatUnit;
-
     const options = {
         // The lower number is how the signature is written, not how it plays: the tempo is
         // already counted in beats, so 6/8 at 90 is ninety eighth notes a minute.
-        timeSignature: `${beats}/${unit}`,
-        beatsPerBar: beats,
-        beatUnit: unit,
+        timeSignature: `${beatsPerBar}/${beatUnit}`,
+        beatsPerBar,
+        beatUnit,
         tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
         speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
         // From Settings, read once when the progression is made: a tab already open keeps whatever
@@ -4703,17 +4653,13 @@ async function generateChordPractice() {
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
     };
 
-    const request = {
-        key: code?.key ?? key,
-        mode: code?.mode ?? mode,
-        levelId: code?.levelId ?? chordPracticeLevelSelect.value,
-        borrowingId: code?.borrowingId ?? chordPracticeBorrowingSelect.value,
-        chordCount: code?.chordCount
-            ?? Math.max(2, Math.min(256, Number(chordPracticeCountInput.value) || 8)),
-        seed: code?.seed ?? null
-    };
     const progression = generateProgression(progressionModel, {
-        ...request, library: chordPracticeLibrary
+        key,
+        mode,
+        levelId: chordPracticeLevelSelect.value,
+        borrowingId: chordPracticeBorrowingSelect.value,
+        chordCount: Math.max(2, Math.min(256, Number(chordPracticeCountInput.value) || 8)),
+        library: chordPracticeLibrary
     });
 
     if (progression.warning || progression.chords.length === 0) {
@@ -4722,8 +4668,6 @@ async function generateChordPractice() {
     }
 
     const { container, state } = buildChordPracticeTab(progression, options);
-    // From the progression, not from the dialog. A pasted seed overrides the key on screen, and
-    // naming the tab after the control rather than the result labelled it with a key it was not in.
     const tab = createTab(`Practice - ${progression.key} ${progression.mode}`, container, {
         kind: 'chord-practice',
         onClose: () => {
@@ -4755,10 +4699,8 @@ chordPracticeDialog.addEventListener('close', () => {
  * Puts every field back to the value the markup declares.
  *
  * A dialog that remembers is a trap when one of the things it remembers is invisible in its
- * effect: a seed left in the field from an earlier session silently overrode the key, level,
- * length and time signature chosen beside it, so asking for a new progression in a new key gave
- * back the old one. Nothing here is a preference -- these describe one progression -- so the
- * dialog opens ready to describe the next one.
+ * effect. Nothing here is a preference -- these describe one progression -- so the dialog opens
+ * ready to describe the next one.
  *
  * Read from the markup rather than listed here, so a default changed in the HTML cannot drift
  * from what this restores.

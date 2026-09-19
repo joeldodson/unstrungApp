@@ -75,7 +75,6 @@ await page.waitForTimeout(400);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.selectOption('#chord-practice-borrowing-select', 'frequent');
 await page.fill('#chord-practice-count-input', '16');
-await page.fill('#chord-practice-seed-input', '');
 await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
@@ -155,7 +154,7 @@ check('a tab opened and the dialog closed', tab !== null && tab.dialogClosed);
 console.log(`  tab: ${tab.tabName}`);
 console.log(`  headings: ${tab.headings.join(' | ')}`);
 // The same shape as the audio track panel: a heading per section, keyboard commands last. How many
-// distinct chords a seed produces varies, so the counts are matched rather than spelled out.
+// distinct chords a run produces varies, so the counts are matched rather than spelled out.
 const headingShape = tab.headings.map(h => h.replace(/\(\d+[^)]*\)/, '(n)')).join(' | ');
 check('the sections are laid out in order',
     headingShape ===
@@ -168,8 +167,9 @@ check('playback has a transport', tab.buttons.includes('Play Progression'), tab.
 check('there is a live region for playback state', tab.liveRegions >= 1);
 
 console.log(`  summary: ${tab.summaryItems.join(' | ')}`);
-check('the seed is stated so the progression can be regenerated',
-    tab.summaryItems.some(row => row.startsWith('Seed - ')));
+check('no seed is stated', !tab.summaryItems.some(row => /seed/i.test(row)),
+    tab.summaryItems.join(' | '));
+check('no button offers to copy a seed', !tab.buttons.some(b => /seed/i.test(b)), tab.buttons.join(', '));
 // Tempo is no longer in the summary: it is adjustable during playback, so it lives in a field
 // where it can be changed and read back rather than in text that would go stale.
 check('the time signature is stated', tab.summaryItems.some(r => r.includes('4/4')),
@@ -434,48 +434,23 @@ check('B says which time round you are on while looping',
 await page.keyboard.press(' ');
 await page.waitForTimeout(400);
 
-console.log('\n=== A seed rebuilds the same progression ===');
-const firstChords = tab.summaries.join(' ');
-// The whole line, not a bare number: the seed carries the key, level, borrowing, length and time
-// signature along with it.
-const seedRow = tab.summaryItems.find(row => row.startsWith('Seed - '));
-const seed = seedRow.replace('Seed - ', '').trim();
-console.log(`  seed from the first tab: ${seed}`);
-
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
-await page.waitForTimeout(1200);
-await page.fill('#chord-practice-seed-input', seed);
-await page.selectOption('#chord-practice-key-select', 'C|major');
-await page.fill('#chord-practice-count-input', '8');
-await page.click('#chord-practice-generate-button');
-await page.waitForTimeout(1500);
-
-const rebuilt = await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    return [...panel.querySelectorAll('ul.chords-used > li > details')]
-        .map(d => d.querySelector('summary').textContent).join(' ');
-});
-console.log(`  original: ${firstChords}`);
-console.log(`  rebuilt : ${rebuilt}`);
-check('the same seed gives the same chords', rebuilt === firstChords, rebuilt);
-
+console.log('\n=== The dialog has no seed field ===');
 await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
 await page.waitForTimeout(1000);
-const seedRejected = await page.evaluate(async () => {
-    document.getElementById('chord-practice-seed-input').value = 'not a number';
-    document.getElementById('chord-practice-generate-button').click();
-    await new Promise(r => setTimeout(r, 400));
+const seedless = await page.evaluate(() => {
+    const dialog = document.getElementById('chord-practice-dialog');
     return {
-        stillOpen: document.getElementById('chord-practice-dialog').open,
-        status: document.getElementById('chord-practice-status').textContent
+        field: Boolean(document.getElementById('chord-practice-seed-input')),
+        mentions: /seed/i.test(dialog.textContent)
     };
 });
-console.log(`  bad seed -> ${seedRejected.status}`);
-check('a seed that cannot be read is refused rather than ignored',
-    seedRejected.stillOpen && /not a seed/.test(seedRejected.status), seedRejected.status);
-await page.evaluate(() => document.getElementById('chord-practice-dialog').close());
+check('there is no seed field', !seedless.field);
+check('the dialog does not mention a seed', !seedless.mentions);
+// A fresh tab with the dialog's defaults, which have speaking the names off: the section below
+// turns them on and needs that to be a change.
+await page.click('#chord-practice-generate-button');
+await page.waitForTimeout(1500);
 
 console.log('\n=== Speaking the names is a control on the tab, not only a choice in the dialog ===');
 const speakUi = await page.evaluate(() => {
@@ -549,7 +524,6 @@ await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
 await page.waitForTimeout(1200);
 const readDialog = () => page.evaluate(() => ({
-    seed: document.getElementById('chord-practice-seed-input').value,
     level: document.getElementById('chord-practice-level-select').value,
     key: document.getElementById('chord-practice-key-select').value,
     firstKey: document.getElementById('chord-practice-key-select').options[0]?.value,
@@ -566,9 +540,7 @@ const readDialog = () => page.evaluate(() => ({
 const defaults = await readDialog();
 console.log(`  on open: ${JSON.stringify(defaults)}`);
 
-// Change everything, including the seed, which is the field that caused this: left behind from an
-// earlier progression it silently overrode the key, level and length chosen beside it.
-await page.fill('#chord-practice-seed-input', 'C-major-beginner-none-8-4-4-12345');
+// Change everything.
 await page.selectOption('#chord-practice-level-select', 'advanced');
 await page.waitForTimeout(300);
 await page.selectOption('#chord-practice-borrowing-select', 'frequent');
@@ -582,7 +554,7 @@ await page.setChecked('#chord-practice-count-in-each-pass-checkbox', true);
 await page.setChecked('#chord-practice-metronome-checkbox', false);
 await page.setChecked('#chord-practice-speak-checkbox', true).catch(() => {});
 const changed = await readDialog();
-check('the fields really were changed', changed.seed !== '' && changed.level === 'advanced',
+check('the fields really were changed', changed.tempo === '150' && changed.level === 'advanced',
     JSON.stringify(changed));
 
 await page.click('#chord-practice-cancel-button');
@@ -593,7 +565,6 @@ await page.waitForTimeout(1200);
 const reopened = await readDialog();
 console.log(`  reopened: ${JSON.stringify(reopened)}`);
 
-check('the seed field is empty again', reopened.seed === '', reopened.seed);
 check('the level is back to the first one offered', reopened.level === 'beginner', reopened.level);
 check('the key is back to the first one the level allows',
     reopened.key === reopened.firstKey, `${reopened.key} against ${reopened.firstKey}`);
