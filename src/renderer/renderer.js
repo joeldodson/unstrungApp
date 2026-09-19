@@ -5518,15 +5518,30 @@ function focusEditorMeasure(index) {
     editorMeasures.children[editor.current]?.focus();
 }
 
+/**
+ * Points the chord field at the current measure.
+ *
+ * The field starts empty, ready for a new chord: with it empty, Down lists the key's chords, and
+ * what the measure already holds would only have to be deleted first. The label says what that is
+ * instead, so it is heard on arriving without being in the way.
+ */
 function syncEditorChordField() {
     const chord = editor.measures[editor.current];
-    editorChordLabel.textContent = `Chord for measure ${editor.current + 1}`;
-    editorChordInput.value = chord ? chordDisplayName(chord) : '';
+    editorChordLabel.textContent = `Chord for measure ${editor.current + 1}, ` +
+        (chord ? `now ${chordDisplayName(chord)}` : 'no chord yet');
+    editorChordInput.value = '';
     closeEditorSuggestions();
 }
 
+// Emptied a few seconds after each message. The message is spoken when it is set; left in place,
+// it would be read again, out of date, by anyone reading down through the dialog later.
+const EDITOR_STATUS_SECONDS = 4;
+let editorStatusTimer = null;
+
 function editorAnnounce(text) {
+    clearTimeout(editorStatusTimer);
     announceLiveRegion(editorStatus, text);
+    editorStatusTimer = setTimeout(() => { editorStatus.textContent = ''; }, EDITOR_STATUS_SECONDS * 1000);
 }
 
 function editorInsert({ duplicate = false, moveFocus = false } = {}) {
@@ -5700,7 +5715,7 @@ function renderEditorSuggestions() {
         option.setAttribute('aria-selected', String(index === editor.suggestionIndex));
         option.textContent = suggestion.label;
         option.addEventListener('mousedown', event => event.preventDefault());
-        option.addEventListener('click', () => commitEditorChord(suggestion.chord));
+        option.addEventListener('click', () => commitEditorChord(suggestion.chord, { returnToList: true }));
         editorSuggestions.append(option);
     }
     const open = editor.suggestions.length > 0;
@@ -5720,42 +5735,43 @@ function openEditorSuggestions(highlight) {
     renderEditorSuggestions();
 }
 
-function commitEditorChord(chord) {
-    editor.measures[editor.current] = chord ? { root: chord.root, suffix: chord.suffix } : null;
+/**
+ * Gives the current measure a chord.
+ *
+ * With `returnToList`, focus goes back to that measure in the list, which reads out its new chord;
+ * that is what Enter and a click do. Otherwise -- leaving the field with Tab -- focus stays where
+ * it went and the change is announced instead.
+ */
+function commitEditorChord(chord, { returnToList = false } = {}) {
+    editor.measures[editor.current] = { root: chord.root, suffix: chord.suffix };
     const option = editorMeasures.children[editor.current];
     if (option) option.textContent = editorMeasureLabel(editor.measures[editor.current], editorKeyClasses());
-    editorChordInput.value = chord ? chordDisplayName(chord) : '';
-    closeEditorSuggestions();
-    editorAnnounce(chord
-        ? `Measure ${editor.current + 1} is ${chordDisplayName(chord)}.`
-        : `Measure ${editor.current + 1} has no chord.`);
+    syncEditorChordField();
+    if (returnToList) focusEditorMeasure(editor.current);
+    else editorAnnounce(`Measure ${editor.current + 1} is ${chordDisplayName(chord)}.`);
 }
 
 /**
  * Takes what was typed as the measure's chord, if it names one.
  *
- * `revert` is for leaving the field: a name that matches nothing is put back to the measure's
- * chord, so what the field shows is never something the measure does not hold. On Enter it is
- * left for correcting instead.
+ * An empty field changes nothing: the field starts empty, so empty means no new chord was given.
+ * A name that matches nothing is announced; `revert` empties the field too, for when it is being
+ * left, while Enter leaves the text there to be corrected.
  */
-function commitEditorTypedChord({ revert = false } = {}) {
+function commitEditorTypedChord({ revert = false, returnToList = false } = {}) {
     const text = editorChordInput.value.trim();
-    const current = editor.measures[editor.current];
     if (text === '') {
-        if (current) commitEditorChord(null);
+        closeEditorSuggestions();
+        if (returnToList) focusEditorMeasure(editor.current);
         return true;
     }
     const entry = editorChordByName(text);
     if (entry) {
-        if (!current || current.root !== entry.root || current.suffix !== entry.suffix) {
-            commitEditorChord(entry);
-        } else {
-            editorChordInput.value = chordDisplayName(entry);
-        }
+        commitEditorChord(entry, { returnToList });
         return true;
     }
     editorAnnounce(`There is no chord named ${text} in the chord library.`);
-    if (revert) editorChordInput.value = current ? chordDisplayName(current) : '';
+    if (revert) editorChordInput.value = '';
     return false;
 }
 
@@ -5775,9 +5791,9 @@ editorChordInput.addEventListener('keydown', event => {
         renderEditorSuggestions();
     } else if (event.key === 'Enter') {
         if (open && editor.suggestionIndex >= 0) {
-            commitEditorChord(editor.suggestions[editor.suggestionIndex].chord);
+            commitEditorChord(editor.suggestions[editor.suggestionIndex].chord, { returnToList: true });
         } else {
-            commitEditorTypedChord();
+            commitEditorTypedChord({ returnToList: true });
         }
     } else if (event.key === 'Escape') {
         // Closes the list and nothing else. Only with the list already closed does Escape reach

@@ -353,19 +353,42 @@
         <!-- One option per measure, named by its chord. The chord field below edits whichever
              measure is current here, so the number of stops does not grow with the length. -->
         <ul id="progression-editor-measures" role="listbox"
-            aria-labelledby="progression-editor-measures-heading"
-            aria-describedby="progression-editor-measures-hint"></ul>
-        <p id="progression-editor-measures-hint" hidden>
-            Enter to choose its chord, Delete to remove it, Control+I to insert a measure after it,
-            Control+D to duplicate it, Alt+Up and Alt+Down to move it.
-        </p>
+            aria-labelledby="progression-editor-measures-heading"></ul>
 
-        <p>
-            <label for="progression-editor-chord-input" id="progression-editor-chord-label">Chord</label>
-            <input type="text" id="progression-editor-chord-input" role="combobox" aria-expanded="false"
-                aria-controls="progression-editor-suggestions" aria-autocomplete="list"
-                autocomplete="off" />
-        </p>
+        <!-- Collapsed rather than attached to the list as a description, which was read out on
+             every visit to the list. -->
+        <details>
+            <summary>Keyboard notes for the measures list</summary>
+            <ul>
+                <li>Enter - choose a new chord for the measure</li>
+                <li>Delete - remove the measure</li>
+                <li>Control+I - insert an empty measure after it</li>
+                <li>Control+D - duplicate it</li>
+                <li>Alt+Up and Alt+Down - move it</li>
+            </ul>
+        </details>
+
+        <!-- The field and its notes side by side on screen. As flex items each is still its own
+             line to a screen reader. -->
+        <div class="field-row">
+            <p>
+                <label for="progression-editor-chord-input" id="progression-editor-chord-label">Chord</label>
+                <input type="text" id="progression-editor-chord-input" role="combobox" aria-expanded="false"
+                    aria-controls="progression-editor-suggestions" aria-autocomplete="list"
+                    autocomplete="off" />
+            </p>
+            <details>
+                <summary>How the chord field works</summary>
+                <p>
+                    The field starts empty. With it empty, the Down arrow lists the chords the key
+                    is built from, each with its scale degree. Typing searches every chord in the
+                    chord library instead. A chord outside the key is marked as such but can still
+                    be chosen. Enter takes the chord and goes back to the measure in the list.
+                    Leaving the field empty keeps the chord the measure has. Changing the key does
+                    not change the chords already chosen.
+                </p>
+            </details>
+        </div>
         <ul id="progression-editor-suggestions" role="listbox" aria-label="Chords" hidden></ul>
 
         <div class="button-row">
@@ -376,16 +399,8 @@
             <button type="button" id="progression-editor-down-button">Move Measure Down</button>
         </div>
 
-        <details>
-            <summary>How the chord field works</summary>
-            <p>
-                With the field empty, the Down arrow lists the chords the key is built from, each
-                with its scale degree. Typing searches every chord in the chord library instead.
-                A chord outside the key is marked as such but can still be chosen. Changing the
-                key does not change the chords already chosen.
-            </p>
-        </details>
-
+        <!-- Announces what a button or key just did, then empties itself, so it is heard when it
+             happens and not met again when reading through the dialog. -->
         <p id="progression-editor-status" aria-live="polite"></p>
 
         <div class="button-row">

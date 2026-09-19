@@ -63,6 +63,9 @@ const activePanel = () => page.evaluate(() => {
     };
 });
 
+// A measure option, without the note a chord outside the key carries.
+const bare = text => String(text ?? '').replace(', outside the key', '');
+
 const clickInPanel = label => page.evaluate(text => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
     [...panel.querySelectorAll('button')].find(b => b.textContent === text).click();
@@ -192,12 +195,34 @@ try {
         editorOpen.options.map(o => o.replace(', outside the key', '')).join(' ') === generatedChords.join(' '),
         editorOpen.options.join(' | '));
     check('focus starts on the first measure', editorOpen.focusedRole === 'option' &&
-        editorOpen.focusedText === generatedChords[0], `${editorOpen.focusedRole}: ${editorOpen.focusedText}`);
+        bare(editorOpen.focusedText) === generatedChords[0], `${editorOpen.focusedRole}: ${editorOpen.focusedText}`);
     check('the key is the progression\'s', editorOpen.key === 'C|major', editorOpen.key);
-    check('the chord field names its measure and holds its chord',
-        editorOpen.chordLabel === 'Chord for measure 1' && editorOpen.chordValue === generatedChords[0],
-        `${editorOpen.chordLabel}: ${editorOpen.chordValue}`);
+    check('the chord field names its measure and what it holds, and starts empty',
+        editorOpen.chordLabel === `Chord for measure 1, now ${generatedChords[0]}` && editorOpen.chordValue === '',
+        `${editorOpen.chordLabel}: "${editorOpen.chordValue}"`);
     check('every field is labelled', editorOpen.unlabelled.length === 0, editorOpen.unlabelled.join(', '));
+
+    const layout = await page.evaluate(() => {
+        const list = document.getElementById('progression-editor-measures');
+        const notes = list.nextElementSibling;
+        const field = document.getElementById('progression-editor-chord-input');
+        const row = field.closest('.field-row');
+        return {
+            describedBy: list.getAttribute('aria-describedby'),
+            notesSummary: notes?.tagName === 'DETAILS' ? notes.querySelector('summary').textContent : null,
+            notesOpen: notes?.open,
+            rowHolds: row ? [...row.children].map(c => c.tagName === 'DETAILS'
+                ? c.querySelector('summary').textContent : c.textContent.trim()) : []
+        };
+    });
+    check('the measures list carries no description to repeat on every visit', layout.describedBy === null,
+        String(layout.describedBy));
+    check('its keyboard notes are a collapsed disclosure right after it',
+        layout.notesSummary === 'Keyboard notes for the measures list' && layout.notesOpen === false,
+        String(layout.notesSummary));
+    check('the chord field and How the chord field works share one row',
+        layout.rowHolds.length === 2 && layout.rowHolds[1] === 'How the chord field works',
+        layout.rowHolds.join(' | '));
 
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(150);
@@ -206,13 +231,15 @@ try {
         chordLabel: document.getElementById('progression-editor-chord-label').textContent
     }));
     check('Down moves to the next measure and the chord field follows',
-        second.focused === generatedChords[1] && second.chordLabel === 'Chord for measure 2',
+        bare(second.focused) === generatedChords[1] &&
+        second.chordLabel === `Chord for measure 2, now ${generatedChords[1].replace(', outside the key', '')}`,
         `${second.focused} / ${second.chordLabel}`);
 
-    // Enter goes to the chord field; with it empty, Down lists the key's own chords.
+    // Enter goes to the chord field, which is empty; Down lists the key's own chords.
     await page.keyboard.press('Enter');
     await page.waitForTimeout(150);
-    await page.fill('#progression-editor-chord-input', '');
+    const arrived = await page.evaluate(() => document.getElementById('progression-editor-chord-input').value);
+    check('the chord field is empty on arriving', arrived === '', `"${arrived}"`);
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(200);
     const keyChords = await page.evaluate(() => ({
@@ -229,6 +256,19 @@ try {
         keyChords.options.join(', '));
     check('the list is expanded and the first one highlighted',
         keyChords.expanded === 'true' && keyChords.active === 'progression-editor-suggestion-0');
+    await page.keyboard.press('Escape');
+
+    await page.fill('#progression-editor-chord-input', 'Hmaj');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    const nonsense = await page.evaluate(() => ({
+        option: document.querySelector('#progression-editor-measures [aria-selected="true"]').textContent,
+        focusedId: document.activeElement?.id,
+        status: document.getElementById('progression-editor-status').textContent
+    }));
+    check('a name that is not a chord is refused, the measure keeps its chord, and focus stays to fix it',
+        bare(nonsense.option) === generatedChords[1] && nonsense.focusedId === 'progression-editor-chord-input' &&
+        /no chord named Hmaj/.test(nonsense.status), `${nonsense.focusedId}: ${nonsense.status}`);
 
     // Anything can be typed, and a chord outside the key is marked but allowed.
     await page.fill('#progression-editor-chord-input', 'Bb');
@@ -241,25 +281,30 @@ try {
     await page.waitForTimeout(200);
     const afterBb = await page.evaluate(() => ({
         option: document.querySelector('#progression-editor-measures [aria-selected="true"]').textContent,
-        status: document.getElementById('progression-editor-status').textContent
+        focusedId: document.activeElement?.id,
+        label: document.getElementById('progression-editor-chord-label').textContent,
+        value: document.getElementById('progression-editor-chord-input').value
     }));
     check('Enter takes the typed chord for the measure', afterBb.option === 'Bb, outside the key', afterBb.option);
-    check('and says so', afterBb.status === 'Measure 2 is Bb.', afterBb.status);
+    check('and puts focus back on that measure in the list', afterBb.focusedId === 'progression-editor-measure-1',
+        afterBb.focusedId);
+    check('the field is empty again and its label names the new chord',
+        afterBb.value === '' && afterBb.label === 'Chord for measure 2, now Bb', `${afterBb.label}: "${afterBb.value}"`);
 
-    await page.fill('#progression-editor-chord-input', 'Hmaj');
+    // Enter on an empty field goes back to the list and changes nothing.
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(200);
-    const nonsense = await page.evaluate(() => ({
-        option: document.querySelector('#progression-editor-measures [aria-selected="true"]').textContent,
-        status: document.getElementById('progression-editor-status').textContent
-    }));
-    check('a name that is not a chord is refused and the measure keeps its chord',
-        nonsense.option === 'Bb, outside the key' && /no chord named Hmaj/.test(nonsense.status), nonsense.status);
-    await page.fill('#progression-editor-chord-input', 'Bb');
-
-    // Back to the list: move, insert, duplicate, remove.
-    await page.keyboard.press('Shift+Tab');
     await page.waitForTimeout(150);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
+    const unchanged = await page.evaluate(() => ({
+        option: document.querySelector('#progression-editor-measures [aria-selected="true"]').textContent,
+        focusedId: document.activeElement?.id
+    }));
+    check('Enter with the field empty returns to the measure and leaves its chord',
+        unchanged.option === 'Bb, outside the key' && unchanged.focusedId === 'progression-editor-measure-1',
+        `${unchanged.focusedId}: ${unchanged.option}`);
+
+    // Move, insert, duplicate, remove.
     await page.keyboard.press('Alt+ArrowUp');
     await page.waitForTimeout(150);
     const moved = await page.evaluate(() => ({
@@ -271,6 +316,10 @@ try {
         moved.options[0] === 'Bb, outside the key' && moved.focused === 'progression-editor-measure-0',
         `${moved.options.slice(0, 2).join(' | ')} / ${moved.focused}`);
     check('the move is announced', moved.status === 'Moved Bb to measure 1.', moved.status);
+    await page.waitForTimeout(4500);
+    const cleared = await page.evaluate(() => document.getElementById('progression-editor-status').textContent);
+    check('the announcement empties itself, so reading the dialog later does not meet it',
+        cleared === '', cleared);
 
     await page.keyboard.press('Control+d');
     await page.waitForTimeout(150);
@@ -486,6 +535,12 @@ try {
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await page.waitForTimeout(150);
+    const picked = await page.evaluate(() => ({
+        focusedId: document.activeElement?.id,
+        option: document.activeElement?.textContent
+    }));
+    check('a chord chosen with the arrows also goes back to the measure',
+        picked.focusedId === 'progression-editor-measure-0' && picked.option === 'Am', JSON.stringify(picked));
     await page.click('#progression-editor-duplicate-button');
     await page.click('#progression-editor-insert-button');
     await page.fill('#progression-editor-chord-input', 'E7');

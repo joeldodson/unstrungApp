@@ -28,6 +28,20 @@ body {
     margin: 1rem 0;
 }
 
+/* A field and something beside it, such as its notes, on one row. The same blockifying as
+   .button-row keeps them separate lines to a screen reader. */
+.field-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.field-row > * {
+    margin: 0;
+}
+
 #status:empty {
     display: none;
 }
