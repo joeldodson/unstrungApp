@@ -82,6 +82,14 @@ Unstrung's code is almost entirely written by Claude Code
 Copyright (c) ${new Date().getFullYear()} Joel Dodson
 `;
 
+// The verification scripts point this at a scratch folder, so saving a progression or changing a
+// setting while testing never touches the real profile or the real Documents folder.
+if (process.env.UNSTRUNG_TEST_PROFILE) {
+    const profile = path.resolve(process.env.UNSTRUNG_TEST_PROFILE);
+    app.setPath('userData', path.join(profile, 'userData'));
+    app.setPath('documents', path.join(profile, 'Documents'));
+}
+
 // --- Persisted app state: recently opened files and settings ---
 const APP_STATE_PATH = path.join(app.getPath('userData'), 'app-state.json');
 const MAX_RECENT_FILES = 10;
@@ -95,8 +103,10 @@ const DEFAULT_SCREEN_READER_SETTINGS = { terseBeatDescriptions: false, autoColla
 // default, and below full volume: the name is there to be heard under the playing, not over it.
 const DEFAULT_CHORD_VOICE_SETTINGS = { chordVoice: 'zira', chordVoicePercent: 50 };
 
+// Where saved chord progressions live. Empty means the default below, so the default can follow
+// the platform's Documents folder rather than being frozen into the state file.
 let appState = {
-    recentFiles: [], defaultOpenDirectory: '',
+    recentFiles: [], defaultOpenDirectory: '', progressionsDirectory: '',
     ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS
 };
 
@@ -111,6 +121,7 @@ async function loadAppState() {
             // Deduped on the way in as well, to repair a list written before paths were resolved.
             recentFiles: Array.isArray(parsed.recentFiles) ? dedupeRecentFiles(parsed.recentFiles) : [],
             defaultOpenDirectory: typeof parsed.defaultOpenDirectory === 'string' ? parsed.defaultOpenDirectory : '',
+            progressionsDirectory: typeof parsed.progressionsDirectory === 'string' ? parsed.progressionsDirectory : '',
             // A state file written before these existed must still come back with the defaults,
             // which for auto-collapse means true rather than the falsy reading of `undefined`.
             terseBeatDescriptions: readBoolean(parsed.terseBeatDescriptions,
@@ -126,7 +137,7 @@ async function loadAppState() {
         };
     } catch {
         return {
-            recentFiles: [], defaultOpenDirectory: '',
+            recentFiles: [], defaultOpenDirectory: '', progressionsDirectory: '',
             ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS
         };
     }
@@ -207,6 +218,8 @@ async function pathExists(candidatePath) {
 
 ipcMain.handle('settings:get', () => ({
     defaultOpenDirectory: appState.defaultOpenDirectory,
+    progressionsDirectory: progressionsDirectory(),
+    defaultProgressionsDirectory: defaultProgressionsDirectory(),
     terseBeatDescriptions: appState.terseBeatDescriptions,
     autoCollapseOnTabChange: appState.autoCollapseOnTabChange,
     chordVoice: appState.chordVoice,
@@ -277,6 +290,213 @@ ipcMain.handle('settings:validate-and-save-directory', async (_event, dirPath) =
     return { valid: true };
 });
 // --- end persisted app state ---
+
+// --- Saved chord progressions ---
+//
+// Saved as JSON files in an ordinary folder the user can reach from Explorer or Finder, rather
+// than in the app's own data. That gives backup, sharing and sub-folders for free, and means no
+// export or import feature is needed to get them out.
+//
+// The default is Documents/Unstrung/Progressions. Electron resolves the Documents folder on every
+// platform, so this is not a Windows path; it is stored as empty rather than spelled out, so a
+// machine whose Documents folder moves still finds it.
+
+const PROGRESSION_EXTENSION = '.json';
+const MAX_PROGRESSION_FILE_BYTES = 1024 * 1024;
+const MAX_PROGRESSION_FOLDER_DEPTH = 12;
+
+function defaultProgressionsDirectory() {
+    return path.join(app.getPath('documents'), 'Unstrung', 'Progressions');
+}
+
+function progressionsDirectory() {
+    return appState.progressionsDirectory || defaultProgressionsDirectory();
+}
+
+ipcMain.handle('settings:choose-progressions-directory', async event => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const options = {
+        title: 'Choose folder for saved chord progressions',
+        properties: ['openDirectory', 'createDirectory']
+    };
+    if (await isExistingDirectory(progressionsDirectory())) options.defaultPath = progressionsDirectory();
+    const result = await dialog.showOpenDialog(window, options);
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+});
+
+/**
+ * Sets the progressions folder. Empty, or the default spelled out, both mean the default.
+ *
+ * Another folder has to exist already: creating one from a mistyped path would scatter saves
+ * somewhere nobody meant. The default is the exception, and is created on first save.
+ */
+ipcMain.handle('settings:save-progressions-directory', async (_event, dirPath) => {
+    const trimmed = (dirPath ?? '').trim();
+    if (trimmed === '' || recentFileKey(trimmed) === recentFileKey(defaultProgressionsDirectory())) {
+        appState.progressionsDirectory = '';
+    } else if (await isExistingDirectory(trimmed)) {
+        appState.progressionsDirectory = path.resolve(trimmed);
+    } else {
+        return { valid: false, directory: progressionsDirectory() };
+    }
+    await saveAppState();
+    return { valid: true, directory: progressionsDirectory() };
+});
+
+// Files the renderer may write to without a Save dialog: ones it opened from the folder or saved
+// through the dialog. Anything else has to go through the dialog, so a renderer bug cannot
+// overwrite an arbitrary file.
+const knownProgressionFiles = new Set();
+
+function isInside(root, candidate) {
+    const relative = path.relative(root, candidate);
+    return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+/**
+ * The folder as a tree: sub-folders first, then files, each in name order.
+ *
+ * Every progression file's text comes back with it, so the renderer can check each one against
+ * the chord library and say which it had to skip. They are small, and reading them now is what
+ * lets the open dialog list only the ones that will actually open.
+ */
+async function scanProgressionFolder(root, relative, depth) {
+    let entries;
+    try {
+        entries = await fs.readdir(path.join(root, relative), { withFileTypes: true });
+    } catch {
+        return [];
+    }
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    entries.sort((a, b) => collator.compare(a.name, b.name));
+
+    const folders = [];
+    const files = [];
+    for (const entry of entries) {
+        // Hidden entries are the system's, not the player's: .git, .DS_Store and the like.
+        if (entry.name.startsWith('.')) continue;
+        const entryRelative = relative ? path.join(relative, entry.name) : entry.name;
+
+        if (entry.isDirectory()) {
+            if (depth >= MAX_PROGRESSION_FOLDER_DEPTH) continue;
+            folders.push({
+                type: 'folder', name: entry.name, path: entryRelative,
+                children: await scanProgressionFolder(root, entryRelative, depth + 1)
+            });
+        } else if (entry.isFile() && path.extname(entry.name).toLowerCase() === PROGRESSION_EXTENSION) {
+            const file = {
+                type: 'file', name: path.basename(entry.name, path.extname(entry.name)), path: entryRelative
+            };
+            try {
+                const fullPath = path.join(root, entryRelative);
+                const { size } = await fs.stat(fullPath);
+                if (size > MAX_PROGRESSION_FILE_BYTES) file.error = 'too large to be a saved progression';
+                else file.text = await fs.readFile(fullPath, 'utf8');
+            } catch (error) {
+                file.error = `could not be read: ${error.message}`;
+            }
+            files.push(file);
+        }
+    }
+    return [...folders, ...files];
+}
+
+ipcMain.handle('progressions:list', async () => {
+    const directory = progressionsDirectory();
+    const exists = await isExistingDirectory(directory);
+    return { directory, exists, tree: exists ? await scanProgressionFolder(directory, '', 0) : [] };
+});
+
+/** One file from the folder, read again at the moment it is opened so it is never stale. */
+ipcMain.handle('progressions:read', async (_event, relativePath) => {
+    const root = progressionsDirectory();
+    const filePath = path.resolve(root, String(relativePath ?? ''));
+    if (!isInside(root, filePath)) throw new Error('That file is not in the progressions folder.');
+    const text = await fs.readFile(filePath, 'utf8');
+    knownProgressionFiles.add(recentFileKey(filePath));
+    return { filePath, name: path.basename(filePath, path.extname(filePath)), text };
+});
+
+/** A file name from a suggested title, with the characters no platform allows taken out. */
+function safeFileName(name) {
+    const cleaned = String(name ?? '')
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/[. ]+$/, '')
+        .slice(0, 100);
+    return cleaned || 'Chord progression';
+}
+
+async function writeFileAtomically(filePath, text) {
+    const temporaryPath = `${filePath}.tmp`;
+    await fs.writeFile(temporaryPath, text, 'utf8');
+    await fs.rename(temporaryPath, filePath);
+}
+
+/**
+ * Saves a progression.
+ *
+ * With `filePath` -- a file this session opened or saved -- it is overwritten in place, which is
+ * Save. Without one, the system's Save dialog opens in the progressions folder, which is Save As
+ * and the first save. That dialog can also make new folders, which is how the tree of saved
+ * progressions gets its structure.
+ *
+ * Returns null when the dialog was cancelled.
+ */
+ipcMain.handle('progressions:save', async (event, { text, filePath, suggestedName }) => {
+    let target = filePath ? path.resolve(filePath) : null;
+    if (target && !knownProgressionFiles.has(recentFileKey(target))) target = null;
+
+    if (!target) {
+        const directory = progressionsDirectory();
+        // The default folder may not exist yet; a chosen one was checked when it was set.
+        await fs.mkdir(directory, { recursive: true }).catch(() => {});
+        const window = BrowserWindow.fromWebContents(event.sender);
+        const result = await dialog.showSaveDialog(window, {
+            title: 'Save chord progression',
+            defaultPath: path.join(directory, `${safeFileName(suggestedName)}${PROGRESSION_EXTENSION}`),
+            filters: [{ name: 'Chord progressions', extensions: ['json'] }],
+            properties: ['createDirectory', 'showOverwriteConfirmation']
+        });
+        if (result.canceled || !result.filePath) return null;
+        target = result.filePath;
+        if (path.extname(target).toLowerCase() !== PROGRESSION_EXTENSION) target += PROGRESSION_EXTENSION;
+    }
+
+    await writeFileAtomically(target, String(text));
+    knownProgressionFiles.add(recentFileKey(target));
+    return {
+        filePath: target,
+        name: path.basename(target, path.extname(target)),
+        // Saved somewhere the open dialog will not look. Worth saying, or the progression seems
+        // to vanish the next time it is wanted.
+        insideFolder: isInside(progressionsDirectory(), target)
+    };
+});
+
+ipcMain.handle('progressions:open-folder', async () => {
+    const directory = progressionsDirectory();
+    await fs.mkdir(directory, { recursive: true }).catch(() => {});
+    const failure = await shell.openPath(directory);
+    return { directory, error: failure || null };
+});
+
+// Whether any chord practice tab holds changes that are not saved. The renderer keeps this current,
+// so closing the window only has to ask when there is something to lose, and never waits on the
+// renderer when there is not.
+let unsavedProgressions = false;
+let quitConfirmed = false;
+
+ipcMain.on('progressions:set-unsaved', (_event, value) => {
+    unsavedProgressions = value === true;
+});
+
+ipcMain.on('app:quit-confirmed', event => {
+    quitConfirmed = true;
+    BrowserWindow.fromWebContents(event.sender)?.close();
+});
+// --- end saved chord progressions ---
 
 async function openFilePath(window, filePath) {
     const fileName = path.basename(filePath);
@@ -613,7 +833,12 @@ function buildMenu(window) {
                 { label: '&Chord Library…', click: () => window.webContents.send('chords:open') },
                 { label: '&Frets to Chord…', click: () => window.webContents.send('frets:open') },
                 { label: '&Listen to Guitar Samples…', click: () => window.webContents.send('guitar-samples:open') },
-                { label: 'Chord &Practice…', click: () => window.webContents.send('chord-practice:open') }
+                { label: 'Chord &Practice…', click: () => window.webContents.send('chord-practice:open') },
+                {
+                    label: '&Open Saved Progression…', accelerator: 'CmdOrCtrl+Shift+O',
+                    click: () => window.webContents.send('progressions:open-dialog')
+                },
+                { label: '&New Chord Progression…', click: () => window.webContents.send('progressions:new') }
             ]
         },
         {
@@ -642,6 +867,14 @@ async function createWindow(filesToOpen = []) {
             nodeIntegration: false,
             sandbox: true
         }
+    });
+
+    // A chord practice tab with unsaved changes gets a chance to say so before the window goes.
+    // The renderer answers with app:quit-confirmed, which closes it for real.
+    window.on('close', event => {
+        if (!unsavedProgressions || quitConfirmed) return;
+        event.preventDefault();
+        window.webContents.send('app:confirm-quit');
     });
 
     buildMenu(window);

@@ -21,6 +21,17 @@ contextBridge.exposeInMainWorld('unstrung', {
     // Chord practice (Tools menu).
     onChordPracticeOpen: (callback) => ipcRenderer.on('chord-practice:open', () => callback()),
 
+    // Saved chord progressions (Tools menu, and the chord practice tab).
+    onOpenSavedProgression: (callback) => ipcRenderer.on('progressions:open-dialog', () => callback()),
+    onNewProgression: (callback) => ipcRenderer.on('progressions:new', () => callback()),
+    listProgressions: () => ipcRenderer.invoke('progressions:list'),
+    readProgression: (relativePath) => ipcRenderer.invoke('progressions:read', relativePath),
+    saveProgression: (request) => ipcRenderer.invoke('progressions:save', request),
+    openProgressionsFolder: () => ipcRenderer.invoke('progressions:open-folder'),
+    setUnsavedProgressions: (value) => ipcRenderer.send('progressions:set-unsaved', value),
+    onConfirmQuit: (callback) => ipcRenderer.on('app:confirm-quit', () => callback()),
+    confirmQuit: () => ipcRenderer.send('app:quit-confirmed'),
+
     // Chord library (Tools menu).
     onChordLibraryOpen: (callback) => ipcRenderer.on('chords:open', () => callback()),
     onFretsToChordOpen: (callback) => ipcRenderer.on('frets:open', () => callback()),
@@ -31,6 +42,8 @@ contextBridge.exposeInMainWorld('unstrung', {
     getSettings: () => ipcRenderer.invoke('settings:get'),
     chooseSettingsDirectory: () => ipcRenderer.invoke('settings:choose-directory'),
     validateAndSaveSettingsDirectory: (dirPath) => ipcRenderer.invoke('settings:validate-and-save-directory', dirPath),
+    chooseProgressionsDirectory: () => ipcRenderer.invoke('settings:choose-progressions-directory'),
+    saveProgressionsDirectory: (dirPath) => ipcRenderer.invoke('settings:save-progressions-directory', dirPath),
     clearRecentFiles: () => ipcRenderer.invoke('settings:clear-recent-files'),
     removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files'),
     saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings),

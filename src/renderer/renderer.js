@@ -10,6 +10,10 @@ import progressionModel from '../assets/progressions/progression-model.json';
 import {
     generateProgression, chordDisplayName, usableKeys, KEY_ROOTS
 } from '../shared/chordProgressions.mjs';
+import {
+    serializeProgression, parseSavedProgression, keyPitchClasses, isChordInKey, degreeChords,
+    MAX_MEASURES, MAX_BEATS
+} from '../shared/savedProgressions.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 
 const statusElement = document.getElementById('status');
@@ -239,7 +243,8 @@ function buildErrorPanel(message) {
 }
 
 function createTab(fileName, contentEl, {
-    isError = false, score = undefined, kind = 'file', onClose = undefined, insertAfterTabId = null
+    isError = false, score = undefined, kind = 'file', onClose = undefined, insertAfterTabId = null,
+    confirmClose = undefined
 } = {}) {
     const id = nextTabId++;
     const tabElementId = `tab-${id}`;
@@ -263,7 +268,7 @@ function createTab(fileName, contentEl, {
     panel.hidden = true;
     panel.append(contentEl);
 
-    const tab = { id, fileName, buttonEl: button, panelEl: panel, score, kind, onClose };
+    const tab = { id, fileName, buttonEl: button, panelEl: panel, score, kind, onClose, confirmClose };
 
     // An audio track belongs beside the song it came from rather than at the end of the strip.
     const anchorIndex = insertAfterTabId === null
@@ -353,6 +358,18 @@ function closeTab(id) {
         const nextIndex = Math.min(index, tabs.length - 1);
         activateTab(tabs[nextIndex].id, { focusContent: true });
     }
+}
+
+/**
+ * Closes a tab, first giving it the chance to object.
+ *
+ * A chord practice tab with unsaved changes asks whether to save them; the others close at once.
+ */
+async function requestCloseTab(id) {
+    const tab = tabs.find(t => t.id === id);
+    if (!tab) return;
+    if (tab.confirmClose && !await tab.confirmClose()) return;
+    closeTab(id);
 }
 
 function shiftActiveTab(delta, { focusContent = false } = {}) {
@@ -534,7 +551,7 @@ window.unstrung.onHelpOpen(({ topic }) => openHelpDialog(topic));
 window.unstrung.onFileOpened(handleFileOpened);
 window.unstrung.onFileOpenError(handleFileOpenError);
 window.unstrung.onCloseCurrentTab(() => {
-    if (activeTabId != null) closeTab(activeTabId);
+    if (activeTabId != null) requestCloseTab(activeTabId);
 });
 window.unstrung.onAboutOpen(openAboutDialog);
 
@@ -821,7 +838,11 @@ settingsTablistElement.addEventListener('keydown', event => {
     }
 });
 
-function showDirectoryErrorDialog(directoryText) {
+// Two fields can report a missing folder, so the dialog returns focus to whichever one asked.
+let directoryErrorReturnFocus = null;
+
+function showDirectoryErrorDialog(directoryText, returnFocus = settingsDirectoryInput) {
+    directoryErrorReturnFocus = returnFocus;
     directoryErrorMessageElement.textContent = `Directory "${directoryText}" does not exist.`;
     directoryErrorDialog.showModal();
     directoryErrorDialog.focus();
@@ -830,7 +851,8 @@ function showDirectoryErrorDialog(directoryText) {
 directoryErrorOkButton.addEventListener('click', () => directoryErrorDialog.close());
 
 directoryErrorDialog.addEventListener('close', () => {
-    settingsDirectoryInput.focus();
+    (directoryErrorReturnFocus ?? settingsDirectoryInput).focus();
+    directoryErrorReturnFocus = null;
 });
 
 async function validateAndSaveSettingsDirectory() {
@@ -850,6 +872,41 @@ settingsBrowseButton.addEventListener('click', async () => {
         await validateAndSaveSettingsDirectory();
     }
 });
+
+// --- Progressions folder (General tab) ---
+const settingsProgressionsInput = document.getElementById('settings-progressions-directory-input');
+const settingsProgressionsBrowseButton = document.getElementById('settings-progressions-browse-button');
+const settingsProgressionsDefaultButton = document.getElementById('settings-progressions-default-button');
+const settingsProgressionsHint = document.getElementById('settings-progressions-directory-hint');
+const settingsGeneralStatusElement = document.getElementById('settings-general-status');
+
+/**
+ * Saves the progressions folder field. An empty field means the default.
+ *
+ * On 'change' rather than on every blur: the field is read back from the main process afterwards,
+ * so saving an unchanged value would still rewrite it, and a missing folder would be reported
+ * again each time focus passed through.
+ */
+async function saveProgressionsDirectorySetting(value) {
+    const { valid, directory } = await window.unstrung.saveProgressionsDirectory(value);
+    if (!valid) {
+        showDirectoryErrorDialog(value, settingsProgressionsInput);
+        return false;
+    }
+    settingsProgressionsInput.value = directory;
+    settingsGeneralStatusElement.textContent = `Progressions will be saved in ${directory}.`;
+    return true;
+}
+
+settingsProgressionsInput.addEventListener('change',
+    () => saveProgressionsDirectorySetting(settingsProgressionsInput.value));
+
+settingsProgressionsBrowseButton.addEventListener('click', async () => {
+    const chosen = await window.unstrung.chooseProgressionsDirectory();
+    if (chosen) await saveProgressionsDirectorySetting(chosen);
+});
+
+settingsProgressionsDefaultButton.addEventListener('click', () => saveProgressionsDirectorySetting(''));
 
 settingsClearRecentButton.addEventListener('click', async () => {
     const { removedCount } = await window.unstrung.clearRecentFiles();
@@ -918,6 +975,9 @@ async function openSettingsDialog() {
     settingsDialogOpener = document.activeElement;
     const settings = await window.unstrung.getSettings();
     settingsDirectoryInput.value = settings.defaultOpenDirectory ?? '';
+    settingsProgressionsInput.value = settings.progressionsDirectory ?? '';
+    settingsProgressionsHint.textContent = `Default: ${settings.defaultProgressionsDirectory}`;
+    settingsGeneralStatusElement.textContent = '';
     settingsTerseBeatsCheckbox.checked = settings.terseBeatDescriptions === true;
     settingsAutoCollapseCheckbox.checked = settings.autoCollapseOnTabChange !== false;
     chordVoiceSettings = {
@@ -3536,6 +3596,8 @@ const chordPracticeSpeechNote = document.getElementById('chord-practice-speech-n
 const chordPracticeStatus = document.getElementById('chord-practice-status');
 const chordPracticeGenerateButton = document.getElementById('chord-practice-generate-button');
 const chordPracticeCancelButton = document.getElementById('chord-practice-cancel-button');
+const chordPracticeOpenSavedButton = document.getElementById('chord-practice-open-saved-button');
+const chordPracticeNewButton = document.getElementById('chord-practice-new-button');
 
 const CHORD_PRACTICE_STRUM_DELAY_SECONDS = 0.022;
 const CHORD_PRACTICE_NOTE_GAIN = 0.55;
@@ -3620,6 +3682,10 @@ function buildChordPracticeRow(chord) {
         // chord is outside the key is worth knowing when you stop to look at it, not on every pass.
         rows.push(`From outside the key: ${chord.borrowed}, ${chord.borrowedWhy}`);
         if (chord.resolvesTo) rows.push(`Points at the ${chord.resolvesTo} chord that follows it`);
+    } else if (chord.outsideKey) {
+        // A chord chosen by hand, or kept from a file, carries no reason the way a generated
+        // borrowing does; that it is outside the key is all that can honestly be said.
+        rows.push(`From outside the key of ${chord.outsideKey}`);
     }
 
     if (voicing) {
@@ -4362,11 +4428,10 @@ document.addEventListener('keydown', event => {
  * The controls sit below it: they are set once and then left alone, while the chords are read
  * over and over.
  */
-function buildChordPracticeTab(progression, options) {
+function buildChordPracticeTab(progression, options, file = {}) {
     const container = document.createElement('div');
 
     const heading = document.createElement('h2');
-    heading.textContent = `Chord practice - ${progression.key} ${progression.mode}`;
     container.append(heading);
 
     const summaryHeading = document.createElement('h3');
@@ -4377,15 +4442,11 @@ function buildChordPracticeTab(progression, options) {
     // but it is now a checkbox under Playback that can be changed while the tab is open, and a
     // static line saying otherwise is worse than no line at all.
     const summaryList = document.createElement('ul');
-    appendTextItems(summaryList, [
-        `Key - ${progression.key} ${progression.mode}`,
-        `Level - ${progression.level}`,
-        `Time signature - ${options.timeSignature}`,
-        `Length - ${progression.chords.length} measures`,
-        `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
-        `Chords from outside the key - ${progression.borrowing ?? 'stay in the key'}` +
-            (progression.borrowedCount > 0 ? `, ${progression.borrowedCount} used` : '')
-    ]);
+    appendTextItems(summaryList, chordPracticeMetadataRows(progression));
+    // Kept as its own item so saving can update it in place, without rebuilding the tab under
+    // the reader.
+    const savedAsItem = document.createElement('li');
+    summaryList.append(savedAsItem);
     container.append(summaryList);
 
     // Each distinct chord once, with everything known about it. This is what you study before
@@ -4423,6 +4484,22 @@ function buildChordPracticeTab(progression, options) {
         list.append(item);
     }
     container.append(list);
+
+    // Straight after the list they act on. Save and Save As name their shortcuts, which work from
+    // anywhere in the tab and in either screen reader mode.
+    const fileActions = document.createElement('p');
+    const makeButton = (label, shortcut) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        if (shortcut) button.setAttribute('aria-keyshortcuts', shortcut);
+        fileActions.append(button);
+        return button;
+    };
+    const editButton = makeButton('Edit Progression');
+    const saveButton = makeButton('Save Progression', 'Control+S');
+    const saveAsButton = makeButton('Save Progression As', 'Control+Shift+S');
+    container.append(fileActions);
 
     const playbackHeading = document.createElement('h3');
     playbackHeading.textContent = 'Playback';
@@ -4565,8 +4642,15 @@ function buildChordPracticeTab(progression, options) {
 
     const state = {
         progression,
-        beatsPerBar: options.beatsPerBar,
+        beatsPerBar: progression.beatsPerBar,
         tempo: options.tempo,
+        // The file this progression was opened from or last saved to, and whether it has changed
+        // since. A generated progression starts with neither, and is not "unsaved": it was never
+        // anything but a draft, and asking about it on every close would train the answer.
+        filePath: file.filePath ?? null,
+        fileName: file.fileName ?? null,
+        dirty: file.dirty === true,
+        tab: null,
         speak: options.speak,
         speechVolume: options.speechVolume,
         voice: options.voice,
@@ -4581,7 +4665,7 @@ function buildChordPracticeTab(progression, options) {
         anchorSeconds: 0,
         anchorContextTime: null,
         ui: { tempoInput, metronomeCheckbox, repeatInput, countInEachPassCheckbox,
-            speakCheckbox, playButton },
+            speakCheckbox, playButton, heading, savedAsItem, editButton },
         announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
@@ -4590,6 +4674,10 @@ function buildChordPracticeTab(progression, options) {
         }
     };
 
+    refreshChordPracticeNames(state);
+    editButton.addEventListener('click', () => openProgressionEditor({ state }));
+    saveButton.addEventListener('click', () => saveChordPractice(state));
+    saveAsButton.addEventListener('click', () => saveChordPractice(state, { saveAs: true }));
     playButton.addEventListener('click', () => toggleChordPracticePlayback(state));
     for (const { button, action } of transportButtons) {
         button.addEventListener('click', () => action(state));
@@ -4630,57 +4718,277 @@ function buildChordPracticeTab(progression, options) {
     return { container, state };
 }
 
-async function generateChordPractice() {
-    const [key, mode] = chordPracticeKeySelect.value.split('|');
-    const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
-    const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
-    const repeatWanted = Number(chordPracticeRepeatInput.value);
-
-    const options = {
-        // The lower number is how the signature is written, not how it plays: the tempo is
-        // already counted in beats, so 6/8 at 90 is ninety eighth notes a minute.
-        timeSignature: `${beatsPerBar}/${beatUnit}`,
-        beatsPerBar,
-        beatUnit,
-        tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Number(chordPracticeTempoInput.value) || 80),
-        speak: chordPracticeSpeakCheckbox.checked && chordPracticeSpeechSupported,
-        // From Settings, read once when the progression is made: a tab already open keeps whatever
-        // was in force when it was generated.
+/**
+ * How to practise a progression, as opposed to what it is: tempo, repeats, metronome, speech.
+ *
+ * From the chord practice dialog when it was the way in, so a tempo set there applies to a saved
+ * progression opened from it too. From the dialog's declared defaults otherwise, which is what a
+ * progression opened from the Tools menu gets.
+ */
+function chordPracticePlaybackOptions({ fromDialog = true } = {}) {
+    const value = input => (fromDialog ? input.value : input.defaultValue);
+    const checked = input => (fromDialog ? input.checked : input.defaultChecked);
+    const repeatWanted = Number(value(chordPracticeRepeatInput));
+    return {
+        tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO,
+            Math.min(CHORD_PRACTICE_MAX_TEMPO, Number(value(chordPracticeTempoInput)) || 80)),
+        speak: checked(chordPracticeSpeakCheckbox) && chordPracticeSpeechSupported === true,
+        // From Settings, read once when the tab is made: a tab already open keeps whatever was in
+        // force when it was opened.
         speechVolume: Math.min(1, Math.max(0, chordVoiceSettings.chordVoicePercent / 100)),
         voice: chordVoiceSettings.chordVoice,
-        metronome: chordPracticeMetronomeCheckbox.checked,
-        countInEachPass: chordPracticeCountInEachPassCheckbox.checked,
+        metronome: checked(chordPracticeMetronomeCheckbox),
+        countInEachPass: checked(chordPracticeCountInEachPassCheckbox),
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
     };
+}
 
-    const progression = generateProgression(progressionModel, {
+/**
+ * The chord library, whether speech is available, and the voice settings.
+ *
+ * Everything a chord practice tab needs before it can be built. The dialog used to be the only way
+ * to a tab, so it fetched these as it opened; a saved progression can now be opened straight from
+ * the menu, so this is shared.
+ */
+async function ensureChordPracticeReady() {
+    if (!chordPracticeLibrary) chordPracticeLibrary = await window.unstrung.getChordLibrary();
+    if (chordPracticeSpeechSupported === null) {
+        const result = await window.unstrung.listSpokenVoices();
+        chordPracticeSpeechSupported = result.supported && result.voices.length > 0;
+    }
+    const settings = await window.unstrung.getSettings();
+    chordVoiceSettings = {
+        chordVoice: settings.chordVoice ?? 'zira',
+        chordVoicePercent: settings.chordVoicePercent ?? 75
+    };
+}
+
+/**
+ * A progression in the one shape every chord practice tab is built from.
+ *
+ * `fresh` marks one straight from the generator, which alone knows its cadence and why each
+ * borrowed chord was borrowed. Anything else -- opened from a file, edited, made by hand -- has
+ * only its chords, so which of them lie outside the key is worked out from their notes.
+ */
+function prepareProgression({
+    key, mode, beatsPerBar, beatUnit, chords, origin, fresh = false,
+    level = null, cadence = null, borrowing = null, borrowedCount = 0
+}) {
+    const prepared = {
+        key, mode, beatsPerBar, beatUnit, origin, fresh, level, cadence, borrowing, borrowedCount
+    };
+    if (fresh) {
+        prepared.chords = chords;
+        return prepared;
+    }
+    const keyClasses = keyPitchClasses(progressionModel, mode, key);
+    prepared.chords = chords.map(chord => ({
+        root: chord.root,
+        suffix: chord.suffix,
+        outsideKey: isChordInKey(chordPracticeLibraryEntry(chord), keyClasses) ? null : `${key} ${mode}`
+    }));
+    return prepared;
+}
+
+function progressionLevelName(levelId) {
+    return progressionModel.levels.find(level => level.id === levelId)?.name ?? null;
+}
+
+/**
+ * The Metadata list, minus the Saved as line, which the tab keeps up to date itself.
+ *
+ * A fresh progression reports what the generator decided. Anything else reports how it was made
+ * and how many of its chords are outside the key, since the cadence and the borrowing setting
+ * stop being true the moment a chord is changed.
+ */
+function chordPracticeMetadataRows(progression) {
+    const rows = [`Key - ${progression.key} ${progression.mode}`];
+    const levelName = progression.level ?? progressionLevelName(progression.origin?.levelId);
+    const made = progression.origin?.made ?? 'hand';
+
+    if (progression.fresh) {
+        rows.push(
+            `Level - ${levelName}`,
+            `Time signature - ${progression.beatsPerBar}/${progression.beatUnit}`,
+            `Length - ${progression.chords.length} measures`,
+            `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
+            `Chords from outside the key - ${progression.borrowing ?? 'stay in the key'}` +
+                (progression.borrowedCount > 0 ? `, ${progression.borrowedCount} used` : ''));
+        return rows;
+    }
+
+    rows.push({
+        generated: 'Made - generated',
+        edited: 'Made - generated, then edited',
+        hand: 'Made - by hand'
+    }[made] ?? 'Made - by hand');
+    if (made !== 'hand' && levelName) rows.push(`Level - ${levelName}`);
+    const outside = progression.chords.filter(chord => chord.outsideKey || chord.borrowed).length;
+    rows.push(
+        `Time signature - ${progression.beatsPerBar}/${progression.beatUnit}`,
+        `Length - ${progression.chords.length} measures`,
+        `Chords from outside the key - ${outside === 0 ? 'none' : outside}`);
+    return rows;
+}
+
+/** Tells the main process whether closing the window would lose anything. */
+function syncUnsavedProgressions() {
+    window.unstrung.setUnsavedProgressions(chordPracticeStates.some(entry => entry.state.dirty));
+}
+
+/**
+ * Puts the tab's name everywhere it is shown: heading, tab strip, window title, Saved as line.
+ *
+ * A saved progression is named by its file, which is the name chosen for it; an unsaved one by its
+ * key, as before. Unsaved changes are said in the name itself, so they are heard on arriving at
+ * the tab rather than only on trying to leave it.
+ */
+function refreshChordPracticeNames(state) {
+    const title = state.fileName ?? `${state.progression.key} ${state.progression.mode}`;
+    const marker = state.dirty ? ' (unsaved changes)' : '';
+    state.ui.heading.textContent = `Chord practice - ${title}${marker}`;
+    state.ui.savedAsItem.textContent = `Saved as - ${state.fileName ?? 'not saved'}`;
+    if (state.tab) {
+        state.tab.fileName = `Practice - ${title}`;
+        state.tab.buttonEl.textContent = `Practice - ${title}${marker}`;
+        updateWindowTitle();
+    }
+    syncUnsavedProgressions();
+}
+
+/** Opens a progression in a new tab and moves there. */
+function openChordPracticeTab(progression, options, file = {}) {
+    const { container, state } = buildChordPracticeTab(progression, options, file);
+    const entry = { tabId: null, state };
+    const tab = createTab('', container, {
+        kind: 'chord-practice',
+        onClose: () => {
+            stopChordPracticePlayback();
+            chordPracticeStates = chordPracticeStates.filter(item => item !== entry);
+            syncUnsavedProgressions();
+        },
+        // Looked up through the entry, since editing replaces the state the tab started with.
+        confirmClose: () => confirmDiscardChordPractice(entry.state, 'closing')
+    });
+    entry.tabId = tab.id;
+    entry.state.tab = tab;
+    chordPracticeStates.push(entry);
+    refreshChordPracticeNames(state);
+    activateTab(tab.id, { focusContent: true });
+    return entry;
+}
+
+/**
+ * Puts an edited progression into the tab it came from.
+ *
+ * The tab is rebuilt rather than patched: the chord list, the Chords Used regions and the audio all
+ * derive from the chords, and building them again is the only way to be sure none is left over.
+ * How it was being played carries across -- tempo, repeats, metronome, speech -- and so does the
+ * file it belongs to. Playback stops, since the audio it was playing no longer exists.
+ */
+function replaceChordPracticeProgression(entry, progression, { dirty }) {
+    const old = entry.state;
+    stopChordPracticePlayback();
+    const options = {
+        tempo: old.tempo, speak: old.speak, speechVolume: old.speechVolume, voice: old.voice,
+        metronome: old.metronome, countInEachPass: old.countInEachPass, repeatCount: old.repeatCount
+    };
+    const { container, state } = buildChordPracticeTab(progression, options,
+        { filePath: old.filePath, fileName: old.fileName, dirty });
+    state.tab = old.tab;
+    entry.state = state;
+    old.tab.panelEl.replaceChildren(container);
+    refreshChordPracticeNames(state);
+    return state;
+}
+
+/** "C major - C Am F G", for the Save dialog to offer. Held chords are named once. */
+function suggestedProgressionName(progression) {
+    const names = [];
+    for (const chord of progression.chords) {
+        const name = chordDisplayName(chord);
+        if (names[names.length - 1] !== name) names.push(name);
+    }
+    const shown = names.slice(0, 6).join(' ');
+    return `${progression.key} ${progression.mode} - ${shown}${names.length > 6 ? ' and more' : ''}`;
+}
+
+/**
+ * Saves the tab's progression, returning whether it was saved.
+ *
+ * Save writes over the file the tab came from without asking where; Save As, and the first save of
+ * anything, open the system's Save dialog in the progressions folder.
+ */
+async function saveChordPractice(state, { saveAs = false } = {}) {
+    const text = serializeProgression(state.progression);
+    let result;
+    try {
+        result = await window.unstrung.saveProgression({
+            text,
+            filePath: saveAs ? null : state.filePath,
+            suggestedName: state.fileName ?? suggestedProgressionName(state.progression)
+        });
+    } catch (error) {
+        state.announce(`Could not save: ${error.message}`);
+        return false;
+    }
+    if (!result) {
+        state.announce('Not saved.');
+        return false;
+    }
+    state.filePath = result.filePath;
+    state.fileName = result.name;
+    state.dirty = false;
+    refreshChordPracticeNames(state);
+    state.announce(`Saved as ${result.name}.` + (result.insideFolder ? '' :
+        ' That is outside the progressions folder, so Open Saved Progression will not list it.'));
+    return true;
+}
+
+// Control+S and Control+Shift+S save the chord practice tab in front. With a modifier they reach
+// the page in either screen reader mode, unlike the bare transport keys.
+document.addEventListener('keydown', event => {
+    if (!event.ctrlKey || event.altKey || event.metaKey || event.key.toLowerCase() !== 's') return;
+    if (document.querySelector('dialog[open]')) return;
+    const state = activeChordPracticeState();
+    if (!state) return;
+    event.preventDefault();
+    saveChordPractice(state, { saveAs: event.shiftKey });
+});
+
+async function generateChordPractice() {
+    const [key, mode] = chordPracticeKeySelect.value.split('|');
+    // The lower number is how the signature is written, not how it plays: the tempo is already
+    // counted in beats, so 6/8 at 90 is ninety eighth notes a minute.
+    const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
+    const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
+    const levelId = chordPracticeLevelSelect.value;
+    const borrowingId = chordPracticeBorrowingSelect.value;
+
+    const generated = generateProgression(progressionModel, {
         key,
         mode,
-        levelId: chordPracticeLevelSelect.value,
-        borrowingId: chordPracticeBorrowingSelect.value,
+        levelId,
+        borrowingId,
         chordCount: Math.max(2, Math.min(256, Number(chordPracticeCountInput.value) || 8)),
         library: chordPracticeLibrary
     });
 
-    if (progression.warning || progression.chords.length === 0) {
-        chordPracticeStatus.textContent = progression.warning ?? 'Nothing could be generated.';
+    if (generated.warning || generated.chords.length === 0) {
+        chordPracticeStatus.textContent = generated.warning ?? 'Nothing could be generated.';
         return;
     }
 
-    const { container, state } = buildChordPracticeTab(progression, options);
-    const tab = createTab(`Practice - ${progression.key} ${progression.mode}`, container, {
-        kind: 'chord-practice',
-        onClose: () => {
-            // The pass is derived from elapsed time, so it has to be captured before the anchor it is
-    // measured from is thrown away. Safe to repeat: once stopped, this returns what it just set.
-    state.pass = chordPracticeCurrentPass(state);
-    stopChordPracticePlayback();
-            chordPracticeStates = chordPracticeStates.filter(entry => entry.state !== state);
-        }
+    const options = chordPracticePlaybackOptions({ fromDialog: true });
+    const progression = prepareProgression({
+        ...generated, beatsPerBar, beatUnit, fresh: true,
+        origin: { made: 'generated', levelId, borrowingId }
     });
-    chordPracticeStates.push({ tabId: tab.id, state });
+
+    // Focus goes to the new tab, not back to whatever opened the dialog.
+    chordPracticeDialogOpener = null;
     chordPracticeDialog.close();
-    activateTab(tab.id, { focusContent: true });
+    openChordPracticeTab(progression, options);
     setStatus(`Generated ${progression.chords.length} measures in ` +
         `${progression.key} ${progression.mode}.`);
 }
@@ -4688,6 +4996,34 @@ async function generateChordPractice() {
 chordPracticeLevelSelect.addEventListener('change', chordPracticeRefreshKeys);
 chordPracticeGenerateButton.addEventListener('click', generateChordPractice);
 chordPracticeCancelButton.addEventListener('click', () => chordPracticeDialog.close());
+
+/**
+ * Hands over from the chord practice dialog to another dialog.
+ *
+ * The opener travels with it, so cancelling the second dialog returns focus to where the first was
+ * opened from rather than to a dialog that has already gone.
+ */
+function handOffChordPracticeDialog() {
+    const opener = chordPracticeDialogOpener;
+    chordPracticeDialogOpener = null;
+    chordPracticeDialog.close();
+    return opener;
+}
+
+chordPracticeOpenSavedButton.addEventListener('click', () => {
+    const options = chordPracticePlaybackOptions({ fromDialog: true });
+    openProgressionOpenDialog({ opener: handOffChordPracticeDialog(), options });
+});
+chordPracticeNewButton.addEventListener('click', () => {
+    const options = chordPracticePlaybackOptions({ fromDialog: true });
+    const [key, mode] = chordPracticeKeySelect.value.split('|');
+    const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
+    const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
+    openProgressionEditor({
+        opener: handOffChordPracticeDialog(), options, start: { key, mode, beatsPerBar, beatUnit }
+    });
+});
+
 chordPracticeDialog.addEventListener('close', () => {
     if (chordPracticeDialogOpener && typeof chordPracticeDialogOpener.focus === 'function') {
         chordPracticeDialogOpener.focus();
@@ -4725,7 +5061,8 @@ async function openChordPracticeDialog() {
     chordPracticeDialogOpener = document.activeElement;
     chordPracticeStatus.textContent = '';
 
-    if (!chordPracticeLibrary) chordPracticeLibrary = await window.unstrung.getChordLibrary();
+    // Which voice and how loud live in Settings; this dialog only decides whether to speak.
+    await ensureChordPracticeReady();
 
     if (chordPracticeLevelSelect.options.length === 0) {
         for (const level of progressionModel.levels) {
@@ -4747,16 +5084,6 @@ async function openChordPracticeDialog() {
     // Rebuilds the key list on the way through, so this covers the first open too.
     resetChordPracticeDialog();
 
-    if (chordPracticeSpeechSupported === null) {
-        const result = await window.unstrung.listSpokenVoices();
-        chordPracticeSpeechSupported = result.supported && result.voices.length > 0;
-    }
-    // Which voice and how loud now live in Settings; this dialog only decides whether to speak.
-    const settings = await window.unstrung.getSettings();
-    chordVoiceSettings = {
-        chordVoice: settings.chordVoice ?? 'zira',
-        chordVoicePercent: settings.chordVoicePercent ?? 75
-    };
     chordPracticeSpeakCheckbox.disabled = !chordPracticeSpeechSupported;
     chordPracticeSpeechNote.textContent = chordPracticeSpeechSupported
         ? 'Chord names are recordings shipped with Unstrung, so they land exactly on the beat ' +
@@ -4766,6 +5093,834 @@ async function openChordPracticeDialog() {
     chordPracticeDialog.showModal();
     chordPracticeDialog.focus();
 }
+
+// --- Unsaved changes -------------------------------------------------------------------------
+//
+// One question, asked on closing a tab or quitting with a progression that has changed since it
+// was saved: Save, Don't Save, or Cancel. Escape is Cancel.
+
+const unsavedDialog = document.getElementById('unsaved-dialog');
+const unsavedDialogMessage = document.getElementById('unsaved-dialog-message');
+let unsavedDialogResolve = null;
+let unsavedDialogChoice = null;
+let unsavedDialogOpener = null;
+
+function askAboutUnsavedChanges(message) {
+    return new Promise(resolve => {
+        unsavedDialogResolve = resolve;
+        unsavedDialogChoice = null;
+        unsavedDialogOpener = document.activeElement;
+        unsavedDialogMessage.textContent = message;
+        unsavedDialog.showModal();
+        unsavedDialog.focus();
+    });
+}
+
+for (const [id, choice] of [
+    ['unsaved-dialog-save-button', 'save'],
+    ['unsaved-dialog-discard-button', 'discard'],
+    ['unsaved-dialog-cancel-button', 'cancel']
+]) {
+    document.getElementById(id).addEventListener('click', () => {
+        unsavedDialogChoice = choice;
+        unsavedDialog.close();
+    });
+}
+
+// Answered from the close event rather than the click, so focus is back where it was before
+// anything that follows -- a Save dialog, a tab closing -- moves it again.
+unsavedDialog.addEventListener('close', () => {
+    if (unsavedDialogOpener?.isConnected) unsavedDialogOpener.focus();
+    unsavedDialogOpener = null;
+    const resolve = unsavedDialogResolve;
+    unsavedDialogResolve = null;
+    resolve?.(unsavedDialogChoice ?? 'cancel');
+});
+
+/** Whether it is all right to let this tab's progression go, saving it first if asked to. */
+async function confirmDiscardChordPractice(state, reason) {
+    if (!state.dirty) return true;
+    // The menu's Close Tab still fires while a dialog is up. Stacking this question over it would
+    // leave focus somewhere unexpected, so the tab simply stays open. Quitting is different: the
+    // window is going either way, so it asks regardless.
+    if (reason === 'closing' && document.querySelector('dialog[open]')) return false;
+    const name = state.tab?.fileName ?? 'This progression';
+    const choice = await askAboutUnsavedChanges(
+        `${name} has unsaved changes. Save them before ${reason === 'quitting' ? 'quitting' : 'closing the tab'}?`);
+    if (choice === 'cancel') return false;
+    if (choice === 'discard') return true;
+    return saveChordPractice(state);
+}
+
+// The window is closing and at least one tab has unsaved changes. Each is brought to the front and
+// asked about in turn; Cancel on any of them, or cancelling its Save dialog, keeps the app open.
+window.unstrung.onConfirmQuit(async () => {
+    if (unsavedDialog.open) return;
+    for (const entry of [...chordPracticeStates]) {
+        if (!entry.state.dirty) continue;
+        activateTab(entry.tabId, { focusContent: true });
+        if (!await confirmDiscardChordPractice(entry.state, 'quitting')) return;
+    }
+    window.unstrung.confirmQuit();
+});
+
+// --- Open Saved Progression -------------------------------------------------------------------
+//
+// The progressions folder as a tree: folders to open and close, progressions to open. Built fresh
+// on every open from a scan of the folder, so something copied in from Explorer is simply there.
+// Every file is checked on the way in, and any that would not open are listed after the tree with
+// the reason, rather than offered and then refused.
+
+const progressionOpenDialog = document.getElementById('progression-open-dialog');
+const progressionOpenFolderText = document.getElementById('progression-open-folder');
+const progressionOpenEmpty = document.getElementById('progression-open-empty');
+const progressionOpenTree = document.getElementById('progression-open-tree');
+const progressionOpenSkipped = document.getElementById('progression-open-skipped');
+const progressionOpenSkippedSummary = document.getElementById('progression-open-skipped-summary');
+const progressionOpenSkippedList = document.getElementById('progression-open-skipped-list');
+const progressionOpenStatus = document.getElementById('progression-open-status');
+
+let progressionOpenOpener = null;
+let progressionOpenOptions = null;
+// Remembered for the session, so coming back finds the tree as it was left.
+const progressionExpandedFolders = new Set();
+let progressionLastOpened = null;
+
+/**
+ * Adds tree items for one level of the folder, returning how many progressions it holds.
+ *
+ * A folder with nothing openable in it is still shown, marked empty and without an expanded state,
+ * so a folder made in the Save dialog does not seem to have vanished.
+ */
+function buildProgressionTreeItems(nodes, container, skipped) {
+    let count = 0;
+    for (const node of nodes) {
+        const item = document.createElement('li');
+        item.setAttribute('role', 'treeitem');
+        item.tabIndex = -1;
+        item.dataset.path = node.path;
+
+        if (node.type === 'folder') {
+            item.dataset.kind = 'folder';
+            // Named by its label alone. Left to its content, a folder's name would take in every
+            // progression inside it once it is open.
+            const label = document.createElement('span');
+            label.id = uniqueControlId('progression-folder');
+            item.setAttribute('aria-labelledby', label.id);
+            const group = document.createElement('ul');
+            group.setAttribute('role', 'group');
+            const inside = buildProgressionTreeItems(node.children, group, skipped);
+            if (inside === 0) {
+                label.textContent = `${node.name} (empty)`;
+                item.append(label);
+            } else {
+                const expanded = progressionExpandedFolders.has(node.path);
+                label.textContent = node.name;
+                item.setAttribute('aria-expanded', String(expanded));
+                group.hidden = !expanded;
+                item.append(label, group);
+            }
+            count += inside;
+        } else {
+            const parsed = node.error
+                ? { error: node.error }
+                : parseSavedProgression(node.text, { model: progressionModel, library: chordPracticeLibrary });
+            if (parsed.error) {
+                skipped.push(`${node.path} - ${parsed.error}`);
+                continue;
+            }
+            item.dataset.kind = 'file';
+            item.textContent = node.name;
+            count++;
+        }
+        container.append(item);
+    }
+    return count;
+}
+
+/** Items that can be reached with the arrows: everything not inside a closed folder. */
+function visibleProgressionTreeItems() {
+    return [...progressionOpenTree.querySelectorAll('[role="treeitem"]')]
+        .filter(item => !item.parentElement.closest('ul[role="group"][hidden]'));
+}
+
+function progressionTreeItemName(item) {
+    const label = item.dataset.kind === 'folder' ? item.querySelector(':scope > span') : item;
+    return (label?.textContent ?? '').trim().toLowerCase();
+}
+
+function focusProgressionTreeItem(item) {
+    if (!item) return;
+    for (const other of progressionOpenTree.querySelectorAll('[role="treeitem"]')) other.tabIndex = -1;
+    item.tabIndex = 0;
+    item.focus();
+}
+
+function setProgressionFolderExpanded(item, expanded) {
+    if (!item.hasAttribute('aria-expanded')) return;
+    item.setAttribute('aria-expanded', String(expanded));
+    item.querySelector(':scope > ul[role="group"]').hidden = !expanded;
+    if (expanded) progressionExpandedFolders.add(item.dataset.path);
+    else progressionExpandedFolders.delete(item.dataset.path);
+}
+
+async function openSavedProgressionFile(relativePath) {
+    progressionOpenStatus.textContent = '';
+    let file;
+    try {
+        file = await window.unstrung.readProgression(relativePath);
+    } catch (error) {
+        progressionOpenStatus.textContent = `Could not open that progression: ${error.message}`;
+        return;
+    }
+    const parsed = parseSavedProgression(file.text, { model: progressionModel, library: chordPracticeLibrary });
+    if (parsed.error) {
+        // Checked when the tree was built, but the file is read again here and may have changed.
+        progressionOpenStatus.textContent = `Could not open ${file.name}: ${parsed.error}.`;
+        return;
+    }
+    progressionLastOpened = relativePath;
+
+    // Focus goes to the tab, not back to whatever opened the dialog.
+    progressionOpenOpener = null;
+    progressionOpenDialog.close();
+
+    // A file already open in a tab is shown there rather than opened twice, so two tabs can never
+    // save over each other.
+    const wanted = file.filePath.toLowerCase();
+    const existing = chordPracticeStates.find(entry => entry.state.filePath?.toLowerCase() === wanted);
+    if (existing) {
+        activateTab(existing.tabId, { focusContent: true });
+        setStatus(`${file.name} is already open.`);
+        return;
+    }
+    openChordPracticeTab(prepareProgression(parsed.progression), progressionOpenOptions,
+        { filePath: file.filePath, fileName: file.name, dirty: false });
+    setStatus(`Opened ${file.name}.`);
+}
+
+function activateProgressionTreeItem(item) {
+    if (!item) {
+        progressionOpenStatus.textContent = 'There is no progression to open.';
+    } else if (item.dataset.kind === 'file') {
+        openSavedProgressionFile(item.dataset.path);
+    } else if (item.hasAttribute('aria-expanded')) {
+        setProgressionFolderExpanded(item, item.getAttribute('aria-expanded') !== 'true');
+    } else {
+        progressionOpenStatus.textContent = 'That folder has no progressions in it.';
+    }
+}
+
+progressionOpenTree.addEventListener('keydown', event => {
+    const item = event.target.closest('[role="treeitem"]');
+    if (!item || event.ctrlKey || event.metaKey || event.altKey) return;
+    const visible = visibleProgressionTreeItems();
+    const index = visible.indexOf(item);
+    const expandable = item.hasAttribute('aria-expanded');
+    const expanded = item.getAttribute('aria-expanded') === 'true';
+
+    switch (event.key) {
+        case 'ArrowDown': focusProgressionTreeItem(visible[index + 1]); break;
+        case 'ArrowUp': focusProgressionTreeItem(visible[index - 1]); break;
+        case 'Home': focusProgressionTreeItem(visible[0]); break;
+        case 'End': focusProgressionTreeItem(visible[visible.length - 1]); break;
+        case 'ArrowRight':
+            if (expandable && !expanded) setProgressionFolderExpanded(item, true);
+            else if (expanded) focusProgressionTreeItem(item.querySelector('[role="treeitem"]'));
+            break;
+        case 'ArrowLeft':
+            if (expanded) setProgressionFolderExpanded(item, false);
+            else focusProgressionTreeItem(item.parentElement.closest('[role="treeitem"]'));
+            break;
+        case 'Enter': activateProgressionTreeItem(item); break;
+        default: {
+            // Type a letter to move to the next item starting with it, as in a file list.
+            if (event.key.length !== 1 || !/\S/.test(event.key)) return;
+            const letter = event.key.toLowerCase();
+            const ordered = [...visible.slice(index + 1), ...visible.slice(0, index + 1)];
+            const match = ordered.find(candidate => progressionTreeItemName(candidate).startsWith(letter));
+            focusProgressionTreeItem(match);
+        }
+    }
+    event.preventDefault();
+});
+
+progressionOpenTree.addEventListener('click', event => {
+    const item = event.target.closest('[role="treeitem"]');
+    if (!item) return;
+
+    focusProgressionTreeItem(item);
+    if (item.dataset.kind === 'folder') activateProgressionTreeItem(item);
+});
+
+progressionOpenTree.addEventListener('dblclick', event => {
+    const item = event.target.closest('[role="treeitem"]');
+    if (item?.dataset.kind === 'file') openSavedProgressionFile(item.dataset.path);
+});
+
+document.getElementById('progression-open-button').addEventListener('click', () => {
+    const item = progressionOpenTree.querySelector('[role="treeitem"][tabindex="0"]');
+    if (item?.dataset.kind === 'folder') {
+        progressionOpenStatus.textContent = 'That is a folder. Choose a progression inside it.';
+        return;
+    }
+    activateProgressionTreeItem(item);
+});
+
+document.getElementById('progression-open-folder-button').addEventListener('click', async () => {
+    const { directory, error } = await window.unstrung.openProgressionsFolder();
+    progressionOpenStatus.textContent = error
+        ? `Could not open the folder: ${error}`
+        : `Opened ${directory} in your file manager.`;
+});
+
+document.getElementById('progression-open-cancel-button')
+    .addEventListener('click', () => progressionOpenDialog.close());
+
+progressionOpenDialog.addEventListener('close', () => {
+    if (progressionOpenOpener?.isConnected) progressionOpenOpener.focus();
+    progressionOpenOpener = null;
+});
+
+async function openProgressionOpenDialog({ opener = document.activeElement, options = null } = {}) {
+    await ensureChordPracticeReady();
+    progressionOpenOpener = opener;
+    progressionOpenOptions = options ?? chordPracticePlaybackOptions({ fromDialog: false });
+    progressionOpenStatus.textContent = '';
+
+    const listing = await window.unstrung.listProgressions();
+    progressionOpenFolderText.textContent = `From the folder ${listing.directory}.`;
+
+    const skipped = [];
+    progressionOpenTree.replaceChildren();
+    const count = buildProgressionTreeItems(listing.tree, progressionOpenTree, skipped);
+    const hasItems = progressionOpenTree.children.length > 0;
+    progressionOpenTree.hidden = !hasItems;
+    progressionOpenEmpty.hidden = count > 0;
+
+    progressionOpenSkipped.hidden = skipped.length === 0;
+    progressionOpenSkippedSummary.textContent = skipped.length === 1
+        ? 'One file could not be opened and is not listed:'
+        : `${skipped.length} files could not be opened and are not listed:`;
+    progressionOpenSkippedList.replaceChildren();
+    appendTextItems(progressionOpenSkippedList, skipped);
+
+    // With nothing to arrow through, the dialog itself takes focus and reads why.
+    if (hasItems) progressionOpenDialog.removeAttribute('aria-describedby');
+    else progressionOpenDialog.setAttribute('aria-describedby', 'progression-open-empty');
+
+    progressionOpenDialog.showModal();
+    const items = visibleProgressionTreeItems();
+    const last = items.find(item => item.dataset.path === progressionLastOpened);
+    if (items.length > 0) focusProgressionTreeItem(last ?? items[0]);
+    else progressionOpenDialog.focus();
+}
+
+window.unstrung.onOpenSavedProgression(() => {
+    if (document.querySelector('dialog[open]')) return;
+    openProgressionOpenDialog();
+});
+
+// --- Progression editor ------------------------------------------------------------------------
+//
+// One dialog for editing a progression and for writing one from nothing. The measures are a list
+// box, one option per measure named by its chord; a single chord field below it edits whichever
+// measure is current. However long the progression, getting to any chord is arrowing to it and
+// one Tab, where a field per measure would put hundreds of stops in the way.
+
+const editorDialog = document.getElementById('progression-editor-dialog');
+const editorHeading = document.getElementById('progression-editor-heading');
+const editorKeySelect = document.getElementById('progression-editor-key-select');
+const editorBeatsInput = document.getElementById('progression-editor-beats-input');
+const editorBeatUnitInput = document.getElementById('progression-editor-beat-unit-input');
+const editorMeasures = document.getElementById('progression-editor-measures');
+const editorChordLabel = document.getElementById('progression-editor-chord-label');
+const editorChordInput = document.getElementById('progression-editor-chord-input');
+const editorSuggestions = document.getElementById('progression-editor-suggestions');
+const editorStatus = document.getElementById('progression-editor-status');
+const editorApplyButton = document.getElementById('progression-editor-apply-button');
+
+const editor = {
+    measures: [],
+    current: 0,
+    entry: null,
+    origin: { made: 'hand' },
+    options: null,
+    opener: null,
+    original: '',
+    suggestions: [],
+    suggestionIndex: -1
+};
+
+function editorKey() {
+    const [key, mode] = editorKeySelect.value.split('|');
+    return { key, mode };
+}
+
+function editorSnapshot() {
+    return JSON.stringify([editorKeySelect.value, editorBeatsInput.value, editorBeatUnitInput.value,
+        editor.measures.map(chord => (chord ? `${chord.root}|${chord.suffix}` : null))]);
+}
+
+function editorKeyClasses() {
+    const { key, mode } = editorKey();
+    return keyPitchClasses(progressionModel, mode, key);
+}
+
+/** What a measure option says: the chord, and whether it is outside the key. */
+function editorMeasureLabel(chord, keyClasses) {
+    if (!chord) return 'no chord';
+    const inKey = isChordInKey(chordPracticeLibraryEntry(chord), keyClasses);
+    return chordDisplayName(chord) + (inKey ? '' : ', outside the key');
+}
+
+function renderEditorMeasures() {
+    const keyClasses = editorKeyClasses();
+    editorMeasures.replaceChildren();
+    for (const [index, chord] of editor.measures.entries()) {
+        const option = document.createElement('li');
+        option.setAttribute('role', 'option');
+        option.id = `progression-editor-measure-${index}`;
+        option.tabIndex = index === editor.current ? 0 : -1;
+        option.setAttribute('aria-selected', String(index === editor.current));
+        option.textContent = editorMeasureLabel(chord, keyClasses);
+        editorMeasures.append(option);
+    }
+}
+
+/** Makes a measure current without moving focus: what the buttons do. */
+function setEditorCurrent(index) {
+    editor.current = Math.max(0, Math.min(editor.measures.length - 1, index));
+    for (const [position, option] of [...editorMeasures.children].entries()) {
+        option.tabIndex = position === editor.current ? 0 : -1;
+        option.setAttribute('aria-selected', String(position === editor.current));
+    }
+    syncEditorChordField();
+}
+
+/** Makes a measure current and moves focus to it: what the arrows in the list do. */
+function focusEditorMeasure(index) {
+    setEditorCurrent(index);
+    editorMeasures.children[editor.current]?.focus();
+}
+
+function syncEditorChordField() {
+    const chord = editor.measures[editor.current];
+    editorChordLabel.textContent = `Chord for measure ${editor.current + 1}`;
+    editorChordInput.value = chord ? chordDisplayName(chord) : '';
+    closeEditorSuggestions();
+}
+
+function editorAnnounce(text) {
+    announceLiveRegion(editorStatus, text);
+}
+
+function editorInsert({ duplicate = false, moveFocus = false } = {}) {
+    if (editor.measures.length >= MAX_MEASURES) {
+        editorAnnounce(`A progression can have at most ${MAX_MEASURES} measures.`);
+        return;
+    }
+    const source = editor.measures[editor.current];
+    const copy = duplicate && source ? { root: source.root, suffix: source.suffix } : null;
+    editor.measures.splice(editor.current + 1, 0, copy);
+    editor.current += 1;
+    renderEditorMeasures();
+    if (moveFocus) focusEditorMeasure(editor.current);
+    else setEditorCurrent(editor.current);
+    editorAnnounce(copy
+        ? `Duplicated ${chordDisplayName(copy)} as measure ${editor.current + 1}.`
+        : `Inserted measure ${editor.current + 1}, with no chord yet.`);
+}
+
+function editorRemove({ moveFocus = false } = {}) {
+    if (editor.measures.length === 1) {
+        editorAnnounce('A progression needs at least one measure.');
+        return;
+    }
+    const removed = editor.current + 1;
+    editor.measures.splice(editor.current, 1);
+    editor.current = Math.min(editor.current, editor.measures.length - 1);
+    renderEditorMeasures();
+    if (moveFocus) focusEditorMeasure(editor.current);
+    else setEditorCurrent(editor.current);
+    editorAnnounce(`Removed measure ${removed}. ${editor.measures.length} measures left.`);
+}
+
+function editorMove(delta, { moveFocus = false } = {}) {
+    const target = editor.current + delta;
+    if (target < 0 || target >= editor.measures.length) {
+        editorAnnounce(delta < 0 ? 'Already the first measure.' : 'Already the last measure.');
+        return;
+    }
+    const measures = editor.measures;
+    [measures[editor.current], measures[target]] = [measures[target], measures[editor.current]];
+    editor.current = target;
+    renderEditorMeasures();
+    if (moveFocus) focusEditorMeasure(target);
+    else setEditorCurrent(target);
+    const chord = measures[target];
+    editorAnnounce(`Moved ${chord ? chordDisplayName(chord) : 'the empty measure'} to measure ${target + 1}.`);
+}
+
+editorMeasures.addEventListener('keydown', event => {
+    const option = event.target.closest('[role="option"]');
+    if (!option) return;
+    const index = [...editorMeasures.children].indexOf(option);
+    const key = event.key;
+    const plain = !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+
+    if (event.altKey && !event.ctrlKey && (key === 'ArrowUp' || key === 'ArrowDown')) {
+        editorMove(key === 'ArrowUp' ? -1 : 1, { moveFocus: true });
+    } else if (plain && key === 'ArrowDown') {
+        focusEditorMeasure(index + 1);
+    } else if (plain && key === 'ArrowUp') {
+        focusEditorMeasure(index - 1);
+    } else if (plain && key === 'Home') {
+        focusEditorMeasure(0);
+    } else if (plain && key === 'End') {
+        focusEditorMeasure(editor.measures.length - 1);
+    } else if (plain && key === 'Enter') {
+        editorChordInput.focus();
+    } else if (plain && key === 'Delete') {
+        editorRemove({ moveFocus: true });
+    } else if (event.ctrlKey && !event.altKey && key.toLowerCase() === 'i') {
+        editorInsert({ moveFocus: true });
+    } else if (event.ctrlKey && !event.altKey && key.toLowerCase() === 'd') {
+        editorInsert({ duplicate: true, moveFocus: true });
+    } else {
+        return;
+    }
+    event.preventDefault();
+});
+
+editorMeasures.addEventListener('click', event => {
+    const option = event.target.closest('[role="option"]');
+    if (option) focusEditorMeasure([...editorMeasures.children].indexOf(option));
+});
+
+document.getElementById('progression-editor-insert-button').addEventListener('click', () => editorInsert());
+document.getElementById('progression-editor-duplicate-button')
+    .addEventListener('click', () => editorInsert({ duplicate: true }));
+document.getElementById('progression-editor-remove-button').addEventListener('click', () => editorRemove());
+document.getElementById('progression-editor-up-button').addEventListener('click', () => editorMove(-1));
+document.getElementById('progression-editor-down-button').addEventListener('click', () => editorMove(1));
+
+// The key only changes which chords are marked as outside it and which are suggested first; the
+// chords already chosen stay as they are.
+editorKeySelect.addEventListener('change', () => {
+    renderEditorMeasures();
+    closeEditorSuggestions();
+});
+
+// --- The chord field, a combo box ---
+
+/** Library chords by their written name, and by that name in lower case for forgiving typing. */
+let editorChordNames = null;
+
+function editorChordByName(text) {
+    if (!editorChordNames) {
+        editorChordNames = { exact: new Map(), folded: new Map() };
+        for (const entry of chordPracticeLibrary?.chords ?? []) {
+            const name = chordDisplayName(entry);
+            editorChordNames.exact.set(name, entry);
+            const folded = name.toLowerCase();
+            // Two chords can differ only by case ("Am" against "AM" does not happen today, but a
+            // guess between two is worse than no guess), so an ambiguous folding matches nothing.
+            editorChordNames.folded.set(folded, editorChordNames.folded.has(folded) ? null : entry);
+        }
+    }
+    return editorChordNames.exact.get(text) ?? editorChordNames.folded.get(text.toLowerCase()) ?? null;
+}
+
+/**
+ * What the chord field offers for what has been typed.
+ *
+ * Nothing typed: the chords the key is built from, in scale order with their degrees, since that is
+ * what a progression is mostly made of. Something typed: every library chord whose name starts
+ * with it, the ones in the key first. Outside the key is said, never refused.
+ */
+function editorSuggestionsFor(text) {
+    // Degrees are said as numbers: a screen reader reads "ii" as two letters.
+    const degreeNumber = degree => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
+        .indexOf(degree.toUpperCase()) + 1;
+    const keyClasses = editorKeyClasses();
+    const trimmed = text.trim();
+    if (trimmed === '') {
+        const { key, mode } = editorKey();
+        return degreeChords(progressionModel, mode, key)
+            .filter(chord => chordPracticeLibraryEntry(chord))
+            .map(chord => ({ chord, label: `${chordDisplayName(chord)}, degree ${degreeNumber(chord.degree)}` }));
+    }
+    const needle = trimmed.toLowerCase();
+    return (chordPracticeLibrary?.chords ?? [])
+        .map(entry => ({ entry, name: chordDisplayName(entry) }))
+        .filter(({ name }) => name.toLowerCase().startsWith(needle))
+        .map(({ entry, name }) => ({ entry, name, inKey: isChordInKey(entry, keyClasses) }))
+        .sort((a, b) =>
+            Number(b.name === trimmed) - Number(a.name === trimmed) ||
+            Number(b.inKey) - Number(a.inKey) ||
+            a.name.length - b.name.length ||
+            a.name.localeCompare(b.name))
+        .slice(0, 40)
+        .map(({ entry, name, inKey }) => ({
+            chord: { root: entry.root, suffix: entry.suffix },
+            label: name + (inKey ? '' : ', outside the key')
+        }));
+}
+
+function closeEditorSuggestions() {
+    editor.suggestions = [];
+    editor.suggestionIndex = -1;
+    editorSuggestions.replaceChildren();
+    editorSuggestions.hidden = true;
+    editorChordInput.setAttribute('aria-expanded', 'false');
+    editorChordInput.removeAttribute('aria-activedescendant');
+}
+
+function renderEditorSuggestions() {
+    editorSuggestions.replaceChildren();
+    for (const [index, suggestion] of editor.suggestions.entries()) {
+        const option = document.createElement('li');
+        option.setAttribute('role', 'option');
+        option.id = `progression-editor-suggestion-${index}`;
+        option.setAttribute('aria-selected', String(index === editor.suggestionIndex));
+        option.textContent = suggestion.label;
+        option.addEventListener('mousedown', event => event.preventDefault());
+        option.addEventListener('click', () => commitEditorChord(suggestion.chord));
+        editorSuggestions.append(option);
+    }
+    const open = editor.suggestions.length > 0;
+    editorSuggestions.hidden = !open;
+    editorChordInput.setAttribute('aria-expanded', String(open));
+    if (editor.suggestionIndex >= 0) {
+        editorChordInput.setAttribute('aria-activedescendant',
+            `progression-editor-suggestion-${editor.suggestionIndex}`);
+    } else {
+        editorChordInput.removeAttribute('aria-activedescendant');
+    }
+}
+
+function openEditorSuggestions(highlight) {
+    editor.suggestions = editorSuggestionsFor(editorChordInput.value);
+    editor.suggestionIndex = editor.suggestions.length > 0 ? highlight : -1;
+    renderEditorSuggestions();
+}
+
+function commitEditorChord(chord) {
+    editor.measures[editor.current] = chord ? { root: chord.root, suffix: chord.suffix } : null;
+    const option = editorMeasures.children[editor.current];
+    if (option) option.textContent = editorMeasureLabel(editor.measures[editor.current], editorKeyClasses());
+    editorChordInput.value = chord ? chordDisplayName(chord) : '';
+    closeEditorSuggestions();
+    editorAnnounce(chord
+        ? `Measure ${editor.current + 1} is ${chordDisplayName(chord)}.`
+        : `Measure ${editor.current + 1} has no chord.`);
+}
+
+/**
+ * Takes what was typed as the measure's chord, if it names one.
+ *
+ * `revert` is for leaving the field: a name that matches nothing is put back to the measure's
+ * chord, so what the field shows is never something the measure does not hold. On Enter it is
+ * left for correcting instead.
+ */
+function commitEditorTypedChord({ revert = false } = {}) {
+    const text = editorChordInput.value.trim();
+    const current = editor.measures[editor.current];
+    if (text === '') {
+        if (current) commitEditorChord(null);
+        return true;
+    }
+    const entry = editorChordByName(text);
+    if (entry) {
+        if (!current || current.root !== entry.root || current.suffix !== entry.suffix) {
+            commitEditorChord(entry);
+        } else {
+            editorChordInput.value = chordDisplayName(entry);
+        }
+        return true;
+    }
+    editorAnnounce(`There is no chord named ${text} in the chord library.`);
+    if (revert) editorChordInput.value = current ? chordDisplayName(current) : '';
+    return false;
+}
+
+editorChordInput.addEventListener('input', () => openEditorSuggestions(-1));
+
+editorChordInput.addEventListener('keydown', event => {
+    const open = !editorSuggestions.hidden;
+    if (event.key === 'ArrowDown') {
+        if (!open) openEditorSuggestions(0);
+        else {
+            editor.suggestionIndex = Math.min(editor.suggestions.length - 1, editor.suggestionIndex + 1);
+            renderEditorSuggestions();
+        }
+    } else if (event.key === 'ArrowUp') {
+        if (!open) return;
+        editor.suggestionIndex = Math.max(0, editor.suggestionIndex - 1);
+        renderEditorSuggestions();
+    } else if (event.key === 'Enter') {
+        if (open && editor.suggestionIndex >= 0) {
+            commitEditorChord(editor.suggestions[editor.suggestionIndex].chord);
+        } else {
+            commitEditorTypedChord();
+        }
+    } else if (event.key === 'Escape') {
+        // Closes the list and nothing else. Only with the list already closed does Escape reach
+        // the dialog.
+        if (!open) return;
+        closeEditorSuggestions();
+    } else {
+        if (event.key === 'Tab') closeEditorSuggestions();
+        return;
+    }
+    event.preventDefault();
+});
+
+editorChordInput.addEventListener('change', () => commitEditorTypedChord({ revert: true }));
+
+// --- Opening, applying and cancelling ---
+
+function populateEditorKeys() {
+    if (editorKeySelect.options.length > 0) return;
+    for (const key of KEY_ROOTS) {
+        for (const mode of ['major', 'minor']) {
+            const option = document.createElement('option');
+            option.value = `${key}|${mode}`;
+            option.textContent = `${key} ${mode}`;
+            editorKeySelect.append(option);
+        }
+    }
+}
+
+/**
+ * Opens the editor on a tab's progression, or on a new one.
+ *
+ * `state` is the chord practice tab being edited. Without it this is a new progression, starting
+ * from `start` -- the chord practice dialog's key and time signature when it was the way in -- with
+ * one empty measure.
+ */
+async function openProgressionEditor({ state = null, opener = document.activeElement, options = null, start = null } = {}) {
+    await ensureChordPracticeReady();
+    populateEditorKeys();
+
+    editor.entry = state ? chordPracticeStates.find(entry => entry.state === state) ?? null : null;
+    editor.opener = opener;
+    editor.options = options ?? chordPracticePlaybackOptions({ fromDialog: false });
+    editor.current = 0;
+
+    if (editor.entry) {
+        const progression = state.progression;
+        editorKeySelect.value = `${progression.key}|${progression.mode}`;
+        editorBeatsInput.value = String(progression.beatsPerBar);
+        editorBeatUnitInput.value = String(progression.beatUnit);
+        editor.measures = progression.chords.map(chord => ({ root: chord.root, suffix: chord.suffix }));
+        editor.origin = progression.origin ?? { made: 'hand' };
+        editorHeading.textContent = 'Edit Progression';
+        editorApplyButton.textContent = 'Apply Changes';
+    } else {
+        editorKeySelect.value = `${start?.key ?? 'C'}|${start?.mode ?? 'major'}`;
+        if (!editorKeySelect.value) editorKeySelect.value = 'C|major';
+        editorBeatsInput.value = String(start?.beatsPerBar ?? 4);
+        editorBeatUnitInput.value = String(start?.beatUnit ?? 4);
+        editor.measures = [null];
+        editor.origin = { made: 'hand' };
+        editorHeading.textContent = 'Create Progression by Hand';
+        editorApplyButton.textContent = 'Create Progression';
+    }
+
+    editor.original = editor.entry ? editorSnapshot() : '';
+    editorStatus.textContent = '';
+    renderEditorMeasures();
+    syncEditorChordField();
+
+    editorDialog.showModal();
+    // Editing starts in the measures, which is what is being changed. A new progression starts at
+    // the key, which is the first thing to decide.
+    if (editor.entry) editorMeasures.children[0]?.focus();
+    else editorKeySelect.focus();
+}
+
+function applyProgressionEditor() {
+    // What was typed and not yet taken counts, as if the field had been left.
+    if (!commitEditorTypedChord({ revert: false })) {
+        editorChordInput.focus();
+        return;
+    }
+    const verb = editor.entry ? 'applied' : 'created';
+    const empty = editor.measures.findIndex(chord => !chord);
+    if (empty >= 0) {
+        focusEditorMeasure(empty);
+        editorAnnounce(`Measure ${empty + 1} has no chord. Every measure needs one before the ` +
+            `progression can be ${verb}.`);
+        return;
+    }
+    const beatsPerBar = Number(editorBeatsInput.value);
+    const beatUnit = Number(editorBeatUnitInput.value);
+    for (const [input, value] of [[editorBeatsInput, beatsPerBar], [editorBeatUnitInput, beatUnit]]) {
+        if (!Number.isInteger(value) || value < 1 || value > MAX_BEATS) {
+            input.focus();
+            editorAnnounce(`The time signature needs whole numbers from 1 to ${MAX_BEATS}.`);
+            return;
+        }
+    }
+
+    // Nothing changed: close as Cancel would, rather than marking the tab as having changes.
+    if (editor.entry && editorSnapshot() === editor.original) {
+        editorDialog.close();
+        return;
+    }
+
+    const { key, mode } = editorKey();
+    const previous = editor.origin ?? { made: 'hand' };
+    const origin = previous.made === 'hand'
+        ? { made: 'hand' }
+        : { made: 'edited', levelId: previous.levelId, borrowingId: previous.borrowingId };
+    const progression = prepareProgression({
+        key, mode, beatsPerBar, beatUnit, chords: editor.measures, origin
+    });
+
+    // Focus goes to the tab, not back to whatever opened the dialog.
+    editor.opener = null;
+    editorDialog.close();
+
+    if (editor.entry) {
+        const state = replaceChordPracticeProgression(editor.entry, progression, { dirty: true });
+        state.ui.editButton.focus();
+        state.announce(`Changes applied. ${progression.chords.length} measures, not saved yet.`);
+    } else {
+        openChordPracticeTab(progression, editor.options, { dirty: true });
+        setStatus(`Created a progression of ${progression.chords.length} measures in ${key} ${mode}. ` +
+            'It is not saved yet.');
+    }
+}
+
+editorApplyButton.addEventListener('click', applyProgressionEditor);
+document.getElementById('progression-editor-cancel-button')
+    .addEventListener('click', () => editorDialog.close());
+
+// Escape would throw away every change without a word. With changes made it says how to leave
+// instead, and Cancel -- a deliberate choice -- is what discards them.
+editorDialog.addEventListener('cancel', event => {
+    const changed = editor.entry
+        ? editorSnapshot() !== editor.original
+        : editor.measures.some(Boolean);
+    if (!changed) return;
+    event.preventDefault();
+    editorAnnounce('There are changes. Press Cancel to discard them, or apply them first.');
+});
+
+editorDialog.addEventListener('close', () => {
+    closeEditorSuggestions();
+    if (editor.opener?.isConnected) editor.opener.focus();
+    editor.opener = null;
+    editor.entry = null;
+});
+
+window.unstrung.onNewProgression(() => {
+    if (document.querySelector('dialog[open]')) return;
+    openProgressionEditor();
+});
 
 window.unstrung.onChordPracticeOpen(openChordPracticeDialog);
 // --- end chord practice ---

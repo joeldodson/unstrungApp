@@ -189,6 +189,16 @@
         </p>
 
         <p>
+            <button type="button" id="chord-practice-open-saved-button">Open Saved Progression…</button>
+            <button type="button" id="chord-practice-new-button">Create Progression by Hand…</button>
+        </p>
+
+        <p>
+            A progression can be saved from its tab and opened again here, or written chord by
+            chord. The playback settings below apply to both.
+        </p>
+
+        <p>
             <label for="chord-practice-level-select">Experience level</label>
             <select id="chord-practice-level-select"></select>
         </p>
@@ -286,6 +296,109 @@
 
         <button type="button" id="chord-practice-generate-button">Generate Progression</button>
         <button type="button" id="chord-practice-cancel-button">Cancel</button>
+    </dialog>
+
+    <dialog id="progression-open-dialog" aria-labelledby="progression-open-heading" tabindex="-1">
+        <h2 id="progression-open-heading">Open Saved Progression</h2>
+
+        <p id="progression-open-folder"></p>
+
+        <p id="progression-open-empty" hidden>
+            There are no saved progressions in this folder yet. Save one from a chord practice
+            tab, with the Save Progression button under the Progression heading.
+        </p>
+
+        <!-- Folders and files, arrowed through like a file tree. Filled on every open, so a file
+             added in Explorer while the app is running is there the next time. -->
+        <ul id="progression-open-tree" role="tree" aria-label="Saved progressions"></ul>
+
+        <div id="progression-open-skipped" hidden>
+            <p id="progression-open-skipped-summary"></p>
+            <ul id="progression-open-skipped-list"></ul>
+        </div>
+
+        <p id="progression-open-status" aria-live="polite"></p>
+
+        <p>
+            <button type="button" id="progression-open-button">Open</button>
+            <button type="button" id="progression-open-folder-button">Open Folder</button>
+            <button type="button" id="progression-open-cancel-button">Cancel</button>
+        </p>
+    </dialog>
+
+    <dialog id="progression-editor-dialog" aria-labelledby="progression-editor-heading" tabindex="-1">
+        <h2 id="progression-editor-heading">Edit Progression</h2>
+
+        <p>
+            <label for="progression-editor-key-select">Key</label>
+            <select id="progression-editor-key-select"></select>
+        </p>
+
+        <p>
+            <label for="progression-editor-beats-input">Beats per measure</label>
+            <input type="number" id="progression-editor-beats-input" min="1" max="16" step="1" value="4" />
+        </p>
+
+        <p>
+            <label for="progression-editor-beat-unit-input">Note value that gets one beat</label>
+            <input type="number" id="progression-editor-beat-unit-input" min="1" max="16" step="1" value="4" />
+        </p>
+
+        <h3 id="progression-editor-measures-heading">Measures</h3>
+
+        <!-- One option per measure, named by its chord. The chord field below edits whichever
+             measure is current here, so the number of stops does not grow with the length. -->
+        <ul id="progression-editor-measures" role="listbox"
+            aria-labelledby="progression-editor-measures-heading"
+            aria-describedby="progression-editor-measures-hint"></ul>
+        <p id="progression-editor-measures-hint" hidden>
+            Enter to choose its chord, Delete to remove it, Control+I to insert a measure after it,
+            Control+D to duplicate it, Alt+Up and Alt+Down to move it.
+        </p>
+
+        <p>
+            <label for="progression-editor-chord-input" id="progression-editor-chord-label">Chord</label>
+            <input type="text" id="progression-editor-chord-input" role="combobox" aria-expanded="false"
+                aria-controls="progression-editor-suggestions" aria-autocomplete="list"
+                autocomplete="off" />
+        </p>
+        <ul id="progression-editor-suggestions" role="listbox" aria-label="Chords" hidden></ul>
+
+        <p>
+            <button type="button" id="progression-editor-insert-button">Insert Measure After</button>
+            <button type="button" id="progression-editor-duplicate-button">Duplicate Measure</button>
+            <button type="button" id="progression-editor-remove-button">Remove Measure</button>
+            <button type="button" id="progression-editor-up-button">Move Measure Up</button>
+            <button type="button" id="progression-editor-down-button">Move Measure Down</button>
+        </p>
+
+        <details>
+            <summary>How the chord field works</summary>
+            <p>
+                With the field empty, the Down arrow lists the chords the key is built from, each
+                with its scale degree. Typing searches every chord in the chord library instead.
+                A chord outside the key is marked as such but can still be chosen. Changing the
+                key does not change the chords already chosen.
+            </p>
+        </details>
+
+        <p id="progression-editor-status" aria-live="polite"></p>
+
+        <p>
+            <button type="button" id="progression-editor-apply-button">Apply Changes</button>
+            <button type="button" id="progression-editor-cancel-button">Cancel</button>
+        </p>
+    </dialog>
+
+    <dialog id="unsaved-dialog" aria-labelledby="unsaved-dialog-heading"
+        aria-describedby="unsaved-dialog-message" tabindex="-1">
+        <h2 id="unsaved-dialog-heading">Unsaved Changes</h2>
+        <p id="unsaved-dialog-message"></p>
+        <p>
+            <button type="button" id="unsaved-dialog-save-button">Save</button>
+            <button type="button" id="unsaved-dialog-discard-button">Don't Save</button>
+            <button type="button" id="unsaved-dialog-cancel-button">Cancel</button>
+        </p>
     </dialog>
 
     <!-- The chord library opens as a tab rather than a dialog: it is a place you browse and
@@ -444,6 +557,29 @@
                     than over it, which is usually what you want while playing along.
                 </p>
             </details>
+
+            <h3>Saved progressions</h3>
+
+            <p>
+                <label for="settings-progressions-directory-input">Folder for saved chord progressions</label>
+                <input type="text" id="settings-progressions-directory-input"
+                    aria-describedby="settings-progressions-directory-hint" />
+                <button type="button" id="settings-progressions-browse-button">Browse…</button>
+                <button type="button" id="settings-progressions-default-button">Use Default Folder</button>
+                <span id="settings-progressions-directory-hint"></span>
+            </p>
+
+            <details>
+                <summary>About the progressions folder</summary>
+                <p>
+                    Saved progressions are ordinary files in this folder, so they can be copied,
+                    backed up or shared like any other file. Sub-folders made in the Save dialog,
+                    or in your file manager, appear as folders in Open Saved Progression. Changing
+                    the folder does not move anything already saved.
+                </p>
+            </details>
+
+            <p id="settings-general-status" role="status" aria-live="polite"></p>
         </section>
 
         <section id="settings-panel-files" role="tabpanel" aria-labelledby="settings-tab-files" tabindex="0" hidden>
