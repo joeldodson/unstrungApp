@@ -151,3 +151,9 @@ musicfiles/
 # electron-builder packaged output (release artifacts, not source)
 release/
 
+
+# Generated logo images for a possible Microsoft Store package (shelved).
+# Regenerate with npm run build:icons.
+build/appx/
+build/logo/
+build/icon.ico
