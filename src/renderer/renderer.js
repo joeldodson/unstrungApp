@@ -4916,15 +4916,21 @@ function replaceChordPracticeProgression(entry, progression, { dirty }) {
     return state;
 }
 
-/** "C major - C Am F G", for the Save dialog to offer. Held chords are named once. */
+/**
+ * The name the Save dialog offers: key, measures, level, borrowing. "Am-60-intermediate-occasional".
+ *
+ * The key is written as its tonic chord, so A minor is "Am" and C major is "C". A progression made
+ * by hand has no level or borrowing setting, so it ends in "hand" instead: "Am-8-hand".
+ */
 function suggestedProgressionName(progression) {
-    const names = [];
-    for (const chord of progression.chords) {
-        const name = chordDisplayName(chord);
-        if (names[names.length - 1] !== name) names.push(name);
-    }
-    const shown = names.slice(0, 6).join(' ');
-    return `${progression.key} ${progression.mode} - ${shown}${names.length > 6 ? ' and more' : ''}`;
+    const key = chordDisplayName({
+        root: progression.key, suffix: progression.mode === 'minor' ? 'minor' : 'major'
+    });
+    const parts = [key, progression.chords.length];
+    const { levelId, borrowingId } = progression.origin ?? {};
+    if (levelId) parts.push(levelId, borrowingId ?? 'none');
+    else parts.push('hand');
+    return parts.join('-');
 }
 
 /**

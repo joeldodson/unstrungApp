@@ -350,11 +350,6 @@
 
         <h3 id="progression-editor-measures-heading">Measures</h3>
 
-        <!-- One option per measure, named by its chord. The chord field below edits whichever
-             measure is current here, so the number of stops does not grow with the length. -->
-        <ul id="progression-editor-measures" role="listbox"
-            aria-labelledby="progression-editor-measures-heading"></ul>
-
         <!-- Collapsed rather than attached to the list as a description, which was read out on
              every visit to the list. -->
         <details>
@@ -367,6 +362,11 @@
                 <li>Alt+Up and Alt+Down - move it</li>
             </ul>
         </details>
+
+        <!-- One option per measure, named by its chord. The chord field below edits whichever
+             measure is current here, so the number of stops does not grow with the length. -->
+        <ul id="progression-editor-measures" role="listbox"
+            aria-labelledby="progression-editor-measures-heading"></ul>
 
         <!-- The field and its notes side by side on screen. As flex items each is still its own
              line to a screen reader. -->

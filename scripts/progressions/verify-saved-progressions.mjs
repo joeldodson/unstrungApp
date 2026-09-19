@@ -34,12 +34,15 @@ const send = channel => app.evaluate(({ BrowserWindow }, name) =>
 // The Save dialog answers with whatever path is queued here, and counts how often it was asked.
 const answerSaveDialogWith = target => app.evaluate(({ dialog }, filePath) => {
     globalThis.__saveDialogCalls = globalThis.__saveDialogCalls ?? 0;
-    dialog.showSaveDialog = async () => {
+    dialog.showSaveDialog = async (_window, options) => {
         globalThis.__saveDialogCalls++;
+        globalThis.__saveDialogOffered = options?.defaultPath ?? null;
         return filePath ? { canceled: false, filePath } : { canceled: true };
     };
 }, target);
 const saveDialogCalls = () => app.evaluate(() => globalThis.__saveDialogCalls ?? 0);
+// The file name the Save dialog was last offered, without its folder.
+const offeredName = async () => path.basename(await app.evaluate(() => globalThis.__saveDialogOffered ?? ''));
 
 const activePanel = () => page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
@@ -153,6 +156,10 @@ try {
     tab = await activePanel();
     const saved = JSON.parse(await readFile(firstSave, 'utf8'));
     console.log(`  file: ${JSON.stringify(saved).slice(0, 160)}…`);
+    const offered = await offeredName();
+    console.log(`  the Save dialog offered: ${offered}`);
+    check('the Save dialog offers key, measures, level and borrowing as the name',
+        offered === 'C-8-beginner-occasional.json', offered);
     check('the file holds the chords in order',
         saved.chords.length === 8 && saved.chords.every(c => c.root && c.suffix));
     check('the file says it was generated, and at which level',
@@ -204,20 +211,22 @@ try {
 
     const layout = await page.evaluate(() => {
         const list = document.getElementById('progression-editor-measures');
-        const notes = list.nextElementSibling;
+        const notes = list.previousElementSibling;
         const field = document.getElementById('progression-editor-chord-input');
         const row = field.closest('.field-row');
         return {
             describedBy: list.getAttribute('aria-describedby'),
             notesSummary: notes?.tagName === 'DETAILS' ? notes.querySelector('summary').textContent : null,
             notesOpen: notes?.open,
+            afterHeading: notes?.previousElementSibling?.id === 'progression-editor-measures-heading',
             rowHolds: row ? [...row.children].map(c => c.tagName === 'DETAILS'
                 ? c.querySelector('summary').textContent : c.textContent.trim()) : []
         };
     });
     check('the measures list carries no description to repeat on every visit', layout.describedBy === null,
         String(layout.describedBy));
-    check('its keyboard notes are a collapsed disclosure right after it',
+    check('its keyboard notes are a collapsed disclosure between the heading and the list',
+        layout.afterHeading &&
         layout.notesSummary === 'Keyboard notes for the measures list' && layout.notesOpen === false,
         String(layout.notesSummary));
     check('the chord field and How the chord field works share one row',
@@ -558,6 +567,16 @@ try {
         tab.tabCount === 3 && tab.tabName === 'Practice - A minor (unsaved changes)', tab.tabName);
     check('E7 counts as in A minor, which plays its fifth chord major',
         tab.meta.includes('Chords from outside the key - none'), tab.meta.join(' | '));
+
+    // Cancelled, so the tab keeps its unsaved changes for the checks that follow.
+    await answerSaveDialogWith(null);
+    await clickInPanel('Save Progression');
+    await page.waitForTimeout(600);
+    const handName = await offeredName();
+    tab = await activePanel();
+    check('a hand-made progression is offered key, measures and "hand"', handName === 'Am-3-hand.json', handName);
+    check('cancelling the Save dialog says so and saves nothing',
+        tab.announcement === 'Not saved.' && /unsaved/.test(tab.tabName), `${tab.announcement} / ${tab.tabName}`);
 
     console.log('\n=== Closing a tab with unsaved changes asks first ===');
     await send('tabs:close-current');
