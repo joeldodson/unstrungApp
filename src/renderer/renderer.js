@@ -1409,58 +1409,15 @@ function closeChordSuggestions() {
     chordsUi.searchInput.removeAttribute('aria-activedescendant');
 }
 
-/** The names the search field would suggest for what is typed; none for an empty field. */
-function chordSuggestionsForSearch() {
-    const prefix = chordsUi.searchInput.value.trim();
-    return prefix === '' ? [] : matchingChords().slice(0, 20);
-}
-
-/**
- * Opens the suggestion list on Down. Typing never opens it.
- *
- * The list opening is announced as the field becoming expanded, and when typing opened it that
- * announcement replaced the echo of the first character: type C and hear only "expanded". Down is
- * a deliberate request for the list, so being told it opened is then the answer.
- */
-// Set while the status line holds the search field's own "nothing matches" message, so the next
-// change to the field can clear it rather than leave it describing text that is no longer there.
-let chordSearchStatusShown = false;
-
-function openChordSuggestions() {
-    chordsSuggestions = chordSuggestionsForSearch();
-    if (chordsSuggestions.length === 0) {
-        const typed = chordsUi.searchInput.value.trim();
-        setChordStatus(typed === '' ? 'Type part of a chord name first.' : `No chords match ${typed}.`);
-        chordSearchStatusShown = true;
-        return false;
-    }
-    renderChordSuggestions();
-    return true;
-}
-
-/** Keeps an open list in step with what is typed, without announcing anything. */
-function refreshChordSuggestions() {
-    if (chordsUi.searchListbox.hidden) return;
-    chordsSuggestions = chordSuggestionsForSearch();
-    renderChordSuggestions();
-}
-
-/**
- * Draws the open list. With nothing matching it stays open and says so, rather than closing:
- * closing changes the expanded state, and NVDA announcing that cuts off the echo of what was typed.
- */
 function renderChordSuggestions() {
+    const prefix = chordsUi.searchInput.value.trim().toLowerCase();
+    if (prefix === '') return closeChordSuggestions();
+
+    chordsSuggestions = matchingChords().slice(0, 20);
+    if (chordsSuggestions.length === 0) return closeChordSuggestions();
+
     chordsSuggestionIndex = -1;
-    chordsUi.searchInput.removeAttribute('aria-activedescendant');
     chordsUi.searchListbox.replaceChildren();
-    if (chordsSuggestions.length === 0) {
-        const none = document.createElement('li');
-        none.setAttribute('role', 'option');
-        none.setAttribute('aria-disabled', 'true');
-        none.setAttribute('aria-selected', 'false');
-        none.textContent = 'No chords match';
-        chordsUi.searchListbox.append(none);
-    }
     for (const [index, chord] of chordsSuggestions.entries()) {
         const option = document.createElement('li');
         option.id = `chords-suggestion-${index}`;
@@ -1474,14 +1431,10 @@ function renderChordSuggestions() {
         chordsUi.searchListbox.append(option);
     }
     chordsUi.searchListbox.hidden = false;
-    if (chordsUi.searchInput.getAttribute('aria-expanded') !== 'true') {
-        chordsUi.searchInput.setAttribute('aria-expanded', 'true');
-    }
+    chordsUi.searchInput.setAttribute('aria-expanded', 'true');
 }
 
 function highlightChordSuggestion(index) {
-    // The "No chords match" line is not something to land on.
-    if (chordsSuggestions.length === 0) return;
     const options = [...chordsUi.searchListbox.children];
     if (options.length === 0) return;
     chordsSuggestionIndex = (index + options.length) % options.length;
@@ -1497,10 +1450,6 @@ function commitChordSuggestion(index) {
     const chord = chordsSuggestions[index];
     if (!chord) return;
     chordsUi.searchInput.value = chord.name;
-    if (chordSearchStatusShown) {
-        chordsUi.status.textContent = '';
-        chordSearchStatusShown = false;
-    }
     closeChordSuggestions();
     rebuildChordResults();
     queueDefaultChordIfNoneQueued();
@@ -1836,11 +1785,7 @@ function wireChordLibrary() {
     }
 
     chordsUi.searchInput.addEventListener('input', () => {
-        if (chordSearchStatusShown) {
-            chordsUi.status.textContent = '';
-            chordSearchStatusShown = false;
-        }
-        refreshChordSuggestions();
+        renderChordSuggestions();
         rebuildChordResults();
     });
 
@@ -1868,7 +1813,7 @@ function wireChordLibrary() {
         const isOpen = !chordsUi.searchListbox.hidden;
         if (event.key === 'ArrowDown') {
             event.preventDefault();
-            if (!isOpen && !openChordSuggestions()) return;
+            if (!isOpen) renderChordSuggestions();
             highlightChordSuggestion(chordsSuggestionIndex + 1);
         } else if (event.key === 'ArrowUp') {
             event.preventDefault();
@@ -5763,13 +5708,6 @@ function closeEditorSuggestions() {
     editorChordInput.removeAttribute('aria-activedescendant');
 }
 
-/**
- * Draws the open list. Only ever called with the list meant to be open.
- *
- * With nothing matching, the list stays open and says so, rather than closing: closing would change
- * the field's expanded state, and NVDA announcing that change cuts off the echo of the character
- * that was just typed.
- */
 function renderEditorSuggestions() {
     editorSuggestions.replaceChildren();
     for (const [index, suggestion] of editor.suggestions.entries()) {
@@ -5782,18 +5720,9 @@ function renderEditorSuggestions() {
         option.addEventListener('click', () => commitEditorChord(suggestion.chord, { returnToList: true }));
         editorSuggestions.append(option);
     }
-    if (editor.suggestions.length === 0) {
-        const none = document.createElement('li');
-        none.setAttribute('role', 'option');
-        none.setAttribute('aria-disabled', 'true');
-        none.setAttribute('aria-selected', 'false');
-        none.textContent = 'No chords match';
-        editorSuggestions.append(none);
-    }
-    editorSuggestions.hidden = false;
-    if (editorChordInput.getAttribute('aria-expanded') !== 'true') {
-        editorChordInput.setAttribute('aria-expanded', 'true');
-    }
+    const open = editor.suggestions.length > 0;
+    editorSuggestions.hidden = !open;
+    editorChordInput.setAttribute('aria-expanded', String(open));
     if (editor.suggestionIndex >= 0) {
         editorChordInput.setAttribute('aria-activedescendant',
             `progression-editor-suggestion-${editor.suggestionIndex}`);
@@ -5802,28 +5731,9 @@ function renderEditorSuggestions() {
     }
 }
 
-/**
- * Opens the list on Down, filtered by what has been typed, with the first chord highlighted.
- *
- * Typing never opens it. The list opening is announced as the field becoming expanded, and on the
- * first character that announcement replaced the echo of the character itself: type F and hear
- * only "expanded". Down is a deliberate request for the list, so being told it opened is the answer.
- */
-function openEditorSuggestions() {
+function openEditorSuggestions(highlight) {
     editor.suggestions = editorSuggestionsFor(editorChordInput.value);
-    if (editor.suggestions.length === 0) {
-        editorAnnounce(`No chords match ${editorChordInput.value.trim()}.`);
-        return;
-    }
-    editor.suggestionIndex = 0;
-    renderEditorSuggestions();
-}
-
-/** Keeps an open list in step with what is typed, without announcing anything. */
-function refreshEditorSuggestions() {
-    if (editorSuggestions.hidden) return;
-    editor.suggestions = editorSuggestionsFor(editorChordInput.value);
-    editor.suggestionIndex = -1;
+    editor.suggestionIndex = editor.suggestions.length > 0 ? highlight : -1;
     renderEditorSuggestions();
 }
 
@@ -5867,23 +5777,20 @@ function commitEditorTypedChord({ revert = false, returnToList = false } = {}) {
     return false;
 }
 
-editorChordInput.addEventListener('input', refreshEditorSuggestions);
+editorChordInput.addEventListener('input', () => openEditorSuggestions(-1));
 
 editorChordInput.addEventListener('keydown', event => {
     const open = !editorSuggestions.hidden;
-    const count = editor.suggestions.length;
     if (event.key === 'ArrowDown') {
-        if (!open) openEditorSuggestions();
-        else if (count > 0) {
-            editor.suggestionIndex = Math.min(count - 1, editor.suggestionIndex + 1);
+        if (!open) openEditorSuggestions(0);
+        else {
+            editor.suggestionIndex = Math.min(editor.suggestions.length - 1, editor.suggestionIndex + 1);
             renderEditorSuggestions();
         }
     } else if (event.key === 'ArrowUp') {
         if (!open) return;
-        if (count > 0) {
-            editor.suggestionIndex = Math.max(0, editor.suggestionIndex - 1);
-            renderEditorSuggestions();
-        }
+        editor.suggestionIndex = Math.max(0, editor.suggestionIndex - 1);
+        renderEditorSuggestions();
     } else if (event.key === 'Enter') {
         if (open && editor.suggestionIndex >= 0) {
             commitEditorChord(editor.suggestions[editor.suggestionIndex].chord, { returnToList: true });

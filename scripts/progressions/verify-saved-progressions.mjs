@@ -281,48 +281,10 @@ try {
         /no chord named Hmaj/.test(nonsense.status), `${nonsense.focusedId}: ${nonsense.status}`);
 
     // Anything can be typed, and a chord outside the key is marked but allowed.
-    // Typing must not open the list: NVDA announces the field becoming expanded, and that
-    // announcement replaced the echo of the first character typed.
-    await page.fill('#progression-editor-chord-input', '');
-    await page.keyboard.type('B');
-    await page.waitForTimeout(150);
-    const afterFirstKey = await page.evaluate(() => ({
-        value: document.getElementById('progression-editor-chord-input').value,
-        expanded: document.getElementById('progression-editor-chord-input').getAttribute('aria-expanded'),
-        listHidden: document.getElementById('progression-editor-suggestions').hidden
-    }));
-    check('typing a character does not open the list or change the expanded state',
-        afterFirstKey.value === 'B' && afterFirstKey.expanded === 'false' && afterFirstKey.listHidden,
-        JSON.stringify(afterFirstKey));
-    await page.keyboard.type('b');
-    await page.keyboard.press('ArrowDown');
+    await page.fill('#progression-editor-chord-input', 'Bb');
     await page.waitForTimeout(200);
     const typed = await page.evaluate(() =>
         [...document.querySelectorAll('#progression-editor-suggestions [role="option"]')].map(o => o.textContent));
-    const downState = await page.evaluate(() => ({
-        expanded: document.getElementById('progression-editor-chord-input').getAttribute('aria-expanded'),
-        active: document.getElementById('progression-editor-chord-input').getAttribute('aria-activedescendant')
-    }));
-    check('Down then opens the list, filtered by what was typed, first one highlighted',
-        downState.expanded === 'true' && downState.active === 'progression-editor-suggestion-0' &&
-        typed.every(label => label.startsWith('Bb')), `${downState.expanded} / ${typed.slice(0, 3).join(', ')}`);
-
-    // Typing more with the list open updates it without changing the expanded state, even when
-    // nothing matches.
-    await page.keyboard.type('zz');
-    await page.waitForTimeout(150);
-    const noMatch = await page.evaluate(() => ({
-        expanded: document.getElementById('progression-editor-chord-input').getAttribute('aria-expanded'),
-        options: [...document.querySelectorAll('#progression-editor-suggestions [role="option"]')]
-            .map(o => `${o.textContent}${o.getAttribute('aria-disabled') === 'true' ? ' (disabled)' : ''}`)
-    }));
-    check('an open list stays open and says nothing matches',
-        noMatch.expanded === 'true' && noMatch.options.join('|') === 'No chords match (disabled)',
-        JSON.stringify(noMatch));
-    await page.keyboard.press('Backspace');
-    await page.keyboard.press('Backspace');
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(150);
     console.log(`  typing Bb: ${typed.slice(0, 5).join(' | ')}`);
     check('a chord outside the key says so', typed[0] === 'Bb, outside the key', typed[0]);
     await page.keyboard.press('Enter');

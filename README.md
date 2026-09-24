@@ -84,6 +84,12 @@ I'm calling it out specifically though as I expect it to be a commonly used feat
 I consider tools as functionality used occasionally, not a core feature.
 It's highly likely the menu/feature access structure will change as I iterate.
 
+As of version 0.5.0, a progression can be saved, opened again later, and edited.
+You can also create one yourself, chord by chord.
+Saved progressions are plain files in a folder, Unstrung\Progressions in your Documents folder by default.
+The folder can be changed in File-> Settings.
+Because they are ordinary files, you can copy, back up, and organize them into sub folders like any other files.
+
 ## Audio Samples
 
 I didn't like the sound of simple MIDI, very basic synthesizer sound.
@@ -201,6 +207,7 @@ Because it also sits last in reading order, you can navigate to the end of the p
 The chord library's search field is a combo box rather than a plain text box.
 Type part of a chord name and a list of matching names appears below it.
 The down and up arrow keys move through that list, enter accepts the highlighted one, and escape closes the list and leaves what you typed alone.
+The chord field in the dialog for editing a progression works the same way.
 Pressing tab also closes the list and carries on to the next control, the way a combo box normally behaves.
 
 Once you've tabbed away from the search combo box, any matching search results are below as a list of check boxes.

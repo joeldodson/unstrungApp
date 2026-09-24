@@ -114,13 +114,12 @@ answer.
   the next row, Apply and Cancel on the last.
 - **The editor's status line** empties itself four seconds after each message, so it is heard when
   something happens and not met again when reading down the dialog.
-- **Typing in the chord field no longer opens the list** (2026-09-23). The list opening cut off the
-  echo of the first character; see `screen-reader-findings.md`. Down opens it, filtered by what
-  was typed.
 - **The disclosure is named "Keyboard commands for the measures list"** (2026-09-23), not
   "Keyboard notes".
 - **No "Made" line in the tab's metadata** (2026-09-23). How a progression was made is still kept
   in its file. The saved line reads "Not saved" until it is saved, then "Saved as - " and the name.
+- **Typing in the chord field still opens the list** as it did. A change to open it only on Down
+  was made and reverted on 2026-09-23; see `screen-reader-findings.md`.
 - **Default file name** follows the pattern key, measures, level, borrowing: for example
   `Am-60-intermediate-occasional`. The key is written as its chord, so A minor is `Am`. A hand-made
   progression ends in `hand` instead: `Am-8-hand`.
@@ -132,8 +131,8 @@ answer.
   is one line if wanted.
 - In Settings, Files, the default Open folder's Browse button still shares a paragraph with its
   field. It is a single button, so it was left alone.
-- `README.md` has not been updated about saved progressions. It is written in Joel's own voice and
-  feeds the in-app Help, so it was left for him.
+- `README.md` got a short paragraph about saved progressions on 2026-09-23, written to match Joel's
+  own style since the rest of it is his writing.
 - The file format is version 1. `parseSavedProgression` refuses a higher version with "saved by a
   newer version of Unstrung", so the format can grow later.
 

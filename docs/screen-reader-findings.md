@@ -36,22 +36,17 @@ when it is set; an empty paragraph is skipped when reading.
 Also: when focus moves to something that already says the result -- returning to a measure that
 now reads its new chord -- make no announcement at all, or it is said twice.
 
-## A combo box that opens as you type swallows the first character
+## A combo box that expands as you type: not a bug
 
-Found 2026-09-23 in the progression editor's chord field: typing F said only "expanded", not F.
+Reported 2026-09-23 and then withdrawn. Typing F into the progression editor's chord field said
+only "expanded", not F. The fix tried was to stop typing from opening the list and open it on Down
+instead, in that field and in the chord library search.
 
-- The list of suggestions opened on the first character typed, which changed the field's
-  `aria-expanded` from false to true. NVDA announces a state change on the focused control, and that
-  announcement cut off the echo of the character just typed. Later characters echoed normally,
-  because the state no longer changed.
-- **Fix:** typing never opens the list. Down arrow opens it, filtered by what has been typed, with
-  the first match highlighted; being told it expanded is then the answer to a request. Once open,
-  typing updates it in place, and when nothing matches it stays open with a disabled "No chords
-  match" option instead of closing, since closing would announce "collapsed" over the echo.
-- The chord library's search box had the same pattern and got the same fix the same day. Down with
-  nothing matching says so in the library's status line, and that message is cleared as soon as
-  the field changes. Checked by `scripts/progressions/verify-chord-search-typing.mjs`.
-- Any future combo box should follow this: never change `aria-expanded` in response to typing.
+The cause was Joel's NVDA setting: it echoes whole words, not single characters, so a lone letter
+is never spoken whatever the page does. The change was reverted the same day. Lists that open as
+you type are also more useful to sighted users, which matters to Joel too.
+
+Before treating missing speech as a bug, check the screen reader's echo settings.
 
 ## A live region cleared and refilled in one step says nothing
 
