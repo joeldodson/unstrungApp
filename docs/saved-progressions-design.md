@@ -92,7 +92,8 @@ answer.
 - A hand-made progression has no level; fingerings come from the library's first shape, which is
   also what playback already did for generated ones.
 - A progression edited from a generated one keeps its original level and borrowing setting in its
-  file, and is reported as "generated, then edited".
+  file, where `origin.made` is `edited`. The tab reported this as "generated, then edited" until
+  2026-09-23, when the line was dropped.
 - Applying an edit stops playback and resets the play count.
 - Apply with an empty measure moves focus to that measure and says why, rather than disabling the
   button without explanation.
@@ -113,6 +114,13 @@ answer.
   the next row, Apply and Cancel on the last.
 - **The editor's status line** empties itself four seconds after each message, so it is heard when
   something happens and not met again when reading down the dialog.
+- **Typing in the chord field no longer opens the list** (2026-09-23). The list opening cut off the
+  echo of the first character; see `screen-reader-findings.md`. Down opens it, filtered by what
+  was typed.
+- **The disclosure is named "Keyboard commands for the measures list"** (2026-09-23), not
+  "Keyboard notes".
+- **No "Made" line in the tab's metadata** (2026-09-23). How a progression was made is still kept
+  in its file. The saved line reads "Not saved" until it is saved, then "Saved as - " and the name.
 - **Default file name** follows the pattern key, measures, level, borrowing: for example
   `Am-60-intermediate-occasional`. The key is written as its chord, so A minor is `Am`. A hand-made
   progression ends in `hand` instead: `Am-8-hand`.

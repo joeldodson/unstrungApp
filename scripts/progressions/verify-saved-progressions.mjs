@@ -142,7 +142,8 @@ try {
         tab.afterList[1]?.shortcut === 'Control+S' && tab.afterList[2]?.shortcut === 'Control+Shift+S');
     check('a generated progression is not marked as having unsaved changes',
         !/unsaved/.test(tab.heading) && !/unsaved/.test(tab.tabName), `${tab.heading} / ${tab.tabName}`);
-    check('the metadata says it is not saved', tab.meta.includes('Saved as - not saved'), tab.meta.join(' | '));
+    check('the metadata says it is not saved', tab.meta.includes('Not saved'), tab.meta.join(' | '));
+    check('there is no Made line', !tab.meta.some(m => m.startsWith('Made')), tab.meta.join(' | '));
     const generatedChords = tab.chords;
     // A generated progression may already borrow a chord, which stays outside the key once edited.
     const borrowedLine = tab.meta.find(m => m.startsWith('Chords from outside the key'));
@@ -225,9 +226,9 @@ try {
     });
     check('the measures list carries no description to repeat on every visit', layout.describedBy === null,
         String(layout.describedBy));
-    check('its keyboard notes are a collapsed disclosure between the heading and the list',
+    check('its keyboard commands are a collapsed disclosure between the heading and the list',
         layout.afterHeading &&
-        layout.notesSummary === 'Keyboard notes for the measures list' && layout.notesOpen === false,
+        layout.notesSummary === 'Keyboard commands for the measures list' && layout.notesOpen === false,
         String(layout.notesSummary));
     check('the chord field and How the chord field works share one row',
         layout.rowHolds.length === 2 && layout.rowHolds[1] === 'How the chord field works',
@@ -280,10 +281,48 @@ try {
         /no chord named Hmaj/.test(nonsense.status), `${nonsense.focusedId}: ${nonsense.status}`);
 
     // Anything can be typed, and a chord outside the key is marked but allowed.
-    await page.fill('#progression-editor-chord-input', 'Bb');
+    // Typing must not open the list: NVDA announces the field becoming expanded, and that
+    // announcement replaced the echo of the first character typed.
+    await page.fill('#progression-editor-chord-input', '');
+    await page.keyboard.type('B');
+    await page.waitForTimeout(150);
+    const afterFirstKey = await page.evaluate(() => ({
+        value: document.getElementById('progression-editor-chord-input').value,
+        expanded: document.getElementById('progression-editor-chord-input').getAttribute('aria-expanded'),
+        listHidden: document.getElementById('progression-editor-suggestions').hidden
+    }));
+    check('typing a character does not open the list or change the expanded state',
+        afterFirstKey.value === 'B' && afterFirstKey.expanded === 'false' && afterFirstKey.listHidden,
+        JSON.stringify(afterFirstKey));
+    await page.keyboard.type('b');
+    await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(200);
     const typed = await page.evaluate(() =>
         [...document.querySelectorAll('#progression-editor-suggestions [role="option"]')].map(o => o.textContent));
+    const downState = await page.evaluate(() => ({
+        expanded: document.getElementById('progression-editor-chord-input').getAttribute('aria-expanded'),
+        active: document.getElementById('progression-editor-chord-input').getAttribute('aria-activedescendant')
+    }));
+    check('Down then opens the list, filtered by what was typed, first one highlighted',
+        downState.expanded === 'true' && downState.active === 'progression-editor-suggestion-0' &&
+        typed.every(label => label.startsWith('Bb')), `${downState.expanded} / ${typed.slice(0, 3).join(', ')}`);
+
+    // Typing more with the list open updates it without changing the expanded state, even when
+    // nothing matches.
+    await page.keyboard.type('zz');
+    await page.waitForTimeout(150);
+    const noMatch = await page.evaluate(() => ({
+        expanded: document.getElementById('progression-editor-chord-input').getAttribute('aria-expanded'),
+        options: [...document.querySelectorAll('#progression-editor-suggestions [role="option"]')]
+            .map(o => `${o.textContent}${o.getAttribute('aria-disabled') === 'true' ? ' (disabled)' : ''}`)
+    }));
+    check('an open list stays open and says nothing matches',
+        noMatch.expanded === 'true' && noMatch.options.join('|') === 'No chords match (disabled)',
+        JSON.stringify(noMatch));
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('ArrowDown');
+    await page.waitForTimeout(150);
     console.log(`  typing Bb: ${typed.slice(0, 5).join(' | ')}`);
     check('a chord outside the key says so', typed[0] === 'Bb, outside the key', typed[0]);
     await page.keyboard.press('Enter');
@@ -380,8 +419,8 @@ try {
     check('the heading and tab say there are unsaved changes',
         tab.heading === 'Chord practice - Twelve bar (unsaved changes)' &&
         tab.tabName === 'Practice - Twelve bar (unsaved changes)', `${tab.heading} / ${tab.tabName}`);
-    check('the metadata says it was generated and then edited',
-        tab.meta.includes('Made - generated, then edited') &&
+    check('the metadata counts the chords outside the key, with no Made line',
+        !tab.meta.some(m => m.startsWith('Made')) &&
         tab.meta.includes(`Chords from outside the key - ${2 + generatedOutside}`), tab.meta.join(' | '));
     check('focus is back on Edit Progression', tab.focused === 'Edit Progression', tab.focused);
     const bbRow = await page.evaluate(() => {
@@ -487,8 +526,8 @@ try {
     check('Enter opens the progression in a new tab, named after the file',
         tab.tabName === 'Practice - Waltz' && tab.tabCount === 2, `${tab.tabName}, ${tab.tabCount} tabs`);
     check('its time signature comes from the file', tab.meta.includes('Time signature - 3/4'), tab.meta.join(' | '));
-    check('it says it was made by hand, and nothing is outside the key',
-        tab.meta.includes('Made - by hand') && tab.meta.includes('Chords from outside the key - none'),
+    check('nothing is outside the key, and it says where it was saved',
+        tab.meta.includes('Saved as - Waltz') && tab.meta.includes('Chords from outside the key - none'),
         tab.meta.join(' | '));
     check('the chords are the file\'s', tab.chords.join(' ') === 'G D7 G', tab.chords.join(' '));
     const beatsInState = await page.evaluate(() => {
