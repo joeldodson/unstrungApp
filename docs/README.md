@@ -8,6 +8,8 @@ user documentation; that is the top-level `README.md`, which also feeds the in-a
 - `screen-reader-findings.md` -- how NVDA reads parts of Unstrung, and the fixes that came from it.
 - `web-deployment-and-guitar-input.md` -- running Unstrung in a browser, sample size and
   compression, SoundFonts, and a plan for a tuner, timing feedback and chord checking. Not built.
+- `eyesunstrung-site-and-web-app.md` -- rebuilding eyesunstrung.vip with Eleventy and serving the
+  web version of Unstrung from it at `/unstrung/app/`. Not built.
 - `js-synthesizer-investigation.md` -- FluidSynth in WebAssembly as an audio engine. Studied and set
   aside.
 
