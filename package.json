@@ -6,7 +6,7 @@
   "author": "Joel Dodson",
   "main": "src/main/main.js",
   "scripts": {
-    "build:renderer": "esbuild src/renderer/renderer.js --bundle --outfile=src/renderer/bundle.js --platform=browser --format=iife",
+    "build:renderer": "node scripts/copy-font.mjs && esbuild src/renderer/renderer.js --bundle --outfile=src/renderer/bundle.js --platform=browser --format=iife",
     "build:chords": "node scripts/build-chord-library.mjs",
     "build:help": "node scripts/build-help.mjs",
     "build:icons": "electron scripts/build-icons.js",
@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@coderline/alphatab": "^1.8.4",
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
     "@tombatossals/chords-db": "^0.5.1",
     "electron": "^43.0.0",
     "electron-builder": "^25.1.8",

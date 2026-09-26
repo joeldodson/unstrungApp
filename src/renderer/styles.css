@@ -1,5 +1,15 @@
+/* Atkinson Hyperlegible Next, by the Braille Institute, the same font as eyesunstrung.vip.
+   SIL Open Font License 1.1. Copied into fonts/ by scripts/copy-font.mjs. */
+@font-face {
+    font-family: "Atkinson Hyperlegible Next";
+    src: url("fonts/atkinson-hyperlegible-next-latin.woff2") format("woff2");
+    font-weight: 200 800;
+    font-style: normal;
+    font-display: swap;
+}
+
 body {
-    font-family: system-ui, sans-serif;
+    font-family: "Atkinson Hyperlegible Next", system-ui, sans-serif;
     max-width: 40rem;
     margin: 0 auto;
     padding: 1rem 1.5rem 3rem;

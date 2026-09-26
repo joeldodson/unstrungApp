@@ -140,4 +140,10 @@ encode described in `web-deployment-and-guitar-input.md` exists, fetched per not
 - **Font:** Atkinson Hyperlegible Next, by the Braille Institute, SIL Open Font License 1.1. Taken
   from the npm package `@fontsource-variable/atkinson-hyperlegible-next` rather than from the
   reference site. It is self-hosted, not loaded from Google Fonts.
+- **The desktop app follows the site.** Joel expects to change the installable app so it matches
+  what the site offers. The first step, done 2026-09-26: the app uses the same font, from the same
+  npm package, copied into `src/renderer/fonts/` by `scripts/copy-font.mjs` during
+  `build:renderer`.
+- **License:** eyesunstrung was relicensed from a custom licence to MIT (2026-09-26), matching
+  unstrungApp.
 - **Local testing:** `npm start` runs Eleventy's dev server at http://localhost:8080/.

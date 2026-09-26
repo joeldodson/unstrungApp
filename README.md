@@ -146,6 +146,14 @@ nothing above D6 or below B0 exists in these samples.
 When a track goes outside that, unstrung tells you which measures it could not play
 instead of quietly leaving them out.
 
+## Font
+
+unstrung uses
+[Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/),
+a typeface the Braille Institute designed for low vision readers.
+It is the same font as the [Eyes Unstrung website](https://eyesunstrung.vip).
+It is released under the SIL Open Font License 1.1, and its licence ships with the app.
+
 ## Screen Reader Users
 
 unstrung was written entirely by Claude, directed by a blind developer working with NVDA on Windows 11.

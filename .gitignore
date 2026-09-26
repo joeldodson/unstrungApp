@@ -157,3 +157,6 @@ release/
 build/appx/
 build/logo/
 build/icon.ico
+
+# Font copied from node_modules by scripts/copy-font.mjs
+src/renderer/fonts/
