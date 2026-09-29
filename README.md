@@ -151,7 +151,7 @@ instead of quietly leaving them out.
 unstrung uses
 [Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/),
 a typeface the Braille Institute designed for low vision readers.
-It is the same font as the [Eyes Unstrung website](https://eyesunstrung.vip).
+It is the same font as the [eyesunstrung website](https://eyesunstrung.vip).
 It is released under the SIL Open Font License 1.1, and its licence ships with the app.
 
 ## Screen Reader Users
