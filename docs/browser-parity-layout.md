@@ -45,7 +45,8 @@ daily before any web build exists.
   innermost open group and returns focus to its summary. The summary is blurred first if it
   already has focus: arrowing in NVDA's browse mode moves only NVDA's cursor, so the summary can
   still hold focus while that cursor is several lines into the group, and focusing it again would
-  fire nothing and leave the cursor inside a collapsed group. Choosing a command closes the menu and
+  fire nothing and leave the cursor inside a collapsed group. Focus is put back 100 ms after the
+  blur: done in the same moment, Chrome reported the pair as no change at all. Choosing a command closes the menu and
   puts focus on the Menu summary, so a dialog the command opens returns focus there.
 - **Shortcuts that work in both:** Ctrl+O opens a file, Ctrl+Shift+O opens a saved progression,
   Ctrl+S and Ctrl+Shift+S save a progression. Ctrl+T, Ctrl+W and Ctrl+Tab are retired.
