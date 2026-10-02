@@ -57,10 +57,21 @@ body {
     border-top: 2px solid var(--slate);
 }
 
+/* The left column does not scroll as a whole: the menu drops down over the main area, and would be
+   cut off at the column's edge if the column were a scrolling box. The list of open items scrolls
+   on its own instead. */
 .side-panel {
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     padding: 0.75rem 1rem;
     border-inline-end: 2px solid var(--slate);
+}
+
+#open-items {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 main {
@@ -90,9 +101,12 @@ main {
     }
 
     .side-panel {
-        overflow-y: visible;
         border-inline-end: none;
         border-bottom: 2px solid var(--slate);
+    }
+
+    #open-items {
+        overflow-y: visible;
     }
 
     main {
@@ -100,31 +114,72 @@ main {
     }
 }
 
-/* The menu: one disclosure, nested ones for groups, each level indented. */
-#app-menu ul {
-    list-style: none;
-    margin: 0;
-    padding: 0 0 0 1rem;
+/* The menu drops down below the Menu button, over the main area; each submenu opens to the right
+   of its item. Above everything else in the window, so nothing covers the item with focus. */
+.app-menu {
+    position: relative;
+    z-index: 10;
 }
 
-#app-menu > details > ul {
-    padding-top: 0.25rem;
-}
-
-#app-menu summary {
-    cursor: pointer;
-    font-weight: bold;
-    padding: 0.2rem 0;
-}
-
-#app-menu button {
+#app-menu-button {
     font: inherit;
-    margin: 0.15rem 0;
-    text-align: start;
 }
 
-#menu-recent-files-empty {
-    margin: 0.25rem 0 0.25rem 1rem;
+.app-menu [role="menu"] {
+    position: absolute;
+    margin: 0;
+    padding: 0.25rem 0;
+    list-style: none;
+    min-width: 16rem;
+    background: #fff;
+    color: #1f2328;
+    border: 1px solid #333;
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.25);
+}
+
+#app-menu-list {
+    top: 100%;
+    left: 0;
+}
+
+.app-menu li[role="none"] {
+    position: relative;
+}
+
+.app-menu [role="menu"] [role="menu"] {
+    top: -0.25rem;
+    left: 100%;
+}
+
+.app-menu [role="menuitem"] {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 0.3rem 1rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.app-menu [role="menuitem"]:focus {
+    background: var(--slate);
+    color: #fff;
+    outline: none;
+}
+
+.app-menu [role="menuitem"][aria-disabled="true"] {
+    color: #57606a;
+    cursor: default;
+}
+
+/* An arrow after an item that opens a submenu. The empty alternative text keeps it from being
+   read; the item already says it has a submenu. */
+.app-menu [role="menuitem"][aria-haspopup]::after {
+    content: "\25B8" / "";
+}
+
+.app-menu [role="separator"] {
+    margin: 0.25rem 0;
+    border-top: 1px solid #888;
 }
 
 /* Open items: each a heading holding a button, then its Close button. The current one is bold

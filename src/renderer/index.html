@@ -19,56 +19,65 @@
         <!-- No h1 for the application's name. Each open item is an h1 instead, so an item's own
              content can start at h2 and keep every level below that. -->
         <div class="side-panel">
-            <!-- One disclosure for every command, with nested disclosures for groups. Built from
-                 buttons and details rather than an ARIA menu, so it reads and works the same in
-                 browse mode as anything else on the page, and the same in a browser as here. -->
-            <nav id="app-menu" aria-label="Menu">
-                <details id="app-menu-details">
-                    <summary>Menu</summary>
-                    <ul role="list">
-                        <li>
-                            <details>
-                                <summary>Open File</summary>
-                                <button type="button" id="menu-open-file" aria-keyshortcuts="Control+O">Open File…</button>
-                                <ul id="menu-recent-files" role="list" aria-label="Recent files"></ul>
-                                <p id="menu-recent-files-empty">No recent files.</p>
-                            </details>
-                        </li>
-                        <li>
-                            <details>
-                                <summary>Chord Progressions</summary>
-                                <ul role="list">
-                                    <li><button type="button" id="menu-chord-practice">Generate Practice Progression…</button></li>
-                                    <li><button type="button" id="menu-new-progression">Manually Create Chord Progression…</button></li>
-                                    <li><button type="button" id="menu-open-progression" aria-keyshortcuts="Control+Shift+O">Open Saved Progression…</button></li>
-                                </ul>
-                            </details>
-                        </li>
-                        <li>
-                            <details>
-                                <summary>Chords</summary>
-                                <ul role="list">
-                                    <li><button type="button" id="menu-chord-library">Chord Library</button></li>
-                                    <li><button type="button" id="menu-frets-to-chord">Frets to Chord…</button></li>
-                                    <li><button type="button" id="menu-guitar-samples">Listen to Guitar Samples…</button></li>
-                                </ul>
-                            </details>
-                        </li>
-                        <li><button type="button" id="menu-settings">Settings…</button></li>
-                        <li>
-                            <details>
-                                <summary>Help</summary>
-                                <ul role="list">
-                                    <li><button type="button" id="menu-help-what-is">What is Unstrung…</button></li>
-                                    <li><button type="button" id="menu-help-screen-reader">Screen Reader Users…</button></li>
-                                    <li><button type="button" id="menu-help-feedback">Feedback…</button></li>
-                                    <li><button type="button" id="menu-about">About Unstrung…</button></li>
-                                </ul>
-                            </details>
-                        </li>
-                    </ul>
-                </details>
-            </nav>
+            <!-- The Menu button and its menu, with submenus. ARIA menu roles, driven by menu.js:
+                 NVDA switches to focus mode in a menu, so arrowing stays inside it and loops at
+                 either end. Each item's data-command names what renderer.js runs for it. -->
+            <div id="app-menu" class="app-menu">
+                <button type="button" id="app-menu-button" aria-haspopup="menu" aria-expanded="false"
+                    aria-controls="app-menu-list">Menu</button>
+                <ul id="app-menu-list" role="menu" aria-labelledby="app-menu-button" hidden>
+                    <li role="none"><div role="menuitem" tabindex="-1" id="menu-open-file" data-command="open-file"
+                        aria-keyshortcuts="Control+O">Open File…</div></li>
+                    <li role="none">
+                        <div role="menuitem" tabindex="-1" id="menu-recent-files-item" aria-haspopup="menu"
+                            aria-controls="menu-recent-files">Recent Files</div>
+                        <!-- Filled by renderer.js from the recent files list. -->
+                        <ul id="menu-recent-files" role="menu" aria-label="Recent Files" hidden></ul>
+                    </li>
+                    <li role="none">
+                        <div role="menuitem" tabindex="-1" id="menu-progressions-item" aria-haspopup="menu"
+                            aria-controls="menu-progressions">Chord Progressions</div>
+                        <ul id="menu-progressions" role="menu" aria-label="Chord Progressions" hidden>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-chord-practice"
+                                data-command="chord-practice">Generate Practice Progression…</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-new-progression"
+                                data-command="new-progression">Manually Create Chord Progression…</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-open-progression"
+                                data-command="open-progression" aria-keyshortcuts="Control+Shift+O">Open Saved Progression…</div></li>
+                        </ul>
+                    </li>
+                    <li role="none">
+                        <div role="menuitem" tabindex="-1" id="menu-chords-item" aria-haspopup="menu"
+                            aria-controls="menu-chords">Chords</div>
+                        <ul id="menu-chords" role="menu" aria-label="Chords" hidden>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-chord-library"
+                                data-command="chord-library">Chord Library</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-frets-to-chord"
+                                data-command="frets-to-chord">Frets to Chord…</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-guitar-samples"
+                                data-command="guitar-samples">Listen to Guitar Samples…</div></li>
+                        </ul>
+                    </li>
+                    <li role="separator"></li>
+                    <li role="none"><div role="menuitem" tabindex="-1" id="menu-settings"
+                        data-command="settings">Settings…</div></li>
+                    <li role="none">
+                        <div role="menuitem" tabindex="-1" id="menu-help-item" aria-haspopup="menu"
+                            aria-controls="menu-help">Help</div>
+                        <ul id="menu-help" role="menu" aria-label="Help" hidden>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-what-is"
+                                data-command="help-what-is">What is Unstrung…</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-screen-reader"
+                                data-command="help-screen-reader">Screen Reader Users…</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-feedback"
+                                data-command="help-feedback">Feedback…</div></li>
+                            <li role="separator"></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-about"
+                                data-command="about">About Unstrung…</div></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
 
             <!-- Everything open, newest first. Each is an h1 holding a button that shows it in the
                  main area, followed by a button that closes it. Hidden while nothing is open. -->

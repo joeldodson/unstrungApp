@@ -15,6 +15,7 @@ import {
     MAX_MEASURES, MAX_BEATS
 } from '../shared/savedProgressions.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
+import { createMenuButton } from './menu.js';
 
 const statusElement = document.getElementById('status');
 const emptyStateElement = document.getElementById('empty-state');
@@ -5990,115 +5991,66 @@ editorDialog.addEventListener('close', () => {
 
 // --- The menu --------------------------------------------------------------------------------
 //
-// One disclosure at the top of the left column, holding every command, with nested disclosures for
-// the groups. There is no native menu bar: a browser has none, and this way the app works the
-// same in both. Built from buttons and <details> rather than an ARIA menu, so nothing about it
-// changes between browse mode and focus mode.
+// The Menu button at the top of the left column, with a menu and submenus that behave like a
+// desktop application's. How it works with the keyboard and a screen reader is in menu.js; this
+// part only says what each item does. There is no native menu bar: a browser has none, and this
+// way the app works the same in both.
 
-const appMenuElement = document.getElementById('app-menu');
-const appMenuDetails = document.getElementById('app-menu-details');
-const appMenuSummary = appMenuDetails.querySelector(':scope > summary');
-const recentFilesList = document.getElementById('menu-recent-files');
-const recentFilesEmpty = document.getElementById('menu-recent-files-empty');
+const recentFilesMenu = document.getElementById('menu-recent-files');
 
-// How long focus is away before it is put back. Long enough for Chrome to have reported the blur
-// on its own, short enough not to be noticed.
-const REFOCUS_DELAY_MS = 100;
+const MENU_COMMANDS = {
+    'open-file': () => window.unstrung.openFileDialog(),
+    'open-recent': item => window.unstrung.openRecentFile(item.dataset.path),
+    'chord-practice': () => openChordPracticeDialog(),
+    'new-progression': () => openProgressionEditor(),
+    'open-progression': () => openProgressionOpenDialog(),
+    'chord-library': () => openChordLibraryTab(),
+    'frets-to-chord': () => openFretsToChordDialog(),
+    'guitar-samples': () => openGuitarSamplesDialog(),
+    settings: () => openSettingsDialog(),
+    'help-what-is': () => openHelpDialog('what-is'),
+    'help-screen-reader': () => openHelpDialog('screen-reader'),
+    'help-feedback': () => openHelpDialog('feedback'),
+    about: async () => openAboutDialog({ version: await window.unstrung.getAppVersion() })
+};
 
-/**
- * Puts focus on an element even when it already has it, so that NVDA's cursor follows.
- *
- * NVDA moves its browse mode cursor to whatever receives focus. Arrowing in browse mode moves only
- * that cursor, so the summary of a group can still hold focus while the cursor is several items
- * below it; calling focus() on it then does nothing at all, and the cursor stays where it was,
- * inside a group that has just been collapsed.
- *
- * Blurring and focusing in the same moment did not help either. Chrome gathers accessibility
- * changes and reports them together, so a blur undone before the next report was never reported,
- * and NVDA heard of no focus change. Focus is put back after a short pause instead, so the two
- * reach NVDA as two changes.
- */
-function moveFocusTo(element) {
-    if (document.activeElement !== element) {
-        element.focus();
-        return;
-    }
-    element.blur();
-    setTimeout(() => {
-        // Unless something else took focus in the meantime.
-        if (document.activeElement === document.body || document.activeElement === null) element.focus();
-    }, REFOCUS_DELAY_MS);
-}
-
-/**
- * Runs a command chosen from the menu, closing the menu first.
- *
- * Focus goes to the Menu button before the command runs, so a dialog the command opens returns
- * focus there when it closes. Left on the command's own button, focus would go back to something
- * inside a collapsed disclosure, which is nowhere.
- */
-function runMenuCommand(command) {
-    for (const details of appMenuElement.querySelectorAll('details[open]')) details.open = false;
-    // Plainly, not through moveFocusTo: a dialog the command opens takes whatever has focus at that
-    // moment as the place to return to, so focus has to be on Menu now, not after a pause.
-    appMenuSummary.focus();
-    command();
-}
-
-/**
- * Escape closes the innermost open disclosure around focus and returns focus to its summary, one
- * level per press, the way Escape backs out of a menu.
- */
-appMenuElement.addEventListener('keydown', event => {
-    if (event.key !== 'Escape') return;
-    let details = event.target.closest('details');
-    // On the summary of a closed group, Escape closes the group around it.
-    if (details && !details.open) details = details.parentElement.closest('details');
-    if (!details || !appMenuElement.contains(details)) return;
-    event.preventDefault();
-    details.open = false;
-    moveFocusTo(details.querySelector(':scope > summary'));
+createMenuButton(document.getElementById('app-menu-button'), document.getElementById('app-menu-list'), {
+    onActivate: item => MENU_COMMANDS[item.dataset.command]?.(item)
 });
 
-function bindMenuCommand(id, command) {
-    document.getElementById(id).addEventListener('click', () => runMenuCommand(command));
+/** A menu item, for building the Recent Files submenu. */
+function createMenuItem(text, { command = null, disabled = false } = {}) {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'none');
+    const item = document.createElement('div');
+    item.setAttribute('role', 'menuitem');
+    item.tabIndex = -1;
+    item.textContent = text;
+    if (command) item.dataset.command = command;
+    if (disabled) item.setAttribute('aria-disabled', 'true');
+    li.append(item);
+    return { li, item };
 }
 
-bindMenuCommand('menu-open-file', () => window.unstrung.openFileDialog());
-bindMenuCommand('menu-chord-practice', openChordPracticeDialog);
-bindMenuCommand('menu-new-progression', () => openProgressionEditor());
-bindMenuCommand('menu-open-progression', () => openProgressionOpenDialog());
-bindMenuCommand('menu-chord-library', openChordLibraryTab);
-bindMenuCommand('menu-frets-to-chord', openFretsToChordDialog);
-bindMenuCommand('menu-guitar-samples', openGuitarSamplesDialog);
-bindMenuCommand('menu-settings', openSettingsDialog);
-bindMenuCommand('menu-help-what-is', () => openHelpDialog('what-is'));
-bindMenuCommand('menu-help-screen-reader', () => openHelpDialog('screen-reader'));
-bindMenuCommand('menu-help-feedback', () => openHelpDialog('feedback'));
-bindMenuCommand('menu-about', async () => openAboutDialog({ version: await window.unstrung.getAppVersion() }));
-
 /**
- * The recent files under Open File, newest first, each a button that opens it. Named by file name;
- * two files with the same name also say which folder each is in.
+ * The Recent Files submenu, newest first, each item opening its file. Named by file name; two files
+ * with the same name also say which folder each is in. With none, one item says so and does
+ * nothing, so the submenu is never empty to arrow into.
  */
 function renderRecentFiles(files) {
     const nameCounts = new Map();
     for (const file of files) nameCounts.set(file.name, (nameCounts.get(file.name) ?? 0) + 1);
 
-    recentFilesList.replaceChildren();
+    recentFilesMenu.replaceChildren();
     for (const file of files) {
         const folder = file.path.slice(0, Math.max(0, file.path.length - file.name.length - 1));
-        const li = document.createElement('li');
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = nameCounts.get(file.name) > 1 ? `${file.name} (${folder})` : file.name;
-        button.title = file.path;
-        button.addEventListener('click', () => runMenuCommand(() => window.unstrung.openRecentFile(file.path)));
-        li.append(button);
-        recentFilesList.append(li);
+        const { li, item } = createMenuItem(
+            nameCounts.get(file.name) > 1 ? `${file.name} (${folder})` : file.name, { command: 'open-recent' });
+        item.dataset.path = file.path;
+        item.title = file.path;
+        recentFilesMenu.append(li);
     }
-    recentFilesList.hidden = files.length === 0;
-    recentFilesEmpty.hidden = files.length > 0;
+    if (files.length === 0) recentFilesMenu.append(createMenuItem('No recent files', { disabled: true }).li);
 }
 
 window.unstrung.getRecentFiles().then(renderRecentFiles);

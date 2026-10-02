@@ -37,17 +37,11 @@ daily before any web build exists.
   moves between open items in browse mode, in Electron and in a browser alike.
 - **Closing** is the Close button beside each item. Focus goes to the item that takes its place in
   the list, which is then shown. No shortcut for now.
-- **No native menu.** `Menu.setApplicationMenu(null)`. One disclosure, Menu, at the top of the left
-  column, with nested disclosures for groups: Open File (the Open File button and the recent
-  files), Chord Progressions (Generate Practice Progression, Manually Create Chord Progression, Open
-  Saved Progression), Chords (library, frets to chord,
-  guitar samples), Settings, and Help. Buttons and `<details>`, not an ARIA menu. Escape closes the
-  innermost open group and returns focus to its summary. The summary is blurred first if it
-  already has focus: arrowing in NVDA's browse mode moves only NVDA's cursor, so the summary can
-  still hold focus while that cursor is several lines into the group, and focusing it again would
-  fire nothing and leave the cursor inside a collapsed group. Focus is put back 100 ms after the
-  blur: done in the same moment, Chrome reported the pair as no change at all. Choosing a command closes the menu and
-  puts focus on the Menu summary, so a dialog the command opens returns focus there.
+- **No native menu.** `Menu.setApplicationMenu(null)`. A Menu button at the top of the left column
+  opens a real menu, with submenus: Open File, Recent Files (submenu), Chord Progressions (submenu:
+  Generate Practice Progression, Manually Create Chord Progression, Open Saved Progression), Chords
+  (submenu: Chord Library, Frets to Chord, Listen to Guitar Samples), Settings, Help (submenu).
+  See "The menu" below for how it was chosen and how it behaves.
 - **Shortcuts that work in both:** Ctrl+O opens a file, Ctrl+Shift+O opens a saved progression,
   Ctrl+S and Ctrl+Shift+S save a progression. Ctrl+T, Ctrl+W and Ctrl+Tab are retired.
 - **The audio track lives in its track.** The Create Audio Track button became a disclosure at the
@@ -69,6 +63,57 @@ daily before any web build exists.
   dialog", and goes back to the current item when it closes. The editor is titled Editing Chord
   Progression or Creating Chord Progression.
 - **Firefox and Safari are out of scope.** Chromium only, which includes Electron.
+
+## The menu
+
+Decided 2026-10-02. The first version was a disclosure holding nested disclosures and buttons. In
+NVDA it behaved like part of the page, not like a menu:
+
+- Down arrow walked out of a group, into the next group and on past the menu, because in browse
+  mode NVDA keeps the arrow keys for its own cursor. Several groups could be left open at once.
+- Escape could leave NVDA's cursor inside a collapsed group. Arrowing in browse mode moves only
+  NVDA's cursor, so focus stayed on the group's summary; focusing it again changed nothing NVDA
+  could hear. A blur and refocus 100 ms apart was tried and did not settle it.
+
+No script on buttons and disclosures can change the first point. What does is the role: on
+reaching `role="menu"`, NVDA switches to focus mode by itself, so the arrows come to the page.
+
+Options weighed:
+
+- **A menu button with a menu and submenus.** Chosen.
+- **A menu bar** (File, Chord Progressions, Chords, Help across the top). The most desktop-like,
+  and what eyesunstrung.vip uses, which is the right choice for a website. Rejected for Unstrung
+  because the web version will be served inside eyesunstrung.vip, and two menu bars on one page
+  would be odd. It shares nearly all its code with a menu button, so the door stays open.
+- **The disclosures plus script.** Cannot keep the arrows inside in browse mode. Rejected.
+- **A tree.** Confines the arrows, but says "tree" and "expanded", not "menu" and "submenu".
+  Rejected.
+
+How it behaves, following the ARIA Authoring Practices Guide's menu button pattern. The code is
+`src/renderer/menu.js`; `renderer.js` only maps each item's `data-command` to what it does.
+
+- Enter, Space or Down on the button opens the menu on its first item; Up opens it on its last.
+- Up and Down move within the current menu only, and loop at either end, as Windows menus do.
+  Home and End go to the first and last item. A letter goes to the next item starting with it.
+- Right, Enter or Space on an item with a submenu opens it on its first item. Left in a submenu
+  closes it and returns to the item that opened it. Right on any other item does nothing.
+- Escape closes the current submenu, or at the top level the whole menu, returning focus to
+  whatever opened it.
+- Enter or Space on a command closes the menu, puts focus on the Menu button, then runs the
+  command, so a dialog it opens returns focus to the button.
+- Tab closes the menu and moves to the next thing after it; Shift+Tab closes it onto the button.
+  Focus leaving by any route, or a click outside, closes it.
+- Focus moves from item to item, so NVDA's focus and cursor never part. Only one chain of menus is
+  open, and closed menus are hidden, so out of the accessibility tree.
+- Items with a submenu carry `aria-haspopup="menu"`, which NVDA reads as "submenu", and no
+  `aria-expanded`, so it does not say "collapsed". The Menu button does carry `aria-expanded`.
+- Keys used by the menu do not reach the page's own shortcuts, so Space in the menu never pauses
+  playback.
+- Open File and Open Saved Progression carry `aria-keyshortcuts`. Whether NVDA reads it on a menu
+  item is untested; if not, the shortcut goes into the item's text.
+- Visually the menu drops down over the main area and submenus open to the right. The left column
+  no longer scrolls as a whole, since that would clip the menu; the list of open items scrolls on
+  its own.
 
 ## Still to do
 
