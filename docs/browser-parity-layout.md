@@ -60,6 +60,14 @@ daily before any web build exists.
 - **The banner** is the eyesunstrung.vip banner, copied from that repository into
   `src/renderer/images/banner.svg`, linking to the site. Its height is capped at a fifth of the
   window so the columns keep most of it.
+- **Dialogs say they are dialogs.** Joel lost track of being in the Edit Progression dialog: heading
+  navigation found nothing outside it, and the window title still named the item behind it. Now
+  every dialog starts with an `h1` ending in "Dialog Box", such as "Creating Chord Progression
+  Dialog Box". The dialog's accessible name is the part before "Dialog Box", so NVDA does not say
+  "dialog" twice on entering it. Sections inside a dialog are `h2`, the Help documents included.
+  While a dialog is open the window title names it, "Unstrung - Creating Chord Progression
+  dialog", and goes back to the current item when it closes. The editor is titled Editing Chord
+  Progression or Creating Chord Progression.
 - **Firefox and Safari are out of scope.** Chromium only, which includes Electron.
 
 ## Still to do

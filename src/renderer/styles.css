@@ -430,3 +430,9 @@ main {
     padding-left: 0;
     margin-left: 0;
 }
+
+/* A dialog's title, an h1 ending in Dialog Box, at a size that suits a dialog. */
+dialog h1 {
+    font-size: 1.5rem;
+    margin-top: 0;
+}

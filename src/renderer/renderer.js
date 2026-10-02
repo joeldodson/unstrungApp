@@ -80,17 +80,33 @@ function createButtonRow() {
 const APP_TITLE = 'Unstrung';
 
 /**
- * Keeps the window title naming the item that is current.
+ * Keeps the window title naming what is in front: a dialog if one is open, or else the current item.
  *
  * A screen reader can be asked for the title of the focused window at any moment -- NVDA reads it
  * on its own key -- and with several songs open, "Unstrung" alone does not answer the question
  * being asked, which is which of them is being shown. The title takes the item's own label rather
  * than its file name so that it matches what the list of open items says, including the note on a
  * file that could not be read. With nothing open it goes back to the plain application name.
+ *
+ * A dialog is named in the title as a dialog. Without that, the title went on naming the item
+ * behind it, which is the wrong answer to "where am I" and hides that a dialog is open at all.
  */
 function updateWindowTitle() {
+    const dialog = document.querySelector('dialog[open]');
+    if (dialog) {
+        const name = document.getElementById(dialog.getAttribute('aria-labelledby'))?.textContent;
+        document.title = `${APP_TITLE} - ${name} dialog`;
+        return;
+    }
     const item = openItems.find(i => i.id === currentItemId);
     document.title = item ? `${APP_TITLE} - ${item.label}` : APP_TITLE;
+}
+
+// Every dialog opening or closing updates the title. Watched on the open attribute rather than
+// added to each dialog's own code, so no dialog can be missed.
+const dialogTitleObserver = new MutationObserver(updateWindowTitle);
+for (const dialog of document.querySelectorAll('dialog')) {
+    dialogTitleObserver.observe(dialog, { attributes: true, attributeFilter: ['open'] });
 }
 
 // Read at startup rather than fetched when needed: an item can be built before the settings dialog
@@ -5464,7 +5480,8 @@ async function openProgressionOpenDialog({ opener = document.activeElement, opti
 // one Tab, where a field per measure would put hundreds of stops in the way.
 
 const editorDialog = document.getElementById('progression-editor-dialog');
-const editorHeading = document.getElementById('progression-editor-heading');
+// The dialog's name, without the words Dialog Box that follow it in its heading.
+const editorHeading = document.getElementById('progression-editor-heading-name');
 const editorKeySelect = document.getElementById('progression-editor-key-select');
 const editorBeatsInput = document.getElementById('progression-editor-beats-input');
 const editorBeatUnitInput = document.getElementById('progression-editor-beat-unit-input');
@@ -5867,7 +5884,7 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorBeatUnitInput.value = String(progression.beatUnit);
         editor.measures = progression.chords.map(chord => ({ root: chord.root, suffix: chord.suffix }));
         editor.origin = progression.origin ?? { made: 'hand' };
-        editorHeading.textContent = 'Edit Progression';
+        editorHeading.textContent = 'Editing Chord Progression';
         editorApplyButton.textContent = 'Apply Changes';
     } else {
         editorKeySelect.value = `${start?.key ?? 'C'}|${start?.mode ?? 'major'}`;
@@ -5876,7 +5893,7 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorBeatUnitInput.value = String(start?.beatUnit ?? 4);
         editor.measures = [null];
         editor.origin = { made: 'hand' };
-        editorHeading.textContent = 'Create Progression by Hand';
+        editorHeading.textContent = 'Creating Chord Progression';
         editorApplyButton.textContent = 'Create Progression';
     }
 

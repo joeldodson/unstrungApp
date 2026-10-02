@@ -24,8 +24,8 @@ const SECTIONS = {
 
 const markdown = fs.readFileSync(README_PATH, 'utf8');
 
-// Every document is shown in a dialog titled with an h2, so their own sections start at h3.
-const whatIsHtml = markdownBodyToHtml(markdown, { startLevel: 3 });
+// Every document is shown in a dialog titled with an h1, so their own sections start at h2.
+const whatIsHtml = markdownBodyToHtml(markdown, { startLevel: 2 });
 
 const sections = {};
 for (const [field, heading] of Object.entries(SECTIONS)) {
@@ -33,7 +33,7 @@ for (const [field, heading] of Object.entries(SECTIONS)) {
     if (source === null) {
         throw new Error(`README.md has no "${heading}" section, which the Help menu needs`);
     }
-    sections[field] = markdownBodyToHtml(source, { startLevel: 3 });
+    sections[field] = markdownBodyToHtml(source, { startLevel: 2 });
 }
 
 // The links these documents offer, so the main process can allow exactly those through to the
