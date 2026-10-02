@@ -5984,18 +5984,33 @@ const appMenuSummary = appMenuDetails.querySelector(':scope > summary');
 const recentFilesList = document.getElementById('menu-recent-files');
 const recentFilesEmpty = document.getElementById('menu-recent-files-empty');
 
+// How long focus is away before it is put back. Long enough for Chrome to have reported the blur
+// on its own, short enough not to be noticed.
+const REFOCUS_DELAY_MS = 100;
+
 /**
- * Puts focus on an element even when it already has it.
+ * Puts focus on an element even when it already has it, so that NVDA's cursor follows.
  *
  * NVDA moves its browse mode cursor to whatever receives focus. Arrowing in browse mode moves only
  * that cursor, so the summary of a group can still hold focus while the cursor is several items
  * below it; calling focus() on it then does nothing at all, and the cursor stays where it was,
- * inside a group that has just been collapsed. Blurring first makes the focus a real change that
- * NVDA follows.
+ * inside a group that has just been collapsed.
+ *
+ * Blurring and focusing in the same moment did not help either. Chrome gathers accessibility
+ * changes and reports them together, so a blur undone before the next report was never reported,
+ * and NVDA heard of no focus change. Focus is put back after a short pause instead, so the two
+ * reach NVDA as two changes.
  */
 function moveFocusTo(element) {
-    if (document.activeElement === element) element.blur();
-    element.focus();
+    if (document.activeElement !== element) {
+        element.focus();
+        return;
+    }
+    element.blur();
+    setTimeout(() => {
+        // Unless something else took focus in the meantime.
+        if (document.activeElement === document.body || document.activeElement === null) element.focus();
+    }, REFOCUS_DELAY_MS);
 }
 
 /**
@@ -6007,7 +6022,9 @@ function moveFocusTo(element) {
  */
 function runMenuCommand(command) {
     for (const details of appMenuElement.querySelectorAll('details[open]')) details.open = false;
-    moveFocusTo(appMenuSummary);
+    // Plainly, not through moveFocusTo: a dialog the command opens takes whatever has focus at that
+    // moment as the place to return to, so focus has to be on Menu now, not after a pause.
+    appMenuSummary.focus();
     command();
 }
 
