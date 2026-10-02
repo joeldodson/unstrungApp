@@ -7,8 +7,6 @@
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <a class="skip-link" href="#content">Skip to content</a>
-
     <!-- The eyesunstrung.vip banner, copied from that site's repository. Its link opens the site
          in the default browser rather than in this window. -->
     <header class="site-header">
@@ -18,9 +16,9 @@
     <!-- Two columns below the banner: the menu and the list of open items on the left, the item
          being shown on the right. Reading order follows: menu, open items, then the item. -->
     <div class="app-layout">
+        <!-- No h1 for the application's name. Each open item is an h1 instead, so an item's own
+             content can start at h2 and keep every level below that. -->
         <div class="side-panel">
-            <h1>Unstrung</h1>
-
             <!-- One disclosure for every command, with nested disclosures for groups. Built from
                  buttons and details rather than an ARIA menu, so it reads and works the same in
                  browse mode as anything else on the page, and the same in a browser as here. -->
@@ -41,7 +39,7 @@
                                 <summary>Chord Progressions</summary>
                                 <ul role="list">
                                     <li><button type="button" id="menu-chord-practice">Generate Practice Progression…</button></li>
-                                    <li><button type="button" id="menu-new-progression">Create New Progression…</button></li>
+                                    <li><button type="button" id="menu-new-progression">Manually Create Chord Progression…</button></li>
                                     <li><button type="button" id="menu-open-progression" aria-keyshortcuts="Control+Shift+O">Open Saved Progression…</button></li>
                                 </ul>
                             </details>
@@ -72,8 +70,8 @@
                 </details>
             </nav>
 
-            <!-- Everything open, newest first. Each is a heading holding a button that shows it
-                 on the right, followed by a button that closes it. Hidden while nothing is open. -->
+            <!-- Everything open, newest first. Each is an h1 holding a button that shows it in the
+                 main area, followed by a button that closes it. Hidden while nothing is open. -->
             <nav id="open-items" aria-label="Open items" hidden>
                 <ul id="open-items-list" role="list"></ul>
             </nav>

@@ -28,8 +28,10 @@ daily before any web build exists.
 - **Two columns below the banner.** The left column, about a fifth of the width, holds the menu
   and the list of open items, newest first. The right column shows one item at a time and fills the
   height between the banner and a status bar along the bottom. Each column scrolls on its own.
-- **Open items are headings holding buttons.** Each is an `h2` containing a button, then a Close
-  button. Pressing the item's button shows it on the right and moves focus to the top of its
+- **Open items are headings holding buttons.** Each is an `h1` containing a button, then a Close
+  button. They are `h1` so an item's own content can start at `h2` without its headings mixing with
+  the list's, and keep every level below that. There is no `h1` for the application's name and no
+  skip link: Unstrung is an application, not a web page, and Ctrl+Home reaches the top of it. Pressing the item's button shows it on the right and moves focus to the top of its
   content. The button carries `aria-current="true"` on the item being shown, not `aria-expanded`:
   it never hides anything, so there is no collapsed state to report. NVDA's heading navigation
   moves between open items in browse mode, in Electron and in a browser alike.
@@ -37,18 +39,23 @@ daily before any web build exists.
   the list, which is then shown. No shortcut for now.
 - **No native menu.** `Menu.setApplicationMenu(null)`. One disclosure, Menu, at the top of the left
   column, with nested disclosures for groups: Open File (the Open File button and the recent
-  files), Chord Progressions (generate, create, open saved), Chords (library, frets to chord,
+  files), Chord Progressions (Generate Practice Progression, Manually Create Chord Progression, Open
+  Saved Progression), Chords (library, frets to chord,
   guitar samples), Settings, and Help. Buttons and `<details>`, not an ARIA menu. Escape closes the
-  innermost open group and returns focus to its summary. Choosing a command closes the menu and
+  innermost open group and returns focus to its summary. The summary is blurred first if it
+  already has focus: arrowing in NVDA's browse mode moves only NVDA's cursor, so the summary can
+  still hold focus while that cursor is several lines into the group, and focusing it again would
+  fire nothing and leave the cursor inside a collapsed group. Choosing a command closes the menu and
   puts focus on the Menu summary, so a dialog the command opens returns focus there.
 - **Shortcuts that work in both:** Ctrl+O opens a file, Ctrl+Shift+O opens a saved progression,
   Ctrl+S and Ctrl+Shift+S save a progression. Ctrl+T, Ctrl+W and Ctrl+Tab are retired.
 - **The audio track lives in its track.** The Create Audio Track button became a disclosure at the
   end of each track's section, "Audio track for" and the track name. Its content is built the first
   time it is opened and starts with an `h4` of the same name, so the previous heading and one line
-  up reach the summary to collapse it. Its own headings are `h5`. Playback keys act on the audio
-  track of the song being shown that holds focus, or else the one last used, so a collapsed track
-  that is still playing can still be stopped.
+  up reach the summary to collapse it. Its own headings are `h5`. **Collapsing it stops it**, keeping the
+  position, and expanding it again does not start it; Play Track carries on from where it stopped.
+  That includes the collapse done on showing another open item. Playback keys act only on an
+  expanded audio track of the song being shown: the one holding focus, or else the one last used.
 - **The banner** is the eyesunstrung.vip banner, copied from that repository into
   `src/renderer/images/banner.svg`, linking to the site. Its height is capped at a fifth of the
   window so the columns keep most of it.

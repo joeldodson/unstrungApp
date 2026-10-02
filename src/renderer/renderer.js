@@ -254,8 +254,10 @@ function buildErrorPanel(message) {
 /**
  * Adds an item to the top of the list of open items, with its panel hidden until it is shown.
  *
- * In the list it is a heading holding a button, then a Close button. The heading puts every open
- * item on the screen reader's heading navigation, and the button shows the item. It carries
+ * In the list it is an h1 holding a button, then a Close button. The heading puts every open item
+ * on the screen reader's heading navigation, and the button shows the item. They are h1 because
+ * nothing else is: an item's own content starts at h2, below them, and has every level after it.
+ * The application's name is left out of the headings altogether. It carries
  * aria-current rather than aria-expanded: pressing it never hides anything, it only says which
  * item is the one on the right, so there is no collapsed state to report.
  */
@@ -267,7 +269,7 @@ function createOpenItem(label, contentEl, {
     const panelElementId = `item-panel-${id}`;
 
     const listItem = document.createElement('li');
-    const heading = document.createElement('h2');
+    const heading = document.createElement('h1');
     const button = document.createElement('button');
     button.type = 'button';
     button.id = buttonElementId;
@@ -2936,14 +2938,14 @@ function setAudioTrackMetronome(state, enabled) {
 /**
  * The audio track the playback keys act on, or null.
  *
- * Only tracks of the song being shown count. Of those, the one holding focus wins; otherwise the
- * one last used. That still reaches a track whose disclosure has been collapsed while it plays, so
- * collapsing it never leaves music running with no key to stop it.
+ * Only expanded tracks of the song being shown count. A collapsed one is stopped, and the keys
+ * starting it again would be the same as playing something hidden. Of those, the one holding focus
+ * wins; otherwise the one last used.
  */
 function activeAudioTrackState() {
     let latest = null;
     for (const entry of audioTrackPanels.values()) {
-        if (entry.itemId !== currentItemId) continue;
+        if (entry.itemId !== currentItemId || !entry.details.open) continue;
         if (entry.details.contains(document.activeElement)) return entry.state;
         if (!latest || entry.lastUsed > latest.lastUsed) latest = entry;
     }
@@ -3517,7 +3519,15 @@ function buildAudioTrackDisclosure(score, trackIndex, trackName, getSongItemId) 
 
     let built = false;
     details.addEventListener('toggle', () => {
-        if (!details.open || built) return;
+        // Collapsing is stopping. The position is kept, so Play Track carries on from there after
+        // it is expanded again; nothing starts by itself on expanding. This includes the collapse
+        // done on showing another open item.
+        if (!details.open) {
+            const entry = audioTrackPanels.get(`${getSongItemId()}:${trackIndex}`);
+            if (entry?.state.playing) pauseAudioTrackPlayback(entry.state);
+            return;
+        }
+        if (built) return;
         built = true;
         details.append(buildAudioTrackContent(score, trackIndex, trackName, getSongItemId(), details));
     });
@@ -5975,6 +5985,20 @@ const recentFilesList = document.getElementById('menu-recent-files');
 const recentFilesEmpty = document.getElementById('menu-recent-files-empty');
 
 /**
+ * Puts focus on an element even when it already has it.
+ *
+ * NVDA moves its browse mode cursor to whatever receives focus. Arrowing in browse mode moves only
+ * that cursor, so the summary of a group can still hold focus while the cursor is several items
+ * below it; calling focus() on it then does nothing at all, and the cursor stays where it was,
+ * inside a group that has just been collapsed. Blurring first makes the focus a real change that
+ * NVDA follows.
+ */
+function moveFocusTo(element) {
+    if (document.activeElement === element) element.blur();
+    element.focus();
+}
+
+/**
  * Runs a command chosen from the menu, closing the menu first.
  *
  * Focus goes to the Menu button before the command runs, so a dialog the command opens returns
@@ -5983,7 +6007,7 @@ const recentFilesEmpty = document.getElementById('menu-recent-files-empty');
  */
 function runMenuCommand(command) {
     for (const details of appMenuElement.querySelectorAll('details[open]')) details.open = false;
-    appMenuSummary.focus();
+    moveFocusTo(appMenuSummary);
     command();
 }
 
@@ -5999,7 +6023,7 @@ appMenuElement.addEventListener('keydown', event => {
     if (!details || !appMenuElement.contains(details)) return;
     event.preventDefault();
     details.open = false;
-    details.querySelector(':scope > summary').focus();
+    moveFocusTo(details.querySelector(':scope > summary'));
 });
 
 function bindMenuCommand(id, command) {
