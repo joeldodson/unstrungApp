@@ -38,6 +38,8 @@ const ALLOWED_EXTERNAL_URLS = new Set([
     'https://claude.ai',
     'https://github.com/sfzinstruments/karoryfer.black-and-green-guitars',
     'https://github.com/sfzinstruments/karoryfer.black-and-blue-basses',
+    // The banner at the top of the window links to the site it comes from.
+    'https://eyesunstrung.vip/',
     // Whatever the Help documents link to, collected when they were generated. First-party content
     // either way.
     ...(Array.isArray(helpContent.urls) ? helpContent.urls : [])
@@ -64,8 +66,9 @@ Usage:
   unstrung [file...]
   unstrung -h | --help
 
-  file...        One or more song files to open on startup, each in its
-                 own tab. If omitted, Unstrung starts with no files open.
+  file...        One or more song files to open on startup, each listed
+                 under Open items. If omitted, Unstrung starts with no files
+                 open.
   -h, --help     Show this help text and exit.
 
 Supported file formats:
@@ -258,7 +261,7 @@ ipcMain.handle('settings:clear-recent-files', async event => {
     const removedCount = appState.recentFiles.length;
     appState.recentFiles = [];
     await saveAppState();
-    buildMenu(BrowserWindow.fromWebContents(event.sender));
+    sendRecentFiles(BrowserWindow.fromWebContents(event.sender));
     return { removedCount };
 });
 
@@ -267,7 +270,7 @@ ipcMain.handle('settings:remove-stale-recent-files', async event => {
     const removedCount = checks.filter(c => !c.exists).length;
     appState.recentFiles = checks.filter(c => c.exists).map(c => c.filePath);
     await saveAppState();
-    buildMenu(BrowserWindow.fromWebContents(event.sender));
+    sendRecentFiles(BrowserWindow.fromWebContents(event.sender));
     return { removedCount };
 });
 
@@ -498,20 +501,50 @@ ipcMain.on('app:quit-confirmed', event => {
 });
 // --- end saved chord progressions ---
 
+// --- Opening song files ---
+//
+// The renderer's menu asks for these; there is no native menu. The file's bytes go to the renderer,
+// which parses them, so the same parsing runs wherever the renderer does.
+
+/** The recent files as the renderer's menu lists them: the full path, and the name to show. */
+function recentFilesForRenderer() {
+    return appState.recentFiles.map(filePath => ({ path: filePath, name: path.basename(filePath) }));
+}
+
+function sendRecentFiles(window) {
+    window?.webContents.send('files:recent-changed', recentFilesForRenderer());
+}
+
 async function openFilePath(window, filePath) {
     const fileName = path.basename(filePath);
 
     try {
         const buffer = await fs.readFile(filePath);
-        window.webContents.send('tabs:open-file', { fileName, data: new Uint8Array(buffer) });
+        window.webContents.send('files:opened', { fileName, data: new Uint8Array(buffer) });
         await addRecentFile(filePath);
-        buildMenu(window);
+        sendRecentFiles(window);
     } catch (error) {
-        window.webContents.send('tabs:open-file-error', { fileName, message: error.message });
+        window.webContents.send('files:open-error', { fileName, message: error.message });
     }
 }
 
-async function openFileAndCreateTab(window) {
+ipcMain.handle('files:get-recent', () => recentFilesForRenderer());
+
+ipcMain.handle('files:open-dialog', event =>
+    openFileFromDialog(BrowserWindow.fromWebContents(event.sender)));
+
+// Only a path already on the recent list. The renderer names one of those rather than handing over
+// a path of its own, so nothing in the page can have an arbitrary file read.
+ipcMain.handle('files:open-recent', async (event, filePath) => {
+    const wanted = recentFileKey(String(filePath ?? ''));
+    const match = appState.recentFiles.find(recent => recentFileKey(recent) === wanted);
+    if (!match) return;
+    await openFilePath(BrowserWindow.fromWebContents(event.sender), match);
+});
+
+ipcMain.handle('app:get-version', () => app.getVersion());
+
+async function openFileFromDialog(window) {
     const options = {
         title: 'Choose a song file',
         properties: ['openFile'],
@@ -802,60 +835,6 @@ ipcMain.handle('chords:get-library', async () => {
 });
 // --- end chord library ---
 
-function buildMenu(window) {
-    const template = [];
-
-    if (process.platform === 'darwin') {
-        template.push({ label: app.name, submenu: [{ role: 'quit' }] });
-    }
-
-    const recentFileItems = appState.recentFiles.map(filePath => ({
-        label: path.basename(filePath),
-        click: () => openFilePath(window, filePath)
-    }));
-
-    template.push(
-        {
-            label: '&File',
-            submenu: [
-                { label: '&Open File…', accelerator: 'CmdOrCtrl+T', click: () => openFileAndCreateTab(window) },
-                { label: '&Close Tab', accelerator: 'CmdOrCtrl+W', click: () => window.webContents.send('tabs:close-current') },
-                ...(recentFileItems.length > 0 ? [{ type: 'separator' }, ...recentFileItems] : []),
-                { type: 'separator' },
-                { label: '&Settings…', click: () => window.webContents.send('settings:open') },
-                { type: 'separator' },
-                { label: 'E&xit', role: 'quit' }
-            ]
-        },
-        {
-            label: '&Tools',
-            submenu: [
-                { label: '&Chord Library…', click: () => window.webContents.send('chords:open') },
-                { label: '&Frets to Chord…', click: () => window.webContents.send('frets:open') },
-                { label: '&Listen to Guitar Samples…', click: () => window.webContents.send('guitar-samples:open') },
-                { label: 'Chord &Practice…', click: () => window.webContents.send('chord-practice:open') },
-                {
-                    label: '&Open Saved Progression…', accelerator: 'CmdOrCtrl+Shift+O',
-                    click: () => window.webContents.send('progressions:open-dialog')
-                },
-                { label: '&New Chord Progression…', click: () => window.webContents.send('progressions:new') }
-            ]
-        },
-        {
-            label: '&Help',
-            submenu: [
-                { label: '&What is Unstrung…', click: () => window.webContents.send('help:open', { topic: 'what-is' }) },
-                { label: '&Screen Reader Users…', click: () => window.webContents.send('help:open', { topic: 'screen-reader' }) },
-                { label: '&Feedback…', click: () => window.webContents.send('help:open', { topic: 'feedback' }) },
-                { type: 'separator' },
-                { label: '&About Unstrung', click: () => window.webContents.send('about:open', { version: app.getVersion() }) }
-            ]
-        }
-    );
-
-    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-}
-
 async function createWindow(filesToOpen = []) {
     const window = new BrowserWindow({
         width: 900,
@@ -877,7 +856,12 @@ async function createWindow(filesToOpen = []) {
         window.webContents.send('app:confirm-quit');
     });
 
-    buildMenu(window);
+    // The page never navigates. A link that would leave it is opened in the default browser by
+    // the renderer instead, through shell:open-external and its allowlist; this stops anything
+    // that gets past that from replacing the app with a web page.
+    window.webContents.on('will-navigate', event => event.preventDefault());
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
     await window.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
     for (const filePath of filesToOpen) {
@@ -902,6 +886,10 @@ if (helpRequested) {
         // of whether a screen reader is active, since that detection has had real gaps
         // (e.g. https://github.com/electron/electron/issues/48039).
         app.setAccessibilitySupportEnabled(true);
+        // No native menu. Every command is in the page's own menu, so the app works the same way
+        // here as it would in a browser, where there is no menu bar. On Windows this also leaves
+        // Alt to do nothing. On macOS, copy and paste depend on an Edit menu and would need one.
+        Menu.setApplicationMenu(null);
         appState = await loadAppState();
         createWindow(cliArgs);
     });

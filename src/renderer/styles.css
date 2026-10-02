@@ -8,21 +8,189 @@
     font-display: swap;
 }
 
-body {
-    font-family: "Atkinson Hyperlegible Next", system-ui, sans-serif;
-    max-width: 40rem;
-    margin: 0 auto;
-    padding: 1rem 1.5rem 3rem;
-    line-height: 1.5;
+/* The window: the banner across the top, a status bar across the bottom, and between them two
+   columns that fill the rest of the height. The left column, the menu and the open items, is about
+   a fifth of the width; the right one shows the current item. Each column scrolls on its own, so
+   the banner and the status bar stay put. Nothing overlaps anything else, so nothing can cover the
+   focused element. */
+:root {
+    --slate: #475569;
+    --focus: #b3361b;
 }
 
-#tabpanels ul {
+html,
+body {
+    height: 100%;
+}
+
+body {
+    font-family: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+    margin: 0;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+}
+
+:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+}
+
+/* Off screen until focused. Not display: none, which would take it out of the tab order. */
+.skip-link {
+    position: absolute;
+    left: -100vw;
+    top: 0;
+    padding: 0.75rem 1rem;
+    background: #fff;
+}
+
+.skip-link:focus {
+    left: 0;
+}
+
+/* The eyesunstrung.vip banner. It keeps its proportions and is centred; the wall and table are
+   drawn far past the picture's edges, so a wider box fills its sides. Held to a fifth of the
+   window's height as well as the site's 240px, so the columns below keep most of the window. */
+.site-header .banner {
+    display: block;
+}
+
+.site-header .banner img {
+    display: block;
+    width: 100%;
+    height: min(240px, 20vw, 20vh);
+}
+
+.app-layout {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(12rem, 20%) minmax(0, 1fr);
+    border-top: 2px solid var(--slate);
+}
+
+.side-panel {
+    overflow-y: auto;
+    padding: 0.75rem 1rem;
+    border-inline-end: 2px solid var(--slate);
+}
+
+.side-panel h1 {
+    font-size: 1.25rem;
+    margin: 0 0 0.75rem;
+}
+
+main {
+    overflow-y: auto;
+    padding: 0.75rem 1.5rem 2rem;
+}
+
+/* A readable line length for the content, however wide the window. */
+#item-panels,
+#empty-state {
+    max-width: 48rem;
+}
+
+.status-bar {
+    margin: 0;
+    min-height: 1.5em;
+    padding: 0.25rem 1rem;
+    border-top: 2px solid var(--slate);
+}
+
+/* Narrow windows: the left column stacks above the content, in reading order, and the page
+   scrolls as one. */
+@media (max-width: 40rem) {
+    .app-layout {
+        grid-template-columns: minmax(0, 1fr);
+        overflow-y: auto;
+    }
+
+    .side-panel {
+        overflow-y: visible;
+        border-inline-end: none;
+        border-bottom: 2px solid var(--slate);
+    }
+
+    main {
+        overflow-y: visible;
+    }
+}
+
+/* The menu: one disclosure, nested ones for groups, each level indented. */
+#app-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 1rem;
+}
+
+#app-menu > details > ul {
+    padding-top: 0.25rem;
+}
+
+#app-menu summary {
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0.2rem 0;
+}
+
+#app-menu button {
+    font: inherit;
+    margin: 0.15rem 0;
+    text-align: start;
+}
+
+#menu-recent-files-empty {
+    margin: 0.25rem 0 0.25rem 1rem;
+}
+
+/* Open items: each a heading holding a button, then its Close button. The current one is bold
+   with a bar down its left edge, so it is not told apart by weight alone. */
+#open-items-list {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+}
+
+#open-items-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+    padding: 0.25rem 0 0.25rem 0.5rem;
+    border-inline-start: 4px solid transparent;
+}
+
+#open-items-list li:has(button[aria-current="true"]) {
+    border-inline-start-color: var(--slate);
+}
+
+#open-items-list h2 {
+    font-size: 1rem;
+    margin: 0;
+    min-width: 0;
+    flex: 1 1 8rem;
+}
+
+#open-items-list h2 button {
+    font: inherit;
+    width: 100%;
+    text-align: start;
+    overflow-wrap: anywhere;
+}
+
+#open-items-list h2 button[aria-current="true"] {
+    font-weight: bold;
+}
+
+#item-panels ul {
     list-style: none;
     padding: 0;
     margin: 0;
 }
 
-#tabpanels ul li {
+#item-panels ul li {
     padding: 0.15rem 0;
 }
 
@@ -52,16 +220,11 @@ body {
     margin: 0;
 }
 
-#status:empty {
-    display: none;
-}
-
 #empty-state {
     border: 1px dashed #888;
     padding: 1rem;
 }
 
-#tablist,
 #settings-tablist {
     display: flex;
     flex-wrap: wrap;
@@ -70,7 +233,6 @@ body {
     padding-bottom: 0.25rem;
 }
 
-#tablist button,
 #settings-tablist button {
     font-size: 1rem;
     padding: 0.5rem 0.75rem;
@@ -81,26 +243,14 @@ body {
     margin-top: 0;
 }
 
-#tablist button[aria-selected="true"],
 #settings-tablist button[aria-selected="true"] {
     background: #fff;
     font-weight: bold;
     border-color: #333;
 }
 
-#tablist button:focus-visible,
-#settings-tablist button:focus-visible {
-    outline: 2px solid #005fcc;
-    outline-offset: 2px;
-}
-
-#tabpanels section {
-    padding-top: 1rem;
-}
-
-#tabpanels section:focus-visible {
-    outline: 2px solid #005fcc;
-    outline-offset: 2px;
+#item-panels section:focus-visible {
+    outline-offset: -3px;
 }
 
 #about-dialog,
@@ -285,7 +435,7 @@ body {
     margin-left: 1rem;
 }
 
-#tabpanels details summary {
+#item-panels details summary {
     cursor: pointer;
     font-weight: bold;
     padding: 0.25rem 0;

@@ -7,30 +7,92 @@
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <header>
-        <h1>Unstrung Application</h1>
-        <!-- Guidance for an empty window; hidden once files are open, so reading from the top
-             reaches the tabs and their content without passing through instructions. -->
-        <p id="intro">Use the File menu, or press Alt then F, to open a song file. Each file opens in its own tab.</p>
+    <a class="skip-link" href="#content">Skip to content</a>
+
+    <!-- The eyesunstrung.vip banner, copied from that site's repository. Its link opens the site
+         in the default browser rather than in this window. -->
+    <header class="site-header">
+        <a class="banner" href="https://eyesunstrung.vip/"><img src="images/banner.svg" alt="eyesunstrung" width="1200" height="240" /></a>
     </header>
 
-    <main>
-        <p id="empty-state" tabindex="-1">
-            No files are open. Press Ctrl+T, or choose Open File… from the File menu, to open a song file.
-            Once files are open, switch between tabs with Ctrl+Tab and Ctrl+Shift+Tab, or with
-            the Left and Right arrow keys when focus is in the tab strip, and close the current
-            tab with Ctrl+W.
-        </p>
+    <!-- Two columns below the banner: the menu and the list of open items on the left, the item
+         being shown on the right. Reading order follows: menu, open items, then the item. -->
+    <div class="app-layout">
+        <div class="side-panel">
+            <h1>Unstrung</h1>
 
-        <div id="tab-strip" hidden>
-            <div id="tablist" role="tablist" aria-label="Open song files"></div>
-            <div id="tabpanels"></div>
+            <!-- One disclosure for every command, with nested disclosures for groups. Built from
+                 buttons and details rather than an ARIA menu, so it reads and works the same in
+                 browse mode as anything else on the page, and the same in a browser as here. -->
+            <nav id="app-menu" aria-label="Menu">
+                <details id="app-menu-details">
+                    <summary>Menu</summary>
+                    <ul role="list">
+                        <li>
+                            <details>
+                                <summary>Open File</summary>
+                                <button type="button" id="menu-open-file" aria-keyshortcuts="Control+O">Open File…</button>
+                                <ul id="menu-recent-files" role="list" aria-label="Recent files"></ul>
+                                <p id="menu-recent-files-empty">No recent files.</p>
+                            </details>
+                        </li>
+                        <li>
+                            <details>
+                                <summary>Chord Progressions</summary>
+                                <ul role="list">
+                                    <li><button type="button" id="menu-chord-practice">Generate Practice Progression…</button></li>
+                                    <li><button type="button" id="menu-new-progression">Create New Progression…</button></li>
+                                    <li><button type="button" id="menu-open-progression" aria-keyshortcuts="Control+Shift+O">Open Saved Progression…</button></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li>
+                            <details>
+                                <summary>Chords</summary>
+                                <ul role="list">
+                                    <li><button type="button" id="menu-chord-library">Chord Library</button></li>
+                                    <li><button type="button" id="menu-frets-to-chord">Frets to Chord…</button></li>
+                                    <li><button type="button" id="menu-guitar-samples">Listen to Guitar Samples…</button></li>
+                                </ul>
+                            </details>
+                        </li>
+                        <li><button type="button" id="menu-settings">Settings…</button></li>
+                        <li>
+                            <details>
+                                <summary>Help</summary>
+                                <ul role="list">
+                                    <li><button type="button" id="menu-help-what-is">What is Unstrung…</button></li>
+                                    <li><button type="button" id="menu-help-screen-reader">Screen Reader Users…</button></li>
+                                    <li><button type="button" id="menu-help-feedback">Feedback…</button></li>
+                                    <li><button type="button" id="menu-about">About Unstrung…</button></li>
+                                </ul>
+                            </details>
+                        </li>
+                    </ul>
+                </details>
+            </nav>
+
+            <!-- Everything open, newest first. Each is a heading holding a button that shows it
+                 on the right, followed by a button that closes it. Hidden while nothing is open. -->
+            <nav id="open-items" aria-label="Open items" hidden>
+                <ul id="open-items-list" role="list"></ul>
+            </nav>
         </div>
 
-        <!-- Last in reading order, where a status line conventionally lives. It announces itself
-             as a live region, so it does not need to sit in the path to the content. -->
-        <p id="status" role="status" aria-live="polite"></p>
-    </main>
+        <main id="content" tabindex="-1">
+            <p id="empty-state" tabindex="-1">
+                Nothing is open. Press Ctrl+O, or choose Open File from the Menu, to open a song
+                file. Everything you open is listed under the menu, newest first, and the one you
+                choose is shown here.
+            </p>
+
+            <div id="item-panels"></div>
+        </main>
+    </div>
+
+    <!-- A status bar along the bottom of the window. It announces itself as a live region, and
+         NVDA's read status bar command reads it on request. -->
+    <p id="status" class="status-bar" role="status" aria-live="polite"></p>
 
     <dialog id="what-is-dialog" aria-labelledby="what-is-dialog-heading" tabindex="-1">
         <h2 id="what-is-dialog-heading">What is Unstrung</h2>
@@ -180,7 +242,7 @@
 
         <p>
             Generates a chord progression to play along with, and an audio track for it. The
-            progression opens in its own tab, with every chord listed and its fingering and notes
+            progression opens as a new item in the list of open items, with every chord listed and its fingering and notes
             inside a collapsed region.
         </p>
 
@@ -196,7 +258,7 @@
         </div>
 
         <p>
-            A progression can be saved from its tab and opened again here, or written chord by
+            A progression can be saved from where it is shown and opened again here, or written chord by
             chord. The playback settings below apply to both.
         </p>
 
@@ -308,8 +370,8 @@
         <p id="progression-open-folder"></p>
 
         <p id="progression-open-empty" hidden>
-            There are no saved progressions in this folder yet. Save one from a chord practice
-            tab, with the Save Progression button under the Progression heading.
+            There are no saved progressions in this folder yet. Save one from a chord
+            practice progression, with the Save Progression button under the Progression heading.
         </p>
 
         <!-- Folders and files, arrowed through like a file tree. Filled on every open, so a file
@@ -420,9 +482,9 @@
         </div>
     </dialog>
 
-    <!-- The chord library opens as a tab rather than a dialog: it is a place you browse and
-         build up a comparison set in, not a decision you commit or cancel. Cloned into a tab
-         panel on demand, and only ever one instance, so these ids stay unique. -->
+    <!-- The chord library opens as an item in the list of open items rather than a dialog: it
+         is a place you browse and build up a comparison set in, not a decision you commit or
+         cancel. Cloned into an item's panel on demand, and only ever one instance, so these ids stay unique. -->
     <template id="chord-library-template">
         <div class="chord-library">
             <h2>Chord Library</h2>
@@ -640,13 +702,13 @@
 
             <p>
                 <input type="checkbox" id="settings-auto-collapse-checkbox" />
-                <label for="settings-auto-collapse-checkbox">Collapse expanded sections when leaving a tab</label>
+                <label for="settings-auto-collapse-checkbox">Collapse expanded sections when switching to another open item</label>
             </p>
             <p>
-                Close any expanded section, such as a track's measures, when you move away from
-                its tab. Coming back to a tab that still has measures expanded can leave a screen
-                reader unresponsive for several seconds while it takes in every beat again. With
-                this on, you reopen only what you want. On by default.
+                Close any expanded section, such as a track's measures, when you show a different
+                open item. Coming back to an item that still has measures expanded can leave a
+                screen reader unresponsive for several seconds while it takes in every beat again.
+                With this on, you reopen only what you want. On by default.
             </p>
         </section>
 

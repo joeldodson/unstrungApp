@@ -17,11 +17,10 @@ import {
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 
 const statusElement = document.getElementById('status');
-const introElement = document.getElementById('intro');
 const emptyStateElement = document.getElementById('empty-state');
-const tabStripElement = document.getElementById('tab-strip');
-const tablistElement = document.getElementById('tablist');
-const tabpanelsElement = document.getElementById('tabpanels');
+const openItemsElement = document.getElementById('open-items');
+const openItemsListElement = document.getElementById('open-items-list');
+const itemPanelsElement = document.getElementById('item-panels');
 const aboutDialog = document.getElementById('about-dialog');
 const aboutVersionElement = document.getElementById('about-version');
 const aboutYearElement = document.getElementById('about-year');
@@ -36,10 +35,16 @@ const feedbackDialog = document.getElementById('feedback-dialog');
 const feedbackBodyElement = document.getElementById('feedback-body');
 const feedbackOkButton = document.getElementById('feedback-ok-button');
 
-/** @type {{ id: number, fileName: string, buttonEl: HTMLButtonElement, panelEl: HTMLElement, score: object|undefined }[]} */
-const tabs = [];
-let nextTabId = 1;
-let activeTabId = null;
+/**
+ * Everything open: songs, chord practice progressions, the chord library. Newest first, the order
+ * they are listed in on the left. One at a time is shown on the right; that one is current.
+ *
+ * @type {{ id: number, label: string, buttonEl: HTMLButtonElement, closeButtonEl: HTMLButtonElement,
+ *          listItemEl: HTMLLIElement, panelEl: HTMLElement, score: object|undefined }[]}
+ */
+const openItems = [];
+let nextItemId = 1;
+let currentItemId = null;
 
 let nextControlId = 1;
 
@@ -75,21 +80,20 @@ function createButtonRow() {
 const APP_TITLE = 'Unstrung';
 
 /**
- * Keeps the window title naming the tab that is current.
+ * Keeps the window title naming the item that is current.
  *
  * A screen reader can be asked for the title of the focused window at any moment -- NVDA reads it
  * on its own key -- and with several songs open, "Unstrung" alone does not answer the question
- * being asked, which is which of them is in front. The title takes the tab's own label rather
- * than its file name so that it matches what the tab strip says, including the note on a file
- * that could not be read. With nothing open there is nothing to add and it goes back to the plain
- * application name.
+ * being asked, which is which of them is being shown. The title takes the item's own label rather
+ * than its file name so that it matches what the list of open items says, including the note on a
+ * file that could not be read. With nothing open it goes back to the plain application name.
  */
 function updateWindowTitle() {
-    const tab = tabs.find(t => t.id === activeTabId);
-    document.title = tab ? `${APP_TITLE} - ${tab.buttonEl.textContent}` : APP_TITLE;
+    const item = openItems.find(i => i.id === currentItemId);
+    document.title = item ? `${APP_TITLE} - ${item.label}` : APP_TITLE;
 }
 
-// Read at startup rather than fetched when needed: a tab can be built before the settings dialog
+// Read at startup rather than fetched when needed: an item can be built before the settings dialog
 // has ever been opened, and the beat descriptions have to be right the first time.
 let screenReaderSettings = { terseBeatDescriptions: false, autoCollapseOnTabChange: true };
 
@@ -98,12 +102,11 @@ function setStatus(message) {
 }
 
 function updateEmptyState() {
-    const hasTabs = tabs.length > 0;
-    emptyStateElement.hidden = hasTabs;
-    tabStripElement.hidden = !hasTabs;
-    // Both blocks of guidance are for an empty window. Hiding them once files are open keeps
-    // the path from the top of the document to the tabs and their content short.
-    if (introElement) introElement.hidden = hasTabs;
+    const hasItems = openItems.length > 0;
+    // The guidance is for an empty window. Hiding it once something is open keeps the path to the
+    // content short.
+    emptyStateElement.hidden = hasItems;
+    openItemsElement.hidden = !hasItems;
 }
 
 function addSummaryRow(ul, label, value) {
@@ -112,7 +115,7 @@ function addSummaryRow(ul, label, value) {
     ul.append(li);
 }
 
-function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
+function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
     const container = document.createElement('div');
 
     const summaryHeading = document.createElement('h2');
@@ -230,18 +233,10 @@ function buildSummaryPanel(meta, { onCreateAudioTrack } = {}) {
 
         container.append(measuresDetails);
 
-        // Last in the track, after the measures. It is the one control here rather than something
-        // to read, so it sits at the end of the track's content instead of interrupting it: the
-        // two collapsed regions above are one line each when closed, so reaching it is short.
-        if (onCreateAudioTrack) {
-            const actions = document.createElement('p');
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = 'Create Audio Track';
-            button.addEventListener('click', () => onCreateAudioTrack(index));
-            actions.append(button);
-            container.append(actions);
-        }
+        // Last in the track, after the measures: playing the track is something to do rather than
+        // something to read, so it does not interrupt the track's content. Collapsed, it is one
+        // line, like the two regions above it.
+        if (audioTrackDisclosureFor) container.append(audioTrackDisclosureFor(index, track.name));
     });
 
     return container;
@@ -256,193 +251,171 @@ function buildErrorPanel(message) {
     return container;
 }
 
-function createTab(fileName, contentEl, {
-    isError = false, score = undefined, kind = 'file', onClose = undefined, insertAfterTabId = null,
-    confirmClose = undefined
+/**
+ * Adds an item to the top of the list of open items, with its panel hidden until it is shown.
+ *
+ * In the list it is a heading holding a button, then a Close button. The heading puts every open
+ * item on the screen reader's heading navigation, and the button shows the item. It carries
+ * aria-current rather than aria-expanded: pressing it never hides anything, it only says which
+ * item is the one on the right, so there is no collapsed state to report.
+ */
+function createOpenItem(label, contentEl, {
+    isError = false, score = undefined, kind = 'file', onClose = undefined, confirmClose = undefined
 } = {}) {
-    const id = nextTabId++;
-    const tabElementId = `tab-${id}`;
-    const panelElementId = `tabpanel-${id}`;
+    const id = nextItemId++;
+    const buttonElementId = `item-button-${id}`;
+    const panelElementId = `item-panel-${id}`;
 
+    const listItem = document.createElement('li');
+    const heading = document.createElement('h2');
     const button = document.createElement('button');
     button.type = 'button';
-    button.id = tabElementId;
-    button.setAttribute('role', 'tab');
-    button.setAttribute('aria-selected', 'false');
+    button.id = buttonElementId;
     button.setAttribute('aria-controls', panelElementId);
-    button.tabIndex = -1;
-    button.textContent = isError ? `${fileName} (could not be read)` : fileName;
-    button.addEventListener('click', () => activateTab(id, { focusContent: true }));
+    button.addEventListener('click', () => showItem(id, { focusContent: true }));
+    heading.append(button);
 
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'close-item';
+    closeButton.textContent = 'Close';
+    closeButton.addEventListener('click', () => requestCloseItem(id));
+    listItem.append(heading, closeButton);
+
+    // A region named by its button, so arriving in it says which item this is. Focusable only from
+    // script: showing an item puts focus here, at the top of its content.
     const panel = document.createElement('section');
     panel.id = panelElementId;
-    panel.setAttribute('role', 'tabpanel');
-    panel.setAttribute('aria-labelledby', tabElementId);
-    panel.tabIndex = 0;
+    panel.setAttribute('aria-labelledby', buttonElementId);
+    panel.tabIndex = -1;
     panel.hidden = true;
     panel.append(contentEl);
 
-    const tab = { id, fileName, buttonEl: button, panelEl: panel, score, kind, onClose, confirmClose };
+    const item = {
+        id, label: '', buttonEl: button, closeButtonEl: closeButton, listItemEl: listItem,
+        panelEl: panel, score, kind, onClose, confirmClose
+    };
+    setItemLabel(item, isError ? `${label} (could not be read)` : label);
 
-    // An audio track belongs beside the song it came from rather than at the end of the strip.
-    const anchorIndex = insertAfterTabId === null
-        ? -1
-        : tabs.findIndex(existing => existing.id === insertAfterTabId);
-
-    if (anchorIndex >= 0) {
-        tabs[anchorIndex].buttonEl.after(button);
-        tabs[anchorIndex].panelEl.after(panel);
-        tabs.splice(anchorIndex + 1, 0, tab);
-    } else {
-        tablistElement.append(button);
-        tabpanelsElement.append(panel);
-        tabs.push(tab);
-    }
+    openItemsListElement.prepend(listItem);
+    itemPanelsElement.append(panel);
+    openItems.unshift(item);
 
     updateEmptyState();
-    return tab;
+    return item;
 }
 
-/**
- * Makes a tab current and moves focus.
- *
- * `focusContent` puts focus on the panel itself rather than the tab button, which is what a
- * screen reader needs to drop into its document-reading mode with the cursor at the top of the
- * content: landing on a non-form-control inside a document does that across screen readers,
- * with nothing vendor-specific. Every way of reaching a tab uses it except arrowing within the
- * tab strip, where focus has to stay on the buttons or moving across several tabs would be
- * impossible.
- */
+/** Names an item in the list, on its Close button, and in the window title if it is current. */
+function setItemLabel(item, label) {
+    item.label = label;
+    item.buttonEl.textContent = label;
+    item.closeButtonEl.setAttribute('aria-label', `Close ${label}`);
+    if (item.id === currentItemId) updateWindowTitle();
+}
+
 /**
  * Closes every expanded disclosure in a panel.
  *
  * Collapsed content is out of the accessibility tree, so this hands a screen reader back a small
- * panel. Coming back to a tab that still has a track's measures expanded means taking in every
+ * panel. Coming back to an item that still has a track's measures expanded means taking in every
  * beat again, which can leave the reader unresponsive for seconds -- and it happens even when
- * returning to the very tab just left, since re-showing the panel is what triggers the re-read.
+ * returning to the very item just left, since re-showing the panel is what triggers the re-read.
  * Collapsing on the way out is what makes returning cheap.
  */
 function collapseDisclosures(panelEl) {
     for (const details of panelEl.querySelectorAll('details[open]')) details.open = false;
 }
 
-function activateTab(id, { focusContent = false } = {}) {
-    const tab = tabs.find(t => t.id === id);
-    if (!tab) return;
+/**
+ * Shows one item on the right and hides the rest.
+ *
+ * `focusContent` puts focus on the panel itself, which is what a screen reader needs to drop into
+ * its document-reading mode with the cursor at the top of the content: landing on a non-form
+ * control inside a document does that across screen readers, with nothing vendor-specific. Without
+ * it, focus goes to the item's button in the list.
+ */
+function showItem(id, { focusContent = false } = {}) {
+    const item = openItems.find(i => i.id === id);
+    if (!item) return;
 
     // Collapse before anything is shown or hidden, so the DOM settles in one pass rather than
     // mutating a panel that a screen reader is already being pointed at.
-    if (screenReaderSettings.autoCollapseOnTabChange) {
-        for (const t of tabs) {
-            if (t.id !== id) collapseDisclosures(t.panelEl);
+    if (screenReaderSettings.autoCollapseOnTabChange && currentItemId !== id) {
+        for (const other of openItems) {
+            if (other.id !== id) collapseDisclosures(other.panelEl);
         }
     }
 
-    for (const t of tabs) {
-        const isActive = t.id === id;
-        t.buttonEl.setAttribute('aria-selected', String(isActive));
-        t.buttonEl.tabIndex = isActive ? 0 : -1;
-        t.panelEl.hidden = !isActive;
+    for (const other of openItems) {
+        const isCurrent = other.id === id;
+        if (isCurrent) other.buttonEl.setAttribute('aria-current', 'true');
+        else other.buttonEl.removeAttribute('aria-current');
+        other.panelEl.hidden = !isCurrent;
     }
-    activeTabId = id;
+    currentItemId = id;
     updateWindowTitle();
-    if (focusContent) tab.panelEl.focus();
-    else tab.buttonEl.focus();
+    if (focusContent) item.panelEl.focus();
+    else item.buttonEl.focus();
 }
 
-function closeTab(id) {
-    const index = tabs.findIndex(t => t.id === id);
+/**
+ * Removes an item. Focus stays in the list of open items, on the item that took its place, so
+ * closing several in a row is pressing Close, Shift+Tab, Close.
+ */
+function closeItem(id) {
+    const index = openItems.findIndex(i => i.id === id);
     if (index === -1) return;
 
-    const [closed] = tabs.splice(index, 1);
+    const [closed] = openItems.splice(index, 1);
     closed.onClose?.();
-    closed.buttonEl.remove();
+    closed.listItemEl.remove();
     closed.panelEl.remove();
     updateEmptyState();
 
-    if (tabs.length === 0) {
-        activeTabId = null;
+    if (openItems.length === 0) {
+        currentItemId = null;
         updateWindowTitle();
-        setStatus(`Closed "${closed.fileName}". No files are open.`);
+        setStatus(`Closed "${closed.label}". Nothing is open.`);
         emptyStateElement.focus();
         return;
     }
 
-    if (activeTabId === id) {
-        const nextIndex = Math.min(index, tabs.length - 1);
-        activateTab(tabs[nextIndex].id, { focusContent: true });
-    }
+    const neighbour = openItems[Math.min(index, openItems.length - 1)];
+    setStatus(`Closed "${closed.label}".`);
+    if (currentItemId === id) showItem(neighbour.id);
+    else neighbour.buttonEl.focus();
 }
 
 /**
- * Closes a tab, first giving it the chance to object.
+ * Closes an item, first giving it the chance to object.
  *
- * A chord practice tab with unsaved changes asks whether to save them; the others close at once.
+ * A chord practice progression with unsaved changes asks whether to save them; the others close at
+ * once.
  */
-async function requestCloseTab(id) {
-    const tab = tabs.find(t => t.id === id);
-    if (!tab) return;
-    if (tab.confirmClose && !await tab.confirmClose()) return;
-    closeTab(id);
+async function requestCloseItem(id) {
+    const item = openItems.find(i => i.id === id);
+    if (!item) return;
+    if (item.confirmClose && !await item.confirmClose()) return;
+    closeItem(id);
 }
-
-function shiftActiveTab(delta, { focusContent = false } = {}) {
-    if (tabs.length === 0) return;
-    const currentIndex = tabs.findIndex(t => t.id === activeTabId);
-    const newIndex = (currentIndex + delta + tabs.length) % tabs.length;
-    activateTab(tabs[newIndex].id, { focusContent });
-}
-
-tablistElement.addEventListener('keydown', event => {
-    if (tabs.length === 0) return;
-
-    if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        shiftActiveTab(1);
-    } else if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        shiftActiveTab(-1);
-    } else if (event.key === 'Home') {
-        event.preventDefault();
-        activateTab(tabs[0].id);
-    } else if (event.key === 'End') {
-        event.preventDefault();
-        activateTab(tabs[tabs.length - 1].id);
-    }
-});
-
-// Ctrl+Tab and Ctrl+Shift+Tab cycle tabs from anywhere in the window, not only when focus
-// happens to be in the tab strip. These used to come from menu accelerators on the Tabs menu;
-// that menu is gone, so the renderer owns them now.
-document.addEventListener('keydown', event => {
-    if (event.key !== 'Tab' || !event.ctrlKey || event.altKey || event.metaKey) return;
-    if (tabs.length < 2) return;
-    // A modal dialog owns the keyboard while it is up; switching tabs underneath it would
-    // leave focus somewhere the user cannot see.
-    if (document.querySelector('dialog[open]')) return;
-
-    event.preventDefault();
-    shiftActiveTab(event.shiftKey ? -1 : 1, { focusContent: true });
-});
 
 function buildSongMetadata(score) {
     return extractScoreMetadata(score, { terseBeats: screenReaderSettings.terseBeatDescriptions });
 }
 
 /**
- * Rebuilds the summary of every open song tab. Called when the beat-description setting changes,
- * so the change is visible in files already open rather than only in the next one. Cheap enough to
- * do outright: extracting the metadata and building the panel measure in fractions of a
- * millisecond, and the measures themselves are still only built when a disclosure is opened.
+ * Rebuilds the summary of every open song. Called when the beat-description setting changes, so
+ * the change is visible in files already open rather than only in the next one. Cheap enough to do
+ * outright: extracting the metadata and building the panel measure in fractions of a millisecond,
+ * and the measures themselves are still only built when a disclosure is opened. A track's audio
+ * track disclosure is carried across as it is, so a track being played keeps playing.
  */
 function rebuildOpenSongPanels() {
-    for (const tab of tabs) {
-        if (!tab.score) continue;
-        const meta = buildSongMetadata(tab.score);
-        const content = buildSummaryPanel(meta, {
-            onCreateAudioTrack: trackIndex => openAudioTrackTab(tab.score, trackIndex, tab.id)
-        });
-        tab.panelEl.replaceChildren(content);
+    for (const item of openItems) {
+        if (!item.score) continue;
+        const meta = buildSongMetadata(item.score);
+        const content = buildSummaryPanel(meta, { audioTrackDisclosureFor: item.audioTrackDisclosureFor });
+        item.panelEl.replaceChildren(content);
     }
 }
 
@@ -451,15 +424,23 @@ function handleFileOpened({ fileName, data }) {
     let isError = false;
 
     let score;
-    // Resolved when the tab exists, so an audio track can be inserted next to its song.
-    let songTabId = null;
+    // Resolved once the item exists. An audio track is keyed by the song it belongs to.
+    let songItemId = null;
+    // One disclosure per track, made the first time the track is laid out and kept from then on,
+    // so rebuilding the song's panel does not lose a track that is set up or playing.
+    const audioDisclosures = new Map();
+    const audioTrackDisclosureFor = (trackIndex, trackName) => {
+        if (!audioDisclosures.has(trackIndex)) {
+            audioDisclosures.set(trackIndex,
+                buildAudioTrackDisclosure(score, trackIndex, trackName, () => songItemId));
+        }
+        return audioDisclosures.get(trackIndex);
+    };
 
     try {
         score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
         const meta = buildSongMetadata(score);
-        contentEl = buildSummaryPanel(meta, {
-            onCreateAudioTrack: trackIndex => openAudioTrackTab(score, trackIndex, songTabId)
-        });
+        contentEl = buildSummaryPanel(meta, { audioTrackDisclosureFor });
         setStatus(`Opened "${fileName}". Found ${meta.tracks.length} track${meta.tracks.length === 1 ? '' : 's'}.`);
     } catch (error) {
         isError = true;
@@ -468,15 +449,19 @@ function handleFileOpened({ fileName, data }) {
         setStatus(message);
     }
 
-    const tab = createTab(fileName, contentEl, { isError, score });
-    songTabId = tab.id;
-    activateTab(tab.id, { focusContent: true });
+    const item = createOpenItem(fileName, contentEl, {
+        isError, score,
+        onClose: () => closeAudioTracksOf(item.id)
+    });
+    item.audioTrackDisclosureFor = audioTrackDisclosureFor;
+    songItemId = item.id;
+    showItem(item.id, { focusContent: true });
 }
 
 function handleFileOpenError({ fileName, message }) {
     const fullMessage = `Could not open "${fileName}": ${message}`;
-    const tab = createTab(fileName, buildErrorPanel(fullMessage), { isError: true });
-    activateTab(tab.id, { focusContent: true });
+    const item = createOpenItem(fileName, buildErrorPanel(fullMessage), { isError: true });
+    showItem(item.id, { focusContent: true });
     setStatus(fullMessage);
 }
 
@@ -517,7 +502,7 @@ aboutDialog.addEventListener('click', event => {
 // All of them are dialogs. A tab was tried for the long one, but a tab persists, and a panel holding
 // a whole document costs a screen reader time on every visit to it -- the same reason a track's
 // measures sit behind a disclosure. A dialog is read and dismissed, so the cost is paid once and
-// nothing is left behind among the song and playback tabs.
+// nothing is left behind among the open items.
 
 const HELP_DIALOGS = {
     'what-is': { dialog: whatIsDialog, body: whatIsBodyElement, ok: whatIsOkButton, html: 'whatIsHtml' },
@@ -559,15 +544,10 @@ function openHelpDialog(topic) {
     spec.dialog.focus();
 }
 
-window.unstrung.onHelpOpen(({ topic }) => openHelpDialog(topic));
 // --- end Help documents ---
 
 window.unstrung.onFileOpened(handleFileOpened);
 window.unstrung.onFileOpenError(handleFileOpenError);
-window.unstrung.onCloseCurrentTab(() => {
-    if (activeTabId != null) requestCloseTab(activeTabId);
-});
-window.unstrung.onAboutOpen(openAboutDialog);
 
 // --- Green Gretsch guitar sample playback (Tools menu) ---
 const guitarSamplesDialog = document.getElementById('guitar-samples-dialog');
@@ -789,7 +769,6 @@ async function openGuitarSamplesDialog() {
     await loadGuitarSampleNotesOnce();
 }
 
-window.unstrung.onGuitarSamplesOpen(openGuitarSamplesDialog);
 // --- end Green Gretsch guitar sample playback ---
 
 // --- Settings dialog (File menu) ---
@@ -1006,7 +985,6 @@ async function openSettingsDialog() {
     settingsTabs[0].buttonEl.focus();
 }
 
-window.unstrung.onSettingsOpen(openSettingsDialog);
 
 // Loaded once at startup so the first file opened is described according to the saved setting,
 // rather than needing the Settings dialog to have been visited first.
@@ -1032,7 +1010,7 @@ const TYPE_ORDER = ['major', 'minor', '7', 'm7', 'maj7', 'sus2', 'sus4', '5', '6
 
 let chordLibrary = null;
 let chordsUi = null;
-let chordsTabId = null;
+let chordsItemId = null;
 let chordsMatches = [];
 
 // Which chords, and which of their voicings, are queued for playback. Keyed by chord name so
@@ -1863,27 +1841,27 @@ function wireChordLibrary() {
 }
 
 async function openChordLibraryTab() {
-    // Only ever one chord library tab, which keeps the template's element ids unique.
-    const existing = tabs.find(tab => tab.id === chordsTabId);
+    // Only ever one chord library, which keeps the template's element ids unique.
+    const existing = openItems.find(item => item.id === chordsItemId);
     if (existing) {
-        activateTab(existing.id);
-        // Same landing as when the tab was first opened: the search field is the first
-        // thing you use here, so returning to the tab puts you straight back on it.
+        showItem(existing.id);
+        // Same landing as when it was first opened: the search field is the first thing you use
+        // here, so returning to it puts you straight back on it.
         chordsUi?.searchInput.focus();
         return;
     }
 
     const content = document.getElementById('chord-library-template').content.cloneNode(true);
-    const tab = createTab('Chord Library', content, {
+    const item = createOpenItem('Chord Library', content, {
         kind: 'chord-library',
         onClose: () => {
             stopChordPlayback();
             chordsUi = null;
-            chordsTabId = null;
+            chordsItemId = null;
             chordRowsByName.clear();
         }
     });
-    chordsTabId = tab.id;
+    chordsItemId = item.id;
 
     chordsUi = {
         searchInput: document.getElementById('chords-search-input'),
@@ -1901,7 +1879,7 @@ async function openChordLibraryTab() {
         clearButton: document.getElementById('chords-clear-button')
     };
     wireChordLibrary();
-    activateTab(tab.id);
+    showItem(item.id);
 
     if (!chordLibrary) {
         chordsUi.resultsHeading.textContent = 'Search Results: loading chord library…';
@@ -1909,7 +1887,7 @@ async function openChordLibraryTab() {
     }
     populateFilterOptions();
     rebuildChordResults();
-    setStatus('Opened the Chord Library. Close it with Ctrl+W.');
+    setStatus('Opened the Chord Library.');
     // Land on the search field: it is the first thing you do here every time.
     chordsUi.searchInput.focus();
 }
@@ -1935,7 +1913,6 @@ async function showChordInLibrary(chordName) {
     setStatus(`Showing ${chordName} in the Chord Library.`);
 }
 
-window.unstrung.onChordLibraryOpen(openChordLibraryTab);
 // --- end chord library ---
 
 // --- Frets to Chord (Tools menu) -----------------------------------------------------
@@ -2206,7 +2183,6 @@ async function openFretsToChordDialog() {
     renderFretsResult();
 }
 
-window.unstrung.onFretsToChordOpen(openFretsToChordDialog);
 // --- end Frets to Chord ---
 
 // --- Audio track playback (Create Audio Track) ---------------------------------------
@@ -2267,7 +2243,7 @@ const audioTrackPanels = new Map();
 const audioTrackCache = new Map();
 
 function deriveAudioTrack(state) {
-    const cacheKey = `${state.songTabId}:${state.trackIndex}:${state.targetTempo}`;
+    const cacheKey = `${state.songItemId}:${state.trackIndex}:${state.targetTempo}`;
     let audioTrack = audioTrackCache.get(cacheKey);
     if (!audioTrack) {
         audioTrack = buildAudioTrack(state.score, state.trackIndex, { targetTempo: state.targetTempo });
@@ -2957,12 +2933,21 @@ function setAudioTrackMetronome(state, enabled) {
     refreshAudioTrackSummary(state);
 }
 
-/** The audio track panel on the tab currently in view, or null. */
+/**
+ * The audio track the playback keys act on, or null.
+ *
+ * Only tracks of the song being shown count. Of those, the one holding focus wins; otherwise the
+ * one last used. That still reaches a track whose disclosure has been collapsed while it plays, so
+ * collapsing it never leaves music running with no key to stop it.
+ */
 function activeAudioTrackState() {
+    let latest = null;
     for (const entry of audioTrackPanels.values()) {
-        if (entry.tabId === activeTabId) return entry.state;
+        if (entry.itemId !== currentItemId) continue;
+        if (entry.details.contains(document.activeElement)) return entry.state;
+        if (!latest || entry.lastUsed > latest.lastUsed) latest = entry;
     }
-    return null;
+    return latest ? latest.state : null;
 }
 
 // How much one press of the tempo keys moves the tempo.
@@ -3260,12 +3245,14 @@ function buildAudioTrackPanel(state) {
     const container = document.createElement('div');
     container.className = 'audio-track';
 
-    const heading = document.createElement('h2');
-    heading.textContent =
-        `Audio Track - ${state.audioTrack.songTitle}, ${state.audioTrack.trackName}`;
+    // Inside the track's own section, under its h3, so the levels start at 4. The heading comes
+    // first, straight after the disclosure's summary: moving to the previous heading from anywhere
+    // in here and then up one line reaches the summary, to collapse it again.
+    const heading = document.createElement('h4');
+    heading.textContent = `Audio track for ${state.trackLabel}`;
     container.append(heading);
 
-    const settingsHeading = document.createElement('h3');
+    const settingsHeading = document.createElement('h5');
     settingsHeading.textContent = 'Playback settings';
     container.append(settingsHeading);
 
@@ -3360,7 +3347,7 @@ function buildAudioTrackPanel(state) {
     metronomeParagraph.append(metronomeCheckbox, metronomeLabel);
     container.append(metronomeParagraph);
 
-    const summaryHeading = document.createElement('h3');
+    const summaryHeading = document.createElement('h5');
     summaryHeading.textContent = 'Track';
     container.append(summaryHeading);
     const summary = document.createElement('ul');
@@ -3391,7 +3378,7 @@ function buildAudioTrackPanel(state) {
     container.append(extraControls);
 
     // The same moves the shortcuts make, as buttons, so nothing here is keyboard-only.
-    const transportHeading = document.createElement('h3');
+    const transportHeading = document.createElement('h5');
     transportHeading.textContent = 'Move around the track';
     extraControls.append(transportHeading);
 
@@ -3414,7 +3401,7 @@ function buildAudioTrackPanel(state) {
     }
     extraControls.append(transportParagraph);
 
-    const keysHeading = document.createElement('h3');
+    const keysHeading = document.createElement('h5');
     keysHeading.textContent = 'Keyboard control';
     extraControls.append(keysHeading);
 
@@ -3425,17 +3412,17 @@ function buildAudioTrackPanel(state) {
         ' same things.';
     extraControls.append(keysNote);
 
-    // Worth stating outright, because the consequence shows up in a different tab from the cause
-    // and looks like a bug there. Nothing in the page can turn this mode off: a mode the reader
+    // Worth stating outright, because the consequence shows up somewhere else from the cause and
+    // looks like a bug there. Nothing in the page can turn this mode off: a mode the reader
     // was told to enter stays entered until it is told otherwise, which is the whole point of it
     // being a manual choice.
     const keysModeNote = document.createElement('p');
     keysModeNote.textContent =
         'You turn that mode on yourself, so you have to turn it off yourself as well. Unstrung' +
-        ' cannot do it for you. If you switch tabs while it is still on, the tab you arrive at will' +
-        ' not be navigable, because your screen reader is still handing every key to Unstrung' +
-        ' instead of using them to move around the document. Turn the mode off and the new tab' +
-        ' behaves normally again.';
+        ' cannot do it for you. If you move somewhere else while it is still on, such as another' +
+        ' open item, you will not be able to navigate there, because your screen reader is still' +
+        ' handing every key to Unstrung instead of using them to move around the document. Turn' +
+        ' the mode off and everything behaves normally again.';
     extraControls.append(keysModeNote);
 
     const keysList = document.createElement('ul');
@@ -3514,21 +3501,35 @@ function buildAudioTrackPanel(state) {
     return container;
 }
 
-function openAudioTrackTab(score, trackIndex, songTabId) {
-    const panelKey = `${songTabId}:${trackIndex}`;
+/**
+ * The Audio track disclosure at the end of a track's section.
+ *
+ * Collapsed, it is one line. Its content is built the first time it is opened, since deriving the
+ * timeline is work worth doing only for the tracks someone plays, and kept after that, so closing
+ * and reopening it keeps the tempo, the selection and the samples already loaded.
+ */
+function buildAudioTrackDisclosure(score, trackIndex, trackName, getSongItemId) {
+    const details = document.createElement('details');
+    details.className = 'audio-track-disclosure';
+    const summary = document.createElement('summary');
+    summary.textContent = `Audio track for ${trackName}`;
+    details.append(summary);
 
-    // Already open: go to it rather than making a second one, so its settings are preserved.
-    const existing = audioTrackPanels.get(panelKey);
-    if (existing && tabs.some(tab => tab.id === existing.tabId)) {
-        activateTab(existing.tabId, { focusContent: true });
-        setStatus(`Showing the existing audio track for ${existing.state.audioTrack.trackName}.`);
-        return;
-    }
+    let built = false;
+    details.addEventListener('toggle', () => {
+        if (!details.open || built) return;
+        built = true;
+        details.append(buildAudioTrackContent(score, trackIndex, trackName, getSongItemId(), details));
+    });
+    return details;
+}
 
+function buildAudioTrackContent(score, trackIndex, trackName, songItemId, details) {
     const state = {
         score,
         trackIndex,
-        songTabId,
+        songItemId,
+        trackLabel: trackName,
         targetTempo: score.tempo || 120,
         audioTrack: null,
         ready: false,
@@ -3553,25 +3554,38 @@ function openAudioTrackTab(score, trackIndex, songTabId) {
     state.audioTrack = deriveAudioTrack(state);
 
     if (!state.audioTrack || state.audioTrack.notes.length === 0) {
-        setStatus('That track has no playable notes.');
-        return;
+        const container = document.createElement('div');
+        const heading = document.createElement('h4');
+        heading.textContent = `Audio track for ${trackName}`;
+        const message = document.createElement('p');
+        message.textContent = 'This track has no playable notes.';
+        container.append(heading, message);
+        return container;
     }
     state.lastMeasure = state.audioTrack.barCount;
 
     const container = buildAudioTrackPanel(state);
-    const tab = createTab(`${state.audioTrack.trackName} (audio)`, container, {
-        kind: 'audio-track',
-        insertAfterTabId: songTabId,
-        onClose: () => {
-            stopAudioTrackPlayback();
-            clearAudioTrackTimers();
-            audioTrackPanels.delete(panelKey);
-        }
-    });
+    const entry = { itemId: songItemId, state, details, lastUsed: performance.now() };
+    audioTrackPanels.set(`${songItemId}:${trackIndex}`, entry);
+    // Using a track is what makes it the one the playback keys act on, whether or not focus is
+    // still inside it when the key is pressed.
+    details.addEventListener('focusin', () => { entry.lastUsed = performance.now(); });
+    return container;
+}
 
-    audioTrackPanels.set(panelKey, { tabId: tab.id, state });
-    activateTab(tab.id, { focusContent: true });
-    setStatus(`Opened the audio track settings for ${state.audioTrack.trackName}.`);
+/** Stops and forgets every audio track belonging to a song that is closing. */
+function closeAudioTracksOf(songItemId) {
+    let wasPlaying = false;
+    for (const [key, entry] of audioTrackPanels) {
+        if (entry.itemId !== songItemId) continue;
+        wasPlaying ||= entry.state.playing;
+        audioTrackPanels.delete(key);
+    }
+    // Only one track plays at a time, so stopping is only for when it was one of these.
+    if (wasPlaying) {
+        stopAudioTrackPlayback();
+        clearAudioTrackTimers();
+    }
 }
 // --- end audio track playback ---
 
@@ -4415,7 +4429,7 @@ const CHORD_PRACTICE_SHORTCUTS = {
 
 /** The practice state of the tab currently on screen, or null when another kind of tab is. */
 function activeChordPracticeState() {
-    const entry = chordPracticeStates.find(item => item.tabId === activeTabId);
+    const entry = chordPracticeStates.find(item => item.itemId === currentItemId);
     return entry ? entry.state : null;
 }
 
@@ -4858,10 +4872,9 @@ function refreshChordPracticeNames(state) {
     const marker = state.dirty ? ' (unsaved changes)' : '';
     state.ui.heading.textContent = `Chord practice - ${title}${marker}`;
     state.ui.savedAsItem.textContent = state.fileName ? `Saved as - ${state.fileName}` : 'Not saved';
-    if (state.tab) {
-        state.tab.fileName = `Practice - ${title}`;
-        state.tab.buttonEl.textContent = `Practice - ${title}${marker}`;
-        updateWindowTitle();
+    if (state.item) {
+        state.item.practiceName = `Practice - ${title}`;
+        setItemLabel(state.item, `Practice - ${title}${marker}`);
     }
     syncUnsavedProgressions();
 }
@@ -4869,8 +4882,8 @@ function refreshChordPracticeNames(state) {
 /** Opens a progression in a new tab and moves there. */
 function openChordPracticeTab(progression, options, file = {}) {
     const { container, state } = buildChordPracticeTab(progression, options, file);
-    const entry = { tabId: null, state };
-    const tab = createTab('', container, {
+    const entry = { itemId: null, state };
+    const item = createOpenItem('', container, {
         kind: 'chord-practice',
         onClose: () => {
             stopChordPracticePlayback();
@@ -4880,11 +4893,11 @@ function openChordPracticeTab(progression, options, file = {}) {
         // Looked up through the entry, since editing replaces the state the tab started with.
         confirmClose: () => confirmDiscardChordPractice(entry.state, 'closing')
     });
-    entry.tabId = tab.id;
-    entry.state.tab = tab;
+    entry.itemId = item.id;
+    entry.state.item = item;
     chordPracticeStates.push(entry);
     refreshChordPracticeNames(state);
-    activateTab(tab.id, { focusContent: true });
+    showItem(item.id, { focusContent: true });
     return entry;
 }
 
@@ -4905,9 +4918,9 @@ function replaceChordPracticeProgression(entry, progression, { dirty }) {
     };
     const { container, state } = buildChordPracticeTab(progression, options,
         { filePath: old.filePath, fileName: old.fileName, dirty });
-    state.tab = old.tab;
+    state.item = old.item;
     entry.state = state;
-    old.tab.panelEl.replaceChildren(container);
+    old.item.panelEl.replaceChildren(container);
     refreshChordPracticeNames(state);
     return state;
 }
@@ -5160,9 +5173,9 @@ async function confirmDiscardChordPractice(state, reason) {
     // leave focus somewhere unexpected, so the tab simply stays open. Quitting is different: the
     // window is going either way, so it asks regardless.
     if (reason === 'closing' && document.querySelector('dialog[open]')) return false;
-    const name = state.tab?.fileName ?? 'This progression';
+    const name = state.item?.practiceName ?? 'This progression';
     const choice = await askAboutUnsavedChanges(
-        `${name} has unsaved changes. Save them before ${reason === 'quitting' ? 'quitting' : 'closing the tab'}?`);
+        `${name} has unsaved changes. Save them before ${reason === 'quitting' ? 'quitting' : 'closing it'}?`);
     if (choice === 'cancel') return false;
     if (choice === 'discard') return true;
     return saveChordPractice(state);
@@ -5174,7 +5187,7 @@ window.unstrung.onConfirmQuit(async () => {
     if (unsavedDialog.open) return;
     for (const entry of [...chordPracticeStates]) {
         if (!entry.state.dirty) continue;
-        activateTab(entry.tabId, { focusContent: true });
+        showItem(entry.itemId, { focusContent: true });
         if (!await confirmDiscardChordPractice(entry.state, 'quitting')) return;
     }
     window.unstrung.confirmQuit();
@@ -5301,12 +5314,12 @@ async function openSavedProgressionFile(relativePath) {
     progressionOpenOpener = null;
     progressionOpenDialog.close();
 
-    // A file already open in a tab is shown there rather than opened twice, so two tabs can never
+    // A file already open is shown rather than opened twice, so two open items can never
     // save over each other.
     const wanted = file.filePath.toLowerCase();
     const existing = chordPracticeStates.find(entry => entry.state.filePath?.toLowerCase() === wanted);
     if (existing) {
-        activateTab(existing.tabId, { focusContent: true });
+        showItem(existing.itemId, { focusContent: true });
         setStatus(`${file.name} is already open.`);
         return;
     }
@@ -5432,10 +5445,6 @@ async function openProgressionOpenDialog({ opener = document.activeElement, opti
     else progressionOpenDialog.focus();
 }
 
-window.unstrung.onOpenSavedProgression(() => {
-    if (document.querySelector('dialog[open]')) return;
-    openProgressionOpenDialog();
-});
 
 // --- Progression editor ------------------------------------------------------------------------
 //
@@ -5949,10 +5958,111 @@ editorDialog.addEventListener('close', () => {
     editor.entry = null;
 });
 
-window.unstrung.onNewProgression(() => {
-    if (document.querySelector('dialog[open]')) return;
-    openProgressionEditor();
+
+// --- end chord practice ---
+
+// --- The menu --------------------------------------------------------------------------------
+//
+// One disclosure at the top of the left column, holding every command, with nested disclosures for
+// the groups. There is no native menu bar: a browser has none, and this way the app works the
+// same in both. Built from buttons and <details> rather than an ARIA menu, so nothing about it
+// changes between browse mode and focus mode.
+
+const appMenuElement = document.getElementById('app-menu');
+const appMenuDetails = document.getElementById('app-menu-details');
+const appMenuSummary = appMenuDetails.querySelector(':scope > summary');
+const recentFilesList = document.getElementById('menu-recent-files');
+const recentFilesEmpty = document.getElementById('menu-recent-files-empty');
+
+/**
+ * Runs a command chosen from the menu, closing the menu first.
+ *
+ * Focus goes to the Menu button before the command runs, so a dialog the command opens returns
+ * focus there when it closes. Left on the command's own button, focus would go back to something
+ * inside a collapsed disclosure, which is nowhere.
+ */
+function runMenuCommand(command) {
+    for (const details of appMenuElement.querySelectorAll('details[open]')) details.open = false;
+    appMenuSummary.focus();
+    command();
+}
+
+/**
+ * Escape closes the innermost open disclosure around focus and returns focus to its summary, one
+ * level per press, the way Escape backs out of a menu.
+ */
+appMenuElement.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    let details = event.target.closest('details');
+    // On the summary of a closed group, Escape closes the group around it.
+    if (details && !details.open) details = details.parentElement.closest('details');
+    if (!details || !appMenuElement.contains(details)) return;
+    event.preventDefault();
+    details.open = false;
+    details.querySelector(':scope > summary').focus();
 });
 
-window.unstrung.onChordPracticeOpen(openChordPracticeDialog);
-// --- end chord practice ---
+function bindMenuCommand(id, command) {
+    document.getElementById(id).addEventListener('click', () => runMenuCommand(command));
+}
+
+bindMenuCommand('menu-open-file', () => window.unstrung.openFileDialog());
+bindMenuCommand('menu-chord-practice', openChordPracticeDialog);
+bindMenuCommand('menu-new-progression', () => openProgressionEditor());
+bindMenuCommand('menu-open-progression', () => openProgressionOpenDialog());
+bindMenuCommand('menu-chord-library', openChordLibraryTab);
+bindMenuCommand('menu-frets-to-chord', openFretsToChordDialog);
+bindMenuCommand('menu-guitar-samples', openGuitarSamplesDialog);
+bindMenuCommand('menu-settings', openSettingsDialog);
+bindMenuCommand('menu-help-what-is', () => openHelpDialog('what-is'));
+bindMenuCommand('menu-help-screen-reader', () => openHelpDialog('screen-reader'));
+bindMenuCommand('menu-help-feedback', () => openHelpDialog('feedback'));
+bindMenuCommand('menu-about', async () => openAboutDialog({ version: await window.unstrung.getAppVersion() }));
+
+/**
+ * The recent files under Open File, newest first, each a button that opens it. Named by file name;
+ * two files with the same name also say which folder each is in.
+ */
+function renderRecentFiles(files) {
+    const nameCounts = new Map();
+    for (const file of files) nameCounts.set(file.name, (nameCounts.get(file.name) ?? 0) + 1);
+
+    recentFilesList.replaceChildren();
+    for (const file of files) {
+        const folder = file.path.slice(0, Math.max(0, file.path.length - file.name.length - 1));
+        const li = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = nameCounts.get(file.name) > 1 ? `${file.name} (${folder})` : file.name;
+        button.title = file.path;
+        button.addEventListener('click', () => runMenuCommand(() => window.unstrung.openRecentFile(file.path)));
+        li.append(button);
+        recentFilesList.append(li);
+    }
+    recentFilesList.hidden = files.length === 0;
+    recentFilesEmpty.hidden = files.length > 0;
+}
+
+window.unstrung.getRecentFiles().then(renderRecentFiles);
+window.unstrung.onRecentFilesChanged(renderRecentFiles);
+
+// Ctrl+O opens a file and Ctrl+Shift+O a saved progression, from anywhere. Both keys reach the page
+// in a browser as well, which Ctrl+T and Ctrl+W, the old ones, never would.
+document.addEventListener('keydown', event => {
+    if (!event.ctrlKey || event.altKey || event.metaKey || event.key.toLowerCase() !== 'o') return;
+    if (document.querySelector('dialog[open]')) return;
+    event.preventDefault();
+    if (event.shiftKey) openProgressionOpenDialog();
+    else window.unstrung.openFileDialog();
+});
+
+// Links in the page itself, such as the banner, open in the default browser. The page never
+// navigates away from itself. Links in dialogs are handled by the dialog, which also closes it.
+document.addEventListener('click', event => {
+    if (event.defaultPrevented) return;
+    const link = event.target.closest('a[href^="http"]');
+    if (!link) return;
+    event.preventDefault();
+    window.unstrung.openExternalLink(link.href);
+});
+// --- end menu ---

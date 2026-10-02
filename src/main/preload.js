@@ -1,14 +1,21 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Everything the page needs from the platform. There is no native menu: the page's own menu calls
+// the functions below directly, so a browser build only has to supply this same object.
 contextBridge.exposeInMainWorld('unstrung', {
-    onFileOpened: (callback) => ipcRenderer.on('tabs:open-file', (_event, payload) => callback(payload)),
-    onFileOpenError: (callback) => ipcRenderer.on('tabs:open-file-error', (_event, payload) => callback(payload)),
-    onCloseCurrentTab: (callback) => ipcRenderer.on('tabs:close-current', () => callback()),
-    onAboutOpen: (callback) => ipcRenderer.on('about:open', (_event, payload) => callback(payload)),
+    getAppVersion: () => ipcRenderer.invoke('app:get-version'),
     openExternalLink: (url) => ipcRenderer.send('shell:open-external', url),
 
-    // Green Gretsch guitar sample playback (Tools menu).
-    onGuitarSamplesOpen: (callback) => ipcRenderer.on('guitar-samples:open', () => callback()),
+    // Song files. Opening one, from the dialog, the recent list or the command line, arrives
+    // through onFileOpened with the file's bytes.
+    openFileDialog: () => ipcRenderer.invoke('files:open-dialog'),
+    openRecentFile: (filePath) => ipcRenderer.invoke('files:open-recent', filePath),
+    getRecentFiles: () => ipcRenderer.invoke('files:get-recent'),
+    onRecentFilesChanged: (callback) => ipcRenderer.on('files:recent-changed', (_event, files) => callback(files)),
+    onFileOpened: (callback) => ipcRenderer.on('files:opened', (_event, payload) => callback(payload)),
+    onFileOpenError: (callback) => ipcRenderer.on('files:open-error', (_event, payload) => callback(payload)),
+
+    // Green Gretsch guitar sample playback.
     getGuitarSampleNotes: () => ipcRenderer.invoke('guitar-samples:get-notes'),
     getGuitarSampleAudio: (key, velocity, maxSeconds) =>
         ipcRenderer.invoke('guitar-samples:get-audio', { key, velocity, maxSeconds }),
@@ -18,12 +25,7 @@ contextBridge.exposeInMainWorld('unstrung', {
     listSpokenVoices: () => ipcRenderer.invoke('speech:list-voices'),
     getSpokenPhrases: (voice, phrases) => ipcRenderer.invoke('speech:get-phrases', { voice, phrases }),
 
-    // Chord practice (Tools menu).
-    onChordPracticeOpen: (callback) => ipcRenderer.on('chord-practice:open', () => callback()),
-
-    // Saved chord progressions (Tools menu, and the chord practice tab).
-    onOpenSavedProgression: (callback) => ipcRenderer.on('progressions:open-dialog', () => callback()),
-    onNewProgression: (callback) => ipcRenderer.on('progressions:new', () => callback()),
+    // Saved chord progressions.
     listProgressions: () => ipcRenderer.invoke('progressions:list'),
     readProgression: (relativePath) => ipcRenderer.invoke('progressions:read', relativePath),
     saveProgression: (request) => ipcRenderer.invoke('progressions:save', request),
@@ -32,13 +34,10 @@ contextBridge.exposeInMainWorld('unstrung', {
     onConfirmQuit: (callback) => ipcRenderer.on('app:confirm-quit', () => callback()),
     confirmQuit: () => ipcRenderer.send('app:quit-confirmed'),
 
-    // Chord library (Tools menu).
-    onChordLibraryOpen: (callback) => ipcRenderer.on('chords:open', () => callback()),
-    onFretsToChordOpen: (callback) => ipcRenderer.on('frets:open', () => callback()),
+    // Chord library.
     getChordLibrary: () => ipcRenderer.invoke('chords:get-library'),
 
-    // Settings (File menu).
-    onSettingsOpen: (callback) => ipcRenderer.on('settings:open', () => callback()),
+    // Settings.
     getSettings: () => ipcRenderer.invoke('settings:get'),
     chooseSettingsDirectory: () => ipcRenderer.invoke('settings:choose-directory'),
     validateAndSaveSettingsDirectory: (dirPath) => ipcRenderer.invoke('settings:validate-and-save-directory', dirPath),
@@ -47,9 +46,5 @@ contextBridge.exposeInMainWorld('unstrung', {
     clearRecentFiles: () => ipcRenderer.invoke('settings:clear-recent-files'),
     removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files'),
     saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings),
-    saveChordVoiceSettings: (settings) => ipcRenderer.invoke('settings:save-chord-voice', settings),
-
-    // Help documents (Help menu). The content itself is generated at build time and bundled with
-    // the renderer, so only the menu signal crosses over.
-    onHelpOpen: (callback) => ipcRenderer.on('help:open', (_event, payload) => callback(payload))
+    saveChordVoiceSettings: (settings) => ipcRenderer.invoke('settings:save-chord-voice', settings)
 });
