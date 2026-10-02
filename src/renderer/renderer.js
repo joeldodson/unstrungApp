@@ -3419,8 +3419,8 @@ function buildAudioTrackPanel(state) {
     const keysModeNote = document.createElement('p');
     keysModeNote.textContent =
         'You turn that mode on yourself, so you have to turn it off yourself as well. Unstrung' +
-        ' cannot do it for you. If you move somewhere else while it is still on, such as another' +
-        ' open item, you will not be able to navigate there, because your screen reader is still' +
+        ' cannot do it for you. If you move to another open item while it is still on, you will' +
+        ' not be able to navigate that item, because your screen reader is still' +
         ' handing every key to Unstrung instead of using them to move around the document. Turn' +
         ' the mode off and everything behaves normally again.';
     extraControls.append(keysModeNote);
