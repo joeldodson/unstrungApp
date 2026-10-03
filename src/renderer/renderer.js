@@ -294,10 +294,15 @@ function createOpenItem(label, contentEl, {
     button.addEventListener('click', () => showItem(id, { focusContent: true }));
     heading.append(button);
 
+    // Drawn as a cross to keep the column narrow. The cross itself is hidden from screen readers;
+    // the button is named by aria-label, "Close" and the item's name, set with the label.
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
     closeButton.className = 'close-item';
-    closeButton.textContent = 'Close';
+    const cross = document.createElement('span');
+    cross.setAttribute('aria-hidden', 'true');
+    cross.textContent = '\u00D7';
+    closeButton.append(cross);
     closeButton.addEventListener('click', () => requestCloseItem(id));
     listItem.append(heading, closeButton);
 
@@ -324,11 +329,18 @@ function createOpenItem(label, contentEl, {
     return item;
 }
 
-/** Names an item in the list, on its Close button, and in the window title if it is current. */
+/**
+ * Names an item in the list, on its close button, and in the window title if it is current.
+ *
+ * The title attributes show the whole name on hover, since the list cuts a long name off with an
+ * ellipsis. Each matches its button's accessible name, so a screen reader has nothing extra to read.
+ */
 function setItemLabel(item, label) {
     item.label = label;
     item.buttonEl.textContent = label;
+    item.buttonEl.title = label;
     item.closeButtonEl.setAttribute('aria-label', `Close ${label}`);
+    item.closeButtonEl.title = `Close ${label}`;
     if (item.id === currentItemId) updateWindowTitle();
 }
 

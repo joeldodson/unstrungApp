@@ -35,7 +35,14 @@ daily before any web build exists.
   content. The button carries `aria-current="true"` on the item being shown, not `aria-expanded`:
   it never hides anything, so there is no collapsed state to report. NVDA's heading navigation
   moves between open items in browse mode, in Electron and in a browser alike.
-- **Closing** is the Close button beside each item. Focus goes to the item that takes its place in
+- **One row per item.** A long name is cut off at the column's edge with an ellipsis, as the
+  article list on eyesunstrung.vip is, and its title attribute shows the whole name on hover. The
+  button's text, so what NVDA reads, is always the whole name. Decided 2026-10-03, to keep the
+  left column narrow.
+- **The areas are divided** as on eyesunstrung.vip, by 2px slate (`#475569`) lines: one under the
+  banner, one between the left column and the main area, one above the status bar.
+- **Closing** is the close button beside each item, drawn as a cross to save width. Its name, from
+  `aria-label`, is "Close" and the item's name, and the same text is its hover title. Focus goes to the item that takes its place in
   the list, which is then shown. No shortcut for now.
 - **No native menu.** `Menu.setApplicationMenu(null)`. A Menu button at the top of the left column
   opens a real menu, with submenus: Open File, Recent Files (submenu), Chord Progressions (submenu:
