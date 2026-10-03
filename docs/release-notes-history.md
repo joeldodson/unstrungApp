@@ -10,6 +10,59 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## Unstrung 0.6.1 - Tidier open items, and a web build
+
+Published 2026-10-03.
+
+0.6.1 tidies the list of open items and adds a build of Unstrung that runs in a web browser. There
+are no new features in the desktop app.
+
+### One line per open item
+
+Each song, chord progression or chord library in the list of open items now takes one line. A
+long name is cut off at the edge of the column with an ellipsis, and the whole name shows when the
+mouse is over it, as the article list on eyesunstrung.vip does. Only the drawing is shortened: a
+screen reader still reads the whole name.
+
+The Close button beside each item is now drawn as a cross, to keep the column narrow. It is still
+named "Close" followed by the item's name.
+
+### A web version
+
+This release has a third download, **Unstrung-web-0.6.1.tar.gz**. It is the same Unstrung, built
+to run in Chrome or Edge, and it is what eyesunstrung.vip will serve at
+https://eyesunstrung.vip/unstrung/app/. It is not something to run from the download: a browser
+will not run it from a folder on disk, only from a web server.
+
+The guitar samples and spoken chord names in it are compressed, 39 MB instead of 415 MB, and are
+downloaded the first time each one is needed, then kept by the browser.
+
+What works differently in a browser:
+
+- Files and folders are chosen through the browser, which shows only a folder's name, never its
+  full path. The browser may ask permission again on a later visit before opening a recent file or
+  the progressions folder.
+- Settings has a Choose Folder button for saved progressions in place of a typed path. The default
+  folder for Open File, and the Open Folder button in Open Saved Progression, are not offered.
+- Leaving the page while anything is open brings up the browser's own "Leave site?" question.
+- Firefox and Safari cannot open files from a web page this way, so only Chrome and Edge are
+  supported.
+
+### Smaller changes
+
+- Options on the command line, anything starting with two dashes, are no longer opened as if they
+  were song files.
+- For anyone running from source: `npm run start:web-audio` runs the desktop app using the
+  compressed audio of the web version, to compare it with the original recordings.
+
+### Installing
+
+**Unstrung Setup 0.6.1.exe** is the installer, and puts the `unstrung` command on your path.
+**Unstrung 0.6.1.exe** is a portable build that runs without installing.
+
+Windows only, as before. Unstrung is an Electron app and should run on Mac and Linux, but I only
+have a Windows laptop to build and test on. See Clone and Run in the README to run from source.
+
 ## Unstrung 0.6.0 - A new layout, ready for a web version
 
 Published 2026-10-03.
