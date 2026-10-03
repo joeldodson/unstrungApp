@@ -10,6 +10,7 @@
 //                          code the desktop app uses
 //   speech/<voice>/...     every spoken chord name, as .opus, and each voice's manifest.json with
 //                          its file names changed to .opus
+//   speech/voices.json     the voices, for the Settings dialog
 //
 // Why Opus: the WAVs are 415 MB, far too much to send to a browser. Opus is decoded by Chrome's
 // decodeAudioData, so playback code is unchanged; it switches to short frames on transients, which
@@ -144,6 +145,11 @@ await fs.writeFile(path.join(outRoot, 'sample-map.json'), JSON.stringify(sampleM
 for (const { voice, manifest } of manifests) {
     await fs.writeFile(path.join(outRoot, 'speech', voice, 'manifest.json'), JSON.stringify(manifest, null, 2));
 }
+// The voices on offer, as the desktop app's speech:list-voices lists them, since a browser cannot
+// read the folder to find them.
+await fs.writeFile(path.join(outRoot, 'speech', 'voices.json'), JSON.stringify(
+    manifests.map(({ manifest }) => ({ id: manifest.voice, label: manifest.label }))
+        .sort((a, b) => a.label.localeCompare(b.label)), null, 2));
 
 async function totalBytes(files) {
     let sum = 0;

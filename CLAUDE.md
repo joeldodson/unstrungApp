@@ -57,3 +57,9 @@ When publishing a release, add a copy of its notes at the top of that
 file, under a level 2 heading with the release's title and the date it
 was published, its own sections moved down to level 3. Commit that with
 the release.
+
+A release has three assets: `npm run dist` makes the installer and the
+portable build in `release/`, and `npm run build:web` makes
+`release/Unstrung-web-<version>.tar.gz`, the web version that
+eyesunstrung.vip serves at `/unstrung/app/`. Attach all three. See
+`docs/eyesunstrung-site-and-web-app.md`.

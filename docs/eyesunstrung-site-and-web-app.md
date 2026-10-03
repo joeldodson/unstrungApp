@@ -73,6 +73,10 @@ second `h1` on the page and need to change to a lower level.
 
 ## How the app gets into the site
 
+**Changed 2026-10-02; see "The web build, as built" below.** Each unstrungApp release carries the
+built web app as a third asset, `Unstrung-web-<version>.tar.gz`, and the site's workflow downloads
+the latest one rather than building unstrungApp itself. The plan below is kept for the record.
+
 The site workflow builds both:
 
 1. Check out eyesunstrung.
@@ -147,3 +151,41 @@ encode described in `web-deployment-and-guitar-input.md` exists, fetched per not
 - **License:** eyesunstrung was relicensed from a custom licence to MIT (2026-09-26), matching
   unstrungApp.
 - **Local testing:** `npm start` runs Eleventy's dev server at http://localhost:8080/.
+
+## The web build, as built
+
+Built 2026-10-02 for unstrungApp 0.6.1.
+
+- `npm run build:web` writes `dist-web`, ignored by git, and packs it as
+  `release/Unstrung-web-<version>.tar.gz`. It runs `scripts/build-web-audio.mjs` (the Opus audio,
+  `sample-map.json`, speech manifests and `voices.json`; see `web-deployment-and-guitar-input.md`),
+  then `scripts/build-web.mjs`: the page, styles, images and font from `src/renderer`, the chord
+  library JSON, and `bundle.js` built from `src/web/main.js`.
+- `src/web/main.js` imports `src/web/platform.js`, the browser's `window.unstrung`, and then the
+  same `renderer.js` the desktop app runs. `src/shared` is unchanged.
+- **Release asset, not a build in the site's workflow.** The archive is attached to each GitHub
+  release next to the installers, and the site's workflow downloads the latest and unpacks it at
+  `/unstrung/app/`. The Opus files are never committed, the site needs no encoder and no
+  unstrungApp checkout, and the site always serves exactly what was released.
+- `npm run serve:web` serves `dist-web` at http://localhost:8090/unstrung/app/, the path it has on
+  the site, since a page opened from disk cannot fetch its own files.
+- The page asks the platform what it can do, through `window.unstrung.capabilities`. In a browser
+  there is no typed folder path (Settings shows the chosen folder's name and a Choose Folder
+  button), no default folder for Open File (the browser remembers the last one), and no Open
+  Folder button.
+- Files: `showOpenFilePicker`, `showSaveFilePicker` and `showDirectoryPicker`, Chromium only.
+  Recent files and the progressions folder are handles kept in IndexedDB; the browser may ask for
+  permission again on a later visit. A recent file is named by its name only, since a browser
+  never gives a page the folder.
+- Settings are in localStorage. Samples and speech are fetched the first time each is needed and
+  kept in the Cache API, in a cache named for the release, so a later release fetches afresh and
+  the old cache is removed; `navigator.storage.persist()` asks the browser not to clear it.
+- Leaving the page asks Chrome's "Leave site?" whenever anything is open, not only when a
+  progression is unsaved, since leaving closes every open item.
+- Audio contexts are resumed whenever they are asked for: a browser starts one suspended if it
+  was made before any key press or click.
+- Checked in Edge with Playwright against the local server, with the file pickers replaced by ones
+  returning real handles from the browser's private file system: opening a song with Ctrl+O, an
+  audio track playing from the Opus samples, recent files surviving a reload, saving a progression
+  with Ctrl+S into the chosen folder and listing it, settings surviving a reload, the chord
+  library. Chrome itself, and NVDA in it, were not tried.

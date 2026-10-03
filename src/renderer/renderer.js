@@ -615,7 +615,17 @@ let guitarSamplesSources = [];
 
 function getGuitarSamplesContext() {
     if (!guitarSamplesContext) guitarSamplesContext = new AudioContext();
+    resumeIfSuspended(guitarSamplesContext);
     return guitarSamplesContext;
+}
+
+/**
+ * A browser starts an audio context suspended when it is made before the page has had a key press
+ * or click, and a suspended context plays nothing. Electron does not do this. Everything that makes
+ * sound here starts from a key or a click, so resuming whenever a context is asked for is enough.
+ */
+function resumeIfSuspended(context) {
+    if (context.state === 'suspended') context.resume().catch(() => {});
 }
 
 function waitSeconds(seconds) {
@@ -999,8 +1009,12 @@ async function openSettingsDialog() {
     settingsDialogOpener = document.activeElement;
     const settings = await window.unstrung.getSettings();
     settingsDirectoryInput.value = settings.defaultOpenDirectory ?? '';
-    settingsProgressionsInput.value = settings.progressionsDirectory ?? '';
-    settingsProgressionsHint.textContent = `Default: ${settings.defaultProgressionsDirectory}`;
+    if (window.unstrung.capabilities.typedFolderPaths) {
+        settingsProgressionsInput.value = settings.progressionsDirectory ?? '';
+        settingsProgressionsHint.textContent = `Default: ${settings.defaultProgressionsDirectory}`;
+    } else {
+        settingsProgressionsInput.value = settings.progressionsDirectory || 'None chosen yet';
+    }
     settingsGeneralStatusElement.textContent = '';
     settingsTerseBeatsCheckbox.checked = settings.terseBeatDescriptions === true;
     settingsAutoCollapseCheckbox.checked = settings.autoCollapseOnTabChange !== false;
@@ -1016,6 +1030,27 @@ async function openSettingsDialog() {
     settingsTabs[0].buttonEl.focus();
 }
 
+
+/**
+ * Controls for what the platform cannot do, taken out of the page rather than left to fail.
+ *
+ * In a browser: there is no typed folder path, since a page only ever gets a folder the player
+ * picks, and only its name; no default folder for Open File, though the browser remembers the last
+ * one used; and no Open Folder, since a page cannot open the file manager.
+ */
+(function adaptToPlatform() {
+    const { capabilities } = window.unstrung;
+    if (!capabilities.typedFolderPaths) {
+        settingsProgressionsInput.readOnly = true;
+        settingsProgressionsBrowseButton.textContent = 'Choose Folder…';
+        settingsProgressionsDefaultButton.hidden = true;
+        settingsProgressionsHint.textContent = 'The browser shows only the folder\'s name.';
+    }
+    if (!capabilities.defaultOpenFolder) settingsDirectoryInput.closest('p').hidden = true;
+    if (!capabilities.openFolderInFileManager) {
+        document.getElementById('progression-open-folder-button').hidden = true;
+    }
+})();
 
 // Loaded once at startup so the first file opened is described according to the saved setting,
 // rather than needing the Settings dialog to have been visited first.
@@ -1517,6 +1552,7 @@ const sampleBufferCache = new Map();
 
 function getSharedAudioContext() {
     if (!sharedAudioContext) sharedAudioContext = new AudioContext();
+    resumeIfSuspended(sharedAudioContext);
     return sharedAudioContext;
 }
 
@@ -5457,7 +5493,9 @@ async function openProgressionOpenDialog({ opener = document.activeElement, opti
     progressionOpenStatus.textContent = '';
 
     const listing = await window.unstrung.listProgressions();
-    progressionOpenFolderText.textContent = `From the folder ${listing.directory}.`;
+    progressionOpenFolderText.textContent = listing.directory
+        ? `From the folder ${listing.directory}.`
+        : 'No folder for saved progressions has been chosen. Choose one in Settings.';
 
     const skipped = [];
     progressionOpenTree.replaceChildren();
@@ -6055,11 +6093,14 @@ function renderRecentFiles(files) {
 
     recentFilesMenu.replaceChildren();
     for (const file of files) {
-        const folder = file.path.slice(0, Math.max(0, file.path.length - file.name.length - 1));
+        // A browser gives a file's name but never its folder, so there the name alone has to do.
+        const folder = window.unstrung.capabilities.typedFolderPaths
+            ? file.path.slice(0, Math.max(0, file.path.length - file.name.length - 1))
+            : '';
         const { li, item } = createMenuItem(
-            nameCounts.get(file.name) > 1 ? `${file.name} (${folder})` : file.name, { command: 'open-recent' });
+            nameCounts.get(file.name) > 1 && folder ? `${file.name} (${folder})` : file.name, { command: 'open-recent' });
         item.dataset.path = file.path;
-        item.title = file.path;
+        if (folder) item.title = file.path;
         recentFilesMenu.append(li);
     }
     if (files.length === 0) recentFilesMenu.append(createMenuItem('No recent files', { disabled: true }).li);

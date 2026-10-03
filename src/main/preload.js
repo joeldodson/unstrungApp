@@ -3,6 +3,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Everything the page needs from the platform. There is no native menu: the page's own menu calls
 // the functions below directly, so a browser build only has to supply this same object.
 contextBridge.exposeInMainWorld('unstrung', {
+    platform: 'electron',
+    // What the page may offer. src/web/platform.js turns these off in a browser.
+    capabilities: { typedFolderPaths: true, openFolderInFileManager: true, defaultOpenFolder: true },
+
     getAppVersion: () => ipcRenderer.invoke('app:get-version'),
     openExternalLink: (url) => ipcRenderer.send('shell:open-external', url),
 
