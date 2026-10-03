@@ -13,6 +13,8 @@ user documentation; that is the top-level `README.md`, which also feeds the in-a
   `web-based-unstrung` branch.
 - `eyesunstrung-site-and-web-app.md` -- rebuilding eyesunstrung.vip with Eleventy and serving the
   web version of Unstrung from it at `/unstrung/app/`. Not built.
+- `release-notes-history.md` -- the notes for every release, newest first, including those whose
+  GitHub releases were deleted. A copy of each new release's notes is added at the top.
 - `js-synthesizer-investigation.md` -- FluidSynth in WebAssembly as an audio engine. Studied and set
   aside.
 

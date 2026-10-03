@@ -48,3 +48,12 @@ covers, and add to it when a discussion settles something. Joel uses the
 repository as a backup, so anything worth keeping belongs there rather
 than only in memory or on this machine. `docs/screen-reader-findings.md`
 in particular records how NVDA reads this app.
+
+# Releases
+
+Every release's notes are kept in `docs/release-notes-history.md`, newest
+first, because GitHub releases can be deleted and the notes go with them.
+When publishing a release, add a copy of its notes at the top of that
+file, under a level 2 heading with the release's title and the date it
+was published, its own sections moved down to level 3. Commit that with
+the release.
