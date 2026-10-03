@@ -115,6 +115,129 @@ How it behaves, following the ARIA Authoring Practices Guide's menu button patte
   no longer scrolls as a whole, since that would clip the menu; the list of open items scrolls on
   its own.
 
+## What still differs in Chrome
+
+Written 2026-10-02, against the branch as of commit 420798e, for a web build served from GitHub
+Pages. The layout, the menu, dialogs, headings, window title and keyboard shortcuts are already the
+same in both. So are reading song files (alphaTab parses them in the page), the chord library and
+Frets to Chord apart from playing, generating and editing progressions apart from saving and
+playing, and Help, which is bundled into the page. What remains is files, folders, sound and
+leaving the page.
+
+### Opening song files
+
+- **Open File dialog.** Electron: the Windows dialog, starting in the folder set under Settings,
+  Files. Chrome: `showOpenFilePicker` opens the same Windows dialog, but can only start in the
+  folder it last used or a standard one (Documents, Music). It cannot start at a typed path, so
+  "Default folder for Open File dialog" becomes a Choose Folder button showing a name only.
+- **Recent files.** Electron: paths, opened at once. Chrome: file handles kept in IndexedDB;
+  reopening one asks permission again, usually once per visit. Newer Chrome can offer "Allow on
+  every visit"; how NVDA handles that prompt is Chrome's. Removing stale entries and clearing the
+  list still work.
+- **Command line.** Electron: `unstrung ripple.gp`, and `-h`. Chrome: none. An installed web app
+  can register as a handler for .gp files, Chromium only; a possible later addition.
+- **Drag and drop.** Built in neither. Would work in both once added.
+
+### Saved chord progressions
+
+- **The folder.** Electron: defaults to Documents\Unstrung\Progressions, created on first save;
+  typed path or Browse to change it; Open Folder opens it in Explorer. Chrome: a page cannot create
+  or reach a folder unasked, so there is no default. The first save or open asks for a folder once
+  (`showDirectoryPicker`, starting in Documents), and the handle is kept in IndexedDB. Chrome may
+  ask permission again each visit. Only the folder's name can be shown, never its path. No typed
+  path. Open Folder is impossible and goes. Chrome refuses some folders outright, such as the user
+  folder itself; a folder inside one is fine.
+- **Saving.** Save As uses `showSaveFilePicker`, which is the Windows Save dialog, so new
+  subfolders can still be made there. Save overwrites in place (Chrome writes a temporary file and
+  swaps it in). Open Saved Progression's tree is built by reading the chosen folder, as now. The
+  check for a save landing outside the folder still works, through `resolve()`.
+
+### Sound
+
+- **Guitar samples.** Electron: 397 MB of WAV installed, read from disk with no wait. Chrome, first
+  release: no samples (the plan in `eyesunstrung-site-and-web-app.md`), so no audio tracks, no
+  chord practice playback, no playing chords in the library, no Listen to Guitar Samples. Those
+  have to say sound is not available yet rather than fail. Chrome, later: Opus, about 45 MB in all,
+  each note downloaded the first time it is needed and kept in the Cache API. The first play of a
+  song waits for its 20 to 30 notes, about 2 MB; after that it is immediate. Call
+  `navigator.storage.persist()` or the browser may evict them; clearing browsing data still does.
+  GitHub Pages allows 1 GB per site and a soft 100 GB a month, which is why on demand matters.
+- **Spoken chord names.** Electron: 23 MB installed. Chrome: downloaded as needed the same way,
+  about 2 MB as Opus.
+- **Code that has to move.** Reading the `.sfz` sample maps, choosing the next round robin and
+  trimming a WAV to a length all happen in `main.js`, under Node. They move to `src/shared` or a
+  manifest generated at build time before any sound works in Chrome. Not visible to the user.
+- **Background tab.** Chrome slows timers in a tab that is not in front, and playback tops up its
+  schedule every 3 seconds. Chrome does not slow a tab that is playing sound, and Electron runs
+  the same Chromium rules, so probably no difference. Needs one test: start a track, switch tabs.
+
+### Leaving with unsaved changes
+
+- **Closing.** Electron: closing the window asks about each unsaved progression: Save, Don't Save,
+  Cancel. Chrome: only `beforeunload`, which shows Chrome's own "Leave site?" prompt. It cannot
+  name the progression or offer Save, and its wording and how NVDA reads it are Chrome's.
+- **More ways to lose everything.** In Chrome, Ctrl+W, Alt+Left, F5 or Ctrl+R, the address bar and
+  closing Chrome each leave the page and drop every open item, saved or not. Electron has none.
+  Minimum: the prompt whenever anything is open. Better: keep open files and unsaved progressions
+  in IndexedDB and offer to restore them on the next visit.
+
+### Keyboard
+
+- Chrome's own keys work everywhere: Ctrl+W closes Unstrung's tab, Ctrl+T opens a new one,
+  Ctrl+Tab leaves for another tab, F6 and Alt+D go to the address bar, Alt opens Chrome's menu.
+  Unstrung no longer uses any of them, but pressing one from habit costs more than it did.
+- The window title becomes the tab's name; NVDA+T adds "Google Chrome" after it.
+
+### Settings
+
+- Electron: `app-state.json` in AppData, kept until uninstalled. Chrome: in the browser, per Chrome
+  profile, gone if the site's data is cleared, not shared with the desktop app.
+- The two folder settings become choose-a-folder buttons showing a name only. Voice, volume,
+  shorter beat descriptions and collapse-on-switch are unchanged.
+
+### Links
+
+- Electron: banner, Help and About links open in the default browser, through an allowlist.
+  Chrome: they open in a new tab. In the same tab they would leave the app and lose everything.
+
+### Inside eyesunstrung.vip
+
+- At `/unstrung/app/`, wrapped in the site's layout, the page would have two banners and both the
+  site's menu bar and Unstrung's Menu. Served on its own, it is not really part of the site. Likely
+  answer: the web build drops its own banner and uses the site's header without the site's menu
+  bar. Not decided.
+- The site's pages have one `h1` for the page title; the app uses `h1` for each open item. Fine as
+  a separate page; matters if the two are ever combined.
+
+### Installing, updating, offline
+
+- **Installing and updating.** Electron: installer or portable copy, changes only when a new
+  version is installed. Chrome: nothing to install (could become an installed web app later);
+  changes when a release is published, since the site builds from the latest release tag.
+- **Offline.** Electron: works with no connection. Chrome: needs one at least to load; working
+  offline needs a service worker, not built.
+- **More than one copy.** Both can run several at once: Electron has no single-instance lock, and
+  Chrome allows several tabs. In Chrome they share one set of settings. Two copies saving the same
+  progression overwrite each other in either.
+
+### Guitar input, later
+
+- The tuner, timing and chord checking (not built) use the same browser APIs in both. Chrome asks
+  for microphone permission once per site, which works because Pages serves over HTTPS, and lists
+  device names only after that. Electron can grant the permission itself.
+
+### In short
+
+- **Missing from the first web release:** all guitar sound and spoken chord names, until the Opus
+  samples and on-demand downloading exist.
+- **Different:** choosing folders by name with no typed paths and no default progressions folder;
+  permission asked again per visit; Chrome's "Leave site?" instead of Save, Don't Save, Cancel;
+  settings kept in the browser; links in new tabs.
+- **Impossible:** the command line, Open Folder in Explorer, a typed default Open File folder,
+  naming unsaved progressions on the way out.
+- **To decide:** how the app sits in eyesunstrung.vip without two banners; whether to restore open
+  items after a reload.
+
 ## Still to do
 
 - `README.md`, and so the in-app Help, still describes the File menu, tabs and Ctrl+T. To be
