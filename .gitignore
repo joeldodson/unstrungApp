@@ -151,6 +151,10 @@ musicfiles/
 # electron-builder packaged output (release artifacts, not source)
 release/
 
+# The web build's generated output, including the Opus audio from
+# scripts/build-web-audio.mjs
+dist-web/
+
 
 # Generated logo images for a possible Microsoft Store package (shelved).
 # Regenerate with npm run build:icons.

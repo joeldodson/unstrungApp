@@ -574,6 +574,20 @@ async function openFileFromDialog(window) {
 // one recording and nothing has to choose between them. The seam is audible -- a bass line
 // crossing E2 changes instrument -- and that is the accepted cost of not special-casing by track.
 const SAMPLES_ROOT = path.join(__dirname, '..', 'assets', 'samples');
+
+// --- Listening to the web audio ---
+// `npm run start:web-audio` starts the app with --web-audio, and every sample and spoken chord name
+// is then read from the Opus copies that scripts/build-web-audio.mjs makes for the web version,
+// instead of from the WAVs. It exists to compare the two by ear, in the real app, on real songs.
+// The copies are in dist-web/audio, under the same folder structure as src/assets.
+const ASSETS_ROOT = path.join(__dirname, '..', 'assets');
+const WEB_AUDIO_ROOT = path.join(__dirname, '..', '..', 'dist-web', 'audio');
+const useWebAudio = process.argv.includes('--web-audio');
+
+function webAudioPathFor(wavPath) {
+    const relative = path.relative(ASSETS_ROOT, wavPath).replace(/\.wav$/i, '.opus');
+    return path.join(WEB_AUDIO_ROOT, relative);
+}
 const GREEN_GRETSCH_PROGRAMS_DIR = path.join(SAMPLES_ROOT, 'green-gretsch', 'Programs');
 const BLACK_BASS_PROGRAMS_DIR = path.join(SAMPLES_ROOT, 'black-and-blue-bass', 'Programs');
 
@@ -597,49 +611,6 @@ const NOTE_LETTER_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A',
 function midiKeyToPitchName(midiKey) {
     const octave = Math.floor(midiKey / 12) - 1;
     return `${NOTE_LETTER_NAMES[midiKey % 12]}${octave}`;
-}
-
-// Parses <region> blocks, honoring opcodes set on an enclosing <group> header (some .sfz files
-// set lokey/pitch_keycenter/trigger once per group rather than repeating it on every region).
-async function parseSfzRegions(sfzPath) {
-    const text = await fs.readFile(sfzPath, 'utf8');
-    const parts = text.split(/<(region|group)>/);
-
-    const regions = [];
-    let group = {};
-    for (let i = 1; i < parts.length; i += 2) {
-        const headerType = parts[i];
-        const body = parts[i + 1] ?? '';
-        const getOpcode = key => {
-            const match = body.match(new RegExp(`${key}=([^\\s]+)`));
-            return match ? match[1] : undefined;
-        };
-
-        if (headerType === 'group') {
-            group = {
-                lokey: getOpcode('lokey'),
-                pitch_keycenter: getOpcode('pitch_keycenter'),
-                trigger: getOpcode('trigger')
-            };
-            continue;
-        }
-
-        const sample = getOpcode('sample');
-        if (!sample || sample.startsWith('*')) continue;
-        const key = Number(getOpcode('pitch_keycenter') ?? group.pitch_keycenter ?? getOpcode('lokey') ?? group.lokey);
-        if (!Number.isFinite(key)) continue;
-        regions.push({
-            key,
-            sample,
-            trigger: getOpcode('trigger') ?? group.trigger,
-            hivel: Number(getOpcode('hivel') ?? 127),
-            // Round-robin ordering as the sample pack itself specifies it. A region with no
-            // seq_position is the first step in the cycle.
-            seqPosition: Number(getOpcode('seq_position') ?? 1),
-            seqLength: Number(getOpcode('seq_length') ?? 1)
-        });
-    }
-    return regions;
 }
 
 function resolveSamplePath(resolveBase, sample) {
@@ -702,43 +673,31 @@ function sliceWavToDuration(buffer, maxSeconds) {
     return out;
 }
 
-// Velocity tiers, confirmed directly against the sample filenames of both packs, which agree on
-// the <note>_<p|mf|f>_rr<N>.wav shape. On the guitar "p" always has 2 round-robins while "mf" and
-// "f" have 4 for most notes and 2 for the ten highest; the bass has 4 throughout. The bass also
-// records an "mp" tier, which nothing here can ask for and which is therefore not bundled.
-const VELOCITY_LABELS = ['p', 'mf', 'f'];
-
 let cachedOrdRegionsByKey = null;
 
 // Where each note+velocity has reached in its round-robin cycle. Keyed "<midi>:<velocity>",
 // so every note advances through its own takes independently.
 const roundRobinCursors = new Map();
 
+// The map itself, and how .sfz files are read, is in src/shared/sampleMap.mjs, which the web build
+// uses too. Loaded with import(): it is an ES module and this file is CommonJS.
+let sampleMapModule = null;
+async function loadSampleMapModule() {
+    sampleMapModule ??= await import('../shared/sampleMap.mjs');
+    return sampleMapModule;
+}
+
 async function getOrdRegionsByKey() {
     if (!cachedOrdRegionsByKey) {
-        const byKey = new Map();
+        const { parseSfzRegions, buildSampleMap } = await loadSampleMapModule();
+        const sources = [];
         for (const source of SAMPLE_SOURCES) {
-            const regions = await parseSfzRegions(source.mapPath);
-            for (const region of regions) {
-                const match = region.sample.match(/_(p|mf|f)_rr\d+\.wav$/i);
-                if (!match) continue;
-                const velocity = match[1].toLowerCase();
-                if (!byKey.has(region.key)) byKey.set(region.key, {});
-                const forKey = byKey.get(region.key);
-                // The base each region's sample path resolves against travels with it, so the
-                // two packs keep their own layouts and neither has to be rewritten.
-                (forKey[velocity] ??= []).push({ ...region, programsDir: source.programsDir });
-            }
+            sources.push({
+                regions: parseSfzRegions(await fs.readFile(source.mapPath, 'utf8')),
+                base: source.programsDir
+            });
         }
-        // Play the takes in the order the pack specifies. Note that a cycle can revisit the
-        // same file: several notes alternate two recordings across four sequence positions,
-        // so a "4 round robin" note does not necessarily have four distinct takes.
-        for (const byVelocity of byKey.values()) {
-            for (const candidates of Object.values(byVelocity)) {
-                candidates.sort((a, b) => a.seqPosition - b.seqPosition);
-            }
-        }
-        cachedOrdRegionsByKey = byKey;
+        cachedOrdRegionsByKey = buildSampleMap(sources);
     }
     return cachedOrdRegionsByKey;
 }
@@ -755,6 +714,7 @@ ipcMain.handle('guitar-samples:get-notes', async () => {
 // `maxSeconds` is optional: callers that only need a short note get a correspondingly
 // smaller WAV instead of the full sustain.
 ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity, maxSeconds }) => {
+    const { VELOCITY_LABELS } = await loadSampleMapModule();
     if (!VELOCITY_LABELS.includes(velocity)) throw new Error(`Unknown velocity "${velocity}"`);
     const byKey = await getOrdRegionsByKey();
     const candidates = byKey.get(key)?.[velocity];
@@ -764,7 +724,12 @@ ipcMain.handle('guitar-samples:get-audio', async (_event, { key, velocity, maxSe
     const next = ((roundRobinCursors.get(cursorKey) ?? -1) + 1) % candidates.length;
     roundRobinCursors.set(cursorKey, next);
     const region = candidates[next];
-    const filePath = resolveSamplePath(region.programsDir, region.sample);
+    const filePath = resolveSamplePath(region.base, region.sample);
+    if (useWebAudio) {
+        // The Opus copy, whole: it cannot be cut by bytes the way a WAV can, and the playback code
+        // already stops a note when it wants it to stop.
+        return new Uint8Array(await fs.readFile(webAudioPathFor(filePath)));
+    }
     const buffer = await fs.readFile(filePath);
     return new Uint8Array(sliceWavToDuration(buffer, maxSeconds));
 });
@@ -810,9 +775,10 @@ ipcMain.handle('speech:get-phrases', async (_event, { voice, phrases }) => {
     for (const text of phrases ?? []) {
         const fileName = manifest.phrases[text];
         if (!fileName) continue;
+        const filePath = path.join(SPEECH_DIR, voice, fileName);
         rendered.push({
             text,
-            bytes: new Uint8Array(await fs.readFile(path.join(SPEECH_DIR, voice, fileName)))
+            bytes: new Uint8Array(await fs.readFile(useWebAudio ? webAudioPathFor(filePath) : filePath))
         });
     }
     return rendered;
@@ -871,7 +837,9 @@ async function createWindow(filesToOpen = []) {
 
 // When packaged, process.argv is [exePath, ...userArgs]. When running unpackaged
 // (e.g. `electron .`), it's [electronPath, appPath, ...userArgs].
-const cliArgs = process.argv.slice(app.isPackaged ? 1 : 2);
+const cliArgs = process.argv.slice(app.isPackaged ? 1 : 2)
+    // Switches such as --web-audio, or the ones Electron and test tools add, are not files to open.
+    .filter(arg => !(arg.startsWith('--') && arg !== '--help'));
 const helpRequested = cliArgs.includes('-h') || cliArgs.includes('--help');
 
 if (helpRequested) {

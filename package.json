@@ -11,6 +11,8 @@
     "build:help": "node scripts/build-help.mjs",
     "build:icons": "electron scripts/build-icons.js",
     "start": "npm run build:renderer && electron .",
+    "build:web-audio": "node scripts/build-web-audio.mjs",
+    "start:web-audio": "npm run build:renderer && electron . --web-audio",
     "postinstall": "npm run build:renderer",
     "dist": "npm run build:help && npm run build:renderer && electron-builder --win nsis portable"
   },
@@ -21,6 +23,7 @@
     "electron": "^43.0.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.23.0",
+    "ffmpeg-static": "^5.3.0",
     "playwright-core": "^1.62.0"
   },
   "build": {
@@ -32,6 +35,7 @@
     "files": [
       "src/main/**/*",
       "src/renderer/**/*",
+      "src/shared/**/*",
       "src/assets/**/*",
       "package.json"
     ],
@@ -41,5 +45,9 @@
         "portable"
       ]
     }
+  },
+  "allowScripts": {
+    "esbuild@0.23.1": true,
+    "ffmpeg-static@5.3.0": true
   }
 }

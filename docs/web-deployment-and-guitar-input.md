@@ -75,6 +75,30 @@ would become on the web:
   Store work resumes or a web version is built. A reasonable first step is a build-time encode into
   a parallel folder and a hidden setting to switch between them, so Joel can compare by ear.
 
+#### Encoded, 2026-10-02
+
+Built as the first step of putting Unstrung on eyesunstrung.vip.
+
+- `npm run build:web-audio` (`scripts/build-web-audio.mjs`) encodes with ffmpeg, from the
+  `ffmpeg-static` development dependency, into `dist-web/audio`. That folder is generated and
+  ignored by git, so nothing new is committed; the site's workflow runs the same script. A second
+  run re-encodes only WAVs newer than their Opus copy.
+- Samples: 634 files, 96 kbps mono, 395 MB of WAV to 36 MB. Speech: 1,128 files, 32 kbps, 20 MB to
+  2.7 MB. All of it in about 40 seconds on Joel's laptop.
+- The `.sfz` parsing moved from `main.js` to `src/shared/sampleMap.mjs`. The desktop app reads the
+  maps with it at run time; the build writes `dist-web/audio/sample-map.json` with it: for each MIDI
+  key and velocity tier, the Opus files in round-robin order. Speech manifests are copied with
+  their file names changed to `.opus`. The metronome is generated in code and needs no file.
+- Checked in Electron's Chromium, decoding pairs with `decodeAudioData` (48 samples, 46 spoken
+  names). Timing: the best alignment between Opus and WAV is within 0.06 ms and lengths agree
+  within 0.02 ms, so Chrome strips Opus's built-in start delay and strums stay on the beat. Peak
+  levels within 5 percent. Waveform signal-to-noise ratio is 24 to 41 dB for the instruments and
+  12 to 15 dB for speech; Opus is a perceptual codec and does not try to keep the waveform, so these
+  numbers do not judge how it sounds. Joel's ears do.
+- `npm run start:web-audio` runs the desktop app with `--web-audio`, reading every sample and
+  spoken name from the Opus copies instead of the WAVs. Run `npm run build:web-audio` first. If
+  speech sounds poor, 48 kbps would cost about another 1.5 MB.
+
 ### Keyboard shortcuts the browser keeps
 
 Ctrl+T (Open File) and Ctrl+W (Close Tab) belong to the browser and a page cannot intercept them.
