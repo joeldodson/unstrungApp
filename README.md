@@ -26,8 +26,8 @@ At some point there will be an installable Mac version, and maybe Linux.
 This section is intentionally short.
 unstrung is evolving quickly thus adding too much here risks outdated information.
 Hopefully you will find the app fairly intuitive.
-It has standard menus and helpful text along the way.
-The Help-> About dialog tells you files supported (e.g., gp* and music xml) and will be kept current.
+It has a menu that works like a desktop application's menu, and helpful text along the way.
+The About Unstrung dialog, under Help in the menu, tells you files supported (e.g., gp* and music xml) and will be kept current.
 I mention the About dialog because that is written by Claude and much more likely to be current.
 This text is (mostly) written by a real person, not one devoted to documentation.
 
@@ -53,7 +53,7 @@ unstrung can be run directly from the command line with a list of song files:
 
 ```unstrung ripple.gp wish_you_were_here.gpx```
 
-The GUI will open and each song listed on the command line will be parsed in its own tab.
+The GUI will open and each song listed on the command line will be parsed and listed under Open items.
 
 ```unstrung --help```
 
@@ -63,7 +63,7 @@ will print the command line help text to the terminal.
 
 In addition to reading a music notation file and generating an audio track to play along,
 there are tools associated with guitar chords.
-Check out the tools menu, alt+t.
+Check out Chords in the menu.
 You can search for a chord in the chord library and hear it strummed.
 You can look up a chord given a description of strings and frets played.
 You can even listen to the guitar samples used to generate the audio tracks.
@@ -79,15 +79,14 @@ I've found it a great way to simulate playing with others and practice chord cha
 And thus begins the dysfunctional AI relationship.
 And you know what? Claude prefers amber ales, just like me! Who knew?
 
-Chord practice is, as of version 0.3.0, accessed through the tools menu.
+Chord practice is, as of version 0.6.0, under Chord Progressions in the menu.
 I'm calling it out specifically though as I expect it to be a commonly used feature.
-I consider tools as functionality used occasionally, not a core feature.
 It's highly likely the menu/feature access structure will change as I iterate.
 
 As of version 0.5.0, a progression can be saved, opened again later, and edited.
 You can also create one yourself, chord by chord.
 Saved progressions are plain files in a folder, Unstrung\Progressions in your Documents folder by default.
-The folder can be changed in File-> Settings.
+The folder can be changed in Settings, in the menu.
 Because they are ordinary files, you can copy, back up, and organize them into sub folders like any other files.
 
 ## Audio Samples
@@ -170,7 +169,7 @@ Move around with arrows, or ctrl+arrows to ensure you hear everything as you're 
 
 ### Settings for screen reader users
 
-The Settings dialog, reached from the File menu, has a tab called Screen Reader.
+The Settings dialog, reached from the menu, has a tab called Screen Reader.
 It holds a few settings with defaults chosen for newer users in mind.
 Each has a paragraph beneath it saying what it does and why you might want to change it, read the whole tab rather than only the checkbox labels.
 
@@ -184,27 +183,42 @@ Normally a screen reader moves in and out of that mode by itself, based on wheth
 Nothing here is a form field, so it will not switch for you.
 You have to turn focus mode on yourself, and that also means it will not turn itself off again.
 While I was testing I kept catching myself out this way.
-I would switch to focus mode to try the playback keys, then press control with the tab key to go to another tab.
-I would arrive at the tab but be unable to navigate it, until I remembered I was still in focus mode and switched back to browse mode.
-If a tab suddenly seems unresponsive, that is almost certainly why.
+I would switch to focus mode to try the playback keys, then move to another open item.
+I would arrive there but be unable to navigate it, until I remembered I was still in focus mode and switched back to browse mode.
+If something suddenly seems unresponsive, that is almost certainly why.
 
-Which key does what is written on the audio playback tab itself, in a list under a level 3 heading called "Keyboard control".
-Navigating that tab by headings will get you there.
+Which key does what is written in the audio track itself, in a list under a level 5 heading called "Keyboard control".
+Navigating the audio track by headings will get you there.
 It only appears once a track has been generated successfully and is ready to play.
 There are buttons for moving around the track as well, so nothing is keyboard only.
 The keys go further than the buttons though: they also tell you where you are, toggle the metronome, and nudge the tempo without you having to leave your place.
 
 ### Getting around
 
-Each file you open gets its own tab, and so does each audio track you generate.
-Control with the tab key moves forward through the tabs, adding shift moves back, and control with W closes the current one.
-Control with T opens a file which results in a new tab for that file.
+The window starts with the Menu button, then the list of everything you have open, then whichever of those you have chosen.
+Control with home gets you to the top.
 
-Inside a song tab, headings are the fastest way around: the song summary, then a heading per track, with that track's details beneath it.
+The Menu button opens a menu that works like a desktop application's menu.
+Up and down arrows move through it and wrap around at either end, right arrow opens a submenu, left arrow and escape back out.
+Control with O opens a file, and control with shift and O opens a saved chord progression.
+
+Everything you open, whether a song, a chord progression or the chord library, is listed newest first.
+Each is a level 1 heading holding a button, followed by a Close button.
+Press the button to show that item, and focus moves to the start of it.
+In browse mode, 1 and shift with 1 move between the open items.
+
+Inside a song, headings are the fastest way around: the song summary, then a heading per track, with that track's details beneath it.
 A track's measures sit behind a collapsed disclosure called "Measures", with the number of them in the name.
 That is deliberate.
-A song can run to hundreds of lines of beat descriptions, and leaving them all exposed made entering the tab slow enough to be painful.
-Expand it when you want the detail, and the Screen Reader settings tab has an option to collapse it again for you when you leave the tab.
+A song can run to hundreds of lines of beat descriptions, and leaving them all exposed made showing the song slow enough to be painful.
+Expand it when you want the detail, and the Screen Reader settings tab has an option to collapse it again for you when you switch to another open item.
+
+Each track ends with another collapsed disclosure, "Audio track for" and the track's name.
+That is where the track's audio is set up and played.
+Collapsing it stops playback, and expanding it again does not restart it.
+
+Every dialog starts with a level 1 heading ending in "Dialog Box", so you can tell where you are.
+While a dialog is open, the window title names it too.
 
 The last thing on the page is a status line.
 It is a live region, so your screen reader reads it out when it changes, without you going looking for it.
@@ -232,11 +246,11 @@ In any other tuning, Frets to Chord still names the chord correctly from the not
 
 ## Screen Reader Settings
 
-The File-> Settings dialog has a Screen Reader tab worth knowing about.
+The Settings dialog has a Screen Reader tab worth knowing about.
 It holds settings that reduce how much your screen reader has to read out.
 Each one is described in the dialog itself, so this will not go stale.
 One shortens the description of each beat once you know the chord shapes.
-Another collapses expanded sections when you leave a tab,
+Another collapses expanded sections when you switch to another open item,
 which keeps you from waiting on the screen reader when you come back to it.
 
 ## Resources
@@ -300,8 +314,8 @@ To clone the repo and run from source, do the following:
    * The repo is large due to the audio samples it stores, cloning might take a while depending on your network
 1. ```cd unstrungApp```
 1. ```npm install``` - this only needs to be done once, after cloning, not with each run.
-1. ```npm start``` - this will start the unstrung GUI with no tabs
-1. ```npm start -- some_file.gp``` - starts the unstrung GUI with passed in file parsed in a tab
+1. ```npm start``` - this will start the unstrung GUI with nothing open
+1. ```npm start -- some_file.gp``` - starts the unstrung GUI with passed in file already open
 1. ```npm start -- --help``` - prints the command line help output
 
 ## Feedback

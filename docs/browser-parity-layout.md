@@ -240,7 +240,5 @@ leaving the page.
 
 ## Still to do
 
-- `README.md`, and so the in-app Help, still describes the File menu, tabs and Ctrl+T. To be
-  rewritten once the layout settles.
 - The Settings dialog keeps its own tab list (General, Files, Screen Reader). It uses no reserved
   keys and works in a browser, so it was left alone.
