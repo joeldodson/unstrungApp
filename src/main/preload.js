@@ -5,7 +5,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('unstrung', {
     platform: 'electron',
     // What the page may offer. src/web/platform.js turns these off in a browser.
-    capabilities: { typedFolderPaths: true, openFolderInFileManager: true, defaultOpenFolder: true },
+    capabilities: {
+        typedFolderPaths: true, openFolderInFileManager: true, defaultOpenFolder: true, progressionsFolder: true
+    },
 
     getAppVersion: () => ipcRenderer.invoke('app:get-version'),
     openExternalLink: (url) => ipcRenderer.send('shell:open-external', url),

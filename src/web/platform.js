@@ -3,15 +3,25 @@
  * the platform. src/main/preload.js is the Electron implementation; the page cannot tell them
  * apart except through `platform` and `capabilities`.
  *
- * Written for Chromium (Chrome and Edge). Files and folders use the File System Access API,
- * which Firefox and Safari do not have; there, opening a file says so instead of failing silently.
+ * Written for Chromium (Chrome and Edge). Files use the File System Access API, which Firefox and
+ * Safari do not have; there, opening a file says so instead of failing silently.
  *
- * Where things live:
- *   - Settings: localStorage.
- *   - Recent files and the progressions folder: file and folder handles, in IndexedDB. Chrome may
- *     ask permission again on a later visit before one of them can be used.
- *   - Samples and spoken chord names: fetched from audio/ next to this page, as Opus, the first
- *     time each is needed, and kept in the Cache API so a later visit does not fetch them again.
+ * Never asks the browser for permission. A file or folder kept from an earlier visit needs the
+ * browser's permission again before it can be used, and Chrome asks with a question by the address
+ * bar that NVDA does not announce and that is hard to find even knowing it is there: Joel found it
+ * only by moving through the tab strip with F6. Waiting on it made Open Saved Progression, Save and
+ * recent files look as if they did nothing. So every file is reached through the Windows Open and
+ * Save dialogs, which a screen reader reads like any other dialog, and nothing needs permission:
+ *   - Opening a song or a progression: the Open dialog. The browser remembers the last folder used
+ *     for each kind of file, which is what the desktop app's folder settings were for.
+ *   - Saving: straight to the file when the browser already allows it in this visit, as it does
+ *     after a Save dialog; otherwise the Save dialog, with the file's name filled in.
+ *   - Recent files: a copy of each song is kept when it is opened, and reopened from there unless
+ *     the browser already allows reading the original.
+ *
+ * Where things live: settings in localStorage; recent files, with their copies, in IndexedDB;
+ * samples and spoken chord names fetched from audio/ next to this page, as Opus, the first time
+ * each is needed, and kept in the Cache API.
  *
  * Every URL is relative, because the page is served from a folder (/unstrung/app/), not the root.
  */
@@ -21,8 +31,9 @@
 const VERSION = typeof __UNSTRUNG_VERSION__ === 'string' ? __UNSTRUNG_VERSION__ : 'unknown';
 
 const MAX_RECENT_FILES = 10;
-const MAX_PROGRESSION_FILE_BYTES = 1024 * 1024;
-const MAX_PROGRESSION_FOLDER_DEPTH = 12;
+// A song larger than this is still listed, but not copied, so it can be reopened only while the
+// browser allows reading the original. Guitar Pro files are well under a megabyte.
+const MAX_RECENT_COPY_BYTES = 8 * 1024 * 1024;
 const VELOCITY_LABELS = ['p', 'mf', 'f'];
 const NOTE_LETTER_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -34,6 +45,9 @@ const PROGRESSION_FILE_TYPES = [{
     description: 'Chord progressions',
     accept: { 'application/json': ['.json'] }
 }];
+// The browser remembers the last folder used with each id, separately.
+const SONG_PICKER_ID = 'unstrung-songs';
+const PROGRESSION_PICKER_ID = 'unstrung-progressions';
 
 // --- Small helpers ------------------------------------------------------------------------
 
@@ -52,76 +66,17 @@ const recentFilesChanged = listeners();
 /** Whether a picker was dismissed, which is not an error worth reporting. */
 const isCancel = error => error?.name === 'AbortError';
 
-// --- Asking the browser for permission again --------------------------------------------------
-//
-// A file or folder chosen on an earlier visit cannot be used again until the browser is given
-// permission again, unless the player chose "Allow on every visit". The browser asks with its own
-// question, which appears by the address bar, outside the page, where a screen reader may well not
-// announce it. Asked for without warning, it looked as if Unstrung had simply stopped: Open Saved
-// Progression did nothing and Save did nothing, each waiting on an answer nobody knew was wanted.
-//
-// So the page asks first, in a dialog of its own that says what is about to happen and how to reach
-// the browser's question. Its Continue button is also what lets the request through: the browser
-// asks only while it is handling a key press or click, and that press is the one.
-
-const permissionDialog = document.createElement('dialog');
-permissionDialog.id = 'permission-dialog';
-permissionDialog.tabIndex = -1;
-permissionDialog.setAttribute('aria-labelledby', 'permission-dialog-heading-name');
-permissionDialog.setAttribute('aria-describedby', 'permission-dialog-message');
-permissionDialog.innerHTML = `
-    <h1 id="permission-dialog-heading"><span id="permission-dialog-heading-name">Permission Needed</span> Dialog Box</h1>
-    <p id="permission-dialog-message"></p>
-    <p>
-        When you press Continue, the browser asks its own question, which appears by the address
-        bar. If your screen reader does not read it, press Alt+Shift+A to move to it. If it offers
-        Allow on every visit, choosing that stops this coming back each time Unstrung is opened.
-    </p>
-    <div class="button-row">
-        <button type="button" id="permission-dialog-continue">Continue</button>
-        <button type="button" id="permission-dialog-cancel">Cancel</button>
-    </div>`;
-// Before the renderer runs, so it sees this dialog along with its own: it names an open dialog in
-// the window title.
-document.body.append(permissionDialog);
-
-let permissionAnswer = null;
-permissionDialog.querySelector('#permission-dialog-continue').addEventListener('click', () => {
-    const answer = permissionAnswer;
-    permissionAnswer = null;
-    permissionDialog.close();
-    answer?.(true);
-});
-permissionDialog.querySelector('#permission-dialog-cancel').addEventListener('click', () => permissionDialog.close());
-// Escape and Cancel both end up here, with no answer given.
-permissionDialog.addEventListener('close', () => {
-    const answer = permissionAnswer;
-    permissionAnswer = null;
-    answer?.(false);
-});
-
-/**
- * Whether a file or folder handle may be used, asking for permission if a previous visit had it.
- * `what` names it for the dialog: "the file Ripple.gp5".
- */
-async function ensurePermission(handle, mode, what) {
-    if (await handle.queryPermission({ mode }) === 'granted') return true;
-    const returnFocus = document.activeElement;
-    document.getElementById('permission-dialog-message').textContent =
-        `The browser needs your permission again before Unstrung can use ${what}.`;
-    const proceed = await new Promise(resolve => {
-        permissionAnswer = resolve;
-        permissionDialog.showModal();
-        permissionDialog.focus();
-    });
-    if (returnFocus?.isConnected) returnFocus.focus();
-    if (!proceed) return false;
+/** Whether the browser already allows this, without asking. Asking is never done. */
+async function isAllowed(handle, mode) {
     try {
-        return await handle.requestPermission({ mode }) === 'granted';
+        return await handle.queryPermission({ mode }) === 'granted';
     } catch {
         return false;
     }
 }
+
+const noFilePickers = () => !window.showOpenFilePicker;
+const NO_FILE_PICKERS_MESSAGE = 'this browser cannot open files. Use Chrome or Edge.';
 
 // --- IndexedDB: one store of keyed values ---------------------------------------------------
 
@@ -182,8 +137,8 @@ function writeSettings(changes) {
 }
 
 // --- Recent files ---------------------------------------------------------------------------
-// Each is { id, name, handle }. The id stands in for the desktop app's path: it is what the menu
-// hands back to open one.
+// Each is { id, name, handle, copy }: the id stands in for the desktop app's path, handed back by
+// the menu to open it; `copy` is the file's bytes when it was last opened.
 
 async function readRecent() {
     return (await dbGet('recent-files')) ?? [];
@@ -194,26 +149,27 @@ async function writeRecent(list) {
     recentFilesChanged.emit(list.map(({ id, name }) => ({ path: id, name })));
 }
 
-async function addRecent(handle) {
+async function addRecent(handle, bytes) {
     const list = await readRecent();
     const kept = [];
     for (const entry of list) {
         if (!await entry.handle.isSameEntry(handle)) kept.push(entry);
     }
     const id = `recent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    await writeRecent([{ id, name: handle.name, handle }, ...kept].slice(0, MAX_RECENT_FILES));
+    const copy = bytes.byteLength <= MAX_RECENT_COPY_BYTES ? bytes : null;
+    await writeRecent([{ id, name: handle.name, handle, copy }, ...kept].slice(0, MAX_RECENT_FILES));
 }
 
 async function openSongHandle(handle) {
-    let file;
+    let bytes;
     try {
-        file = await handle.getFile();
+        bytes = new Uint8Array(await (await handle.getFile()).arrayBuffer());
     } catch (error) {
         fileOpenError.emit({ fileName: handle.name, message: error.message });
         return;
     }
-    fileOpened.emit({ fileName: file.name, data: new Uint8Array(await file.arrayBuffer()) });
-    await addRecent(handle);
+    fileOpened.emit({ fileName: handle.name, data: bytes });
+    await addRecent(handle, bytes);
 }
 
 // --- Audio: samples and spoken chord names --------------------------------------------------
@@ -271,42 +227,11 @@ function speechManifest(voice) {
 let chordLibraryPromise = null;
 
 // --- Saved progressions ---------------------------------------------------------------------
-// The folder is a directory handle the player chose, kept in IndexedDB. Files opened from it or
-// saved this visit are kept in memory by an id, which stands in for the desktop app's file path:
-// only those can be saved over without the Save dialog.
+// Files opened or saved this visit are kept in memory by an id, which stands in for the desktop
+// app's file path and is how the page asks to save over one.
 
 const knownProgressionFiles = new Map(); // id -> FileSystemFileHandle
 let nextProgressionFileId = 1;
-
-// The chosen folder, read from IndexedDB as the page loads and kept here, so saving can name it as
-// the place to start without waiting on anything. See saveProgression.
-let storedProgressionsFolder = null;
-dbGet('progressions-folder').then(handle => { storedProgressionsFolder = handle ?? null; }).catch(() => {});
-
-/**
- * The progressions folder, ready to use, or null. A stored folder whose permission is refused is
- * reported as `denied` rather than replaced: the player chose it, and asking for another would be
- * a surprise.
- */
-async function progressionsFolder({ ask }) {
-    let handle = await dbGet('progressions-folder');
-    if (handle) {
-        if (await ensurePermission(handle, 'readwrite', `your folder for saved progressions, ${handle.name}`)) return handle;
-        const denied = new Error(`permission to use the folder ${handle.name} was not given`);
-        denied.folderName = handle.name;
-        throw denied;
-    }
-    if (!ask) return null;
-    try {
-        handle = await window.showDirectoryPicker({ id: 'unstrung-progressions', mode: 'readwrite', startIn: 'documents' });
-    } catch (error) {
-        if (isCancel(error)) return null;
-        throw error;
-    }
-    await dbSet('progressions-folder', handle);
-    storedProgressionsFolder = handle;
-    return handle;
-}
 
 async function idForProgressionFile(handle) {
     for (const [id, known] of knownProgressionFiles) {
@@ -318,48 +243,6 @@ async function idForProgressionFile(handle) {
 }
 
 const baseName = name => name.replace(/\.[^.]*$/, '');
-
-async function scanProgressionFolder(folder, relative, depth) {
-    const entries = [];
-    for await (const entry of folder.values()) entries.push(entry);
-    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-    entries.sort((a, b) => collator.compare(a.name, b.name));
-
-    const folders = [];
-    const files = [];
-    for (const entry of entries) {
-        if (entry.name.startsWith('.')) continue;
-        const entryRelative = relative ? `${relative}/${entry.name}` : entry.name;
-        if (entry.kind === 'directory') {
-            if (depth >= MAX_PROGRESSION_FOLDER_DEPTH) continue;
-            folders.push({
-                type: 'folder', name: entry.name, path: entryRelative,
-                children: await scanProgressionFolder(entry, entryRelative, depth + 1)
-            });
-        } else if (entry.name.toLowerCase().endsWith('.json')) {
-            const file = { type: 'file', name: baseName(entry.name), path: entryRelative };
-            try {
-                const blob = await entry.getFile();
-                if (blob.size > MAX_PROGRESSION_FILE_BYTES) file.error = 'too large to be a saved progression';
-                else file.text = await blob.text();
-            } catch (error) {
-                file.error = `could not be read: ${error.message}`;
-            }
-            files.push(file);
-        }
-    }
-    return [...folders, ...files];
-}
-
-async function handleAtPath(folder, relativePath) {
-    const parts = String(relativePath ?? '').split('/').filter(Boolean);
-    if (parts.length === 0 || parts.some(part => part === '..' || part === '.')) {
-        throw new Error('That file is not in the progressions folder.');
-    }
-    let current = folder;
-    for (const part of parts.slice(0, -1)) current = await current.getDirectoryHandle(part);
-    return current.getFileHandle(parts[parts.length - 1]);
-}
 
 function safeFileName(name) {
     const cleaned = String(name ?? '')
@@ -389,41 +272,47 @@ window.addEventListener('beforeunload', event => {
 window.unstrung = {
     platform: 'web',
     // What the browser cannot do that the desktop app can. The page hides the controls for them.
-    capabilities: { typedFolderPaths: false, openFolderInFileManager: false, defaultOpenFolder: false },
+    // There is no progressions folder: saved progressions are opened through the Open dialog
+    // rather than a tree of the folder, since reading a folder from an earlier visit needs the
+    // browser's permission, which is never asked for. See the top of this file.
+    capabilities: {
+        typedFolderPaths: false, openFolderInFileManager: false, defaultOpenFolder: false,
+        progressionsFolder: false
+    },
 
     getAppVersion: async () => VERSION,
     openExternalLink: url => { window.open(url, '_blank', 'noopener,noreferrer'); },
 
     // Song files.
     openFileDialog: async () => {
-        if (!window.showOpenFilePicker) {
-            fileOpenError.emit({
-                fileName: 'Open File', message: 'this browser cannot open files. Use Chrome or Edge.'
-            });
+        if (noFilePickers()) {
+            fileOpenError.emit({ fileName: 'Open File', message: NO_FILE_PICKERS_MESSAGE });
             return;
         }
         let handle;
         try {
-            [handle] = await window.showOpenFilePicker({ id: 'unstrung-songs', types: SONG_FILE_TYPES, excludeAcceptAllOption: false });
+            [handle] = await window.showOpenFilePicker({ id: SONG_PICKER_ID, types: SONG_FILE_TYPES });
         } catch (error) {
             if (!isCancel(error)) fileOpenError.emit({ fileName: 'Open File', message: error.message });
             return;
         }
         await openSongHandle(handle);
     },
+    // The original when the browser already allows reading it, which it does for a file opened in
+    // this visit; otherwise the copy kept when it was last opened.
     openRecentFile: async id => {
         const entry = (await readRecent()).find(recent => recent.id === id);
         if (!entry) return;
-        try {
-            if (!await ensurePermission(entry.handle, 'read', `the file ${entry.name}`)) {
-                fileOpenError.emit({ fileName: entry.name, message: 'permission to read it was not given.' });
-                return;
-            }
-        } catch (error) {
-            fileOpenError.emit({ fileName: entry.name, message: error.message });
-            return;
+        if (await isAllowed(entry.handle, 'read')) {
+            await openSongHandle(entry.handle);
+        } else if (entry.copy) {
+            fileOpened.emit({ fileName: entry.name, data: entry.copy });
+        } else {
+            fileOpenError.emit({
+                fileName: entry.name,
+                message: 'Unstrung has no copy of it, so open it again with Open File.'
+            });
         }
-        await openSongHandle(entry.handle);
     },
     getRecentFiles: async () => (await readRecent()).map(({ id, name }) => ({ path: id, name })),
     onRecentFilesChanged: recentFilesChanged.add,
@@ -461,48 +350,44 @@ window.unstrung = {
         return rendered;
     },
 
-    // Saved progressions.
-    listProgressions: async () => {
-        let folder;
+    // Saved progressions. The Open dialog, called before anything else is awaited: a browser shows
+    // it only while it is still handling the key press or click that asked. Null when cancelled.
+    pickProgression: async () => {
+        if (noFilePickers()) throw new Error(NO_FILE_PICKERS_MESSAGE);
+        let handle;
         try {
-            folder = await progressionsFolder({ ask: true });
+            [handle] = await window.showOpenFilePicker({ id: PROGRESSION_PICKER_ID, types: PROGRESSION_FILE_TYPES });
         } catch (error) {
-            if (!error.folderName) throw error;
-            return { directory: error.folderName, exists: false, denied: true, tree: [] };
+            if (isCancel(error)) return null;
+            throw error;
         }
-        if (!folder) return { directory: null, exists: false, tree: [] };
-        return { directory: folder.name, exists: true, tree: await scanProgressionFolder(folder, '', 0) };
-    },
-    readProgression: async relativePath => {
-        const folder = await progressionsFolder({ ask: false });
-        if (!folder) throw new Error('No folder for saved progressions has been chosen.');
-        const handle = await handleAtPath(folder, relativePath);
         const text = await (await handle.getFile()).text();
         return { filePath: await idForProgressionFile(handle), name: baseName(handle.name), text };
     },
-    // The Save dialog is asked for before anything else is awaited. A browser shows it only while
-    // it is still handling the key press or click that asked, and anything in between can use that
-    // up: above all a permission prompt for the progressions folder, which also appears where a
-    // screen reader may not announce it. So the folder is only suggested as the place to start,
-    // which needs no permission, and is never asked about here.
+    /**
+     * Save writes straight to the file when the browser already allows it, which it does after a
+     * Save dialog in this visit. Otherwise, and for Save As, it is the Save dialog, starting beside
+     * the file with its name filled in, so saving over it is Enter and confirming the replacement.
+     * The dialog is asked for before anything else that could take long is awaited, for the same
+     * reason as the Open dialog.
+     */
     saveProgression: async ({ text, filePath, suggestedName }) => {
-        let handle = filePath ? knownProgressionFiles.get(filePath) : null;
+        const known = filePath ? knownProgressionFiles.get(filePath) : null;
+        let handle = known && await isAllowed(known, 'readwrite') ? known : null;
         if (!handle) {
+            if (noFilePickers()) throw new Error(NO_FILE_PICKERS_MESSAGE);
             try {
                 handle = await window.showSaveFilePicker({
-                    id: 'unstrung-progressions',
-                    suggestedName: `${safeFileName(suggestedName)}.json`,
-                    startIn: storedProgressionsFolder ?? 'documents',
+                    id: PROGRESSION_PICKER_ID,
+                    suggestedName: known ? known.name : `${safeFileName(suggestedName)}.json`,
+                    ...(known ? { startIn: known } : {}),
                     types: PROGRESSION_FILE_TYPES
                 });
             } catch (error) {
                 if (isCancel(error)) return null;
                 throw error;
             }
-        } else if (!await ensurePermission(handle, 'readwrite', `the file ${handle.name}`)) {
-            throw new Error('permission to save it was not given');
         }
-        const folder = storedProgressionsFolder;
         // Chrome writes to a temporary file and swaps it in when the stream closes, so a failed
         // save never leaves half a file.
         const writable = await handle.createWritable();
@@ -511,9 +396,13 @@ window.unstrung = {
         return {
             filePath: await idForProgressionFile(handle),
             name: baseName(handle.name),
-            insideFolder: folder ? (await folder.resolve(handle).catch(() => null)) !== null : false
+            // There is no folder that Open Saved Progression lists, so nothing to warn about.
+            insideFolder: true
         };
     },
+    // Only the desktop app lists a folder; the page does not call these in a browser.
+    listProgressions: async () => ({ directory: null, exists: false, tree: [] }),
+    readProgression: async () => { throw new Error('a browser opens saved progressions with the Open dialog'); },
     openProgressionsFolder: async () => ({ directory: null, error: 'a web page cannot open a folder in your file manager' }),
     setUnsavedProgressions: value => { unsavedProgressions = value === true; },
     // Nothing to confirm: the browser's own prompt covers leaving.
@@ -524,46 +413,29 @@ window.unstrung = {
     getChordLibrary: () => (chordLibraryPromise ??= fetch('chord-library.json').then(r => r.json())),
 
     // Settings.
-    getSettings: async () => {
-        const settings = readSettings();
-        const folder = await dbGet('progressions-folder').catch(() => null);
-        return {
-            ...settings,
-            defaultOpenDirectory: '',
-            progressionsDirectory: folder?.name ?? '',
-            defaultProgressionsDirectory: ''
-        };
-    },
+    getSettings: async () => ({
+        ...readSettings(),
+        defaultOpenDirectory: '',
+        progressionsDirectory: '',
+        defaultProgressionsDirectory: ''
+    }),
     chooseSettingsDirectory: async () => null,
     validateAndSaveSettingsDirectory: async () => ({ valid: true }),
-    // Choosing is saving: the picker hands back a handle, and the name is all that can be shown.
-    chooseProgressionsDirectory: async () => {
-        try {
-            const handle = await window.showDirectoryPicker({ id: 'unstrung-progressions', mode: 'readwrite', startIn: 'documents' });
-            await dbSet('progressions-folder', handle);
-            storedProgressionsFolder = handle;
-            return handle.name;
-        } catch (error) {
-            if (isCancel(error)) return null;
-            throw error;
-        }
-    },
-    saveProgressionsDirectory: async () => {
-        const folder = await dbGet('progressions-folder');
-        return { valid: true, directory: folder?.name ?? '' };
-    },
+    chooseProgressionsDirectory: async () => null,
+    saveProgressionsDirectory: async () => ({ valid: true, directory: '' }),
     clearRecentFiles: async () => {
         const removedCount = (await readRecent()).length;
         await writeRecent([]);
         return { removedCount };
     },
-    // Only files already allowed this visit can be checked without asking; the rest are kept.
+    // Only files the browser already allows reading can be checked; the rest are kept, with their
+    // copies, since asking is never done.
     removeStaleRecentFiles: async () => {
         const list = await readRecent();
         const kept = [];
         for (const entry of list) {
             let stale = false;
-            if (await entry.handle.queryPermission({ mode: 'read' }) === 'granted') {
+            if (await isAllowed(entry.handle, 'read')) {
                 try { await entry.handle.getFile(); } catch { stale = true; }
             }
             if (!stale) kept.push(entry);

@@ -170,13 +170,26 @@ Built 2026-10-02 for unstrungApp 0.6.1.
 - `npm run serve:web` serves `dist-web` at http://localhost:8090/unstrung/app/, the path it has on
   the site, since a page opened from disk cannot fetch its own files.
 - The page asks the platform what it can do, through `window.unstrung.capabilities`. In a browser
-  there is no typed folder path (Settings shows the chosen folder's name and a Choose Folder
-  button), no default folder for Open File (the browser remembers the last one), and no Open
-  Folder button.
-- Files: `showOpenFilePicker`, `showSaveFilePicker` and `showDirectoryPicker`, Chromium only.
-  Recent files and the progressions folder are handles kept in IndexedDB; the browser may ask for
-  permission again on a later visit. A recent file is named by its name only, since a browser
-  never gives a page the folder.
+  there is no folder for saved progressions (Settings hides it, and Open Saved Progression is the
+  Open dialog, not a tree), no default folder for Open File, no typed folder paths, and no Open
+  Folder button. The browser remembers the last folder used for songs and for progressions,
+  separately, which covers what those settings were for.
+- **Files never need the browser's permission (decided 2026-10-04).** A file or folder kept from
+  an earlier visit needs Chrome's permission again before use, unless "Allow on every visit" was
+  chosen. Chrome asks by the address bar: NVDA did not announce it, Alt+Shift+A did not reach it,
+  and Joel found it only by moving through the tab strip with F6. Waiting on it made Open Saved
+  Progression, Save and recent files look dead, and a Permission Needed dialog of Unstrung's own,
+  warning first, did not help enough. So the web build never calls `requestPermission`, and every
+  file goes through the Windows Open and Save dialogs, which NVDA reads normally:
+  - Songs and saved progressions are opened with `showOpenFilePicker`, called before anything else
+    is awaited, since a browser shows a picker only while handling the key press or click.
+  - Save writes directly only when the browser already allows writing, which it does after a Save
+    dialog in the same visit. Otherwise it is `showSaveFilePicker`, starting beside the file with
+    its name filled in: Enter, then confirm replacing it. Later saves in that visit are direct.
+  - A recent song is reopened from the original if reading it is already allowed, and otherwise
+    from a copy kept in IndexedDB when it was opened (up to 8 MB). A copy reflects the file as it
+    was then. A recent file is named by its name only, since a browser never gives a page the
+    folder.
 - Settings are in localStorage. Samples and speech are fetched the first time each is needed and
   kept in the Cache API, in a cache named for the release, so a later release fetches afresh and
   the old cache is removed; `navigator.storage.persist()` asks the browser not to clear it.
