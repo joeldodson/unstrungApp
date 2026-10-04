@@ -213,6 +213,11 @@ let chordLibraryPromise = null;
 const knownProgressionFiles = new Map(); // id -> FileSystemFileHandle
 let nextProgressionFileId = 1;
 
+// The chosen folder, read from IndexedDB as the page loads and kept here, so saving can name it as
+// the place to start without waiting on anything. See saveProgression.
+let storedProgressionsFolder = null;
+dbGet('progressions-folder').then(handle => { storedProgressionsFolder = handle ?? null; }).catch(() => {});
+
 async function progressionsFolder({ ask }) {
     let handle = await dbGet('progressions-folder');
     if (handle && await ensurePermission(handle, 'readwrite')) return handle;
@@ -224,6 +229,7 @@ async function progressionsFolder({ ask }) {
         throw error;
     }
     await dbSet('progressions-folder', handle);
+    storedProgressionsFolder = handle;
     return handle;
 }
 
@@ -393,15 +399,19 @@ window.unstrung = {
         const text = await (await handle.getFile()).text();
         return { filePath: await idForProgressionFile(handle), name: baseName(handle.name), text };
     },
+    // The Save dialog is asked for before anything else is awaited. A browser shows it only while
+    // it is still handling the key press or click that asked, and anything in between can use that
+    // up: above all a permission prompt for the progressions folder, which also appears where a
+    // screen reader may not announce it. So the folder is only suggested as the place to start,
+    // which needs no permission, and is never asked about here.
     saveProgression: async ({ text, filePath, suggestedName }) => {
         let handle = filePath ? knownProgressionFiles.get(filePath) : null;
-        const folder = await progressionsFolder({ ask: false });
         if (!handle) {
             try {
                 handle = await window.showSaveFilePicker({
                     id: 'unstrung-progressions',
                     suggestedName: `${safeFileName(suggestedName)}.json`,
-                    startIn: folder ?? 'documents',
+                    startIn: storedProgressionsFolder ?? 'documents',
                     types: PROGRESSION_FILE_TYPES
                 });
             } catch (error) {
@@ -411,6 +421,7 @@ window.unstrung = {
         } else if (!await ensurePermission(handle, 'readwrite')) {
             throw new Error('permission to save it was not given');
         }
+        const folder = storedProgressionsFolder;
         // Chrome writes to a temporary file and swaps it in when the stream closes, so a failed
         // save never leaves half a file.
         const writable = await handle.createWritable();
@@ -419,7 +430,7 @@ window.unstrung = {
         return {
             filePath: await idForProgressionFile(handle),
             name: baseName(handle.name),
-            insideFolder: folder ? (await folder.resolve(handle)) !== null : false
+            insideFolder: folder ? (await folder.resolve(handle).catch(() => null)) !== null : false
         };
     },
     openProgressionsFolder: async () => ({ directory: null, error: 'a web page cannot open a folder in your file manager' }),
@@ -449,6 +460,7 @@ window.unstrung = {
         try {
             const handle = await window.showDirectoryPicker({ id: 'unstrung-progressions', mode: 'readwrite', startIn: 'documents' });
             await dbSet('progressions-folder', handle);
+            storedProgressionsFolder = handle;
             return handle.name;
         } catch (error) {
             if (isCancel(error)) return null;

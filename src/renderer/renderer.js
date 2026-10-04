@@ -4768,7 +4768,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         anchorSeconds: 0,
         anchorContextTime: null,
         ui: { tempoInput, metronomeCheckbox, repeatInput, countInEachPassCheckbox,
-            speakCheckbox, playButton, heading, savedAsItem, editButton },
+            speakCheckbox, playButton, heading, savedAsItem, editButton, progressionHeading },
         announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
@@ -4936,7 +4936,9 @@ function syncUnsavedProgressions() {
 }
 
 /**
- * Puts the tab's name everywhere it is shown: heading, tab strip, window title, Saved as line.
+ * Puts the tab's name everywhere it is shown: heading, list of open items, window title, Saved as
+ * line, and the unsaved marker on the Progression heading too, which is where the chords are read
+ * and so where a change is most likely to have been noticed.
  *
  * A saved progression is named by its file, which is the name chosen for it; an unsaved one by its
  * key, as before. Unsaved changes are said in the name itself, so they are heard on arriving at
@@ -4946,6 +4948,8 @@ function refreshChordPracticeNames(state) {
     const title = state.fileName ?? `${state.progression.key} ${state.progression.mode}`;
     const marker = state.dirty ? ' (unsaved changes)' : '';
     state.ui.heading.textContent = `Chord practice - ${title}${marker}`;
+    state.ui.progressionHeading.textContent =
+        `Progression (${state.progression.chords.length} measures${state.dirty ? ', unsaved changes' : ''})`;
     state.ui.savedAsItem.textContent = state.fileName ? `Saved as - ${state.fileName}` : 'Not saved';
     if (state.item) {
         state.item.practiceName = `Practice - ${title}`;
@@ -5033,7 +5037,11 @@ async function saveChordPractice(state, { saveAs = false } = {}) {
             suggestedName: state.fileName ?? suggestedProgressionName(state.progression)
         });
     } catch (error) {
-        state.announce(`Could not save: ${error.message}`);
+        // A browser opens its Save dialog only straight from a key press or click. If it refused,
+        // Control+S is the way in: it always reaches the page as a real key press.
+        state.announce(error?.name === 'SecurityError'
+            ? 'The browser would not open its Save dialog. Press Control+S to save instead.'
+            : `Could not save: ${error.message}`);
         return false;
     }
     if (!result) {
