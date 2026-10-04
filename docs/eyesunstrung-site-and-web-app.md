@@ -170,26 +170,25 @@ Built 2026-10-02 for unstrungApp 0.6.1.
 - `npm run serve:web` serves `dist-web` at http://localhost:8090/unstrung/app/, the path it has on
   the site, since a page opened from disk cannot fetch its own files.
 - The page asks the platform what it can do, through `window.unstrung.capabilities`. In a browser
-  there is no folder for saved progressions (Settings hides it, and Open Saved Progression is the
-  Open dialog, not a tree), no default folder for Open File, no typed folder paths, and no Open
-  Folder button. The browser remembers the last folder used for songs and for progressions,
-  separately, which covers what those settings were for.
-- **Files never need the browser's permission (decided 2026-10-04).** A file or folder kept from
-  an earlier visit needs Chrome's permission again before use, unless "Allow on every visit" was
-  chosen. Chrome asks by the address bar: NVDA did not announce it, Alt+Shift+A did not reach it,
-  and Joel found it only by moving through the tab strip with F6. Waiting on it made Open Saved
-  Progression, Save and recent files look dead, and a Permission Needed dialog of Unstrung's own,
-  warning first, did not help enough. So the web build never calls `requestPermission`, and every
-  file goes through the Windows Open and Save dialogs, which NVDA reads normally:
-  - Songs and saved progressions are opened with `showOpenFilePicker`, called before anything else
-    is awaited, since a browser shows a picker only while handling the key press or click.
-  - Save writes directly only when the browser already allows writing, which it does after a Save
-    dialog in the same visit. Otherwise it is `showSaveFilePicker`, starting beside the file with
-    its name filled in: Enter, then confirm replacing it. Later saves in that visit are direct.
-  - A recent song is reopened from the original if reading it is already allowed, and otherwise
-    from a copy kept in IndexedDB when it was opened (up to 8 MB). A copy reflects the file as it
-    was then. A recent file is named by its name only, since a browser never gives a page the
-    folder.
+  there is no typed folder path (Settings shows the chosen folder's name and a Choose Folder
+  button), no default folder for Open File (the browser remembers the last one), and no Open
+  Folder button.
+- Files: `showOpenFilePicker`, `showSaveFilePicker` and `showDirectoryPicker`, Chromium only.
+  Recent files and the progressions folder are handles kept in IndexedDB; the browser may ask for
+  permission again on a later visit. A recent file is named by its name only, since a browser
+  never gives a page the folder.
+- **Chrome's own permission question is used as it is (decided 2026-10-04).** Chrome asks for
+  permission again, beside the address bar, before a file or folder from an earlier visit can be
+  used. NVDA does not announce that question, Alt+Shift+A did not reach it, and Joel found it only
+  by moving through the tab strip with F6. Two ways round it were built and dropped: a dialog of
+  Unstrung's own before the question, and using only the Windows Open and Save dialogs so the
+  question never comes up (no folder tree, a Save dialog on the first save of each visit, recent
+  songs reopened from a kept copy). Both were judged more confusing than the ordinary flow,
+  especially for sighted users. Joel will cover finding the question in notes and a video for
+  screen reader users. What remains: while the question is waiting, the status bar says so ("The
+  browser is asking for permission to use ... Its question is beside the address bar."), and a
+  refusal is said plainly, for example in Open Saved Progression. Saving a new progression opens
+  the Save dialog before anything else, so it never waits on a permission.
 - Settings are in localStorage. Samples and speech are fetched the first time each is needed and
   kept in the Cache API, in a cache named for the release, so a later release fetches afresh and
   the old cache is removed; `navigator.storage.persist()` asks the browser not to clear it.

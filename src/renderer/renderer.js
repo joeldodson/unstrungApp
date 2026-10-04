@@ -1034,9 +1034,9 @@ async function openSettingsDialog() {
 /**
  * Controls for what the platform cannot do, taken out of the page rather than left to fail.
  *
- * In a browser: no folder for saved progressions, since they are opened with the Open dialog, and
- * the browser remembers the last folder used; no default folder for Open File, for the same reason;
- * no typed folder paths; and no Open Folder, since a page cannot open the file manager.
+ * In a browser: there is no typed folder path, since a page only ever gets a folder the player
+ * picks, and only its name; no default folder for Open File, though the browser remembers the last
+ * one used; and no Open Folder, since a page cannot open the file manager.
  */
 (function adaptToPlatform() {
     const { capabilities } = window.unstrung;
@@ -1047,7 +1047,6 @@ async function openSettingsDialog() {
         settingsProgressionsHint.textContent = 'The browser shows only the folder\'s name.';
     }
     if (!capabilities.defaultOpenFolder) settingsDirectoryInput.closest('p').hidden = true;
-    if (!capabilities.progressionsFolder) document.getElementById('settings-progressions-section').hidden = true;
     if (!capabilities.openFolderInFileManager) {
         document.getElementById('progression-open-folder-button').hidden = true;
     }
@@ -5386,26 +5385,17 @@ async function openSavedProgressionFile(relativePath) {
         progressionOpenStatus.textContent = `Could not open that progression: ${error.message}`;
         return;
     }
-    // Checked when the tree was built, but the file is read again here and may have changed.
-    const error = openProgressionFile(file, progressionOpenOptions, {
-        beforeOpen: () => {
-            progressionLastOpened = relativePath;
-            // Focus goes to the new item, not back to whatever opened the dialog.
-            progressionOpenOpener = null;
-            progressionOpenDialog.close();
-        }
-    });
-    if (error) progressionOpenStatus.textContent = error;
-}
-
-/**
- * Opens a saved progression's text as a new item, or shows the item that already has it.
- * Returns why it could not be opened, or null. `beforeOpen` runs once it is known to be good.
- */
-function openProgressionFile(file, options, { beforeOpen = () => {} } = {}) {
     const parsed = parseSavedProgression(file.text, { model: progressionModel, library: chordPracticeLibrary });
-    if (parsed.error) return `Could not open ${file.name}: ${parsed.error}.`;
-    beforeOpen();
+    if (parsed.error) {
+        // Checked when the tree was built, but the file is read again here and may have changed.
+        progressionOpenStatus.textContent = `Could not open ${file.name}: ${parsed.error}.`;
+        return;
+    }
+    progressionLastOpened = relativePath;
+
+    // Focus goes to the tab, not back to whatever opened the dialog.
+    progressionOpenOpener = null;
+    progressionOpenDialog.close();
 
     // A file already open is shown rather than opened twice, so two open items can never
     // save over each other.
@@ -5414,39 +5404,11 @@ function openProgressionFile(file, options, { beforeOpen = () => {} } = {}) {
     if (existing) {
         showItem(existing.itemId, { focusContent: true });
         setStatus(`${file.name} is already open.`);
-        return null;
+        return;
     }
-    openChordPracticeTab(prepareProgression(parsed.progression), options,
+    openChordPracticeTab(prepareProgression(parsed.progression), progressionOpenOptions,
         { filePath: file.filePath, fileName: file.name, dirty: false });
     setStatus(`Opened ${file.name}.`);
-    return null;
-}
-
-/**
- * Open Saved Progression where there is no folder to list, as in a browser: the system's Open
- * dialog. It is asked for first, before anything else is awaited, because a browser shows it only
- * while it is still handling the key press or click that asked.
- */
-async function openProgressionFromPicker({ opener, options }) {
-    const returnFocus = () => { if (opener?.isConnected) opener.focus(); };
-    let file;
-    try {
-        file = await window.unstrung.pickProgression();
-    } catch (error) {
-        setStatus(`Could not open that progression: ${error.message}`);
-        returnFocus();
-        return;
-    }
-    if (!file) {
-        returnFocus();
-        return;
-    }
-    await ensureChordPracticeReady();
-    const error = openProgressionFile(file, options ?? chordPracticePlaybackOptions({ fromDialog: false }));
-    if (error) {
-        setStatus(error);
-        returnFocus();
-    }
 }
 
 function activateProgressionTreeItem(item) {
@@ -5533,17 +5495,17 @@ progressionOpenDialog.addEventListener('close', () => {
 });
 
 async function openProgressionOpenDialog({ opener = document.activeElement, options = null } = {}) {
-    if (!window.unstrung.capabilities.progressionsFolder) {
-        await openProgressionFromPicker({ opener, options });
-        return;
-    }
     await ensureChordPracticeReady();
     progressionOpenOpener = opener;
     progressionOpenOptions = options ?? chordPracticePlaybackOptions({ fromDialog: false });
     progressionOpenStatus.textContent = '';
 
     const listing = await window.unstrung.listProgressions();
-    progressionOpenFolderText.textContent = `From the folder ${listing.directory}.`;
+    progressionOpenFolderText.textContent = listing.denied
+        ? `Permission to use the folder ${listing.directory} was not given, so nothing can be listed.`
+        : listing.directory
+            ? `From the folder ${listing.directory}.`
+            : 'No folder for saved progressions has been chosen. Choose one in Settings.';
 
     const skipped = [];
     progressionOpenTree.replaceChildren();
