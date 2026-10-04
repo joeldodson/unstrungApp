@@ -5501,9 +5501,11 @@ async function openProgressionOpenDialog({ opener = document.activeElement, opti
     progressionOpenStatus.textContent = '';
 
     const listing = await window.unstrung.listProgressions();
-    progressionOpenFolderText.textContent = listing.directory
-        ? `From the folder ${listing.directory}.`
-        : 'No folder for saved progressions has been chosen. Choose one in Settings.';
+    progressionOpenFolderText.textContent = listing.denied
+        ? `Permission to use the folder ${listing.directory} was not given, so nothing can be listed.`
+        : listing.directory
+            ? `From the folder ${listing.directory}.`
+            : 'No folder for saved progressions has been chosen. Choose one in Settings.';
 
     const skipped = [];
     progressionOpenTree.replaceChildren();

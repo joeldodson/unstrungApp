@@ -52,10 +52,75 @@ const recentFilesChanged = listeners();
 /** Whether a picker was dismissed, which is not an error worth reporting. */
 const isCancel = error => error?.name === 'AbortError';
 
-/** A file or folder handle that may be used, asking for permission if a previous visit had it. */
-async function ensurePermission(handle, mode) {
+// --- Asking the browser for permission again --------------------------------------------------
+//
+// A file or folder chosen on an earlier visit cannot be used again until the browser is given
+// permission again, unless the player chose "Allow on every visit". The browser asks with its own
+// question, which appears by the address bar, outside the page, where a screen reader may well not
+// announce it. Asked for without warning, it looked as if Unstrung had simply stopped: Open Saved
+// Progression did nothing and Save did nothing, each waiting on an answer nobody knew was wanted.
+//
+// So the page asks first, in a dialog of its own that says what is about to happen and how to reach
+// the browser's question. Its Continue button is also what lets the request through: the browser
+// asks only while it is handling a key press or click, and that press is the one.
+
+const permissionDialog = document.createElement('dialog');
+permissionDialog.id = 'permission-dialog';
+permissionDialog.tabIndex = -1;
+permissionDialog.setAttribute('aria-labelledby', 'permission-dialog-heading-name');
+permissionDialog.setAttribute('aria-describedby', 'permission-dialog-message');
+permissionDialog.innerHTML = `
+    <h1 id="permission-dialog-heading"><span id="permission-dialog-heading-name">Permission Needed</span> Dialog Box</h1>
+    <p id="permission-dialog-message"></p>
+    <p>
+        When you press Continue, the browser asks its own question, which appears by the address
+        bar. If your screen reader does not read it, press Alt+Shift+A to move to it. If it offers
+        Allow on every visit, choosing that stops this coming back each time Unstrung is opened.
+    </p>
+    <div class="button-row">
+        <button type="button" id="permission-dialog-continue">Continue</button>
+        <button type="button" id="permission-dialog-cancel">Cancel</button>
+    </div>`;
+// Before the renderer runs, so it sees this dialog along with its own: it names an open dialog in
+// the window title.
+document.body.append(permissionDialog);
+
+let permissionAnswer = null;
+permissionDialog.querySelector('#permission-dialog-continue').addEventListener('click', () => {
+    const answer = permissionAnswer;
+    permissionAnswer = null;
+    permissionDialog.close();
+    answer?.(true);
+});
+permissionDialog.querySelector('#permission-dialog-cancel').addEventListener('click', () => permissionDialog.close());
+// Escape and Cancel both end up here, with no answer given.
+permissionDialog.addEventListener('close', () => {
+    const answer = permissionAnswer;
+    permissionAnswer = null;
+    answer?.(false);
+});
+
+/**
+ * Whether a file or folder handle may be used, asking for permission if a previous visit had it.
+ * `what` names it for the dialog: "the file Ripple.gp5".
+ */
+async function ensurePermission(handle, mode, what) {
     if (await handle.queryPermission({ mode }) === 'granted') return true;
-    return await handle.requestPermission({ mode }) === 'granted';
+    const returnFocus = document.activeElement;
+    document.getElementById('permission-dialog-message').textContent =
+        `The browser needs your permission again before Unstrung can use ${what}.`;
+    const proceed = await new Promise(resolve => {
+        permissionAnswer = resolve;
+        permissionDialog.showModal();
+        permissionDialog.focus();
+    });
+    if (returnFocus?.isConnected) returnFocus.focus();
+    if (!proceed) return false;
+    try {
+        return await handle.requestPermission({ mode }) === 'granted';
+    } catch {
+        return false;
+    }
 }
 
 // --- IndexedDB: one store of keyed values ---------------------------------------------------
@@ -218,9 +283,19 @@ let nextProgressionFileId = 1;
 let storedProgressionsFolder = null;
 dbGet('progressions-folder').then(handle => { storedProgressionsFolder = handle ?? null; }).catch(() => {});
 
+/**
+ * The progressions folder, ready to use, or null. A stored folder whose permission is refused is
+ * reported as `denied` rather than replaced: the player chose it, and asking for another would be
+ * a surprise.
+ */
 async function progressionsFolder({ ask }) {
     let handle = await dbGet('progressions-folder');
-    if (handle && await ensurePermission(handle, 'readwrite')) return handle;
+    if (handle) {
+        if (await ensurePermission(handle, 'readwrite', `your folder for saved progressions, ${handle.name}`)) return handle;
+        const denied = new Error(`permission to use the folder ${handle.name} was not given`);
+        denied.folderName = handle.name;
+        throw denied;
+    }
     if (!ask) return null;
     try {
         handle = await window.showDirectoryPicker({ id: 'unstrung-progressions', mode: 'readwrite', startIn: 'documents' });
@@ -340,7 +415,7 @@ window.unstrung = {
         const entry = (await readRecent()).find(recent => recent.id === id);
         if (!entry) return;
         try {
-            if (!await ensurePermission(entry.handle, 'read')) {
+            if (!await ensurePermission(entry.handle, 'read', `the file ${entry.name}`)) {
                 fileOpenError.emit({ fileName: entry.name, message: 'permission to read it was not given.' });
                 return;
             }
@@ -388,7 +463,13 @@ window.unstrung = {
 
     // Saved progressions.
     listProgressions: async () => {
-        const folder = await progressionsFolder({ ask: true });
+        let folder;
+        try {
+            folder = await progressionsFolder({ ask: true });
+        } catch (error) {
+            if (!error.folderName) throw error;
+            return { directory: error.folderName, exists: false, denied: true, tree: [] };
+        }
         if (!folder) return { directory: null, exists: false, tree: [] };
         return { directory: folder.name, exists: true, tree: await scanProgressionFolder(folder, '', 0) };
     },
@@ -418,7 +499,7 @@ window.unstrung = {
                 if (isCancel(error)) return null;
                 throw error;
             }
-        } else if (!await ensurePermission(handle, 'readwrite')) {
+        } else if (!await ensurePermission(handle, 'readwrite', `the file ${handle.name}`)) {
             throw new Error('permission to save it was not given');
         }
         const folder = storedProgressionsFolder;

@@ -441,6 +441,7 @@ main {
     padding-left: 1.25rem;
 }
 
+#permission-dialog,
 #frets-dialog {
     max-width: 32rem;
     padding: 1.5rem;
@@ -449,10 +450,12 @@ main {
     overflow-y: auto;
 }
 
+#permission-dialog::backdrop,
 #frets-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
 }
 
+#permission-dialog button,
 #frets-dialog button {
     font-size: 1rem;
     padding: 0.4rem 1.5rem;
