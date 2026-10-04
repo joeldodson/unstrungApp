@@ -320,6 +320,7 @@ main {
 #settings-dialog,
 #directory-error-dialog,
 #feedback-dialog,
+#features-dialog,
 #what-is-dialog,
 #screen-reader-dialog {
     max-width: 32rem;
@@ -332,6 +333,7 @@ main {
 #settings-dialog::backdrop,
 #directory-error-dialog::backdrop,
 #feedback-dialog::backdrop,
+#features-dialog::backdrop,
 #what-is-dialog::backdrop,
 #screen-reader-dialog::backdrop {
     background: rgba(0, 0, 0, 0.5);
@@ -342,6 +344,7 @@ main {
 #settings-dialog button,
 #directory-error-dialog button,
 #feedback-dialog button,
+#features-dialog button,
 #what-is-dialog button,
 #screen-reader-dialog button {
     font-size: 1rem;
@@ -357,6 +360,7 @@ main {
    browser's own `display: none`, so setting `display` unconditionally overrides that and leaves the
    dialog laid out in the page permanently, where nothing can dismiss it because it was never
    modally open in the first place. */
+#features-dialog[open],
 #what-is-dialog[open],
 #screen-reader-dialog[open] {
     max-height: 85vh;
@@ -364,6 +368,7 @@ main {
     flex-direction: column;
 }
 
+#features-body,
 #what-is-body,
 #screen-reader-body {
     overflow-y: auto;

@@ -49,6 +49,16 @@ repository as a backup, so anything worth keeping belongs there rather
 than only in memory or on this machine. `docs/screen-reader-findings.md`
 in particular records how NVDA reads this app.
 
+# User documentation
+
+`user-docs/` holds documentation for people using unstrung, as opposed to
+the design notes in `docs/`. `user-docs/features.md` is shown in the app
+under Help, unstrung Features (built in by `scripts/build-help.mjs`), and
+is meant for eyesunstrung.vip/unstrung/docs/ as well. Its sections start
+at level 2, since both places supply the level 1 title. When a feature is
+added or changed, update it in the same change. Joel writes `README.md`
+himself and keeps it high level.
+
 # Releases
 
 Every release's notes are kept in `docs/release-notes-history.md`, newest

@@ -26,6 +26,9 @@ const aboutDialog = document.getElementById('about-dialog');
 const aboutVersionElement = document.getElementById('about-version');
 const aboutYearElement = document.getElementById('about-year');
 const aboutOkButton = document.getElementById('about-ok-button');
+const featuresDialog = document.getElementById('features-dialog');
+const featuresBodyElement = document.getElementById('features-body');
+const featuresOkButton = document.getElementById('features-ok-button');
 const whatIsDialog = document.getElementById('what-is-dialog');
 const whatIsBodyElement = document.getElementById('what-is-body');
 const whatIsOkButton = document.getElementById('what-is-ok-button');
@@ -536,6 +539,7 @@ aboutDialog.addEventListener('click', event => {
 // nothing is left behind among the open items.
 
 const HELP_DIALOGS = {
+    features: { dialog: featuresDialog, body: featuresBodyElement, ok: featuresOkButton, html: 'featuresHtml' },
     'what-is': { dialog: whatIsDialog, body: whatIsBodyElement, ok: whatIsOkButton, html: 'whatIsHtml' },
     'screen-reader': { dialog: screenReaderDialog, body: screenReaderBodyElement, ok: screenReaderOkButton, html: 'screenReaderHtml' },
     feedback: { dialog: feedbackDialog, body: feedbackBodyElement, ok: feedbackOkButton, html: 'feedbackHtml' }
@@ -6068,6 +6072,7 @@ const MENU_COMMANDS = {
     'frets-to-chord': () => openFretsToChordDialog(),
     'guitar-samples': () => openGuitarSamplesDialog(),
     settings: () => openSettingsDialog(),
+    'help-features': () => openHelpDialog('features'),
     'help-what-is': () => openHelpDialog('what-is'),
     'help-screen-reader': () => openHelpDialog('screen-reader'),
     'help-feedback': () => openHelpDialog('feedback'),

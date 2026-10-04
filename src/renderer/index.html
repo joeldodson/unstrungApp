@@ -67,6 +67,8 @@
                         <div role="menuitem" tabindex="-1" id="menu-help-item" aria-haspopup="menu"
                             aria-controls="menu-help">Help</div>
                         <ul id="menu-help" role="menu" aria-label="Help" hidden>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-features"
+                                data-command="help-features">unstrung Features…</div></li>
                             <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-what-is"
                                 data-command="help-what-is">What is Unstrung…</div></li>
                             <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-screen-reader"
@@ -103,6 +105,15 @@
     <!-- A status bar along the bottom of the window. It announces itself as a live region, and
          NVDA's read status bar command reads it on request. -->
     <p id="status" class="status-bar" role="status" aria-live="polite"></p>
+
+    <dialog id="features-dialog" aria-labelledby="features-dialog-heading-name" tabindex="-1">
+        <h1 id="features-dialog-heading"><span id="features-dialog-heading-name">unstrung Features</span> Dialog Box</h1>
+
+        <!-- Filled from user-docs/features.md, generated at build time. -->
+        <div id="features-body"></div>
+
+        <button type="button" id="features-ok-button">OK</button>
+    </dialog>
 
     <dialog id="what-is-dialog" aria-labelledby="what-is-dialog-heading-name" tabindex="-1">
         <h1 id="what-is-dialog-heading"><span id="what-is-dialog-heading-name">What is Unstrung</span> Dialog Box</h1>

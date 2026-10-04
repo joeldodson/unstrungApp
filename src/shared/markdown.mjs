@@ -11,6 +11,7 @@
 //                     Markdown means even though README.md writes one sentence per line
 //   1. item           ordered list (Markdown renumbers these, so every item may be written "1.")
 //   * item            unordered list, including indented under an ordered item
+//   **text**          strong, on one line
 //   [text](url)       link
 //   ```code```        inline code
 //
@@ -29,6 +30,7 @@ function renderInline(text) {
     let html = escapeHtml(text);
     html = html.replace(/```([^`]+)```/g, (_match, code) => `<code>${code}</code>`);
     html = html.replace(/`([^`]+)`/g, (_match, code) => `<code>${code}</code>`);
+    html = html.replace(/\*\*([^*]+)\*\*/g, (_match, text) => `<strong>${text}</strong>`);
     html = html.replace(
         /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
         (_match, label, url) => `<a href="${url}">${label}</a>`
