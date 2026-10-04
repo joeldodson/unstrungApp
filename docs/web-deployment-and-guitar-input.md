@@ -98,6 +98,9 @@ Built as the first step of putting Unstrung on eyesunstrung.vip.
 - `npm run start:web-audio` runs the desktop app with `--web-audio`, reading every sample and
   spoken name from the Opus copies instead of the WAVs. Run `npm run build:web-audio` first. If
   speech sounds poor, 48 kbps would cost about another 1.5 MB.
+- **Listened to, 2026-10-03.** Joel compared them on a throwaway branch with a dialog that played
+  each take as WAV and then as Opus: every note from B0 to D6, and 20 strummed chords from
+  generated progressions in C major and A minor. He could not hear a difference. 96 kbps stays.
 
 ### Keyboard shortcuts the browser keeps
 
