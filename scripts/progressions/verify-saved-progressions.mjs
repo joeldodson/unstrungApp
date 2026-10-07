@@ -172,7 +172,7 @@ try {
     console.log(`  tab now: ${tab.tabName} | ${tab.heading} | ${tab.announcement}`);
     check('the tab is named after the file', tab.tabName === 'Practice - Twelve bar', tab.tabName);
     check('the heading is named after the file', tab.heading === 'Chord practice - Twelve bar', tab.heading);
-    check('the window title follows', tab.windowTitle === 'Unstrung - Practice - Twelve bar', tab.windowTitle);
+    check('the window title follows', tab.windowTitle === 'unstrung - Practice - Twelve bar', tab.windowTitle);
     check('the metadata says where it was saved', tab.meta.includes('Saved as - Twelve bar'), tab.meta.join(' | '));
     check('saving is announced', tab.announcement === 'Saved as Twelve bar.', tab.announcement);
 

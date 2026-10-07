@@ -201,3 +201,31 @@ Built 2026-10-02 for unstrungApp 0.6.1.
   audio track playing from the Opus samples, recent files surviving a reload, saving a progression
   with Ctrl+S into the chosen folder and listing it, settings surviving a reload, the chord
   library. Chrome itself, and NVDA in it, were not tried.
+
+## The documentation, 2026-10-06
+
+Decided with Joel on 2026-10-06, when the documentation was reorganised into `user-docs/`.
+
+- **One source.** The files in `user-docs/` are the app's Help menu and the site's unstrung pages.
+  `scripts/help-documents.mjs` lists them in order. `README.md` is about the repository only and
+  is no longer used for help; the What is Unstrung and Feedback dialogs are gone. Feedback goes to
+  the email in the site's footer.
+- **In the app.** The Help menu is the same in both versions: Introduction, Screen Reader Users,
+  Features, Third Party Components and Resources, each opening as an item in the list of open
+  items, then About unstrung, a dialog whose text is `about.md` with the version added. Earlier the
+  documents were dialogs, on the reasoning that an item holding a whole document costs a screen
+  reader time on every visit. Joel chose items so a document can stay open beside what it
+  describes; the same material is reachable in different ways.
+- **On the site.** `/unstrung/` is the introduction, with a contents panel and a panel linking to
+  the app, the documentation and the videos. `/unstrung/docs/` is the About document, with a
+  contents panel and a panel listing every document, each of which has its own page. Both follow
+  the layout of `/articles/`.
+- **How they get there.** `npm run build:web` puts the documents and an `index.json` in the web
+  tarball under `user-docs/`. The site workflow now downloads the latest release
+  (`scripts/fetch-unstrung.mjs` in eyesunstrung), copies the app to `/unstrung/app/` and builds the
+  pages from the documents. So the site shows the documentation of the latest release, the same rule
+  the app follows, and step 4 of the order of work above is done. 0.6.1 predates this and carries no
+  documents; the pages say so until the next release.
+- **Writing them.** One sentence per line; "unstrung" lowercase everywhere, the app included; keys
+  lowercase joined with plus, multi-word names in camel case (`ctrl+o`, `nvdaKey+spaceBar`); links
+  to eyesunstrung.vip as full addresses so they work in the desktop app. `CLAUDE.md` has the list.

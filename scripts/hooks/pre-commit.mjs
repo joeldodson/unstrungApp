@@ -1,7 +1,7 @@
 // Runs before every commit, via scripts/hooks/pre-commit.
 //
 // Some files in this repository are committed but generated from other tracked files:
-// help-content.json comes from README.md, and chord-library.json from the build script and its
+// help-content.json comes from user-docs/, and chord-library.json from the build script and its
 // source dataset. Nothing stops the two being committed out of step, and that happened: a commit
 // carried an edited README alongside a help snapshot built before the edit, so the app showed
 // wording the README no longer used.

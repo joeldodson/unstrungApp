@@ -1,14 +1,14 @@
 // Turns the project's own Markdown into semantic HTML.
 //
-// This is deliberately not a general Markdown implementation. It handles the constructs README.md
-// actually uses, and anything it does not recognise is emitted as ordinary paragraph text rather
+// This is deliberately not a general Markdown implementation. It handles the constructs the
+// documents in user-docs/ actually use, and anything it does not recognise is emitted as ordinary paragraph text rather
 // than dropped, so an unfamiliar construct degrades to readable prose instead of vanishing.
 //
 // Supported:
 //   # ## ###          headings, mapped one level deeper so a document embedded in a tab does not
 //                     introduce a second <h1>
 //   blank-line        paragraph break; consecutive lines join into one paragraph, which is what
-//                     Markdown means even though README.md writes one sentence per line
+//                     Markdown means even though user-docs writes one sentence per line
 //   1. item           ordered list (Markdown renumbers these, so every item may be written "1.")
 //   * item            unordered list, including indented under an ordered item
 //   **text**          strong, on one line
@@ -80,7 +80,7 @@ export function markdownToHtml(markdown, { headingOffset = 1 } = {}) {
     for (const line of lines) {
         if (line.trim() === '') {
             // A blank line ends a paragraph but not a list: Markdown allows loose lists, and
-            // README.md separates nothing else with blanks inside its numbered steps.
+            // the documents separate nothing else with blanks inside a list.
             flushParagraph();
             continue;
         }
@@ -163,31 +163,4 @@ export function markdownBodyToHtml(markdown, { startLevel = 2 } = {}) {
     const shallowest = levels.length > 0 ? Math.min(...levels) : startLevel;
 
     return markdownToHtml(body.join('\n').trim(), { headingOffset: startLevel - shallowest });
-}
-
-/**
- * The part of a document under one heading, heading included, up to the next heading at the same
- * or a higher level.
- *
- * Lets a section of README.md be presented on its own without keeping a second copy of the text
- * that would drift from the first.
- */
-export function markdownSection(markdown, headingText) {
-    const lines = markdown.replace(/\r\n/g, '\n').split('\n');
-    const wanted = headingText.trim().toLowerCase();
-
-    let start = -1;
-    let level = 0;
-    for (const [index, line] of lines.entries()) {
-        const heading = HEADING.exec(line);
-        if (!heading) continue;
-        if (start === -1) {
-            if (heading[2].trim().toLowerCase() !== wanted) continue;
-            start = index;
-            level = heading[1].length;
-            continue;
-        }
-        if (heading[1].length <= level) return lines.slice(start, index).join('\n').trim();
-    }
-    return start === -1 ? null : lines.slice(start).join('\n').trim();
 }

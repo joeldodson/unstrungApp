@@ -8,6 +8,7 @@
 //                                             then the same renderer the desktop app runs
 //   chord-library.json                        the chord library, which the desktop app reads
 //                                             through its main process
+//   user-docs/                                the documentation, for eyesunstrung.vip's pages
 // and then packs the folder as release/Unstrung-web-<version>.tar.gz, which is attached to each
 // GitHub release. eyesunstrung.vip's workflow unpacks the latest one at /unstrung/app/.
 //
@@ -19,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
+import { HELP_DOCUMENTS, ABOUT_DOCUMENT, documentTitle } from './help-documents.mjs';
 
 const root = path.join(import.meta.dirname, '..');
 const out = path.join(root, 'dist-web');
@@ -50,6 +52,21 @@ for (const name of ['images', 'fonts']) {
     await fs.cp(path.join(renderer, name), path.join(out, name), { recursive: true });
 }
 await fs.copyFile(path.join(root, 'src', 'assets', 'chords', 'chord-library.json'), path.join(out, 'chord-library.json'));
+
+// The documentation, for eyesunstrung.vip to build its /unstrung/ and /unstrung/docs/ pages from,
+// so the site shows the documents as they were at this release. Not used by the app itself, which
+// has them bundled through help-content.json. index.json gives the order and the titles.
+const docsOut = path.join(out, 'user-docs');
+await fs.mkdir(docsOut);
+const docsIndex = { version, about: null, documents: [] };
+for (const { id, menuLabel } of [...HELP_DOCUMENTS, { id: ABOUT_DOCUMENT, menuLabel: 'About unstrung' }]) {
+    const markdown = await fs.readFile(path.join(root, 'user-docs', `${id}.md`), 'utf8');
+    await fs.writeFile(path.join(docsOut, `${id}.md`), markdown, 'utf8');
+    const entry = { id, menuLabel, title: documentTitle(markdown, id) };
+    if (id === ABOUT_DOCUMENT) docsIndex.about = entry;
+    else docsIndex.documents.push(entry);
+}
+await fs.writeFile(path.join(docsOut, 'index.json'), JSON.stringify(docsIndex, null, 2), 'utf8');
 
 // The release asset. tar is part of Windows 10 and later, macOS and Linux.
 const archive = path.join(root, 'release', `Unstrung-web-${version}.tar.gz`);

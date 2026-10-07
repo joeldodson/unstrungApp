@@ -26,22 +26,12 @@ const aboutDialog = document.getElementById('about-dialog');
 const aboutVersionElement = document.getElementById('about-version');
 const aboutYearElement = document.getElementById('about-year');
 const aboutOkButton = document.getElementById('about-ok-button');
-const featuresDialog = document.getElementById('features-dialog');
-const featuresBodyElement = document.getElementById('features-body');
-const featuresOkButton = document.getElementById('features-ok-button');
-const whatIsDialog = document.getElementById('what-is-dialog');
-const whatIsBodyElement = document.getElementById('what-is-body');
-const whatIsOkButton = document.getElementById('what-is-ok-button');
-const screenReaderDialog = document.getElementById('screen-reader-dialog');
-const screenReaderBodyElement = document.getElementById('screen-reader-body');
-const screenReaderOkButton = document.getElementById('screen-reader-ok-button');
-const feedbackDialog = document.getElementById('feedback-dialog');
-const feedbackBodyElement = document.getElementById('feedback-body');
-const feedbackOkButton = document.getElementById('feedback-ok-button');
+const aboutBodyElement = document.getElementById('about-body');
 
 /**
- * Everything open: songs, chord practice progressions, the chord library. Newest first, the order
- * they are listed in on the left. One at a time is shown on the right; that one is current.
+ * Everything open: songs, chord practice progressions, the chord library, help documents. Newest
+ * first, the order they are listed in on the left. One at a time is shown on the right; that one
+ * is current.
  *
  * @type {{ id: number, label: string, buttonEl: HTMLButtonElement, closeButtonEl: HTMLButtonElement,
  *          listItemEl: HTMLLIElement, panelEl: HTMLElement, score: object|undefined }[]}
@@ -81,7 +71,7 @@ function createButtonRow() {
     return row;
 }
 
-const APP_TITLE = 'Unstrung';
+const APP_TITLE = 'unstrung';
 
 /**
  * Keeps the window title naming what is in front: a dialog if one is open, or else the current item.
@@ -502,6 +492,8 @@ function handleFileOpenError({ fileName, message }) {
 let aboutDialogOpener = null;
 
 function openAboutDialog({ version }) {
+    // Filled once: the content is fixed at build time and cannot change while the app is running.
+    if (aboutBodyElement.childElementCount === 0) aboutBodyElement.innerHTML = helpContent.aboutHtml ?? '';
     aboutVersionElement.textContent = version;
     aboutYearElement.textContent = String(new Date().getFullYear());
     aboutDialogOpener = document.activeElement;
@@ -528,55 +520,47 @@ aboutDialog.addEventListener('click', event => {
 });
 
 // --- Help documents (Help menu) ---
-// The content is generated from README.md at build time by scripts/build-help.mjs and bundled here,
-// so a copy of the app shows the README as it stood when that copy was built. The file in the
-// repository moves on independently; editing it changes nothing here until `npm run build:help` is
-// run, which keeps a release and its documentation in step.
+// The content is generated from the files in user-docs/ at build time by scripts/build-help.mjs and
+// bundled here, so a copy of the app shows the documentation as it stood when that copy was built.
+// The files in the repository move on independently; editing them changes nothing here until
+// `npm run build:help` is run, which keeps a release and its documentation in step.
 //
-// All of them are dialogs. A tab was tried for the long one, but a tab persists, and a panel holding
-// a whole document costs a screen reader time on every visit to it -- the same reason a track's
-// measures sit behind a disclosure. A dialog is read and dismissed, so the cost is paid once and
-// nothing is left behind among the open items.
+// Each document opens as an item in the list of open items, like a song, so it can be kept open
+// and returned to while trying what it describes. Only one of each is open at a time: choosing it
+// again from the menu goes back to the one already open.
 
-const HELP_DIALOGS = {
-    features: { dialog: featuresDialog, body: featuresBodyElement, ok: featuresOkButton, html: 'featuresHtml' },
-    'what-is': { dialog: whatIsDialog, body: whatIsBodyElement, ok: whatIsOkButton, html: 'whatIsHtml' },
-    'screen-reader': { dialog: screenReaderDialog, body: screenReaderBodyElement, ok: screenReaderOkButton, html: 'screenReaderHtml' },
-    feedback: { dialog: feedbackDialog, body: feedbackBodyElement, ok: feedbackOkButton, html: 'feedbackHtml' }
-};
+const helpDocumentItemIds = new Map();
 
-let helpDialogOpener = null;
+function openHelpDocument(id) {
+    const existingId = helpDocumentItemIds.get(id);
+    if (existingId !== undefined && openItems.some(item => item.id === existingId)) {
+        showItem(existingId, { focusContent: true });
+        return;
+    }
 
-for (const spec of Object.values(HELP_DIALOGS)) {
-    spec.ok.addEventListener('click', () => spec.dialog.close());
+    const doc = helpContent.documents?.find(d => d.id === id);
+    if (!doc) {
+        setStatus(`The help document "${id}" is missing from this build.`);
+        return;
+    }
 
-    spec.dialog.addEventListener('close', () => {
-        if (helpDialogOpener && typeof helpDialogOpener.focus === 'function') helpDialogOpener.focus();
-        helpDialogOpener = null;
-    });
-
-    // Following a link dismisses the dialog: it is modal, so leaving it up over a browser window
-    // that has just taken focus would trap the keyboard here. Escape closes it too, from <dialog>.
-    spec.dialog.addEventListener('click', event => {
+    const content = document.createElement('div');
+    content.innerHTML = doc.html;
+    // A link goes to the default browser, through the platform, rather than replacing the app.
+    content.addEventListener('click', event => {
         const link = event.target.closest('a');
         if (!link) return;
         event.preventDefault();
-        const href = link.href;
-        spec.dialog.close();
-        window.unstrung.openExternalLink(href);
+        window.unstrung.openExternalLink(link.href);
     });
-}
 
-function openHelpDialog(topic) {
-    const spec = HELP_DIALOGS[topic] ?? HELP_DIALOGS['what-is'];
-    // Filled once, on first opening: the content is fixed at build time and cannot change while
-    // the app is running.
-    if (spec.body.childElementCount === 0) {
-        spec.body.innerHTML = helpContent[spec.html] ?? '';
-    }
-    helpDialogOpener = document.activeElement;
-    spec.dialog.showModal();
-    spec.dialog.focus();
+    const item = createOpenItem(doc.title, content, {
+        kind: 'help-document',
+        onClose: () => helpDocumentItemIds.delete(id)
+    });
+    helpDocumentItemIds.set(id, item.id);
+    showItem(item.id, { focusContent: true });
+    setStatus(`Opened "${doc.title}".`);
 }
 
 // --- end Help documents ---
@@ -2145,7 +2129,7 @@ function renderFretsResult() {
 
     if (candidates.length === 0) {
         fretsResultHeading.textContent = 'Identified Chord: no chord matches these notes';
-        rows.push('These notes do not spell a chord Unstrung recognises.');
+        rows.push('These notes do not spell a chord unstrung recognises.');
         if (fingering) {
             rows.push(`The chord library files this shape under ${fingering.chord.name}, ` +
                 'but these notes do not spell that chord completely.');
@@ -3479,7 +3463,7 @@ function buildAudioTrackPanel(state) {
     const keysNote = document.createElement('p');
     keysNote.textContent =
         'These keys only work while your screen reader is passing keystrokes straight through to' +
-        ' Unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
+        ' unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
         ' same things.';
     extraControls.append(keysNote);
 
@@ -3489,10 +3473,10 @@ function buildAudioTrackPanel(state) {
     // being a manual choice.
     const keysModeNote = document.createElement('p');
     keysModeNote.textContent =
-        'You turn that mode on yourself, so you have to turn it off yourself as well. Unstrung' +
+        'You turn that mode on yourself, so you have to turn it off yourself as well. unstrung' +
         ' cannot do it for you. If you move to another open item while it is still on, you will' +
         ' not be able to navigate that item, because your screen reader is still' +
-        ' handing every key to Unstrung instead of using them to move around the document. Turn' +
+        ' handing every key to unstrung instead of using them to move around the document. Turn' +
         ' the mode off and everything behaves normally again.';
     extraControls.append(keysModeNote);
 
@@ -3801,7 +3785,7 @@ function buildChordPracticeRow(chord) {
         // Stated inside, as one fact among the others. The notes are certain either way, since
         // they come from the chord's interval formula, and they are what a player needs to work
         // a shape out for themselves.
-        rows.push('There is no fingering configured in the Unstrung database for this chord.');
+        rows.push('There is no fingering configured in the unstrung database for this chord.');
         if (entry?.notes?.length) rows.push(`Notes: ${entry.notes.join(', ')}`);
     }
 
@@ -3871,7 +3855,7 @@ function buildTrackChordRow(chord) {
     const list = document.createElement('ul');
     appendTextItems(list, [
         `Printed in the file as ${chord.name}`,
-        'There is no chord in the Unstrung database matching that name, so no notes or fingering',
+        'There is no chord in the unstrung database matching that name, so no notes or fingering',
         `Sounds on ${chord.beats} beat${chord.beats === 1 ? '' : 's'} of this track`
     ]);
     details.append(summary, list);
@@ -4721,7 +4705,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const keysNote = document.createElement('p');
     keysNote.textContent =
         'These keys only work while your screen reader is passing keystrokes straight through to' +
-        ' Unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
+        ' unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
         ' same things.';
     container.append(keysNote);
 
@@ -5202,7 +5186,7 @@ async function openChordPracticeDialog() {
 
     chordPracticeSpeakCheckbox.disabled = !chordPracticeSpeechSupported;
     chordPracticeSpeechNote.textContent = chordPracticeSpeechSupported
-        ? 'Chord names are recordings shipped with Unstrung, so they land exactly on the beat ' +
+        ? 'Chord names are recordings shipped with unstrung, so they land exactly on the beat ' +
           'and nothing has to be installed.'
         : 'The chord name recordings are missing from this build.';
 
@@ -6072,10 +6056,7 @@ const MENU_COMMANDS = {
     'frets-to-chord': () => openFretsToChordDialog(),
     'guitar-samples': () => openGuitarSamplesDialog(),
     settings: () => openSettingsDialog(),
-    'help-features': () => openHelpDialog('features'),
-    'help-what-is': () => openHelpDialog('what-is'),
-    'help-screen-reader': () => openHelpDialog('screen-reader'),
-    'help-feedback': () => openHelpDialog('feedback'),
+    'help-document': item => openHelpDocument(item.dataset.helpDocument),
     about: async () => openAboutDialog({ version: await window.unstrung.getAppVersion() })
 };
 

@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('unstrung', {
     getAppVersion: () => ipcRenderer.invoke('app:get-version'),
     openExternalLink: (url) => ipcRenderer.send('shell:open-external', url),
 
-    // Song files. Opening one, from the dialog, the recent list or the command line, arrives
+    // Song files. Opening one, from the dialog or the recent list, arrives
     // through onFileOpened with the file's bytes.
     openFileDialog: () => ipcRenderer.invoke('files:open-dialog'),
     openRecentFile: (filePath) => ipcRenderer.invoke('files:open-recent', filePath),

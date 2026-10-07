@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; media-src 'self' blob:" />
-    <title>Unstrung</title>
+    <title>unstrung</title>
     <link rel="icon" href="images/favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
 </head>
@@ -67,17 +67,21 @@
                         <div role="menuitem" tabindex="-1" id="menu-help-item" aria-haspopup="menu"
                             aria-controls="menu-help">Help</div>
                         <ul id="menu-help" role="menu" aria-label="Help" hidden>
+                            <!-- One entry per document in scripts/help-documents.mjs, in its order.
+                                 Each opens as an item in the list of open items. -->
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-introduction"
+                                data-command="help-document" data-help-document="introduction">Introduction</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-screen-reader-users"
+                                data-command="help-document" data-help-document="screen-reader-users">Screen Reader Users</div></li>
                             <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-features"
-                                data-command="help-features">unstrung Features…</div></li>
-                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-what-is"
-                                data-command="help-what-is">What is Unstrung…</div></li>
-                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-screen-reader"
-                                data-command="help-screen-reader">Screen Reader Users…</div></li>
-                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-feedback"
-                                data-command="help-feedback">Feedback…</div></li>
+                                data-command="help-document" data-help-document="features">Features</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-third-parties"
+                                data-command="help-document" data-help-document="third-parties">Third Party Components</div></li>
+                            <li role="none"><div role="menuitem" tabindex="-1" id="menu-help-resources"
+                                data-command="help-document" data-help-document="resources">Resources</div></li>
                             <li role="separator"></li>
                             <li role="none"><div role="menuitem" tabindex="-1" id="menu-about"
-                                data-command="about">About Unstrung…</div></li>
+                                data-command="about">About unstrung…</div></li>
                         </ul>
                     </li>
                 </ul>
@@ -106,82 +110,14 @@
          NVDA's read status bar command reads it on request. -->
     <p id="status" class="status-bar" role="status" aria-live="polite"></p>
 
-    <dialog id="features-dialog" aria-labelledby="features-dialog-heading-name" tabindex="-1">
-        <h1 id="features-dialog-heading"><span id="features-dialog-heading-name">unstrung Features</span> Dialog Box</h1>
-
-        <!-- Filled from user-docs/features.md, generated at build time. -->
-        <div id="features-body"></div>
-
-        <button type="button" id="features-ok-button">OK</button>
-    </dialog>
-
-    <dialog id="what-is-dialog" aria-labelledby="what-is-dialog-heading-name" tabindex="-1">
-        <h1 id="what-is-dialog-heading"><span id="what-is-dialog-heading-name">What is Unstrung</span> Dialog Box</h1>
-
-        <p>
-            The text below can also be read at
-            <a href="https://github.com/joeldodson/unstrungApp/blob/main/README.md">the README file
-            in the GitHub repo</a>.
-        </p>
-
-        <!-- Filled from README.md each time the dialog opens, so an edited README shows here
-             without the app being rebuilt. -->
-        <div id="what-is-body"></div>
-
-        <button type="button" id="what-is-ok-button">OK</button>
-    </dialog>
-
-    <dialog id="screen-reader-dialog" aria-labelledby="screen-reader-dialog-heading-name" tabindex="-1">
-        <h1 id="screen-reader-dialog-heading"><span id="screen-reader-dialog-heading-name">Screen Reader Users</span> Dialog Box</h1>
-
-        <!-- Filled from the Screen Reader Users section of README.md, generated at build time. -->
-        <div id="screen-reader-body"></div>
-
-        <button type="button" id="screen-reader-ok-button">OK</button>
-    </dialog>
-
-    <dialog id="feedback-dialog" aria-labelledby="feedback-dialog-heading-name" tabindex="-1">
-        <h1 id="feedback-dialog-heading"><span id="feedback-dialog-heading-name">Feedback</span> Dialog Box</h1>
-
-        <!-- Filled from the Feedback section of README.md when the dialog opens, so this text
-             lives in exactly one place. -->
-        <div id="feedback-body"></div>
-
-        <button type="button" id="feedback-ok-button">OK</button>
-    </dialog>
-
     <dialog id="about-dialog" aria-labelledby="about-dialog-heading-name" tabindex="-1">
-        <h1 id="about-dialog-heading"><span id="about-dialog-heading-name">About Unstrung</span> Dialog Box</h1>
-
-        <p>
-            Unstrung is an accessible, screen-reader-friendly viewer for song composition files, such as Guitar Pro
-            tablature. It parses a file into its underlying data model — tracks, tuning, measures, time and key
-            signatures, and more — and presents that information as plain, semantic HTML text and headings instead
-            of a visual score, so it can be read and navigated entirely with a screen reader.
-        </p>
+        <h1 id="about-dialog-heading"><span id="about-dialog-heading-name">About unstrung</span> Dialog Box</h1>
 
         <p>Version <span id="about-version"></span></p>
 
-        <h2>Supported file formats</h2>
-        <ul>
-            <li>Guitar Pro: .gp, .gpx, .gp5, .gp4, .gp3</li>
-            <li>MusicXML: .musicxml, .xml</li>
-        </ul>
-
-        <p>
-            Unstrung aims to make music software fully usable by blind musicians.
-        </p>
-
-        <p>
-            Unstrung is free and open source software, released under the MIT License. The source code is
-            available on <a href="https://github.com/joeldodson/unstrungApp">GitHub</a>.
-        </p>
-
-        <p>
-            Unstrung's code is almost entirely written by
-            <a href="https://claude.ai">Claude Code</a>,
-            based on prompting and direction from Joel Dodson.
-        </p>
+        <!-- Filled from user-docs/about.md, generated at build time. The same text is the
+             /unstrung/docs/ page on eyesunstrung.vip. -->
+        <div id="about-body"></div>
 
         <p>&copy; <span id="about-year"></span> Joel Dodson</p>
 
@@ -192,7 +128,7 @@
         <h1 id="guitar-samples-dialog-heading"><span id="guitar-samples-dialog-heading-name">Guitar Samples</span> Dialog Box</h1>
 
         <p>
-            Plays real recorded notes ascending in pitch, using the samples bundled with Unstrung.
+            Plays real recorded notes ascending in pitch, using the samples bundled with unstrung.
             From E2 upward the notes are a green Gretsch guitar. From B0 to D#2 they are a bass
             guitar, because the guitar samples stop at E2, a guitar's own lowest note.
         </p>
@@ -216,7 +152,7 @@
             There is a slight change in timbre between D#2 and E2, where the recordings switch from
             the bass to the guitar. Each pitch is covered by one instrument only. Carrying both
             instruments across the overlapping range would mean duplicate notes in a package that is
-            already large, and would require Unstrung to decide which instrument a track is before it
+            already large, and would require unstrung to decide which instrument a track is before it
             could play the track at all.
         </p>
 
@@ -573,7 +509,7 @@
         <h1 id="frets-dialog-heading"><span id="frets-dialog-heading-name">Frets to Chord</span> Dialog Box</h1>
 
         <p>
-            Set what each string is doing and Unstrung works backwards to the chord name. The
+            Set what each string is doing and unstrung works backwards to the chord name. The
             result appears under the Identified Chord heading below and updates as you change
             each string.
         </p>
@@ -656,7 +592,7 @@
                 <summary>About spoken chord volume</summary>
                 <p>
                     This is how loud a spoken chord name is against the guitar, not how loud
-                    Unstrung is overall. Below a hundred the name sits under the playing rather
+                    unstrung is overall. Below a hundred the name sits under the playing rather
                     than over it, which is usually what you want while playing along.
                 </p>
             </details>
@@ -705,7 +641,7 @@
         <section id="settings-panel-screenreader" role="tabpanel"
             aria-labelledby="settings-tab-screenreader" tabindex="0" hidden>
             <p>
-                These settings will likely be useful if you read Unstrung with a screen reader.
+                These settings will likely be useful if you read unstrung with a screen reader.
                 Each one reduces how much your screen reader has to read out, so none of them
                 changes what the song is, only how much is said about it.
             </p>
@@ -715,7 +651,7 @@
                 <label for="settings-terse-beats-checkbox">Shorter beat descriptions</label>
             </p>
             <p>
-                When a beat strums a chord Unstrung can name, describe it with just the chord
+                When a beat strums a chord unstrung can name, describe it with just the chord
                 name and the stroke direction, leaving out the range of strings and any muted
                 strings. If you already know the shapes, the name tells you those anyway. Beats
                 that have no chord name are still listed string by string, since there is nothing

@@ -1,322 +1,39 @@
 # unstrung application
 
-unstrung is designed and built specifically for screen reader users learning to play guitar.
-And hopefully will also be useful for more advanced players.
-And maybe even sighted people will find some value here.
-It's an electron application thus all your web based accessibility skills will work here.
-It attempts to make music notation files (e.g., .gp and musicxml) readable using basic web technologies.
-It might expand at some point.
-It might go away at some point.
-It is free and open source software, released under the MIT License.
+unstrung is an app built for screen reader users learning to play guitar.
+It is built using HTML, CSS, and JavaScript.
+It was initially built on Electron, then redesigned to work both on Electron and as a web application.
 
-I am totally blind and use NVDA on Windows 11.
-You'll hear lots of references to browse and focus modes and single letter navigation in HTML documents.
-I think that maps directly to slightly different terms in other screen readers.
-In short, focus mode is when keyboard input goes to the element with system focus, e.g., text input field.
-Browse mode is when NVDA is getting the keyboard input and performing functions like single letter navigation.
+Documentation for unstrung can be found on
+[eyesunstrung](https://eyesunstrung.vip/unstrung/).
+This README is focused on details regarding the repo.
 
-As an electron app, unstrung should run on Windows, Mac, and Linux.
+As an Electron app, unstrung should run on Windows, Mac, and Linux.
 I only have a Windows laptop though, so there is only a Windows installer in the
-[unstrungApp github releases](https://github.com/joeldodson/unstrungApp/releases).
+[unstrungApp GitHub releases](https://github.com/joeldodson/unstrungApp/releases).
 See the Clone and Run section below to run from source in your environment.
-At some point there will be an installable Mac version, and maybe Linux.
-
-## What It Does
-
-This section is intentionally short.
-unstrung is evolving quickly thus adding too much here risks outdated information.
-Hopefully you will find the app fairly intuitive.
-It has a menu that works like a desktop application's menu, and helpful text along the way.
-The About Unstrung dialog, under Help in the menu, tells you files supported (e.g., gp* and music xml) and will be kept current.
-I mention the About dialog because that is written by Claude and much more likely to be current.
-This text is (mostly) written by a real person, not one devoted to documentation.
-
-The core usefulness of unstrung is reading in a file with musical notation, parsing it, and displaying the tracks and measures in very accessible, semantic HTML.
-Once parsed, an audio track can be generated for any of the guitar tracks.
-The user can select the tempo, whether to play all measures or a subset of them, and whether to have a metronome assistant.
-The measures can be played in a loop, one time, or until stopped manually.
-The audio track is intended as a resource to play along and/or understand the song.
-
-For screen reader users, once an audio track is playing, you can control it with single keyboard input (you must be in focus mode).
-For example, go forward or backward a measure, or back to the beginning of the current measure, or back to the beginning of the selected measures.
-The metronome can be toggled and the playback tempo can be adjusted dynamically.
-The keys to perform these tasks are described on the page where the audio is being played.
-I suppose that will work for non screen reader users as well.
-
-## Command Line Interface (cli)
-
-Note the cli only works if you have installed unstrung.
-The installer is what puts the ```unstrung``` command on your path.
-If you are running from source instead, use the ```npm start``` forms described in Clone and Run below.
-
-unstrung can be run directly from the command line with a list of song files:
-
-```unstrung ripple.gp wish_you_were_here.gpx```
-
-The GUI will open and each song listed on the command line will be parsed and listed under Open items.
-
-```unstrung --help```
-
-will print the command line help text to the terminal.
-
-## Various Tools
-
-In addition to reading a music notation file and generating an audio track to play along,
-there are tools associated with guitar chords.
-Check out Chords in the menu.
-You can search for a chord in the chord library and hear it strummed.
-You can look up a chord given a description of strings and frets played.
-You can even listen to the guitar samples used to generate the audio tracks.
-There will hopefully be more tools soon.
-
-## Chord Practice
-
-Claude and I had quite an educational, for me, back and forth regarding keys and chords and musical structure.
-The chat led to a feature where the user can select a key, whether or not to "borrow" chords from other keys, and a few other settings.
-Unstrung then generates a sequence of chords for a user to play along.
-I've found it a great way to simulate playing with others and practice chord changes.
-
-And thus begins the dysfunctional AI relationship.
-And you know what? Claude prefers amber ales, just like me! Who knew?
-
-Chord practice is, as of version 0.6.0, under Chord Progressions in the menu.
-I'm calling it out specifically though as I expect it to be a commonly used feature.
-It's highly likely the menu/feature access structure will change as I iterate.
-
-As of version 0.5.0, a progression can be saved, opened again later, and edited.
-You can also create one yourself, chord by chord.
-Saved progressions are plain files in a folder, Unstrung\Progressions in your Documents folder by default.
-The folder can be changed in Settings, in the menu.
-Because they are ordinary files, you can copy, back up, and organize them into sub folders like any other files.
-
-## Audio Samples
-
-I didn't like the sound of simple MIDI, very basic synthesizer sound.
-I looked into options for generating more realistic sounds using MIDI passed through various tools.
-It was going to introduce more complicated dependencies though which could affect cross platform support.
-So, instead, I found real samples of guitar notes online.
-
-The samples come from two free libraries by Karoryfer Lecolds,
-both released under CC0, so there's nothing to license and nothing to pay.
-
-The guitar is
-[Black And Green Guitars](https://github.com/sfzinstruments/karoryfer.black-and-green-guitars),
-recorded by Brian Wood.
-That library covers two instruments.
-unstrung ships only the normal picking samples of the green Gretsch Anniversary from it,
-which is 430 recordings covering E2 up to D6.
-There are three volumes of each note, soft, medium and loud,
-and up to four separate recordings of the same note at the same volume.
-Striking the same string twice in a row uses a different recording each time,
-which is why repeated notes sound like someone playing rather than a sound being replayed.
-
-The guitar samples stop at E2, which is a guitar's own lowest note.
-Below that, unstrung uses
-[Black And Blue Basses](https://github.com/sfzinstruments/karoryfer.black-and-blue-basses),
-by the same creator as the guitar samples and also released under CC0.
-The seventeen notes from B0 up to D#2 come from that library's "dark black" bass,
-in its plain articulation, which is 204 recordings in the same three volumes with four takes each.
-
-Together the two cover every semitone from B0 to D6 with no gaps.
-That reaches the low B of a five-string bass and every drop tuning down to drop A.
-Before this, nothing below E2 had a sample at all,
-so bass tracks could not be generated and neither could a guitar in a drop tuning.
-
-There is a slight change in timbre between D#2 and E2, where the recordings switch instrument.
-Each pitch is covered by one instrument only.
-Carrying both across the range where they overlap would mean duplicate notes
-in a package that is already large,
-and it would require unstrung to decide what kind of instrument a track is before playing it.
-Covering the range once, by pitch alone, avoids that special case.
-
-The upside is simply that these are real instruments.
-Nothing is being modeled or approximated, so it sounds like a guitar without any further work.
-It also needs no plugins, no synthesizer, and no network access at runtime,
-which keeps unstrung to plain web technology and keeps it working the same way on any platform.
-
-The drawbacks are real too.
-The samples are about 397 MB, and they're committed to the repo rather than downloaded on demand,
-so cloning takes a while and the installer is much larger than the code alone would need.
-I decided that was worth it.
-A download step depends on someone else's server still being there years from now,
-and I would rather unstrung just work.
-There is still a range limit, just a much higher one:
-nothing above D6 or below B0 exists in these samples.
-When a track goes outside that, unstrung tells you which measures it could not play
-instead of quietly leaving them out.
-
-## Font
-
-unstrung uses
-[Atkinson Hyperlegible Next](https://www.brailleinstitute.org/freefont/),
-a typeface the Braille Institute designed for low vision readers.
-It is the same font as the [eyesunstrung website](https://eyesunstrung.vip).
-It is released under the SIL Open Font License 1.1, and its licence ships with the app.
-
-## Screen Reader Users
-
-unstrung was written entirely by Claude, directed by a blind developer working with NVDA on Windows 11.
-I chose Electron largely for accessibility we already get from web technologies.
-There are some limitations though which are very difficult to work around.
-In those cases, I've opted for a slightly less usable experience than to try and hack together a work around almost certain to confuse.
-I'm thinking specifically of manually toggling into focus mode and forgetting to toggle out.
-It can result in confusion itself, I've tried to call that out in certain areas.
-
-There are short notes and hints all through the app explaining what a particular control does.
-I know a line of text sitting immediately after a control is easy to miss.
-When you first look around unstrung, take your time and read through a whole page rather than tabbing from control to control.
-Move around with arrows, or ctrl+arrows to ensure you hear everything as you're exploring.
-
-### Settings for screen reader users
-
-The Settings dialog, reached from the menu, has a tab called Screen Reader.
-It holds a few settings with defaults chosen for newer users in mind.
-Each has a paragraph beneath it saying what it does and why you might want to change it, read the whole tab rather than only the checkbox labels.
-
-### Single key playback control needs focus mode
-
-Once you have generated an audio track, you can control playback with single arrow and letter keys.
-For those keys to reach unstrung, your screen reader has to be in the mode where keyboard input goes straight to the application.
-In NVDA that is focus mode, and the NVDA key with the spacebar toggles it.
-
-Normally a screen reader moves in and out of that mode by itself, based on whether you have landed on something that takes typed input.
-Nothing here is a form field, so it will not switch for you.
-You have to turn focus mode on yourself, and that also means it will not turn itself off again.
-While I was testing I kept catching myself out this way.
-I would switch to focus mode to try the playback keys, then move to another open item.
-I would arrive there but be unable to navigate it, until I remembered I was still in focus mode and switched back to browse mode.
-If something suddenly seems unresponsive, that is almost certainly why.
-
-Which key does what is written in the audio track itself, in a list under a level 5 heading called "Keyboard control".
-Navigating the audio track by headings will get you there.
-It only appears once a track has been generated successfully and is ready to play.
-There are buttons for moving around the track as well, so nothing is keyboard only.
-The keys go further than the buttons though: they also tell you where you are, toggle the metronome, and nudge the tempo without you having to leave your place.
-
-### Getting around
-
-The window starts with the Menu button, then the list of everything you have open, then whichever of those you have chosen.
-Control with home gets you to the top.
-
-The Menu button opens a menu that works like a desktop application's menu.
-Up and down arrows move through it and wrap around at either end, right arrow opens a submenu, left arrow and escape back out.
-Control with O opens a file, and control with shift and O opens a saved chord progression.
-
-Everything you open, whether a song, a chord progression or the chord library, is listed newest first.
-Each is a level 1 heading holding a button, followed by a Close button.
-Press the button to show that item, and focus moves to the start of it.
-In browse mode, 1 and shift with 1 move between the open items.
-
-Inside a song, headings are the fastest way around: the song summary, then a heading per track, with that track's details beneath it.
-A track's measures sit behind a collapsed disclosure called "Measures", with the number of them in the name.
-That is deliberate.
-A song can run to hundreds of lines of beat descriptions, and leaving them all exposed made showing the song slow enough to be painful.
-Expand it when you want the detail, and the Screen Reader settings tab has an option to collapse it again for you when you switch to another open item.
-
-Each track ends with another collapsed disclosure, "Audio track for" and the track's name.
-That is where the track's audio is set up and played.
-Collapsing it stops playback, and expanding it again does not restart it.
-
-Every dialog starts with a level 1 heading ending in "Dialog Box", so you can tell where you are.
-While a dialog is open, the window title names it too.
-
-The last thing on the page is a status line.
-It is a live region, so your screen reader reads it out when it changes, without you going looking for it.
-Because it also sits last in reading order, you can navigate to the end of the page to read it again if a message went by while you were busy.
-
-### The chord tools
-
-The chord library's search field is a combo box rather than a plain text box.
-Type part of a chord name and a list of matching names appears below it.
-The down and up arrow keys move through that list, enter accepts the highlighted one, and escape closes the list and leaves what you typed alone.
-The chord field in the dialog for editing a progression works the same way.
-Pressing tab also closes the list and carries on to the next control, the way a combo box normally behaves.
-
-Once you've tabbed away from the search combo box, any matching search results are below as a list of check boxes.
-By default, the box for the shortest match is checked and its most common voicing (fingering) is checked.
-You can check other chords and other fingerings to have more than one chord played.
-If there is no fingering known to unstrung, there is no checkbox to play the chord.
-There is a collapsed region though with metadata for the chord.
-
-Frets to Chord works the other way around, from specifying strings and frets to the name of the chord.
-There is a tuning selector at the top of that dialog.
-It matters more than it looks: change the tuning and the same fret positions become different notes, so the answer changes with it.
-The chord library itself only holds fingerings for standard tuning.
-In any other tuning, Frets to Chord still names the chord correctly from the notes, but it will tell you plainly that the stored fingerings do not apply.
-
-## Screen Reader Settings
-
-The Settings dialog has a Screen Reader tab worth knowing about.
-It holds settings that reduce how much your screen reader has to read out.
-Each one is described in the dialog itself, so this will not go stale.
-One shortens the description of each beat once you know the chord shapes.
-Another collapses expanded sections when you switch to another open item,
-which keeps you from waiting on the screen reader when you come back to it.
-
-## Resources
-
-### Guitar Pro, .gp* Files
-
-I've been thinking of unstrung for a few years.
-I finally found the motivation after hearing friends rave about AI coding.
-Then really motivated while going through some lessons on
-[Totally Guitars](https://totallyguitars.com).
-It's a site much better at creating guitar lessons than building accessible/usable websites.
-It's also a good place to find .gp* files for hundreds (thousands?) of songs.
-
-I have purchased several lesson packs and generally enjoy Neil's teaching.
-Unfortunately, the videos often assume the user is following along with the tab sheet (generally a .gp* file).
-Now, with unstrung, I can read the tab sheet and follow along with the videos.
-
-Another good site for .gp* files is
-[Songsterr](https://www.songsterr.com/).
-
-Unfortunately you need a subscription ($9.99/month) to download the .gp files.
-It's not a long term commitment though and I have not come across a limit of how many files can be downloaded a month.
-Their files are crowdsource generated and tend to be more complete than TotallyGuitar.
-They tend to be more complicated too though.
-Totally Guitars might be a better place when getting started.
-Songsterr might be better when you really want to get into the eighth and sixteenth notes.
-
-Songsterr is also not a very accessible/usable site.
-With patience though, I was able to create an account and figure out how to search, find search results, and find the download functionality.
-Search is generally exposed as an editable text element.
-Type in your request, hit enter, wait a few seconds (there is no audible indication anything is happening),
-then in browse mode look for the next link ('k' in NVDA).
-If it found anything for your search, it should be in links after the search box.
-
-Once you've clicked on a search result, you go to the page for that song.
-It seems to put me directly on a "play" button to hear a MIDI version.
-On that page, search for "download". It's in a set of tabs, I think near the end of the page.
-Hit enter on the download tab to select it.
-Immediately after selecting the download tab, I ctrl+downarrow and hear "dialog download tab."
-Hit enter on that and you get, I guess, a pop up dialog with buttons for which format you want.
-Choose the Guitar Pro button and you should get a standard where to save the file dialog.
-
-### MusicXML
-
-I could not find good resources for musicXML files.
-I tried to poke around [MuseScore](https://musescore.com) which is supposedly a good resource.
-I could not make sense of that stinking pile of, probably React based, HTML.
-Reach out in Feedback if you know of good musicXML sources.
+Someday, there might be an installable Mac version, and maybe Linux.
+But now with unstrung as a web app, I'm not so motivated to work on either of those.
 
 ## Clone and Run
 
-unstrung is an electron application.
-It should "just work" on Windows, Mac, and Linux, though I have only run it on Windows.
 Nothing here needs a C++ compiler, Python, or Visual Studio Build Tools.
-All the dependencies ship prebuilt, which is not always true of electron apps.
 To clone the repo and run from source, do the following:
 
-1. prerequisites: you need [git](https://git-scm.com/) and [Node.js](https://nodejs.org/). It's been developed using node version 24, best to use at least that.
-1. Clone the [unstrungApp repo on GitHub](https://github.com/joeldodson/unstrungApp) locally. Best to get the repo clone URL directly from github, it's different depending on whether you use https or ssh.
+1. Prerequisites: you need [git](https://git-scm.com/) and [Node.js](https://nodejs.org/). It's been developed using Node version 24, best to use at least that.
+1. Clone the [unstrungApp repo on GitHub](https://github.com/joeldodson/unstrungApp) locally. Best to get the repo clone URL directly from GitHub, it's different depending on whether you use https or ssh.
    * For https: ```git clone https://github.com/joeldodson/unstrungApp.git```
    * The repo is large due to the audio samples it stores, cloning might take a while depending on your network
 1. ```cd unstrungApp```
 1. ```npm install``` - this only needs to be done once, after cloning, not with each run.
-1. ```npm start``` - this will start the unstrung GUI with nothing open
-1. ```npm start -- some_file.gp``` - starts the unstrung GUI with passed in file already open
-1. ```npm start -- --help``` - prints the command line help output
+1. ```npm start``` - this will start the unstrung desktop app with nothing open
+
+### The web version
+
+The web version is built from the same source.
+
+1. ```npm run build:web``` - builds the web version into ```dist-web/``` and packages it as ```release/Unstrung-web-<version>.tar.gz```. The first build takes a while, because it compresses every audio sample for the browser.
+1. ```npm run serve:web``` - serves it at http://localhost:8090/unstrung/app/, to open in Chrome or Edge
 
 ## Feedback
 

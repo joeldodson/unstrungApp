@@ -7,7 +7,7 @@ const OPEN_FILE_FILTERS = [
     { name: 'All files', extensions: ['*'] }
 ];
 
-// The Help documents, generated from README.md by scripts/build-help.mjs and committed. Required
+// The Help documents, generated from user-docs/ by scripts/build-help.mjs and committed. Required
 // here for the links they contain: the markdown is not read at runtime, so this list is the only
 // record of which URLs those documents offer.
 const helpContent = require('../assets/help/help-content.json');
@@ -31,11 +31,7 @@ function canonicalUrl(url) {
 }
 
 const ALLOWED_EXTERNAL_URLS = new Set([
-    'https://github.com/joeldodson/unstrungApp',
-    // Offered by the What is Unstrung dialog. Listed here rather than coming from the generated
-    // content, because it is written in the app's own markup: the README does not link to itself.
-    'https://github.com/joeldodson/unstrungApp/blob/main/README.md',
-    'https://claude.ai',
+    // Linked from the Guitar Samples dialog, in the app's own markup.
     'https://github.com/sfzinstruments/karoryfer.black-and-green-guitars',
     'https://github.com/sfzinstruments/karoryfer.black-and-blue-basses',
     // The banner at the top of the window links to the site it comes from.
@@ -51,39 +47,6 @@ ipcMain.on('shell:open-external', (_event, url) => {
         shell.openExternal(canonical);
     }
 });
-
-// Keep this in sync with the About dialog content in src/renderer/index.html.
-const HELP_TEXT = `Unstrung ${app.getVersion()}
-
-Unstrung is an accessible, screen-reader-friendly viewer for song
-composition files, such as Guitar Pro tablature. It parses a file into
-its underlying data model - tracks, tuning, measures, time and key
-signatures, and more - and presents that information as plain, semantic
-text and headings instead of a visual score, so it can be read and
-navigated entirely with a screen reader.
-
-Usage:
-  unstrung [file...]
-  unstrung -h | --help
-
-  file...        One or more song files to open on startup, each listed
-                 under Open items. If omitted, Unstrung starts with no files
-                 open.
-  -h, --help     Show this help text and exit.
-
-Supported file formats:
-  Guitar Pro: .gp, .gpx, .gp5, .gp4, .gp3
-  MusicXML: .musicxml, .xml
-
-Unstrung is free and open source software, released under the MIT
-License. Source code:
-  https://github.com/joeldodson/unstrungApp
-
-Unstrung's code is almost entirely written by Claude Code
-(https://claude.ai), based on prompting and direction from Joel Dodson.
-
-Copyright (c) ${new Date().getFullYear()} Joel Dodson
-`;
 
 // The verification scripts point this at a scratch folder, so saving a progression or changing a
 // setting while testing never touches the real profile or the real Documents folder.
@@ -173,9 +136,9 @@ function saveAppState() {
 /**
  * Identity of a file for the recent files list.
  *
- * One file can arrive spelled more than one way: the Open dialog gives backslashes, but a path
- * passed on the command line may well use forward slashes, and on Windows the case is not
- * significant either. Comparing the raw strings let the same song appear twice, so paths are
+ * One file can arrive spelled more than one way: the Open dialog gives backslashes, but a list
+ * saved by an earlier version may hold a path typed on its command line, possibly with forward
+ * slashes, and on Windows the case is not significant either. Comparing the raw strings let the same song appear twice, so paths are
  * resolved to one form and, on Windows, compared without regard to case.
  */
 function recentFileKey(filePath) {
@@ -801,11 +764,11 @@ ipcMain.handle('chords:get-library', async () => {
 });
 // --- end chord library ---
 
-async function createWindow(filesToOpen = []) {
+async function createWindow() {
     const window = new BrowserWindow({
         width: 900,
         height: 700,
-        title: 'Unstrung',
+        title: 'unstrung',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -829,39 +792,24 @@ async function createWindow(filesToOpen = []) {
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
     await window.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-
-    for (const filePath of filesToOpen) {
-        await openFilePath(window, filePath);
-    }
 }
 
-// When packaged, process.argv is [exePath, ...userArgs]. When running unpackaged
-// (e.g. `electron .`), it's [electronPath, appPath, ...userArgs].
-const cliArgs = process.argv.slice(app.isPackaged ? 1 : 2)
-    // Switches such as --web-audio, or the ones Electron and test tools add, are not files to open.
-    .filter(arg => !(arg.startsWith('--') && arg !== '--help'));
-const helpRequested = cliArgs.includes('-h') || cliArgs.includes('--help');
-
-if (helpRequested) {
-    // Wait for the write to actually complete before exiting: on Windows, when stdout is
-    // a pipe or redirected file, the write is asynchronous, and app.exit()/process.exit()
-    // can tear the process down before it flushes, silently dropping the output.
-    process.stdout.write(HELP_TEXT, () => app.exit(0));
-} else {
-    app.whenReady().then(async () => {
-        // This app is built for screen reader users. Force full Chromium accessibility
-        // support unconditionally instead of relying on Electron's own runtime detection
-        // of whether a screen reader is active, since that detection has had real gaps
-        // (e.g. https://github.com/electron/electron/issues/48039).
-        app.setAccessibilitySupportEnabled(true);
-        // No native menu. Every command is in the page's own menu, so the app works the same way
-        // here as it would in a browser, where there is no menu bar. On Windows this also leaves
-        // Alt to do nothing. On macOS, copy and paste depend on an Edit menu and would need one.
-        Menu.setApplicationMenu(null);
-        appState = await loadAppState();
-        createWindow(cliArgs);
-    });
-}
+// There is no command line interface: arguments are not read as files to open, and there is no
+// --help. Unstrung had one through 0.6.1; it was removed because a browser has no equivalent and
+// the menu does the same job. The --web-audio switch above is for development only.
+app.whenReady().then(async () => {
+    // This app is built for screen reader users. Force full Chromium accessibility
+    // support unconditionally instead of relying on Electron's own runtime detection
+    // of whether a screen reader is active, since that detection has had real gaps
+    // (e.g. https://github.com/electron/electron/issues/48039).
+    app.setAccessibilitySupportEnabled(true);
+    // No native menu. Every command is in the page's own menu, so the app works the same way
+    // here as it would in a browser, where there is no menu bar. On Windows this also leaves
+    // Alt to do nothing. On macOS, copy and paste depend on an Edit menu and would need one.
+    Menu.setApplicationMenu(null);
+    appState = await loadAppState();
+    createWindow();
+});
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

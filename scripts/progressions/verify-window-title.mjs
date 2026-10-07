@@ -28,12 +28,12 @@ const windowTitle = () => app.evaluate(({ BrowserWindow }) =>
 console.log('=== With nothing open ===');
 const empty = await windowTitle();
 console.log(`  title: ${JSON.stringify(empty)}`);
-check('the plain application name', empty === 'Unstrung', empty);
+check('the plain application name', empty === 'unstrung', empty);
 
 for (const fileName of SONGS) {
     const bytes = [...new Uint8Array(await readFile(`${APP_DIR}/musicfiles/${fileName}`))];
     await app.evaluate(({ BrowserWindow }, payload) => {
-        BrowserWindow.getAllWindows()[0].webContents.send('tabs:open-file', {
+        BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
             fileName: payload.fileName, data: new Uint8Array(payload.bytes)
         });
     }, { fileName, bytes });
@@ -43,34 +43,33 @@ for (const fileName of SONGS) {
 console.log('\n=== With two songs open, the second one current ===');
 const second = await windowTitle();
 console.log(`  title: ${JSON.stringify(second)}`);
-check('names the application and the tab', second === `Unstrung - ${SONGS[1]}`, second);
+check('names the application and the tab', second === `unstrung - ${SONGS[1]}`, second);
 
-console.log('\n=== Moving to the other tab ===');
+console.log('\n=== Moving to the other open item ===');
+// The list is newest first, so the first song opened is second in it.
 await page.evaluate(() => {
-    const tabs = [...document.querySelectorAll('[role="tab"]')];
-    tabs[0].click();
+    const items = [...document.querySelectorAll('#open-items-list h1 button')];
+    items[1].click();
 });
 await page.waitForTimeout(1000);
 const first = await windowTitle();
 console.log(`  title: ${JSON.stringify(first)}`);
-check('the title followed the tab', first === `Unstrung - ${SONGS[0]}`, first);
+check('the title followed the tab', first === `unstrung - ${SONGS[0]}`, first);
 
-console.log('\n=== The tab strip and the title agree ===');
+console.log('\n=== The list of open items and the title agree ===');
 const selected = await page.evaluate(() =>
-    document.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? null);
-check('the title ends with the selected tab label', first === `Unstrung - ${selected}`,
-    `tab says ${JSON.stringify(selected)}`);
+    document.querySelector('#open-items-list button[aria-current="true"]')?.textContent ?? null);
+check("the title ends with the current item's label", first === `unstrung - ${selected}`,
+    `current item is ${JSON.stringify(selected)}`);
 
-console.log('\n=== Closing every tab ===');
-// Closing is a menu item in the main process, so it is driven the way the menu drives it.
+console.log('\n=== Closing every open item ===');
 for (let i = 0; i < SONGS.length; i++) {
-    await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].webContents.send('tabs:close-current'));
+    await page.click('#open-items-list .close-item');
     await page.waitForTimeout(800);
 }
 const closed = await windowTitle();
 console.log(`  title: ${JSON.stringify(closed)}`);
-check('back to the plain application name', closed === 'Unstrung', closed);
+check('back to the plain application name', closed === 'unstrung', closed);
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
 await app.close();

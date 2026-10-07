@@ -117,7 +117,8 @@ this.
 
 ### Lost entirely
 
-The command line (`unstrung ripple.gp`) and file associations.
+File associations. The command line (`unstrung ripple.gp`) was on this list too; it has since
+been removed from the desktop app as well, after 0.6.1.
 
 ### What it would gain
 

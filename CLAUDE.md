@@ -52,12 +52,40 @@ in particular records how NVDA reads this app.
 # User documentation
 
 `user-docs/` holds documentation for people using unstrung, as opposed to
-the design notes in `docs/`. `user-docs/features.md` is shown in the app
-under Help, unstrung Features (built in by `scripts/build-help.mjs`), and
-is meant for eyesunstrung.vip/unstrung/docs/ as well. Its sections start
-at level 2, since both places supply the level 1 title. When a feature is
-added or changed, update it in the same change. Joel writes `README.md`
-himself and keeps it high level.
+the design notes in `docs/`. Every file there is shown in the app and on
+eyesunstrung.vip:
+
+- `scripts/help-documents.mjs` lists the documents in order. Each opens
+  from the Help menu as an item in the list of open items, and is the
+  page /unstrung/docs/<name>/ on the site. `about.md` fills the About
+  unstrung dialog and is the /unstrung/docs/ page itself.
+  `introduction.md` is also the /unstrung/ page.
+- `scripts/build-help.mjs` builds them into the app
+  (`npm run build:help`), and `npm run build:web` puts them in the web
+  tarball, which is where the site gets them. So the site shows the
+  documents as they stood at the last release.
+- Each file starts with a level 1 heading, its title, and its sections
+  start at level 2.
+
+`README.md` is about the repository only and is not used for any of this.
+Joel writes it himself and keeps it high level.
+
+When a feature is added or changed, update `user-docs/features.md` in the
+same change. How these files are written:
+
+- One sentence per line, as Joel writes them. It shows when a sentence is
+  getting too long.
+- The app's name is "unstrung", lowercase, everywhere, the app's own text
+  included.
+- Keys are written lowercase and joined with plus: ctrl+o, alt+shift+a,
+  f6. Multi-word key names are camel case, so the synthesizer says them as
+  words: spaceBar, downArrow, nvdaKey+spaceBar.
+- Links to eyesunstrung.vip are full addresses, so they work inside the
+  app as well as on the site. A link that opens a new tab says so in its
+  text: "(opens in new tab)".
+- No links to the repositories except where a reader needs one (the
+  installer download, the source code in About). The repos' own READMEs
+  carry the rest. Feedback goes to the email in the site's footer.
 
 # Releases
 

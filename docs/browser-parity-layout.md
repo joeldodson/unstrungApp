@@ -141,8 +141,10 @@ leaving the page.
   reopening one asks permission again, usually once per visit. Newer Chrome can offer "Allow on
   every visit"; how NVDA handles that prompt is Chrome's. Removing stale entries and clearing the
   list still work.
-- **Command line.** Electron: `unstrung ripple.gp`, and `-h`. Chrome: none. An installed web app
-  can register as a handler for .gp files, Chromium only; a possible later addition.
+- **Command line.** Neither, since the release after 0.6.1. Electron had `unstrung ripple.gp` and
+  `-h` through 0.6.1, with the installer putting `unstrung` on the path; it was removed rather
+  than kept as a desktop-only difference. An installed web app can register as a handler for .gp
+  files, Chromium only; a possible later addition.
 - **Drag and drop.** Built in neither. Would work in both once added.
 
 ### Saved chord progressions
@@ -240,7 +242,7 @@ leaving the page.
 - **Different:** choosing folders by name with no typed paths and no default progressions folder;
   permission asked again per visit; Chrome's "Leave site?" instead of Save, Don't Save, Cancel;
   settings kept in the browser; links in new tabs.
-- **Impossible:** the command line, Open Folder in Explorer, a typed default Open File folder,
+- **Impossible:** Open Folder in Explorer, a typed default Open File folder,
   naming unsaved progressions on the way out.
 - **To decide:** how the app sits in eyesunstrung.vip without two banners; whether to restore open
   items after a reload.
