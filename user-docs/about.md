@@ -8,9 +8,11 @@ It parses a file into its underlying data model (tracks, tuning, measures, time 
 - Guitar Pro: .gp, .gpx, .gp5, .gp4, .gp3
 - MusicXML: .musicxml, .xml
 
-unstrung aims to make music software that is fully usable by blind musicians.
+## Source Code and License
 
 unstrung is free and open source software, released under the MIT License.
 The source code is available on [GitHub](https://github.com/joeldodson/unstrungApp).
+
+## LLM Acknowledgement
 
 unstrung's code is almost entirely written by [Claude Code](https://claude.ai), based on prompting and direction from Joel Dodson.
