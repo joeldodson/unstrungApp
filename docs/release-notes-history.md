@@ -10,6 +10,70 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.0 - Documentation under Help, and on eyesunstrung.vip
+
+Published 2026-10-07.
+
+0.7.0 brings unstrung's documentation into the app, and puts the same documents on
+eyesunstrung.vip. It also smooths saving and opening files in the web version, and removes the
+command line.
+
+### Documentation under Help
+
+The Help submenu now lists five documents: Introduction, Screen Reader Users, Features, Third Party
+Components and Resources. Each opens as an item in the list of open items, like a song, so it can
+stay open beside what it describes. Choosing one that is already open goes back to it.
+
+- **Introduction** says what unstrung is, how to run it in a browser or install it on Windows,
+  and where to find the videos.
+- **Screen Reader Users** covers the things most likely to catch out a screen reader user, such as
+  the playback keys needing focus mode.
+- **Features** describes every part of unstrung and its keys.
+- **Third Party Components** credits the libraries, samples and font unstrung is built from.
+- **Resources** suggests where to find song files.
+
+About unstrung is still a dialog, last in the Help submenu, with the version.
+
+The same documents are at https://eyesunstrung.vip/unstrung/docs/, and the introduction is
+https://eyesunstrung.vip/unstrung/. The site shows the documents from the latest release, so they
+always match the app you can download.
+
+The What is Unstrung and Feedback entries are gone. Feedback goes to the email address at the
+bottom of every page on eyesunstrung.vip.
+
+### The name
+
+unstrung is now written in lowercase everywhere in the app, including the window title. The
+Documents\Unstrung\Progressions folder keeps its name, so saved progressions stay where they are.
+
+### Saving and opening in the web version
+
+- Saving a new progression opens the browser's Save dialog straight away. Before, unstrung could
+  first check the progressions folder, which in some cases raised a permission question that a
+  screen reader did not announce and left the Save dialog refused.
+- While the browser is waiting on its permission question for a file or folder chosen on an
+  earlier visit, the status bar says so. If you refuse, unstrung says so plainly rather than
+  waiting.
+
+### Smaller changes
+
+- The Progression heading of a chord progression says "unsaved changes" while there are any, as
+  the item's name and the heading at the top already did.
+- The command line is gone: `unstrung ripple.gp` and `unstrung -h` no longer do anything, and the
+  installer no longer puts `unstrung` on your path. Uninstalling removes the path entry an
+  earlier version added.
+
+### Installing
+
+**Unstrung Setup 0.7.0.exe** is the installer.
+
+**Unstrung 0.7.0.exe** is a portable build that runs without installing.
+
+**Unstrung-web-0.7.0.tar.gz** is the web version that eyesunstrung.vip serves at
+https://eyesunstrung.vip/unstrung/app/. It is not something to run from the download.
+
+Windows only, as before. See Clone and Run in the README to run from source.
+
 ## Unstrung 0.6.1 - Tidier open items, and a web build
 
 Published 2026-10-03.
