@@ -10,6 +10,41 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.1 - Other browsers and phones, and progressions as text
+
+Published 2026-10-10.
+
+0.7.1 makes the web version work in browsers other than Chrome and Edge, including on an iPhone or iPad. It adds a way to pass chord progressions around as text, and takes most of the explanatory text out from around the controls.
+
+### Browsers other than Chrome and Edge
+
+Firefox, Safari and every browser on an iPhone or iPad cannot use files the way Chrome and Edge do. In those browsers:
+
+- Open File and Open Saved Progression open one file at a time through the browser's file picker, which on an iPhone or iPad is the Files app. To open a song or progression sent as an email attachment there, save it to Files first.
+- Save Progression and Save Progression As download the progression as a file, wherever the browser keeps downloads.
+- Recent Files and the folder settings are there but unavailable.
+
+Chrome and Edge on a computer, and the desktop app, work as before.
+
+### Copying progressions as text
+
+- **Copy to Clipboard,** after Save Progression As in a progression's item, copies the progression as text, the same text a saved file holds. Paste it into an email or a message to pass it on.
+- **Edit Progression Text,** collapsed at the start of the dialog for creating or editing a progression, takes that text back and fills in the dialog from it. It mends simple mistakes, such as curly quotation marks from an email, a missing comma, or chords written as names like Am7, and lists what it mended. Text it cannot read changes nothing, and unstrung says why, with the line and column.
+
+### Less text around the controls
+
+- The Chord Practice dialog is now its controls and their labels. What it used to explain is in Features, under Help.
+- The Open Saved Progression and Create Progression by Hand buttons are gone from the Chord Practice dialog. Both are in the Chord Progressions submenu.
+- Headings, collapsed sections and buttons now capitalise their main words. The audio track section is now called Audio Track and the track's name.
+
+### Smaller changes
+
+- The Menu button is in a navigation landmark named unstrung, so moving by landmark reaches it.
+- A help document starts with its title as a level 1 heading in the main area, as on eyesunstrung.vip.
+- A link from one help document to another opens it in unstrung, as the Help menu would.
+- On a phone, number fields bring up the number pad.
+- On eyesunstrung.vip, the web version's page has the site's menu bar.
+
 ## unstrung 0.7.0 - Documentation under Help, and on eyesunstrung.vip
 
 Published 2026-10-07.
