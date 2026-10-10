@@ -19,10 +19,18 @@ import { HELP_DOCUMENTS, ABOUT_DOCUMENT, documentTitle } from './help-documents.
 const USER_DOCS = path.join(import.meta.dirname, '..', 'user-docs');
 const OUT_PATH = path.join(import.meta.dirname, '..', 'src', 'assets', 'help', 'help-content.json');
 
-const read = name => fs.readFileSync(path.join(USER_DOCS, `${name}.md`), 'utf8');
+// A link may be written relative to eyesunstrung.vip, such as [Introduction](/unstrung/docs/introduction/),
+// as on the site's own pages. The app has no site to resolve that against, so it is made a full
+// address here, before anything else reads the text: markdown.mjs links only full addresses, and
+// the list of links the app may open is collected from these. The site reads the files as they
+// are, where a relative link is already right.
+const SITE = 'https://eyesunstrung.vip';
+const read = name => fs.readFileSync(path.join(USER_DOCS, `${name}.md`), 'utf8')
+    .replace(/\]\((\/[^)\s]*)\)/g, (_match, sitePath) => `](${SITE}${sitePath})`);
 
 // Each document opens as an item in the list of open items. The item's own h1 is the document's
-// title, so the body starts at h2 beneath it. The About dialog is titled with an h1 too.
+// title, and renderer.js repeats it as an h1 at the start of the document in the main area, so the
+// body starts at h2 beneath both. The About dialog is titled with an h1 too.
 const documents = HELP_DOCUMENTS.map(({ id }) => {
     const markdown = read(id);
     return { id, title: documentTitle(markdown, id), html: markdownBodyToHtml(markdown, { startLevel: 2 }) };

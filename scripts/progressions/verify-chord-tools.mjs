@@ -128,7 +128,7 @@ const voicings = await page.evaluate(async () => {
         const name = item.querySelector('label, .chord-name')?.textContent?.trim()
             ?? item.textContent.trim().split('\n')[0];
         return [...item.querySelectorAll('details')]
-            .filter(details => details.querySelector('summary')?.textContent === 'Fingering and notes')
+            .filter(details => details.querySelector('summary')?.textContent === 'Fingering and Notes')
             .map(details => ({
                 name,
                 rows: [...(details.querySelector('ul')?.children ?? [])].map(li => li.textContent)

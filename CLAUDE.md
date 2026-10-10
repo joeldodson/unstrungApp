@@ -80,9 +80,12 @@ same change. How these files are written:
 - Keys are written lowercase and joined with plus: ctrl+o, alt+shift+a,
   f6. Multi-word key names are camel case, so the synthesizer says them as
   words: spaceBar, downArrow, nvdaKey+spaceBar.
-- Links to eyesunstrung.vip are full addresses, so they work inside the
-  app as well as on the site. A link that opens a new tab says so in its
-  text: "(opens in new tab)".
+- Links to eyesunstrung.vip may be relative (`/unstrung/docs/features/`)
+  or full addresses. `scripts/build-help.mjs` makes relative ones full for
+  the app. A link to a Help document, /unstrung/docs/<name>/, opens that
+  document inside the app, as the Help menu would; on the site it is an
+  ordinary link. A link that opens a new tab says so in its text:
+  "(opens in new tab)", and in the app it goes to the browser.
 - No links to the repositories except where a reader needs one (the
   installer download, the source code in About). The repos' own READMEs
   carry the rest. Feedback goes to the email in the site's footer.

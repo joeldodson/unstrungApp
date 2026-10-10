@@ -171,7 +171,7 @@ try {
     check('the time signature is saved', saved.timeSignature?.beatsPerBar === 4 && saved.timeSignature?.beatUnit === 4);
     console.log(`  tab now: ${tab.tabName} | ${tab.heading} | ${tab.announcement}`);
     check('the tab is named after the file', tab.tabName === 'Practice - Twelve bar', tab.tabName);
-    check('the heading is named after the file', tab.heading === 'Chord practice - Twelve bar', tab.heading);
+    check('the heading is named after the file', tab.heading === 'Chord Practice - Twelve bar', tab.heading);
     check('the window title follows', tab.windowTitle === 'unstrung - Practice - Twelve bar', tab.windowTitle);
     check('the metadata says where it was saved', tab.meta.includes('Saved as - Twelve bar'), tab.meta.join(' | '));
     check('saving is announced', tab.announcement === 'Saved as Twelve bar.', tab.announcement);
@@ -228,10 +228,10 @@ try {
         String(layout.describedBy));
     check('its keyboard commands are a collapsed disclosure between the heading and the list',
         layout.afterHeading &&
-        layout.notesSummary === 'Keyboard commands for the measures list' && layout.notesOpen === false,
+        layout.notesSummary === 'Keyboard Commands for the Measures List' && layout.notesOpen === false,
         String(layout.notesSummary));
-    check('the chord field and How the chord field works share one row',
-        layout.rowHolds.length === 2 && layout.rowHolds[1] === 'How the chord field works',
+    check('the chord field and How the Chord Field Works share one row',
+        layout.rowHolds.length === 2 && layout.rowHolds[1] === 'How the Chord Field Works',
         layout.rowHolds.join(' | '));
 
     await page.keyboard.press('ArrowDown');
@@ -379,7 +379,7 @@ try {
         tab.chords.length === 9 && tab.chords[0] === 'Bb' && tab.chords[1] === 'Bb' && tab.tabCount === 1,
         tab.chords.join(' '));
     check('the heading and tab say there are unsaved changes',
-        tab.heading === 'Chord practice - Twelve bar (unsaved changes)' &&
+        tab.heading === 'Chord Practice - Twelve bar (unsaved changes)' &&
         tab.tabName === 'Practice - Twelve bar (unsaved changes)', `${tab.heading} / ${tab.tabName}`);
     check('the metadata counts the chords outside the key, with no Made line',
         !tab.meta.some(m => m.startsWith('Made')) &&
@@ -510,21 +510,6 @@ try {
     check('opening it again shows the tab it is already in', tab.tabCount === 2 && tab.tabName === 'Practice - Waltz',
         `${tab.tabCount} tabs`);
     check('and says so', status === 'Waltz is already open.', status);
-
-    console.log('\n=== The chord practice dialog hands over to Open Saved Progression ===');
-    await send('chord-practice:open');
-    await page.waitForTimeout(1200);
-    await page.click('#chord-practice-open-saved-button');
-    await page.waitForTimeout(1000);
-    const handOff = await page.evaluate(() => ({
-        practiceOpen: document.getElementById('chord-practice-dialog').open,
-        openOpen: document.getElementById('progression-open-dialog').open,
-        focusInTree: document.getElementById('progression-open-tree').contains(document.activeElement)
-    }));
-    check('the practice dialog closes and the tree opens with focus in it',
-        !handOff.practiceOpen && handOff.openOpen && handOff.focusInTree, JSON.stringify(handOff));
-    await page.click('#progression-open-cancel-button');
-    await page.waitForTimeout(300);
 
     console.log('\n=== Creating a progression by hand ===');
     await send('progressions:new');

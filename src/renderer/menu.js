@@ -20,6 +20,9 @@
  *   Escape              close this menu, back to the item or button that opened it
  *   Tab, Shift+Tab      close everything and move on, as from the button
  *
+ * An item with aria-disabled="true" can be arrowed to, and is read as unavailable, but does
+ * nothing: it runs no command and opens no submenu.
+ *
  * Focus moves from item to item as you arrow (each item is focusable from script only), so the
  * screen reader's focus and its cursor are always the same place. Only one chain of menus is open
  * at a time, and a closed menu is hidden, so it is out of the accessibility tree.
@@ -118,12 +121,14 @@ export function createMenuButton(button, rootMenu, { onActivate }) {
         }
     }
 
+    const isDisabled = item => item.getAttribute('aria-disabled') === 'true';
+
     function activate(item) {
+        if (isDisabled(item)) return;
         if (submenuOf(item)) {
             openSubmenu(item);
             return;
         }
-        if (item.getAttribute('aria-disabled') === 'true') return;
         // Focus is on the button when the command runs, so a dialog it opens returns focus there.
         close({ focusButton: true });
         onActivate(item);
@@ -165,7 +170,7 @@ export function createMenuButton(button, rootMenu, { onActivate }) {
             case 'ArrowRight':
                 // Only an item with a submenu goes anywhere. Elsewhere Right does nothing, rather
                 // than letting the key through to the page.
-                if (submenuOf(item)) openSubmenu(item);
+                if (submenuOf(item) && !isDisabled(item)) openSubmenu(item);
                 break;
             case 'ArrowLeft':
                 if (menu !== rootMenu) closeSubmenu(menu);

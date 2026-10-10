@@ -17,8 +17,11 @@ Save As buttons read all three labels, and the same happened under "Move around 
   screen they stay side by side. Stacking them vertically would also have worked, but Joel wants
   sighted users served too, and stacking wastes space.
 - In code, `createButtonRow()` in `renderer.js` makes one; in markup, use the class.
-  `scripts/progressions/verify-button-rows.mjs` checks that no element holds two buttons outside a
-  row. `.field-row` uses the same idea for a field and something beside it.
+  `scripts/progressions/verify-button-rows.mjs` checks that no two buttons share a line. Since
+  2026-10-09 it opens a song and its audio track, a progression, the chord library, a Help document
+  and every dialog first, and works out each button's line from computed display, so a button
+  nested deeper than a row's direct children is caught too. `.field-row` uses the same idea for a
+  field and something beside it.
 
 ## A description on a control is read every time it is reached
 

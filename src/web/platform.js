@@ -4,7 +4,8 @@
  * apart except through `platform` and `capabilities`.
  *
  * Written for Chromium (Chrome and Edge). Files and folders use the File System Access API,
- * which Firefox and Safari do not have; there, opening a file says so instead of failing silently.
+ * which Firefox and Safari do not have; there, `capabilities.fileAccess` is false and the page
+ * disables every control that needs it.
  *
  * Where things live:
  *   - Settings: localStorage.
@@ -170,6 +171,46 @@ async function addRecent(handle) {
     }
     const id = `recent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     await writeRecent([{ id, name: handle.name, handle }, ...kept].slice(0, MAX_RECENT_FILES));
+}
+
+// --- Without the File System Access API ------------------------------------------------------
+// Firefox, Safari and every browser on iOS have only the ordinary file upload field. It gives
+// the page a file's name and contents and nothing that lasts, so there are no recent files, but a
+// song or a saved progression can still be opened. Used only where the API is missing.
+
+const hasFilePickers = typeof window.showOpenFilePicker === 'function' &&
+    typeof window.showSaveFilePicker === 'function' &&
+    typeof window.showDirectoryPicker === 'function';
+
+let uploadField = null;
+
+/**
+ * Asks for one file through an upload field, resolving to the File or to null if cancelled.
+ *
+ * The field is clicked before anything is awaited: a browser shows its picker only while it is
+ * still handling the key press or click that asked. It is in the document, out of sight and out of
+ * the accessibility tree, since Safari on iOS has not always opened the picker for a detached or
+ * undisplayed field.
+ */
+function pickFileWithUploadField(accept) {
+    uploadField?.remove();
+    const field = document.createElement('input');
+    field.type = 'file';
+    if (accept) field.accept = accept;
+    field.tabIndex = -1;
+    field.setAttribute('aria-hidden', 'true');
+    field.style.cssText = 'position:fixed;left:-100vw;top:0;width:1px;height:1px;opacity:0;';
+    document.body.append(field);
+    uploadField = field;
+    const picked = new Promise(resolve => {
+        field.addEventListener('change', () => resolve(field.files?.[0] ?? null), { once: true });
+        field.addEventListener('cancel', () => resolve(null), { once: true });
+    });
+    field.click();
+    return picked.finally(() => {
+        field.remove();
+        if (uploadField === field) uploadField = null;
+    });
 }
 
 async function openSongHandle(handle) {
@@ -356,18 +397,30 @@ window.addEventListener('beforeunload', event => {
 
 window.unstrung = {
     platform: 'web',
-    // What the browser cannot do that the desktop app can. The page hides the controls for them.
-    capabilities: { typedFolderPaths: false, openFolderInFileManager: false, defaultOpenFolder: false },
+    // What the browser cannot do that the desktop app can. The page hides or disables the controls
+    // for them. fileAccess is whether this browser has the File System Access API at all: Chrome
+    // and Edge on a computer do; Safari, Firefox, and every browser on iOS, which are all Safari
+    // underneath, do not.
+    capabilities: {
+        fileAccess: hasFilePickers,
+        typedFolderPaths: false, openFolderInFileManager: false, defaultOpenFolder: false
+    },
 
     getAppVersion: async () => VERSION,
     openExternalLink: url => { window.open(url, '_blank', 'noopener,noreferrer'); },
 
     // Song files.
     openFileDialog: async () => {
-        if (!window.showOpenFilePicker) {
-            fileOpenError.emit({
-                fileName: 'Open File', message: 'this browser cannot open files. Use Chrome or Edge.'
-            });
+        if (!hasFilePickers) {
+            // No filter on the kinds of file: iOS greys out every file whose extension it does not
+            // recognise, and .gp5 is not one it knows. A file that is not a song says so on opening.
+            const file = await pickFileWithUploadField(null);
+            if (!file) return;
+            try {
+                fileOpened.emit({ fileName: file.name, data: new Uint8Array(await file.arrayBuffer()) });
+            } catch (error) {
+                fileOpenError.emit({ fileName: file.name, message: error.message });
+            }
             return;
         }
         let handle;
@@ -453,7 +506,25 @@ window.unstrung = {
     // up: above all a permission prompt for the progressions folder, which also appears where a
     // screen reader may not announce it. So the folder is only suggested as the place to start,
     // which needs no permission, and is never asked about here.
+    //
+    // Without the File System Access API there is no Save dialog and no file to write back to, so
+    // Save and Save As both download the progression under the suggested name, as any page can.
+    // Where it goes is the browser's choice: the Downloads folder, or Files on iOS.
     saveProgression: async ({ text, filePath, suggestedName }) => {
+        if (!hasFilePickers) {
+            const fileName = `${safeFileName(suggestedName)}.json`;
+            const url = URL.createObjectURL(new Blob([String(text)], { type: 'application/json' }));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            link.hidden = true;
+            document.body.append(link);
+            link.click();
+            link.remove();
+            // Some browsers start reading the file only after the click has returned.
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+            return { filePath: null, name: baseName(fileName), insideFolder: false, downloaded: true };
+        }
         let handle = filePath ? knownProgressionFiles.get(filePath) : null;
         if (!handle) {
             try {
@@ -481,6 +552,14 @@ window.unstrung = {
             name: baseName(handle.name),
             insideFolder: folder ? (await folder.resolve(handle).catch(() => null)) !== null : false
         };
+    },
+    // One saved progression, chosen through an upload field. Only called without fileAccess, in
+    // place of the folder tree; the desktop app never needs it. Null if cancelled.
+    pickProgressionFile: async () => {
+        const file = await pickFileWithUploadField('.json,application/json');
+        if (!file) return null;
+        if (file.size > MAX_PROGRESSION_FILE_BYTES) throw new Error('it is too large to be a saved progression');
+        return { name: baseName(file.name), text: await file.text() };
     },
     openProgressionsFolder: async () => ({ directory: null, error: 'a web page cannot open a folder in your file manager' }),
     setUnsavedProgressions: value => { unsavedProgressions = value === true; },

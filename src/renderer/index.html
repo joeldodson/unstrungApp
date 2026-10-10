@@ -23,15 +23,18 @@
         <div class="side-panel">
             <!-- The Menu button and its menu, with submenus. ARIA menu roles, driven by menu.js:
                  NVDA switches to focus mode in a menu, so arrowing stays inside it and loops at
-                 either end. Each item's data-command names what renderer.js runs for it. -->
-            <div id="app-menu" class="app-menu">
+                 either end. Each item's data-command names what renderer.js runs for it. A
+                 navigation landmark, so moving by landmark reaches the Menu button.
+                 data-needs-file-access, here and on buttons elsewhere, marks what is disabled in
+                 a browser without the File System Access API; see requireFileAccess. -->
+            <nav id="app-menu" class="app-menu" aria-label="unstrung">
                 <button type="button" id="app-menu-button" aria-haspopup="menu" aria-expanded="false"
                     aria-controls="app-menu-list">Menu</button>
                 <ul id="app-menu-list" role="menu" aria-labelledby="app-menu-button" hidden>
                     <li role="none"><div role="menuitem" tabindex="-1" id="menu-open-file" data-command="open-file"
                         aria-keyshortcuts="Control+O">Open File…</div></li>
                     <li role="none">
-                        <div role="menuitem" tabindex="-1" id="menu-recent-files-item" aria-haspopup="menu"
+                        <div role="menuitem" tabindex="-1" id="menu-recent-files-item" aria-haspopup="menu" data-needs-file-access
                             aria-controls="menu-recent-files">Recent Files</div>
                         <!-- Filled by renderer.js from the recent files list. -->
                         <ul id="menu-recent-files" role="menu" aria-label="Recent Files" hidden></ul>
@@ -85,7 +88,7 @@
                         </ul>
                     </li>
                 </ul>
-            </div>
+            </nav>
 
             <!-- Everything open, newest first. Each is an h1 holding a button that shows it in the
                  main area, followed by a close button drawn as a cross. Hidden while nothing is
@@ -172,7 +175,7 @@
 
         <p>
             <label for="guitar-samples-duration-input">Time between notes (seconds)</label>
-            <input type="number" id="guitar-samples-duration-input" min="0.1" max="30" step="0.1" value="1.0" />
+            <input type="number" inputmode="decimal" id="guitar-samples-duration-input" min="0.1" max="30" step="0.1" value="1.0" />
         </p>
 
         <p>
@@ -198,43 +201,13 @@
         <h1 id="chord-practice-dialog-heading"><span id="chord-practice-dialog-heading-name">Chord Practice</span> Dialog Box</h1>
 
         <p>
-            Generates a chord progression to play along with, and an audio track for it. The
-            progression opens as a new item in the list of open items, with every chord listed and its fingering and notes
-            inside a collapsed region.
-        </p>
-
-        <p>
-            Chords are chosen from weights that follow how chords tend to move in a key, so a
-            progression is different each time but still goes somewhere. Only chords playable at
-            the experience level chosen are used.
-        </p>
-
-        <div class="button-row">
-            <button type="button" id="chord-practice-open-saved-button">Open Saved Progression…</button>
-            <button type="button" id="chord-practice-new-button">Create Progression by Hand…</button>
-        </div>
-
-        <p>
-            A progression can be saved with its Save Progression button and opened again with
-            Open Saved Progression in this dialog, or written chord by chord with Create
-            Progression by Hand. The playback settings in this dialog apply to both.
-        </p>
-
-        <p>
             <label for="chord-practice-level-select">Experience level</label>
             <select id="chord-practice-level-select"></select>
         </p>
 
-        <p id="chord-practice-level-description"></p>
-
         <p>
             <label for="chord-practice-key-select">Key</label>
             <select id="chord-practice-key-select"></select>
-        </p>
-
-        <p>
-            Keys are listed only where enough chords can be played at the level chosen. Open
-            position does not cover all twelve.
         </p>
 
         <p>
@@ -243,50 +216,28 @@
         </p>
 
         <p>
-            Songs rarely stay strictly inside one key. Most of what sounds like a chord from a
-            neighbouring key is one of two things: a chord that points at the one after it, like the
-            D7 before a G in a song in C, or a chord taken from the parallel minor, like a B flat or
-            an F minor in C. Both are offered here. The frequent setting also reaches a second step
-            around the circle of fifths, which starts to sound like the song has genuinely changed
-            key rather than borrowed a colour.
-        </p>
-
-        <p>
             <label for="chord-practice-beats-input">Beats per measure</label>
-            <input type="number" id="chord-practice-beats-input" min="1" max="16" step="1" value="4" />
+            <input type="number" inputmode="numeric" id="chord-practice-beats-input" min="1" max="16" step="1" value="4" />
         </p>
 
         <p>
             <label for="chord-practice-beat-unit-input">Note value that gets one beat</label>
-            <input type="number" id="chord-practice-beat-unit-input" min="1" max="16" step="1" value="4" />
-        </p>
-
-        <p>
-            These are the two numbers of a time signature: 4 and 4 is four quarter-note beats to the
-            measure, 3 and 4 is a waltz, 6 and 8 is six eighth-note beats. The lower number changes
-            how the time signature is written and read, not how fast it plays, because the tempo
-            below is already counted in beats.
+            <input type="number" inputmode="numeric" id="chord-practice-beat-unit-input" min="1" max="16" step="1" value="4" />
         </p>
 
         <p>
             <label for="chord-practice-tempo-input">Tempo (beats per minute)</label>
-            <input type="number" id="chord-practice-tempo-input" min="30" max="240" step="1" value="80" />
+            <input type="number" inputmode="numeric" id="chord-practice-tempo-input" min="30" max="240" step="1" value="80" />
         </p>
 
         <p>
             <label for="chord-practice-count-input">Number of measures</label>
-            <input type="number" id="chord-practice-count-input" min="2" max="256" step="1" value="8" />
-        </p>
-
-        <p>
-            One chord to a measure, strummed on every beat. A chord may be held for two measures,
-            the way a progression usually breathes, so a progression uses fewer distinct chords
-            than it has measures.
+            <input type="number" inputmode="numeric" id="chord-practice-count-input" min="2" max="256" step="1" value="8" />
         </p>
 
         <p>
             <label for="chord-practice-repeat-input">Times to play the progression, up to 50; 0 repeats until stopped</label>
-            <input type="number" id="chord-practice-repeat-input" min="0" max="50" step="1" value="0" />
+            <input type="number" inputmode="numeric" id="chord-practice-repeat-input" min="0" max="50" step="1" value="0" />
         </p>
 
         <p>
@@ -306,10 +257,6 @@
             <label for="chord-practice-speak-checkbox">
                 Speak the name of the next chord on the last beat of each bar
             </label>
-        </p>
-
-        <p>
-            The voice and how loud it is are set once, under Settings, General, Chord voices.
         </p>
 
         <p id="chord-practice-speech-note"></p>
@@ -353,6 +300,25 @@
     <dialog id="progression-editor-dialog" aria-labelledby="progression-editor-heading-name" tabindex="-1">
         <h1 id="progression-editor-heading"><span id="progression-editor-heading-name">Editing Chord Progression</span> Dialog Box</h1>
 
+        <!-- A progression's text, as Copy to Clipboard writes it, pasted from wherever it was
+             passed on. Update Progression fills the dialog from it; src/shared/progressionText.mjs
+             reads it, mends what it can and says what it mended. -->
+        <details id="progression-editor-text-details">
+            <summary>Edit Progression Text</summary>
+            <p>
+                <label for="progression-editor-text-input">Progression text</label>
+                <textarea id="progression-editor-text-input" rows="8" spellcheck="false"
+                    autocomplete="off" autocapitalize="off"></textarea>
+            </p>
+            <div class="button-row">
+                <button type="button" id="progression-editor-text-button">Update Progression</button>
+            </div>
+            <div id="progression-editor-text-report" hidden>
+                <p id="progression-editor-text-summary"></p>
+                <ul id="progression-editor-text-fixes"></ul>
+            </div>
+        </details>
+
         <p>
             <label for="progression-editor-key-select">Key</label>
             <select id="progression-editor-key-select"></select>
@@ -360,12 +326,12 @@
 
         <p>
             <label for="progression-editor-beats-input">Beats per measure</label>
-            <input type="number" id="progression-editor-beats-input" min="1" max="16" step="1" value="4" />
+            <input type="number" inputmode="numeric" id="progression-editor-beats-input" min="1" max="16" step="1" value="4" />
         </p>
 
         <p>
             <label for="progression-editor-beat-unit-input">Note value that gets one beat</label>
-            <input type="number" id="progression-editor-beat-unit-input" min="1" max="16" step="1" value="4" />
+            <input type="number" inputmode="numeric" id="progression-editor-beat-unit-input" min="1" max="16" step="1" value="4" />
         </p>
 
         <h2 id="progression-editor-measures-heading">Measures</h2>
@@ -373,7 +339,7 @@
         <!-- Collapsed rather than attached to the list as a description, which was read out on
              every visit to the list. -->
         <details>
-            <summary>Keyboard commands for the measures list</summary>
+            <summary>Keyboard Commands for the Measures List</summary>
             <ul>
                 <li>Enter - choose a new chord for the measure</li>
                 <li>Delete - remove the measure</li>
@@ -398,7 +364,7 @@
                     autocomplete="off" />
             </p>
             <details>
-                <summary>How the chord field works</summary>
+                <summary>How the Chord Field Works</summary>
                 <p>
                     The field starts empty. With it empty, the Down arrow lists the chords the key
                     is built from, each with its scale degree. Typing searches every chord in the
@@ -456,7 +422,7 @@
             <ul id="chords-search-listbox" role="listbox" aria-label="Matching chord names" hidden></ul>
 
             <details id="chords-filters">
-                <summary>Filtering options</summary>
+                <summary>Filtering Options</summary>
 
                 <p>
                     <label for="chords-level-select">Difficulty</label>
@@ -497,8 +463,8 @@
             </p>
 
             <div class="button-row">
-                <button type="button" id="chords-play-button">Play selected chords</button>
-                <button type="button" id="chords-clear-button">Clear selected</button>
+                <button type="button" id="chords-play-button">Play Selected Chords</button>
+                <button type="button" id="chords-clear-button">Clear Selected</button>
             </div>
 
             <p id="chords-status" role="status" aria-live="polite"></p>
@@ -566,7 +532,7 @@
         </div>
 
         <section id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
-            <h2>Chord voices</h2>
+            <h2>Chord Voices</h2>
 
             <p>
                 <label for="settings-chord-voice-select">Voice for spoken chord names</label>
@@ -578,7 +544,7 @@
 
             <p>
                 <label for="settings-chord-volume-input">Spoken chord volume (percent)</label>
-                <input type="number" id="settings-chord-volume-input" min="0" max="100" step="5"
+                <input type="number" inputmode="numeric" id="settings-chord-volume-input" min="0" max="100" step="5"
                     value="50" aria-describedby="settings-chord-volume-hint" />
                 <span id="settings-chord-volume-hint">Relative to the guitar.</span>
             </p>
@@ -589,7 +555,7 @@
                  the one line above is carried by aria-describedby, which is announced on reaching
                  the field rather than on arriving in the dialog. -->
             <details>
-                <summary>About spoken chord volume</summary>
+                <summary>About Spoken Chord Volume</summary>
                 <p>
                     This is how loud a spoken chord name is against the guitar, not how loud
                     unstrung is overall. Below a hundred the name sits under the playing rather
@@ -597,7 +563,7 @@
                 </p>
             </details>
 
-            <h2>Saved progressions</h2>
+            <h2>Saved Progressions</h2>
 
             <p>
                 <label for="settings-progressions-directory-input">Folder for saved chord progressions</label>
@@ -606,12 +572,12 @@
                 <span id="settings-progressions-directory-hint"></span>
             </p>
             <div class="button-row">
-                <button type="button" id="settings-progressions-browse-button">Browse…</button>
-                <button type="button" id="settings-progressions-default-button">Use Default Folder</button>
+                <button type="button" id="settings-progressions-browse-button" data-needs-file-access>Browse…</button>
+                <button type="button" id="settings-progressions-default-button" data-needs-file-access>Use Default Folder</button>
             </div>
 
             <details>
-                <summary>About the progressions folder</summary>
+                <summary>About the Progressions Folder</summary>
                 <p>
                     Saved progressions are ordinary files in this folder, so they can be copied,
                     backed up or shared like any other file. Sub-folders made in the Save dialog,
@@ -631,8 +597,8 @@
             </p>
 
             <div class="button-row">
-                <button type="button" id="settings-clear-recent-button">Clear all recent files</button>
-                <button type="button" id="settings-remove-stale-button">Remove stale files from recents</button>
+                <button type="button" id="settings-clear-recent-button" data-needs-file-access>Clear All Recent Files</button>
+                <button type="button" id="settings-remove-stale-button" data-needs-file-access>Remove Stale Files from Recents</button>
             </div>
 
             <p id="settings-files-status" role="status" aria-live="polite"></p>

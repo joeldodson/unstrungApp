@@ -31,7 +31,8 @@ const dialog = await page.evaluate(() => {
         focusInside: element.contains(document.activeElement),
         levels: [...document.getElementById('chord-practice-level-select').options].map(o => o.value),
         keys: [...document.getElementById('chord-practice-key-select').options].map(o => o.textContent),
-        levelDescription: document.getElementById('chord-practice-level-description').textContent,
+        prose: [...element.querySelectorAll('p')].filter(p => !p.querySelector('label') && !p.id).length,
+        speechNoteHidden: document.getElementById('chord-practice-speech-note').hidden,
         speechNote: document.getElementById('chord-practice-speech-note').textContent,
         speakDisabled: document.getElementById('chord-practice-speak-checkbox').disabled,
         unlabelled: controls.filter(el => el.tagName === 'BUTTON'
@@ -43,7 +44,8 @@ const dialog = await page.evaluate(() => {
 check('dialog is open and focused', dialog.open && dialog.focusInside);
 check('three levels offered', dialog.levels.length === 3, dialog.levels.join(', '));
 check('every control is labelled', dialog.unlabelled.length === 0, dialog.unlabelled.join(', '));
-check('the level describes itself', dialog.levelDescription.length > 20);
+check('no explanatory text, only controls (explanations are in Features)', dialog.prose === 0, `${dialog.prose} paragraphs`);
+check('the speech note shows only when the recordings are missing', dialog.speechNoteHidden === !dialog.speakDisabled);
 console.log(`  speech: ${dialog.speakDisabled ? 'disabled' : 'available'} -- ${dialog.speechNote}`);
 
 console.log(`\n  beginner keys (${dialog.keys.length}): ${dialog.keys.join(', ')}`);
@@ -158,11 +160,11 @@ console.log(`  headings: ${tab.headings.join(' | ')}`);
 const headingShape = tab.headings.map(h => h.replace(/\(\d+[^)]*\)/, '(n)')).join(' | ');
 check('the sections are laid out in order',
     headingShape ===
-    'H2: Chord practice - C major | H3: Metadata | H3: Chords Used (n) | H3: Progression (n) | ' +
-    'H3: Playback | H3: Move around the progression | H3: Keyboard control',
+    'H2: Chord Practice - C major | H3: Metadata | H3: Chords Used (n) | H3: Progression (n) | ' +
+    'H3: Playback | H3: Move Around the Progression | H3: Keyboard Control',
     headingShape);
 check('keyboard control is the last heading',
-    tab.headings[tab.headings.length - 1] === 'H3: Keyboard control');
+    tab.headings[tab.headings.length - 1] === 'H3: Keyboard Control');
 check('playback has a transport', tab.buttons.includes('Play Progression'), tab.buttons.join(', '));
 check('there is a live region for playback state', tab.liveRegions >= 1);
 
@@ -267,7 +269,7 @@ const controls = await page.evaluate(() => {
     const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
     const labelled = [...panel.querySelectorAll('input, select')].every(el =>
         panel.querySelector(`label[for="${el.id}"]`));
-    // The key list is the last plain list in the panel, under the Keyboard control heading.
+    // The key list is the last plain list in the panel, under the Keyboard Control heading.
     const lists = [...panel.querySelectorAll('ul:not(.chord-progression)')]
         .filter(ul => !ul.closest('details'));
     const keyRows = [...lists[lists.length - 1].querySelectorAll('li')].map(li => li.textContent);

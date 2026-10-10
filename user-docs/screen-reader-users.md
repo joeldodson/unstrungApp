@@ -10,21 +10,21 @@ I've called that out in a few places.
 The features document describes every part of unstrung and its keys.
 This page is specifically directed at screen reader users to highlight some areas.
 
-## Read the whole page
+## Read the Whole Page
 
 There are short notes and hints all through the app explaining what a control does.
 A line of text sitting right after a control is easy to miss though.
 When you first look around unstrung, take your time and read a whole page rather than tabbing from control to control.
 Move around with the arrow keys, or ctrl+arrow, to be sure you hear everything.
 
-## Settings for screen reader users
+## Settings for Screen Reader Users
 
 The Settings dialog, reached from the menu, has a tab called Screen Reader.
 Its settings have defaults chosen with newer users in mind.
 Each has a paragraph beneath it saying what it does and why you might want to change it.
 Read the whole tab rather than only the checkbox labels.
 
-## The playback keys need focus mode
+## The Playback Keys Need Focus Mode
 
 Once you have created an audio track, you can control playback with single keys.
 For those keys to reach unstrung, your screen reader has to be in the mode where keyboard input goes straight to the application.
@@ -39,21 +39,21 @@ I would turn on focus mode to try the playback keys, then move to another open i
 I would get there but be unable to navigate it, until I remembered I was still in focus mode and switched back to browse mode.
 If something suddenly seems unresponsive, that is almost certainly why.
 
-The keys are listed in the audio track itself, under a level 5 heading called Keyboard control, once a track has been created.
+The keys are listed in the audio track itself, under a level 5 heading called Keyboard Control, once a track has been created.
 There are buttons for moving around the track as well, so nothing is keyboard only.
 The keys go further than the buttons, though.
 They also tell you where you are, turn the metronome on and off, and change the tempo without you leaving your place.
 
-## Why the measures are collapsed
+## Why the Measures Are Collapsed
 
-Inside a song, headings are the fastest way around: the song summary, then a heading for each track.
+Inside a song, headings are the fastest way around: the Song Summary, then a heading for each track.
 A track's measures sit behind a collapsed section called Measures.
 That is deliberate.
 A song can run to hundreds of lines of beat descriptions, and leaving them all exposed made showing the song slow enough to be painful.
 Expand the measures when you want the detail.
 The Screen Reader settings tab has an option to collapse them again for you when you switch to another open item, and it is on unless you turn it off.
 
-## Where messages go
+## Where Messages Go
 
 The status bar is the last thing in the window.
 Your screen reader reads it when it changes, without you going looking for it.

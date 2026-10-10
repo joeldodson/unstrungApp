@@ -136,6 +136,35 @@ answer.
 - The file format is version 1. `parseSavedProgression` refuses a higher version with "saved by a
   newer version of Unstrung", so the format can grow later.
 
+## Copy to Clipboard and Edit Progression Text (2026-10-09)
+
+Joel ran the web version in Chrome on iOS, where nothing can be saved: every iOS browser is
+Safari underneath, without the File System Access API. He asked for a way to keep and pass on a
+progression that works everywhere.
+
+- **Copy to Clipboard**, after Save Progression As in a progression's item, copies
+  `serializeProgression`'s text, the same JSON a saved file holds. It uses
+  `navigator.clipboard.writeText`, which works in Electron and in every current browser on a secure
+  page without asking permission, as long as it is called while the click is still being handled.
+  Safari is strict about that, so nothing is awaited before it.
+- **Edit Progression Text**, a collapsed `details` at the start of the editor dialog, holds a
+  multiline field and Update Progression. Pasting is ordinary typing into the field, so it needs
+  no clipboard permission. Reading the clipboard from script would: browsers ask, or refuse, and iOS
+  shows a Paste button of its own. That is why there is no Paste from Clipboard button.
+- Update Progression fills the dialog's key, time signature and measures, as if built by hand.
+  Nothing reaches the item until Apply Changes or Create Progression.
+- **Bad text.** `src/shared/progressionText.mjs` reads the text leniently, with its own small JSON
+  reader rather than `JSON.parse`, so it can mend as it goes and give a line and column that do
+  not depend on the browser's error wording. It mends curly quotation marks, quotation marks
+  missing from names or values, single quotation marks, missing and trailing commas, text before
+  and after the braces, text cut off before its closing brackets, chords written as names ("Am7",
+  "CM7", "A#m"), keys respelled ("Db" is C#) or with the mode in them ("Am"), a time signature
+  written "3/4", numbers written as text. Each fix is listed after the button, by line or measure.
+  A chord not in the library leaves its measure empty, for the player to fill, rather than
+  refusing the whole text. Text it cannot read changes nothing; the reason is said with the line
+  and column, and the caret is put there.
+- `scripts/progressions/check-progression-text.mjs` checks the reader.
+
 ## Where it lives in the code
 
 - `src/shared/savedProgressions.mjs`: the file format, parsing with plain-language errors, and
@@ -143,6 +172,7 @@ answer.
 - `src/main/main.js`: the progressions folder, listing, reading and saving files, the quit check.
 - `src/renderer/renderer.js`: the chord practice tab, the open dialog, the editor, the unsaved
   changes dialog.
+- `src/shared/progressionText.mjs`: reading pasted progression text, mending what it can.
 - `scripts/progressions/verify-saved-progressions.mjs`: Playwright checks, run against a scratch
   profile through the `UNSTRUNG_TEST_PROFILE` environment variable so they never touch the real
   Documents folder.

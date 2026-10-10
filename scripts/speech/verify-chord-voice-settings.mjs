@@ -35,7 +35,7 @@ const openSettings = async () => {
     await page.waitForTimeout(1200);
 };
 
-console.log('=== The Chord voices section is in General ===');
+console.log('=== The Chord Voices section is in General ===');
 // The factory defaults are what the markup declares. What the fields *show* is whatever was last
 // saved, and both builds share one app-state.json, so a run of this against one build leaves state
 // behind for the other. Read the declared defaults from the markup and the live values separately.
@@ -65,8 +65,8 @@ const section = await page.evaluate(() => {
 });
 console.log(`  headings: ${section.heading.join(', ')}`);
 console.log(`  voices: ${section.voices.join(', ')}, default ${section.voice} at ${section.volume}%`);
-check('a Chord voices heading is in the General tab',
-    section.heading.includes('Chord voices') && section.inGeneral, section.heading.join(', '));
+check('a Chord Voices heading is in the General tab',
+    section.heading.includes('Chord Voices') && section.inGeneral, section.heading.join(', '));
 check('both fields are labelled', section.labelled);
 check('the voices are David and Zira, plainly named',
     section.voices.join(',') === 'Zira,David', section.voices.join(','));
@@ -111,13 +111,10 @@ await app.evaluate(({ BrowserWindow }) =>
 await page.waitForTimeout(1500);
 const dialog = await page.evaluate(() => ({
     hasVoice: Boolean(document.getElementById('chord-practice-voice-select')),
-    hasVolume: Boolean(document.getElementById('chord-practice-speech-volume-input')),
-    pointsAtSettings: [...document.getElementById('chord-practice-dialog').querySelectorAll('p')]
-        .some(p => /Settings, General, Chord voices/.test(p.textContent))
+    hasVolume: Boolean(document.getElementById('chord-practice-speech-volume-input'))
 }));
 check('the voice selector is gone from the dialog', !dialog.hasVoice);
 check('the volume field is gone from the dialog', !dialog.hasVolume);
-check('the dialog says where they went', dialog.pointsAtSettings);
 
 console.log('\n=== A change survives a restart and reaches a progression ===');
 await page.evaluate(() => document.getElementById('chord-practice-dialog').close());

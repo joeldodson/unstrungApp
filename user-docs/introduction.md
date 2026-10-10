@@ -20,7 +20,7 @@ There is an elegantly simplified and usable world out there if you could only ki
 
 unstrung can run within your browser, or you can install it on Windows and run it as a desktop application.
 
-### Running from the browser
+### Running from the Browser
 
 Go to the [unstrung app on eyesunstrung (opens in new tab)](https://eyesunstrung.vip/unstrung/app/) to run unstrung within your browser.
 

@@ -14,6 +14,7 @@ import {
     serializeProgression, parseSavedProgression, keyPitchClasses, isChordInKey, degreeChords,
     MAX_MEASURES, MAX_BEATS
 } from '../shared/savedProgressions.mjs';
+import { readProgressionText } from '../shared/progressionText.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import { createMenuButton } from './menu.js';
 
@@ -129,7 +130,7 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
     const container = document.createElement('div');
 
     const summaryHeading = document.createElement('h2');
-    summaryHeading.textContent = 'Song summary';
+    summaryHeading.textContent = 'Song Summary';
     container.append(summaryHeading);
 
     const ul = document.createElement('ul');
@@ -516,7 +517,7 @@ aboutDialog.addEventListener('click', event => {
     event.preventDefault();
     const href = link.href;
     aboutDialog.close();
-    window.unstrung.openExternalLink(href);
+    followHelpLink(link, href);
 });
 
 // --- Help documents (Help menu) ---
@@ -530,6 +531,41 @@ aboutDialog.addEventListener('click', event => {
 // again from the menu goes back to the one already open.
 
 const helpDocumentItemIds = new Map();
+
+/**
+ * The Help document a link points at, or null: "about" for /unstrung/docs/, the About document's
+ * page, or a document's id for /unstrung/docs/<id>/ on eyesunstrung.vip. A link written relative
+ * reaches here as a full address, made so by build-help.mjs.
+ */
+function helpDocumentForLink(href) {
+    let url;
+    try {
+        url = new URL(href);
+    } catch {
+        return null;
+    }
+    if (!/^(www\.)?eyesunstrung\.vip$/.test(url.hostname)) return null;
+    const match = /^\/unstrung\/docs\/(?:([^/]+)\/?)?$/.exec(url.pathname);
+    if (!match) return null;
+    if (!match[1]) return 'about';
+    return helpContent.documents?.some(doc => doc.id === match[1]) ? match[1] : null;
+}
+
+/**
+ * Follows a link in a Help document or the About dialog. A link to another Help document opens it
+ * here, as the Help menu would, in both the desktop app and the web version. A link whose text says
+ * "(opens in new tab)" asked for the browser, and goes there like every other link.
+ */
+function followHelpLink(link, href = link.href) {
+    const target = /\(opens in (a )?new tab\)/i.test(link.textContent) ? null : helpDocumentForLink(href);
+    if (target === 'about') {
+        window.unstrung.getAppVersion().then(version => openAboutDialog({ version }));
+    } else if (target) {
+        openHelpDocument(target);
+    } else {
+        window.unstrung.openExternalLink(href);
+    }
+}
 
 function openHelpDocument(id) {
     const existingId = helpDocumentItemIds.get(id);
@@ -546,12 +582,19 @@ function openHelpDocument(id) {
 
     const content = document.createElement('div');
     content.innerHTML = doc.html;
-    // A link goes to the default browser, through the platform, rather than replacing the app.
+    // The title again, as the h1 of the document itself, as on its page on eyesunstrung.vip. The
+    // item's h1 in the list of open items leads here; this one starts the document, so moving by
+    // heading in the main area finds it, and the document's own headings follow at level 2.
+    const title = document.createElement('h1');
+    title.textContent = doc.title;
+    content.prepend(title);
+    // A link to another Help document opens it here; any other goes to the default browser, through
+    // the platform, rather than replacing the app.
     content.addEventListener('click', event => {
         const link = event.target.closest('a');
         if (!link) return;
         event.preventDefault();
-        window.unstrung.openExternalLink(link.href);
+        followHelpLink(link);
     });
 
     const item = createOpenItem(doc.title, content, {
@@ -1020,6 +1063,27 @@ async function openSettingsDialog() {
 
 
 /**
+ * Whether files can be remembered, listed and saved in place: always in the desktop app, and in a
+ * browser only with the File System Access API, which Chrome and Edge on a computer have and
+ * Safari, Firefox and every browser on iOS do not. Without it a song or a saved progression is
+ * opened one file at a time through the browser's upload picker, and saving downloads a copy, so
+ * Open File, Open Saved Progression and the Save buttons stay; Recent Files and the progressions
+ * folder do not.
+ */
+const hasFileAccess = window.unstrung.capabilities.fileAccess === true;
+
+/**
+ * Disables a control that needs files, when there are none to be had. Left in place rather than
+ * hidden, so the command can still be found and is read as unavailable. A menu item is marked
+ * aria-disabled, which menu.js honours, submenu or not; anything else is disabled outright.
+ */
+function requireFileAccess(element) {
+    if (hasFileAccess) return;
+    if (element.getAttribute('role') === 'menuitem') element.setAttribute('aria-disabled', 'true');
+    else element.disabled = true;
+}
+
+/**
  * Controls for what the platform cannot do, taken out of the page rather than left to fail.
  *
  * In a browser: there is no typed folder path, since a page only ever gets a folder the player
@@ -1038,6 +1102,7 @@ async function openSettingsDialog() {
     if (!capabilities.openFolderInFileManager) {
         document.getElementById('progression-open-folder-button').hidden = true;
     }
+    for (const element of document.querySelectorAll('[data-needs-file-access]')) requireFileAccess(element);
 })();
 
 // Loaded once at startup so the first file opened is described according to the saved setting,
@@ -1236,7 +1301,7 @@ function describeVoicingRows(chord, voicing) {
 function buildVoicingDetails(chord, voicing) {
     const details = document.createElement('details');
     const summary = document.createElement('summary');
-    summary.textContent = 'Fingering and notes';
+    summary.textContent = 'Fingering and Notes';
     const list = document.createElement('ul');
     appendTextItems(list, describeVoicingRows(chord, voicing));
     details.append(summary, list);
@@ -1306,7 +1371,7 @@ function buildChordRow(chord, chordIndex) {
 
     const details = document.createElement('details');
     const summary = document.createElement('summary');
-    summary.textContent = `${voicings.length} voicing option${voicings.length === 1 ? '' : 's'}`;
+    summary.textContent = `${voicings.length} Voicing Option${voicings.length === 1 ? '' : 's'}`;
     const list = document.createElement('ul');
     const voicingBoxes = [];
 
@@ -3230,7 +3295,7 @@ function audioTrackSelectionText(state) {
 }
 
 function updateAudioTrackSelectionSummary(state) {
-    state.ui.measuresSummary.textContent = `Measures selected - ${audioTrackSelectionText(state)}`;
+    state.ui.measuresSummary.textContent = `Measures Selected - ${audioTrackSelectionText(state)}`;
 }
 
 /**
@@ -3304,11 +3369,11 @@ function buildAudioTrackPanel(state) {
     // first, straight after the disclosure's summary: moving to the previous heading from anywhere
     // in here and then up one line reaches the summary, to collapse it again.
     const heading = document.createElement('h4');
-    heading.textContent = `Audio track for ${state.trackLabel}`;
+    heading.textContent = `Audio Track - ${state.trackLabel}`;
     container.append(heading);
 
     const settingsHeading = document.createElement('h5');
-    settingsHeading.textContent = 'Playback settings';
+    settingsHeading.textContent = 'Playback Settings';
     container.append(settingsHeading);
 
     const tempoParagraph = document.createElement('p');
@@ -3317,6 +3382,7 @@ function buildAudioTrackPanel(state) {
         `Tempo in beats per minute, ${AUDIO_TRACK_MIN_BPM} to ${AUDIO_TRACK_MAX_BPM}`;
     const tempoInput = document.createElement('input');
     tempoInput.type = 'number';
+    tempoInput.inputMode = 'numeric';
     tempoInput.id = uniqueControlId('audio-track-tempo-input');
     tempoLabel.htmlFor = tempoInput.id;
     tempoInput.min = String(AUDIO_TRACK_MIN_BPM);
@@ -3336,6 +3402,7 @@ function buildAudioTrackPanel(state) {
     firstLabel.textContent = 'First measure to play';
     const firstInput = document.createElement('input');
     firstInput.type = 'number';
+    firstInput.inputMode = 'numeric';
     firstInput.id = uniqueControlId('audio-track-first-measure-input');
     firstLabel.htmlFor = firstInput.id;
     firstInput.min = '1';
@@ -3350,6 +3417,7 @@ function buildAudioTrackPanel(state) {
     lastLabel.textContent = 'Last measure to play';
     const lastInput = document.createElement('input');
     lastInput.type = 'number';
+    lastInput.inputMode = 'numeric';
     lastInput.id = uniqueControlId('audio-track-last-measure-input');
     lastLabel.htmlFor = lastInput.id;
     lastInput.min = '1';
@@ -3364,6 +3432,7 @@ function buildAudioTrackPanel(state) {
     repeatLabel.textContent = 'Times to play the selection, up to 50; 0 repeats until stopped';
     const repeatInput = document.createElement('input');
     repeatInput.type = 'number';
+    repeatInput.inputMode = 'numeric';
     repeatInput.id = uniqueControlId('audio-track-repeat-input');
     repeatLabel.htmlFor = repeatInput.id;
     repeatInput.min = '0';
@@ -3434,7 +3503,7 @@ function buildAudioTrackPanel(state) {
 
     // The same moves the shortcuts make, as buttons, so nothing here is keyboard-only.
     const transportHeading = document.createElement('h5');
-    transportHeading.textContent = 'Move around the track';
+    transportHeading.textContent = 'Move Around the Track';
     extraControls.append(transportHeading);
 
     const transportParagraph = createButtonRow();
@@ -3457,7 +3526,7 @@ function buildAudioTrackPanel(state) {
     extraControls.append(transportParagraph);
 
     const keysHeading = document.createElement('h5');
-    keysHeading.textContent = 'Keyboard control';
+    keysHeading.textContent = 'Keyboard Control';
     extraControls.append(keysHeading);
 
     const keysNote = document.createElement('p');
@@ -3567,7 +3636,7 @@ function buildAudioTrackDisclosure(score, trackIndex, trackName, getSongItemId) 
     const details = document.createElement('details');
     details.className = 'audio-track-disclosure';
     const summary = document.createElement('summary');
-    summary.textContent = `Audio track for ${trackName}`;
+    summary.textContent = `Audio Track - ${trackName}`;
     details.append(summary);
 
     let built = false;
@@ -3619,7 +3688,7 @@ function buildAudioTrackContent(score, trackIndex, trackName, songItemId, detail
     if (!state.audioTrack || state.audioTrack.notes.length === 0) {
         const container = document.createElement('div');
         const heading = document.createElement('h4');
-        heading.textContent = `Audio track for ${trackName}`;
+        heading.textContent = `Audio Track - ${trackName}`;
         const message = document.createElement('p');
         message.textContent = 'This track has no playable notes.';
         container.append(heading, message);
@@ -3671,7 +3740,6 @@ function closeAudioTracksOf(songItemId) {
 
 const chordPracticeDialog = document.getElementById('chord-practice-dialog');
 const chordPracticeLevelSelect = document.getElementById('chord-practice-level-select');
-const chordPracticeLevelDescription = document.getElementById('chord-practice-level-description');
 const chordPracticeKeySelect = document.getElementById('chord-practice-key-select');
 const chordPracticeBorrowingSelect = document.getElementById('chord-practice-borrowing-select');
 const chordPracticeBeatsInput = document.getElementById('chord-practice-beats-input');
@@ -3687,8 +3755,6 @@ const chordPracticeSpeechNote = document.getElementById('chord-practice-speech-n
 const chordPracticeStatus = document.getElementById('chord-practice-status');
 const chordPracticeGenerateButton = document.getElementById('chord-practice-generate-button');
 const chordPracticeCancelButton = document.getElementById('chord-practice-cancel-button');
-const chordPracticeOpenSavedButton = document.getElementById('chord-practice-open-saved-button');
-const chordPracticeNewButton = document.getElementById('chord-practice-new-button');
 
 const CHORD_PRACTICE_STRUM_DELAY_SECONDS = 0.022;
 const CHORD_PRACTICE_NOTE_GAIN = 0.55;
@@ -3718,9 +3784,6 @@ function chordPracticeKeyOptions(levelId) {
 }
 
 function chordPracticeRefreshKeys() {
-    const level = progressionModel.levels.find(l => l.id === chordPracticeLevelSelect.value);
-    chordPracticeLevelDescription.textContent = level ? level.description : '';
-
     const previous = chordPracticeKeySelect.value;
     chordPracticeKeySelect.replaceChildren();
     for (const option of chordPracticeKeyOptions(chordPracticeLevelSelect.value)) {
@@ -4590,6 +4653,9 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const editButton = makeButton('Edit Progression');
     const saveButton = makeButton('Save Progression', 'Control+S');
     const saveAsButton = makeButton('Save Progression As', 'Control+Shift+S');
+    // The way to keep or pass on a progression where saving cannot work, such as any browser on
+    // an iPhone: the same text a saved file holds, which the editor's Edit Progression Text reads.
+    const copyButton = makeButton('Copy to Clipboard');
     container.append(fileActions);
 
     const playbackHeading = document.createElement('h3');
@@ -4615,6 +4681,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const tempoParagraph = document.createElement('p');
     const tempoInput = document.createElement('input');
     tempoInput.type = 'number';
+    tempoInput.inputMode = 'numeric';
     tempoInput.id = uniqueControlId('chord-practice-tab-tempo');
     tempoInput.min = String(CHORD_PRACTICE_MIN_TEMPO);
     tempoInput.max = String(CHORD_PRACTICE_MAX_TEMPO);
@@ -4628,6 +4695,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const repeatParagraph = document.createElement('p');
     const repeatInput = document.createElement('input');
     repeatInput.type = 'number';
+    repeatInput.inputMode = 'numeric';
     repeatInput.id = uniqueControlId('chord-practice-tab-repeat');
     repeatInput.min = '0';
     repeatInput.max = '50';
@@ -4677,7 +4745,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     // The same moves the shortcuts make, as buttons, so nothing here is keyboard-only. Same
     // headings and same labels as the audio track panel.
     const transportHeading = document.createElement('h3');
-    transportHeading.textContent = 'Move around the progression';
+    transportHeading.textContent = 'Move Around the Progression';
     container.append(transportHeading);
 
     const transportParagraph = createButtonRow();
@@ -4699,7 +4767,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     container.append(transportParagraph);
 
     const keysHeading = document.createElement('h3');
-    keysHeading.textContent = 'Keyboard control';
+    keysHeading.textContent = 'Keyboard Control';
     container.append(keysHeading);
 
     const keysNote = document.createElement('p');
@@ -4737,10 +4805,12 @@ function buildChordPracticeTab(progression, options, file = {}) {
         tempo: options.tempo,
         // The file this progression was opened from or last saved to, and whether it has changed
         // since. A generated progression starts with neither, and is not "unsaved": it was never
-        // anything but a draft, and asking about it on every close would train the answer.
+        // anything but a draft, and asking about it on every close would train the answer. Without
+        // file access nothing is ever unsaved: saving downloads a copy, which is not kept in step
+        // with the tab, so there is nothing for "unsaved changes" to measure against.
         filePath: file.filePath ?? null,
         fileName: file.fileName ?? null,
-        dirty: file.dirty === true,
+        dirty: file.dirty === true && hasFileAccess,
         tab: null,
         speak: options.speak,
         speechVolume: options.speechVolume,
@@ -4769,6 +4839,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     editButton.addEventListener('click', () => openProgressionEditor({ state }));
     saveButton.addEventListener('click', () => saveChordPractice(state));
     saveAsButton.addEventListener('click', () => saveChordPractice(state, { saveAs: true }));
+    copyButton.addEventListener('click', () => copyChordPracticeText(state));
     playButton.addEventListener('click', () => toggleChordPracticePlayback(state));
     for (const { button, action } of transportButtons) {
         button.addEventListener('click', () => action(state));
@@ -4935,10 +5006,11 @@ function syncUnsavedProgressions() {
 function refreshChordPracticeNames(state) {
     const title = state.fileName ?? `${state.progression.key} ${state.progression.mode}`;
     const marker = state.dirty ? ' (unsaved changes)' : '';
-    state.ui.heading.textContent = `Chord practice - ${title}${marker}`;
+    state.ui.heading.textContent = `Chord Practice - ${title}${marker}`;
     state.ui.progressionHeading.textContent =
         `Progression (${state.progression.chords.length} measures${state.dirty ? ', unsaved changes' : ''})`;
     state.ui.savedAsItem.textContent = state.fileName ? `Saved as - ${state.fileName}` : 'Not saved';
+    state.ui.savedAsItem.hidden = !hasFileAccess;
     if (state.item) {
         state.item.practiceName = `Practice - ${title}`;
         setItemLabel(state.item, `Practice - ${title}${marker}`);
@@ -5013,7 +5085,8 @@ function suggestedProgressionName(progression) {
  * Saves the tab's progression, returning whether it was saved.
  *
  * Save writes over the file the tab came from without asking where; Save As, and the first save of
- * anything, open the system's Save dialog in the progressions folder.
+ * anything, open the system's Save dialog in the progressions folder. In a browser without the File
+ * System Access API both download a copy instead.
  */
 async function saveChordPractice(state, { saveAs = false } = {}) {
     const text = serializeProgression(state.progression);
@@ -5040,9 +5113,32 @@ async function saveChordPractice(state, { saveAs = false } = {}) {
     state.fileName = result.name;
     state.dirty = false;
     refreshChordPracticeNames(state);
-    state.announce(`Saved as ${result.name}.` + (result.insideFolder ? '' :
-        ' That is outside the progressions folder, so Open Saved Progression will not list it.'));
+    if (result.downloaded) {
+        // A browser without the File System Access API: a copy, wherever the browser keeps downloads.
+        state.announce(`Downloaded ${result.name}.json. Open Saved Progression can open it from your downloads.`);
+    } else {
+        state.announce(`Saved as ${result.name}.` + (result.insideFolder ? '' :
+            ' That is outside the progressions folder, so Open Saved Progression will not list it.'));
+    }
     return true;
+}
+
+/**
+ * Copies the tab's progression to the clipboard, as the text a saved file holds.
+ *
+ * The clipboard is asked for straight from the click, with nothing awaited first: Safari, and so
+ * every browser on iOS, allows writing to it only while the click is still being handled. Writing
+ * needs no permission anywhere unstrung runs (a secure page, or the desktop app); reading would,
+ * which is why pasting goes through an ordinary text field instead.
+ */
+function copyChordPracticeText(state) {
+    const text = serializeProgression(state.progression);
+    const writing = navigator.clipboard?.writeText
+        ? navigator.clipboard.writeText(text)
+        : Promise.reject(new Error('no clipboard'));
+    writing.then(
+        () => state.announce('Copied the progression to the clipboard.'),
+        () => state.announce('The browser would not copy to the clipboard.'));
 }
 
 // Control+S and Control+Shift+S save the chord practice tab in front. With a modifier they reach
@@ -5096,33 +5192,6 @@ async function generateChordPractice() {
 chordPracticeLevelSelect.addEventListener('change', chordPracticeRefreshKeys);
 chordPracticeGenerateButton.addEventListener('click', generateChordPractice);
 chordPracticeCancelButton.addEventListener('click', () => chordPracticeDialog.close());
-
-/**
- * Hands over from the chord practice dialog to another dialog.
- *
- * The opener travels with it, so cancelling the second dialog returns focus to where the first was
- * opened from rather than to a dialog that has already gone.
- */
-function handOffChordPracticeDialog() {
-    const opener = chordPracticeDialogOpener;
-    chordPracticeDialogOpener = null;
-    chordPracticeDialog.close();
-    return opener;
-}
-
-chordPracticeOpenSavedButton.addEventListener('click', () => {
-    const options = chordPracticePlaybackOptions({ fromDialog: true });
-    openProgressionOpenDialog({ opener: handOffChordPracticeDialog(), options });
-});
-chordPracticeNewButton.addEventListener('click', () => {
-    const options = chordPracticePlaybackOptions({ fromDialog: true });
-    const [key, mode] = chordPracticeKeySelect.value.split('|');
-    const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
-    const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
-    openProgressionEditor({
-        opener: handOffChordPracticeDialog(), options, start: { key, mode, beatsPerBar, beatUnit }
-    });
-});
 
 chordPracticeDialog.addEventListener('close', () => {
     if (chordPracticeDialogOpener && typeof chordPracticeDialogOpener.focus === 'function') {
@@ -5185,10 +5254,10 @@ async function openChordPracticeDialog() {
     resetChordPracticeDialog();
 
     chordPracticeSpeakCheckbox.disabled = !chordPracticeSpeechSupported;
+    // Said only when something is wrong: it is why the checkbox is unavailable.
     chordPracticeSpeechNote.textContent = chordPracticeSpeechSupported
-        ? 'Chord names are recordings shipped with unstrung, so they land exactly on the beat ' +
-          'and nothing has to be installed.'
-        : 'The chord name recordings are missing from this build.';
+        ? '' : 'The chord name recordings are missing from this build.';
+    chordPracticeSpeechNote.hidden = chordPracticeSpeechSupported;
 
     chordPracticeDialog.showModal();
     chordPracticeDialog.focus();
@@ -5399,6 +5468,36 @@ async function openSavedProgressionFile(relativePath) {
     setStatus(`Opened ${file.name}.`);
 }
 
+/**
+ * Open Saved Progression where there is no folder to list: the browser's file upload picker, for
+ * one progression file. The platform asks for the file before anything here is awaited, so the
+ * picker still counts as answering the key press or click.
+ *
+ * The progression opens with no file to save back to, since nothing can be saved here anyway. Text
+ * that does not read as a saved progression is refused with the reason, as the folder tree does,
+ * and the status bar points to Edit Progression Text, which mends simple mistakes.
+ */
+async function openProgressionFromUpload() {
+    let file;
+    try {
+        file = await window.unstrung.pickProgressionFile();
+    } catch (error) {
+        setStatus(`Could not open that progression: ${error.message}.`);
+        return;
+    }
+    if (!file) return;
+    await ensureChordPracticeReady();
+    const parsed = parseSavedProgression(file.text, { model: progressionModel, library: chordPracticeLibrary });
+    if (parsed.error) {
+        setStatus(`Could not open ${file.name}: ${parsed.error}. ` +
+            'Edit Progression Text, in Manually Create Chord Progression, can mend simple mistakes.');
+        return;
+    }
+    openChordPracticeTab(prepareProgression(parsed.progression), chordPracticePlaybackOptions({ fromDialog: false }),
+        { filePath: null, fileName: file.name, dirty: false });
+    setStatus(`Opened ${file.name}.`);
+}
+
 function activateProgressionTreeItem(item) {
     if (!item) {
         progressionOpenStatus.textContent = 'There is no progression to open.';
@@ -5483,6 +5582,10 @@ progressionOpenDialog.addEventListener('close', () => {
 });
 
 async function openProgressionOpenDialog({ opener = document.activeElement, options = null } = {}) {
+    if (!hasFileAccess) {
+        openProgressionFromUpload();
+        return;
+    }
     await ensureChordPracticeReady();
     progressionOpenOpener = opener;
     progressionOpenOptions = options ?? chordPracticePlaybackOptions({ fromDialog: false });
@@ -5540,6 +5643,11 @@ const editorChordInput = document.getElementById('progression-editor-chord-input
 const editorSuggestions = document.getElementById('progression-editor-suggestions');
 const editorStatus = document.getElementById('progression-editor-status');
 const editorApplyButton = document.getElementById('progression-editor-apply-button');
+const editorTextDetails = document.getElementById('progression-editor-text-details');
+const editorTextInput = document.getElementById('progression-editor-text-input');
+const editorTextReport = document.getElementById('progression-editor-text-report');
+const editorTextSummary = document.getElementById('progression-editor-text-summary');
+const editorTextFixes = document.getElementById('progression-editor-text-fixes');
 
 const editor = {
     measures: [],
@@ -5913,11 +6021,10 @@ function populateEditorKeys() {
 /**
  * Opens the editor on a tab's progression, or on a new one.
  *
- * `state` is the chord practice tab being edited. Without it this is a new progression, starting
- * from `start` -- the chord practice dialog's key and time signature when it was the way in -- with
- * one empty measure.
+ * `state` is the chord practice tab being edited. Without it this is a new progression in C major,
+ * 4/4, with one empty measure.
  */
-async function openProgressionEditor({ state = null, opener = document.activeElement, options = null, start = null } = {}) {
+async function openProgressionEditor({ state = null, opener = document.activeElement, options = null } = {}) {
     await ensureChordPracticeReady();
     populateEditorKeys();
 
@@ -5936,10 +6043,9 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorHeading.textContent = 'Editing Chord Progression';
         editorApplyButton.textContent = 'Apply Changes';
     } else {
-        editorKeySelect.value = `${start?.key ?? 'C'}|${start?.mode ?? 'major'}`;
-        if (!editorKeySelect.value) editorKeySelect.value = 'C|major';
-        editorBeatsInput.value = String(start?.beatsPerBar ?? 4);
-        editorBeatUnitInput.value = String(start?.beatUnit ?? 4);
+        editorKeySelect.value = 'C|major';
+        editorBeatsInput.value = '4';
+        editorBeatUnitInput.value = '4';
         editor.measures = [null];
         editor.origin = { made: 'hand' };
         editorHeading.textContent = 'Creating Chord Progression';
@@ -5948,6 +6054,9 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
 
     editor.original = editor.entry ? editorSnapshot() : '';
     editorStatus.textContent = '';
+    editorTextDetails.open = false;
+    editorTextInput.value = '';
+    editorTextReport.hidden = true;
     renderEditorMeasures();
     syncEditorChordField();
 
@@ -6011,6 +6120,58 @@ function applyProgressionEditor() {
             'It is not saved yet.');
     }
 }
+
+/**
+ * Fills the dialog from the text in Edit Progression Text, as if the progression had been built
+ * here by hand: key, time signature and measures. Nothing is made until Create Progression or
+ * Apply Changes, the same as any other change in the dialog.
+ *
+ * What was mended to read the text is listed after the button, and said. Text that cannot be read
+ * changes nothing: the reason is listed and said, and the caret goes to where reading stopped.
+ */
+function updateEditorFromText() {
+    const result = readProgressionText(editorTextInput.value, { model: progressionModel, library: chordPracticeLibrary });
+    editorTextFixes.replaceChildren();
+    editorTextReport.hidden = false;
+
+    if (result.error) {
+        const reason = result.line === null
+            ? result.error[0].toUpperCase() + result.error.slice(1)
+            : `Line ${result.line}, column ${result.column}: ${result.error}`;
+        editorTextSummary.textContent = `The progression was not changed. ${reason}`;
+        editorAnnounce(editorTextSummary.textContent);
+        if (result.offset !== null) {
+            editorTextInput.focus();
+            editorTextInput.setSelectionRange(result.offset, result.offset);
+        }
+        return;
+    }
+
+    const { progression, fixes } = result;
+    editorKeySelect.value = `${progression.key}|${progression.mode}`;
+    editorBeatsInput.value = String(progression.beatsPerBar);
+    editorBeatUnitInput.value = String(progression.beatUnit);
+    editor.measures = progression.chords.map(chord => (chord ? { root: chord.root, suffix: chord.suffix } : null));
+    editor.origin = progression.origin;
+    editor.current = 0;
+    renderEditorMeasures();
+    syncEditorChordField();
+
+    const count = progression.chords.length;
+    editorTextSummary.textContent =
+        `Progression updated: ${progression.key} ${progression.mode}, ` +
+        `${progression.beatsPerBar}/${progression.beatUnit}, ${count} ${count === 1 ? 'measure' : 'measures'}.` +
+        (fixes.length === 0 ? '' : ` ${fixes.length} ${fixes.length === 1 ? 'thing was' : 'things were'} ` +
+            'fixed to read it, listed next.');
+    for (const text of fixes) {
+        const item = document.createElement('li');
+        item.textContent = text;
+        editorTextFixes.append(item);
+    }
+    editorAnnounce(editorTextSummary.textContent);
+}
+
+document.getElementById('progression-editor-text-button').addEventListener('click', updateEditorFromText);
 
 editorApplyButton.addEventListener('click', applyProgressionEditor);
 document.getElementById('progression-editor-cancel-button')

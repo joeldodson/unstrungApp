@@ -192,6 +192,43 @@ Built 2026-10-02 for unstrungApp 0.6.1.
 - Settings are in localStorage. Samples and speech are fetched the first time each is needed and
   kept in the Cache API, in a cache named for the release, so a later release fetches afresh and
   the old cache is removed; `navigator.storage.persist()` asks the browser not to clear it.
+- **The site's menu bar is on the app's page (2026-10-08).** The site, not this build, adds its
+  Main navigation bar after the app's banner when it writes `/unstrung/app/`, so the bar always
+  matches the rest of the site. The app's page has to keep exactly one `<header>`, the banner, for
+  the site to place the bar after; its build stops otherwise. `docs/site-structure.md` in
+  eyesunstrung has the details. The app's own Menu button is in a navigation landmark named
+  unstrung, in both versions, so NVDA's d reaches the site's bar and then the app's Menu.
+- **Without the File System Access API, file commands are disabled (2026-10-08).** Joel ran the
+  web app in Chrome on iOS, which is WebKit underneath and has no `showOpenFilePicker`,
+  `showSaveFilePicker` or `showDirectoryPicker`. `capabilities.fileAccess` is true when all three
+  exist, and always true in Electron, whose files go through the main process. The renderer's
+  `requireFileAccess` disables whatever is marked `data-needs-file-access` (Recent Files, the
+  Settings folder and recent-file buttons): menu items get `aria-disabled`, which `menu.js`
+  honours for submenus too, and buttons `disabled`. They stay in place, read as unavailable,
+  rather than hidden. A progression is never marked unsaved, so closing one asks nothing.
+- **Opening through the upload field (2026-10-09).** In those same browsers, and only there, Open
+  File and Open Saved Progression use an ordinary `<input type="file">`, which every browser has,
+  including on iOS, where it opens the Files app's picker. It gives the page the file's name and
+  contents and nothing lasting, so there are no recent files and an opened progression has no file
+  to save back to. Open Saved Progression picks one `.json` file instead of showing the folder
+  tree, and refuses text that does not read as a saved progression, pointing to Edit Progression
+  Text. The song picker has no filter: iOS greys out files whose extension it does not know, and
+  .gp5 is one. The field is clicked before anything is awaited, because a browser opens a picker
+  only while handling the click or key press that asked. With the API, nothing changed. Mail on
+  iOS cannot hand an attachment to the picker directly; it has to be saved to Files first.
+- **Saving as a download (2026-10-10).** In the same browsers, Save Progression and Save
+  Progression As (and Ctrl+S, Ctrl+Shift+S) download the progression's JSON under the suggested
+  name, through a link with the `download` attribute and a blob address. There is no Save dialog
+  and no file to write back to, so the two do the same thing, and where the file lands is the
+  browser's choice: the Downloads folder on a computer, Files on iOS, possibly after the browser
+  asks. A progression is still never marked unsaved there: a download is a copy, so there is
+  nothing to compare the tab with.
+- **Number fields on phones (2026-10-09).** On iOS a plain `type="number"` field brings up the
+  keyboard with a row of digits over punctuation. Every number field now also has
+  `inputmode="numeric"`, or `"decimal"` for Time between notes, which takes tenths, so iOS and
+  Android show the number pad. A new number field needs the same. iOS draws no up and down
+  arrows on a number field and has no way to step one with the keyboard: that is how WebKit does
+  number fields on iOS, in every browser there, and a page cannot turn them on.
 - Leaving the page asks Chrome's "Leave site?" whenever anything is open, not only when a
   progression is unsaved, since leaving closes every open item.
 - Audio contexts are resumed whenever they are asked for: a browser starts one suspended if it
@@ -229,3 +266,10 @@ Decided with Joel on 2026-10-06, when the documentation was reorganised into `us
 - **Writing them.** One sentence per line; "unstrung" lowercase everywhere, the app included; keys
   lowercase joined with plus, multi-word names in camel case (`ctrl+o`, `nvdaKey+spaceBar`); links
   to eyesunstrung.vip as full addresses so they work in the desktop app. `CLAUDE.md` has the list.
+- **Relative links and links between documents (2026-10-09).** Joel first wrote the
+  documents with relative links, as on the site's own pages; they were changed to full addresses
+  before the first commit, since the app had nothing to resolve them against. Now
+  `build-help.mjs` makes a relative link full when it builds the app's Help content, so either
+  works, and the site reads the files unchanged. In the app, a link to /unstrung/docs/<name>/
+  opens that document as an item, and /unstrung/docs/ opens About unstrung, in both versions,
+  unless the link's text says "(opens in new tab)", which goes to the browser as before.
