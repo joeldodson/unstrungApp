@@ -10,6 +10,22 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.3 - Calls, other apps and the locked screen
+
+Published 2026-10-12.
+
+0.7.3 fixes playback on a phone after a call or another app has used the sound, and tries to keep playback going with the screen locked.
+
+### Interruptions
+
+- After another app had played, such as a podcast, an audio track or chord progression could stay silent while unstrung showed it playing. Pressing play now brings the sound back.
+- When something takes the sound away, such as a call or another app starting to play, playback now pauses, and unstrung shows it paused. Before, it carried on by itself mid-measure when the sound came back.
+- When the phone gives the sound back by itself, as it should after a call, playback carries on, as a podcast app does.
+
+### Playing with the screen locked
+
+On an iPhone or iPad, unstrung now tells Safari it plays media, as a music app does. This may let playback carry on with the screen locked. If it does not, locking the screen pauses playback cleanly.
+
 ## unstrung 0.7.2 - Media keys and headphone buttons
 
 Published 2026-10-12.
