@@ -133,6 +133,41 @@ song's title and the track's name ("Ripple - Acoustic Lead"). Only an expanded, 
 counts, as for its keys. The keys belong to whichever played last; closing the song releases them.
 The section moved out of the chord practice code to its own place after it.
 
+### First phone test, 0.7.2 (2026-10-12)
+
+Joel tried 0.7.2 in Chrome on his iPhone with AirPods, with Overcast also in use.
+
+- The keys reached the page: single, double and triple presses did what they should while the
+  progression played, and single presses paused and resumed it.
+- Once, the first press after a pause started the podcast in Overcast instead. Later presses
+  toggled the progression correctly. Not explained; watch for it again.
+- After Overcast had played, the progression was silent. The page's state followed every press
+  ("Paused at measure 1." was spoken) but nothing was heard, through new progressions and
+  regenerated audio too, until the phone was locked and woken. Cause: WebKit puts the context in
+  an "interrupted" state when another app takes the audio, and unstrung resumed only from
+  "suspended".
+- Locking the phone stopped the progression, where Overcast keeps playing. On waking, the
+  progression started again by itself: the lock had interrupted the context, freezing its clock
+  with notes scheduled, the page still thought it was playing, and WebKit resumed the context on
+  wake.
+
+Changes in 0.7.3, decided with Joel:
+
+- `audioContextNeedsResume` resumes from any state but running and closed, wherever a context is
+  resumed.
+- `navigator.audioSession.type = 'playback'`, where it exists, set before the shared context is
+  made. The hope is that it keeps playback going with the screen locked; unknown until tried.
+  Playwright's WebKit on Windows has neither `audioSession` nor `mediaSession`, so it cannot say.
+- The Interruptions section: a `statechange` on the shared context to anything but running pauses
+  whatever is playing, as the pause key would. If the context then returns to running by itself,
+  what was paused starts again. Joel's reasoning: Overcast pauses for a call and carries on after
+  it, and unstrung may do the same. Another app taking the audio leaves the context interrupted, so
+  it stays paused until play is pressed. Anything starting clears what is waiting to resume.
+  The test imitates an interruption by suspending the context and resuming it.
+
+If the screen locking still stops playback, the remaining way is the fallback named above: render
+the progression or track to a file and play that through the media element, as a podcast plays.
+
 ### Media stream routing did not work in Electron
 
 The first version routed the progression's master gain into a `MediaStreamAudioDestinationNode`

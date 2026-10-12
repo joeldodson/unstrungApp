@@ -49,6 +49,16 @@ await page.evaluate(() => {
         window.__media.handlers[action] = handler;
         original(action, handler);
     };
+    // Kept so an interruption can be imitated: suspending the context from here changes its state
+    // the way a phone call does.
+    window.__contexts = [];
+    const OriginalAudioContext = window.AudioContext;
+    window.AudioContext = class extends OriginalAudioContext {
+        constructor(...args) {
+            super(...args);
+            window.__contexts.push(this);
+        }
+    };
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
         if (!window.__media.elements.includes(this)) window.__media.elements.push(this);
@@ -213,6 +223,37 @@ state = await snapshot();
 check('play/pause from Windows reaches the new progression',
     state.playButton === 'Play Progression', state.playButton);
 
+// The context stopping by itself is how an interruption reaches the page. Suspending it from here
+// stands in for a call starting; resuming it from here, for the call ending.
+console.log('\n=== Interruptions ===');
+const interrupt = () => page.evaluate(() => window.__contexts[0].suspend());
+const endInterruption = () => page.evaluate(() => window.__contexts[0].resume());
+await page.keyboard.press(' ');
+await page.waitForTimeout(1500);
+check('playing before the interruption', (await snapshot()).playButton === 'Pause');
+await interrupt();
+await page.waitForTimeout(500);
+state = await snapshot();
+check('an interruption pauses', state.playButton === 'Play Progression', state.playButton);
+check('and says where', /^Paused at measure \d+\.$/.test(state.announcement ?? ''), state.announcement);
+check('and tells the system', state.playbackState === 'paused', state.playbackState);
+await endInterruption();
+await page.waitForTimeout(800);
+state = await snapshot();
+check('the context coming back by itself starts it again', state.playButton === 'Pause',
+    state.playButton);
+await interrupt();
+await page.waitForTimeout(500);
+await page.keyboard.press(' ');
+await page.waitForTimeout(1200);
+state = await snapshot();
+check('play after an interruption brings the sound back',
+    state.playButton === 'Pause' && await page.evaluate(() => window.__contexts[0].state) === 'running',
+    state.playButton);
+await page.keyboard.press(' ');
+await page.waitForTimeout(500);
+check('and spaceBar still pauses it', (await snapshot()).playButton === 'Play Progression');
+
 // The same keys on a song's audio track. The progression above is left open and paused, so this
 // also shows the keys moving to whatever played last.
 console.log('\n=== An audio track ===');
@@ -298,6 +339,14 @@ windowsSession('PlayPause');
 await page.waitForTimeout(1000);
 track = await trackState();
 check('play/pause from Windows resumes the track', track.playLabel === 'Pause', track.playLabel);
+await interrupt();
+await page.waitForTimeout(500);
+track = await trackState();
+check('an interruption pauses the track', track.playLabel === 'Play Track', track.playLabel);
+await endInterruption();
+await page.waitForTimeout(800);
+track = await trackState();
+check('and the context coming back starts it again', track.playLabel === 'Pause', track.playLabel);
 
 // Collapsing stops the track, and closing the song removes it.
 await page.click(`button[aria-label="Close ${SONG_NAME}"]`);

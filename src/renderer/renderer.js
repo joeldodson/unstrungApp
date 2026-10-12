@@ -655,9 +655,17 @@ function getGuitarSamplesContext() {
  * A browser starts an audio context suspended when it is made before the page has had a key press
  * or click, and a suspended context plays nothing. Electron does not do this. Everything that makes
  * sound here starts from a key or a click, so resuming whenever a context is asked for is enough.
+ *
+ * Safari also has an "interrupted" state, for when another app or a call has taken the phone's
+ * audio. Resuming only from "suspended" left a progression silent after a podcast had played: the
+ * page showed it playing and nothing was heard until the phone was locked and woken.
  */
+function audioContextNeedsResume(context) {
+    return context.state !== 'running' && context.state !== 'closed';
+}
+
 function resumeIfSuspended(context) {
-    if (context.state === 'suspended') context.resume().catch(() => {});
+    if (audioContextNeedsResume(context)) context.resume().catch(() => {});
 }
 
 function waitSeconds(seconds) {
@@ -746,7 +754,7 @@ async function playGuitarSamples() {
     const ringSeconds = onsetSeconds * GUITAR_SAMPLES_RING_MULTIPLE;
 
     const context = getGuitarSamplesContext();
-    if (context.state === 'suspended') await context.resume();
+    if (audioContextNeedsResume(context)) await context.resume();
 
     const masterGain = context.createGain();
     masterGain.gain.value = 1;
@@ -1605,7 +1613,17 @@ let chordPlaybackToken = 0;
 const sampleBufferCache = new Map();
 
 function getSharedAudioContext() {
-    if (!sharedAudioContext) sharedAudioContext = new AudioContext();
+    if (!sharedAudioContext) {
+        // Tells iOS this page plays media, as a music app does, rather than incidental sound. It is
+        // there to let playback carry on with the screen locked, which a page's audio otherwise
+        // does not; whether it does is for a phone to show. Safari only, and harmless elsewhere.
+        if ('audioSession' in navigator) {
+            try { navigator.audioSession.type = 'playback'; } catch { /* not settable */ }
+        }
+        sharedAudioContext = new AudioContext();
+        sharedAudioContext.addEventListener('statechange',
+            () => handleAudioInterruption(sharedAudioContext));
+    }
     resumeIfSuspended(sharedAudioContext);
     return sharedAudioContext;
 }
@@ -1723,7 +1741,7 @@ async function playChordSelection(voicings, label, spokenNames = []) {
     stopChordPlayback();
     const myToken = chordPlaybackToken;
     const context = getSharedAudioContext();
-    if (context.state === 'suspended') await context.resume();
+    if (audioContextNeedsResume(context)) await context.resume();
 
     // Fetched before anything is scheduled, so a name and its chord are placed against one clock.
     let phrases = null;
@@ -4348,7 +4366,7 @@ async function chordPracticePrepare(state) {
     if (state.ready) return true;
     const myToken = chordPracticeToken;
     const context = getSharedAudioContext();
-    if (context.state === 'suspended') await context.resume();
+    if (audioContextNeedsResume(context)) await context.resume();
     if (myToken !== chordPracticeToken) return false;
 
     state.announce('Loading.');
@@ -6333,6 +6351,9 @@ function setMediaSessionHandlers(enabled) {
 
 /** Keeps what the system shows in step with a progression or audio track starting or stopping. */
 function updateMediaSession(kind, state) {
+    // Something starting is the answer to an interruption, so nothing paused by one is restarted
+    // on top of it.
+    if (state.playing) interruptedPlayback = [];
     if (!mediaSessionSupported) return;
     if (state.playing) {
         if (mediaSessionOwner === null) setMediaSessionHandlers(true);
@@ -6359,6 +6380,45 @@ function clearMediaSession(state) {
 }
 
 // --- end media keys ---
+
+// --- Interruptions -----------------------------------------------------------------------------
+//
+// A phone takes the audio away from a page for a call, for Siri, for another app starting to play,
+// and, unless the page is allowed to play in the background, for the screen locking. The context
+// stops running and its clock stops, and nothing else tells the page. Left alone, unstrung went on
+// showing a progression as playing through all of it, and when the phone gave the audio back the
+// notes already scheduled simply carried on, mid-measure, with nobody having pressed play.
+//
+// So an interruption pauses whatever is playing, as the pause key would. If the context then comes
+// back by itself, as it does when a call ends, what was paused starts again, the way a podcast app
+// carries on after a call. When another app took the audio it stays away until play is pressed,
+// and pressing play is what brings it back.
+
+// What an interruption paused, as { kind, state }, to start again if the context comes back by
+// itself. Anything starting in the meantime clears it.
+let interruptedPlayback = [];
+
+function handleAudioInterruption(context) {
+    if (context.state === 'closed') return;
+    if (context.state === 'running') {
+        const paused = interruptedPlayback;
+        interruptedPlayback = [];
+        for (const { kind, state } of paused) {
+            if (!state.playing && MEDIA_SESSION_KINDS[kind].available(state)) {
+                MEDIA_SESSION_KINDS[kind].toggle(state);
+            }
+        }
+        return;
+    }
+    const playing = [
+        ...chordPracticeStates.map(entry => ({ kind: 'chordPractice', state: entry.state })),
+        ...[...audioTrackPanels.values()].map(entry => ({ kind: 'audioTrack', state: entry.state }))
+    ].filter(entry => entry.state.playing);
+    for (const { kind, state } of playing) MEDIA_SESSION_KINDS[kind].toggle(state);
+    interruptedPlayback.push(...playing);
+}
+
+// --- end interruptions ---
 
 // --- The menu --------------------------------------------------------------------------------
 //

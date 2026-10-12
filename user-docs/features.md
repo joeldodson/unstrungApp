@@ -171,6 +171,10 @@ The keys act on whatever is playing.
 When nothing is, they act on the progression or expanded audio track in front, or else on the one played last.
 If another app played more recently, such as a music player, the keys may go to it instead.
 
+When something takes the sound away, such as a phone call or another app starting to play, playback pauses.
+When the phone gives the sound back by itself, as it should after a call, playback carries on, as a podcast app does.
+After another app has played, press play to carry on.
+
 ## Chord Practice
 
 Chord practice generates a chord progression and plays it for you to play along with.
