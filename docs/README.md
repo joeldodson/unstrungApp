@@ -19,6 +19,8 @@ eyesunstrung.vip.
   GitHub releases were deleted. A copy of each new release's notes is added at the top.
 - `js-synthesizer-investigation.md` -- FluidSynth in WebAssembly as an audio engine. Studied and set
   aside.
+- `media-session-experiment.md` -- headphone, lock-screen and media-key control of playback through
+  the Media Session API, above all AirPods on iOS. A plan for an experiment; not built.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
