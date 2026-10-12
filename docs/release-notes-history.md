@@ -10,6 +10,22 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.2 - Media keys and headphone buttons
+
+Published 2026-10-12.
+
+0.7.2 lets the media keys on a keyboard, and the buttons on headphones, control an audio track or a chord progression.
+
+### Media keys and headphone buttons
+
+- **Play/pause** starts and stops playback, as spaceBar does.
+- **Next track** goes back to the start of the measure you are in, as downArrow does.
+- **Previous track** goes back to the start of the selected measures, or of the progression, as upArrow does.
+
+On AirPods, next track is a double press and previous track a triple press. The keys work without focus mode, and while unstrung is in the background. They act on whatever is playing; when nothing is, on the progression or expanded audio track in front, or else on the one played last. If another app played more recently, such as a music player, the keys may go to it instead.
+
+This has been tried in the desktop app on Windows. The web version should behave the same in Chrome and Edge. Whether it works in Firefox, in Safari, and on a phone is not known yet. On a phone, starting playback in unstrung may also pause music playing in another app.
+
 ## unstrung 0.7.1 - Other browsers and phones, and progressions as text
 
 Published 2026-10-10.
