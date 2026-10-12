@@ -157,6 +157,20 @@ In NVDA, nvdaKey+spaceBar turns focus mode on and off.
 unstrung cannot do it for you.
 Turn focus mode off before you move somewhere else, or the keys you press there will go to unstrung instead of moving you around.
 
+### Media Keys and Headphones
+
+The media keys on a keyboard, and the buttons on headphones, control an audio track or a chord progression.
+They work without focus mode, and while unstrung is in the background.
+
+- Play/pause: start and stop, as spaceBar does.
+- Next track: back to the start of the measure you are in, as downArrow does.
+- Previous track: back to the start of the selected measures, or of the progression, as upArrow does.
+
+On AirPods, next track is a double press and previous track a triple press.
+The keys act on whatever is playing.
+When nothing is, they act on the progression or expanded audio track in front, or else on the one played last.
+If another app played more recently, such as a music player, the keys may go to it instead.
+
 ## Chord Practice
 
 Chord practice generates a chord progression and plays it for you to play along with.
@@ -200,6 +214,8 @@ A progression's item has:
 - **Playback:** whether to speak the chord names, tempo, times to play, count in, metronome, and the Play Progression button.
 - **Move Around the Progression** and **Keyboard Control,** the same buttons and keys as an audio track.
   b also says the chord of the measure you are in.
+
+The media keys and headphone buttons control a progression as they do an audio track; see Media Keys and Headphones, under Playing a Track.
 
 ### Saving and Opening Progressions
 

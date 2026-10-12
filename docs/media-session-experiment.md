@@ -94,6 +94,71 @@ Unknowns, to try in order:
     need https or a tunnel;
   - a separate preview deployment.
 
+## First version, 2026-10-12
+
+Joel decided to leave the phone for now. He tests with the media keys on his laptop under Windows
+and NVDA; if that works well the feature stays, is merged into main, and is tried on iOS from the
+released site.
+
+Built on the `media-session` branch, for chord progressions only, in the Media keys section of
+`src/renderer/renderer.js`:
+
+- The progression plays through Web Audio to `context.destination`, unchanged. Alongside it an
+  `<audio>` element loops a silent 10 second WAV (`src/shared/silentWav.mjs`, 8 kHz 8-bit mono,
+  80 KB, made in memory), playing and pausing with the progression. That element is what Windows
+  sees.
+- The element is started at the top of `toggleChordPracticePlayback`, before the samples load, so
+  the key press or click that started playback still counts. A refused `play()` is ignored: it
+  costs only the media keys.
+- `setPlaying` keeps `playbackState`, the metadata and the element in step.
+- When the progression's tab closes the element is emptied (`src` removed, `load()`), not just
+  paused. A paused element leaves Windows holding a paused session for unstrung as its current one,
+  so the keys would go to unstrung, which no longer answers them, instead of Spotify or whatever
+  else is playing. The next play makes a new element.
+- nexttrack goes back to the start of the current measure (downArrow), and previoustrack restarts
+  the progression (upArrow); seekforward and seekbackward do the same. Joel's decision: on AirPods
+  a double or triple press has no direction, unlike arrow keys either side of a play button, and
+  moving on to the next measure has no use in practice. The keyboard's next and previous keys read
+  oddly this way, which he accepted.
+- A key acts on the progression playing; otherwise the one in front; otherwise the one last
+  played, if its tab is open. Closing that tab, or editing the progression, clears the handlers,
+  the metadata and `playbackState`.
+
+### Audio tracks too (2026-10-12)
+
+Joel asked for the same keys on a song's audio track before the first release, on the assumption
+that it will work on iOS too. The section now has a kind for each (`MEDIA_SESSION_KINDS`): next
+is `seekToStartOfCurrentMeasure`, previous is `restartAudioTrackSelection`, and the title is the
+song's title and the track's name ("Ripple - Acoustic Lead"). Only an expanded, created track
+counts, as for its keys. The keys belong to whichever played last; closing the song releases them.
+The section moved out of the chord practice code to its own place after it.
+
+### Media stream routing did not work in Electron
+
+The first version routed the progression's master gain into a `MediaStreamAudioDestinationNode`
+and played that stream in the `<audio>` element, as the workaround above proposes. The page side
+was right (`playbackState` "playing", metadata set), but Joel's keys did nothing: they went to
+Spotify. Windows' list of media sessions showed Spotify only, while the progression played.
+Chromium does not give a media session to an element playing a media stream (it is treated like a
+call, not something to control). The same element playing an ordinary WAV, audible or silent,
+appeared at once as `electron.exe`, became Windows' current session, and passed play/pause to the
+page's handler. Whether Safari on iOS treats a silent element the same way is still unknown.
+
+### Testing through Windows
+
+`scripts/progressions/list-media-sessions.ps1` lists the sessions Windows holds (the apps the media
+keys can reach) and can send one PlayPause, Next or Previous, which is what Windows does when the
+key is pressed and that session is the one it picks. It runs under Windows PowerShell 5.1, which
+can await WinRT calls.
+
+`scripts/progressions/verify-media-session.mjs` uses it to drive play/pause, next and previous
+through Windows, and calls the handlers Windows has no command for (seek pair, stop) directly,
+having captured them by wrapping `setActionHandler`. It checks that Windows lists the app under
+the progression's name, that it is the current session, that the state follows, and that the
+session is gone once the tab closes. Running from source the app is `electron.exe` to Windows; the
+installed app will have its own id. The only step not covered is Windows choosing the current
+session for a physical key press.
+
 ## State when this was written
 
 - unstrungApp 0.7.1 is released; eyesunstrung.vip serves it. Both repositories clean and pushed.

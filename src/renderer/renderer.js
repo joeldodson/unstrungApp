@@ -5,6 +5,7 @@ import {
     fretToMidi, identifyChordFromNotes, midiToPitchClassName, midiToPitchName, describeVoicingOmissions
 } from '../shared/musicTheory.mjs';
 import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
+import { silentWav } from '../shared/silentWav.mjs';
 import helpContent from '../assets/help/help-content.json';
 import progressionModel from '../assets/progressions/progression-model.json';
 import {
@@ -2466,6 +2467,7 @@ function setAudioTrackPlayingState(state, playing) {
     state.playing = playing;
     state.ui.playButton.textContent = playing ? 'Pause' : 'Play Track';
     state.ui.playButton.setAttribute('aria-pressed', String(playing));
+    updateMediaSession('audioTrack', state);
 }
 
 // --- Metronome ------------------------------------------------------------------------
@@ -3711,6 +3713,7 @@ function closeAudioTracksOf(songItemId) {
     for (const [key, entry] of audioTrackPanels) {
         if (entry.itemId !== songItemId) continue;
         wasPlaying ||= entry.state.playing;
+        clearMediaSession(entry.state);
         audioTrackPanels.delete(key);
     }
     // Only one track plays at a time, so stopping is only for when it was one of these.
@@ -4378,6 +4381,7 @@ async function toggleChordPracticePlayback(state) {
         state.announce(`Paused at measure ${chordPracticeMeasureAt(state, position) + 1}.`);
         return;
     }
+    playMediaSessionElement();
     if (!await chordPracticePrepare(state)) return;
     // Resuming mid-progression plays straight away; starting from the top counts in.
     startChordPracticePlayback(state, state.anchorSeconds,
@@ -4832,6 +4836,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
             state.playing = playing;
             playButton.textContent = playing ? 'Pause' : 'Play Progression';
             playButton.setAttribute('aria-pressed', String(playing));
+            updateMediaSession('chordPractice', state);
         }
     };
 
@@ -5026,6 +5031,7 @@ function openChordPracticeTab(progression, options, file = {}) {
         kind: 'chord-practice',
         onClose: () => {
             stopChordPracticePlayback();
+            clearMediaSession(entry.state);
             chordPracticeStates = chordPracticeStates.filter(item => item !== entry);
             syncUnsavedProgressions();
         },
@@ -5051,6 +5057,7 @@ function openChordPracticeTab(progression, options, file = {}) {
 function replaceChordPracticeProgression(entry, progression, { dirty }) {
     const old = entry.state;
     stopChordPracticePlayback();
+    clearMediaSession(old);
     const options = {
         tempo: old.tempo, speak: old.speak, speechVolume: old.speechVolume, voice: old.voice,
         metronome: old.metronome, countInEachPass: old.countInEachPass, repeatCount: old.repeatCount
@@ -6197,6 +6204,161 @@ editorDialog.addEventListener('close', () => {
 
 
 // --- end chord practice ---
+
+// --- Media keys --------------------------------------------------------------------------------
+//
+// The Media Session API hands the system's media controls -- the keyboard's play/pause key,
+// headphone buttons, the lock screen -- to a page that is playing. Chord progressions and audio
+// tracks answer them. The thinking is in docs/media-session-experiment.md.
+//
+// A system offers its controls only to a page playing a media element; Web Audio alone does not
+// qualify. Nor, in Chromium, does an element playing a media stream: routing a progression through
+// one was tried first, and Windows never listed the app. So playback goes through Web Audio exactly
+// as before, and alongside it an <audio> element loops a silent WAV, playing and pausing with it.
+// That element is what Windows sees.
+
+const mediaSessionSupported = 'mediaSession' in navigator;
+
+let mediaSessionElement = null;
+// What the media keys belong to, as { kind, state }: the progression or audio track last played,
+// until it goes away.
+let mediaSessionOwner = null;
+
+/**
+ * Starts the silent element, making it first if need be.
+ *
+ * Called at the top of a play, before anything is awaited: a browser lets a media element start
+ * only in answer to a key press or click, and loading a progression's samples can take long enough
+ * for that to lapse. A refusal costs only the media keys, so it is ignored.
+ */
+function playMediaSessionElement() {
+    if (!mediaSessionSupported) return;
+    if (!mediaSessionElement) {
+        mediaSessionElement = new Audio(
+            URL.createObjectURL(new Blob([silentWav()], { type: 'audio/wav' })));
+        mediaSessionElement.loop = true;
+    }
+    if (mediaSessionElement.paused) mediaSessionElement.play().catch(() => {});
+}
+
+/**
+ * Discards the silent element.
+ *
+ * Pausing is not enough once what was playing has gone: Windows keeps a paused session as the one
+ * the media keys go to, so they would reach unstrung, which no longer does anything with them,
+ * instead of whatever else is playing. Emptying the element is what ends the session.
+ */
+function releaseMediaSessionElement() {
+    if (!mediaSessionElement) return;
+    const url = mediaSessionElement.src;
+    mediaSessionElement.pause();
+    mediaSessionElement.removeAttribute('src');
+    mediaSessionElement.load();
+    URL.revokeObjectURL(url);
+    mediaSessionElement = null;
+}
+
+// What the keys do with each kind of playback. Next and previous do not move by a measure. On
+// headphones a double or triple press is no direction at all, and going on to the next measure is
+// of no use in practice: what is wanted is to go over something again. So next goes back to the
+// start of the measure, as downArrow does, and previous goes back to the start, as upArrow does.
+const MEDIA_SESSION_KINDS = {
+    chordPractice: {
+        // Still open: editing replaces the state, and closing removes it.
+        available: state => chordPracticeStates.some(entry => entry.state === state),
+        title: state => state.item?.practiceName ?? 'Practice',
+        toggle: state => toggleChordPracticePlayback(state),
+        startOfMeasure: CHORD_PRACTICE_SHORTCUTS.ArrowDown,
+        restart: state => restartChordPractice(state)
+    },
+    audioTrack: {
+        // Expanded, as for the playback keys: a collapsed track is stopped, and starting it again
+        // from a key would be playing something hidden.
+        available: state => state.ready && [...audioTrackPanels.values()]
+            .some(entry => entry.state === state && entry.details.open),
+        title: state => {
+            const song = state.score.title?.trim() ||
+                openItems.find(item => item.id === state.songItemId)?.label || 'Song';
+            return `${song} - ${state.trackLabel}`;
+        },
+        toggle: state => toggleAudioTrackPlayback(state),
+        startOfMeasure: state => seekToStartOfCurrentMeasure(state),
+        restart: state => restartAudioTrackSelection(state)
+    }
+};
+
+/**
+ * What a media key acts on, as { kind, state }, or null.
+ *
+ * What is playing, wherever it is. Otherwise what spaceBar would act on: the progression in front,
+ * or the audio track in front. Otherwise what was last played, so the play key resumes it from
+ * another item.
+ */
+function mediaSessionTarget() {
+    const owner = mediaSessionOwner &&
+        MEDIA_SESSION_KINDS[mediaSessionOwner.kind].available(mediaSessionOwner.state)
+        ? mediaSessionOwner : null;
+    if (owner?.state.playing) return owner;
+    const practice = activeChordPracticeState();
+    if (practice) return { kind: 'chordPractice', state: practice };
+    const track = activeAudioTrackState();
+    if (track?.ready) return { kind: 'audioTrack', state: track };
+    return owner;
+}
+
+// play and pause arrive separately, chosen by the system from playbackState, so each checks first
+// rather than toggling blind. AirPods send nexttrack for a double press and previoustrack for a
+// triple; some systems send the seek pair instead when there are no track handlers, so both are
+// registered.
+const MEDIA_SESSION_ACTIONS = {
+    play: (kind, state) => { if (!state.playing) kind.toggle(state); },
+    pause: (kind, state) => { if (state.playing) kind.toggle(state); },
+    stop: (kind, state) => { if (state.playing) kind.toggle(state); },
+    nexttrack: (kind, state) => kind.startOfMeasure(state),
+    previoustrack: (kind, state) => kind.restart(state),
+    seekforward: (kind, state) => kind.startOfMeasure(state),
+    seekbackward: (kind, state) => kind.restart(state)
+};
+
+function setMediaSessionHandlers(enabled) {
+    for (const [action, run] of Object.entries(MEDIA_SESSION_ACTIONS)) {
+        const handler = enabled ? () => {
+            const target = mediaSessionTarget();
+            if (target) run(MEDIA_SESSION_KINDS[target.kind], target.state);
+        } : null;
+        // A browser that does not know an action throws rather than ignoring it.
+        try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* unsupported */ }
+    }
+}
+
+/** Keeps what the system shows in step with a progression or audio track starting or stopping. */
+function updateMediaSession(kind, state) {
+    if (!mediaSessionSupported) return;
+    if (state.playing) {
+        if (mediaSessionOwner === null) setMediaSessionHandlers(true);
+        mediaSessionOwner = { kind, state };
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: MEDIA_SESSION_KINDS[kind].title(state), artist: 'unstrung'
+        });
+        navigator.mediaSession.playbackState = 'playing';
+        playMediaSessionElement();
+    } else if (state === mediaSessionOwner?.state) {
+        navigator.mediaSession.playbackState = 'paused';
+        mediaSessionElement?.pause();
+    }
+}
+
+/** Takes the media controls away when what they belong to goes. */
+function clearMediaSession(state) {
+    if (!mediaSessionSupported || state !== mediaSessionOwner?.state) return;
+    mediaSessionOwner = null;
+    setMediaSessionHandlers(false);
+    navigator.mediaSession.metadata = null;
+    navigator.mediaSession.playbackState = 'none';
+    releaseMediaSessionElement();
+}
+
+// --- end media keys ---
 
 // --- The menu --------------------------------------------------------------------------------
 //
