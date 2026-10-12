@@ -10,6 +10,19 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.4 - Playing again after the screen was locked
+
+Published 2026-10-12.
+
+0.7.4 fixes playback on an iPhone or iPad that would not start again after the screen was locked while paused.
+
+### Playing again after the screen was locked
+
+- On an iPhone or iPad, pausing and then locking the screen could leave unstrung unable to play anything again until the browser was restarted. Pressing play now starts it.
+- If the phone does not let the sound start, unstrung says "The sound could not start. Press play to try again." and stays paused, instead of showing playback that is not happening. Pressing play again tries afresh.
+
+Starting playback from headphones while the screen is locked and nothing is playing still does nothing. Playback that is already going carries on with the screen locked, as in 0.7.3.
+
 ## unstrung 0.7.3 - Calls, other apps and the locked screen
 
 Published 2026-10-12.
