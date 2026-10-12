@@ -168,6 +168,38 @@ Changes in 0.7.3, decided with Joel:
 If the screen locking still stops playback, the remaining way is the fallback named above: render
 the progression or track to a file and play that through the media element, as a podcast plays.
 
+### Second phone test, 0.7.3 (2026-10-12)
+
+- Overcast starting paused the progression, and play in Chrome brought it back and stopped the
+  podcast. The interrupted-state fix works.
+- With the progression playing, locking the phone did not stop it, and it was still playing on
+  unlocking. `navigator.audioSession.type = 'playback'` works.
+- Playing, locked, paused with the AirPods, unlocked: the controls worked and it played again.
+- Paused, then locked, with nothing pressed, then unlocked: nothing would play again, through new
+  progressions too, until Chrome was restarted. The same followed a press on the AirPods while
+  locked and paused, which also did nothing. Overcast starts from the lock screen in that case;
+  a web page apparently cannot.
+
+So what breaks is the context losing the audio while nothing plays. Which state it is left in is
+not known, and it may even report itself running.
+
+Changes in 0.7.4:
+
+- The shared context is marked suspect when the page is hidden with nothing playing, when it
+  stops running with nothing playing, or when a start is refused. The next request for it, with
+  nothing playing, closes it and makes a new one (`replaceSharedAudioContext`), which is what
+  restarting Chrome amounted to. Decoded `AudioBuffer`s are not tied to a context and carry over.
+  An interruption during playback, as for a call, keeps the context, so it can carry on by itself.
+- `confirmAudioStarted`: one second after something starts, if the context is not running,
+  playback goes back to paused and says "The sound could not start. Press play to try again.", and
+  the context is marked suspect.
+- The test imitates a refused start with a context that reports itself suspended, ignores resume
+  and never fires a state change.
+
+Known gap: if a refused start on the phone does fire a state change, it is taken for an
+interruption during playback, which does not mark the context suspect. The next play resumes the
+old context; if that stays stuck, the start check marks it, and the play after that replaces it.
+
 ### Media stream routing did not work in Electron
 
 The first version routed the progression's master gain into a `MediaStreamAudioDestinationNode`

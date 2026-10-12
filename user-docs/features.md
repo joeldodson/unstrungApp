@@ -174,6 +174,7 @@ If another app played more recently, such as a music player, the keys may go to 
 When something takes the sound away, such as a phone call or another app starting to play, playback pauses.
 When the phone gives the sound back by itself, as it should after a call, playback carries on, as a podcast app does.
 After another app has played, press play to carry on.
+If the phone does not let the sound start, unstrung says "The sound could not start. Press play to try again." and stays paused.
 
 ## Chord Practice
 

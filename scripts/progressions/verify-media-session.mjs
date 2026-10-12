@@ -57,6 +57,14 @@ await page.evaluate(() => {
         constructor(...args) {
             super(...args);
             window.__contexts.push(this);
+            // Imitates a context the phone will not start: it reports itself suspended, asking it to
+            // resume does nothing, and it never reports a change of state. Underneath it is an
+            // ordinary context, whose own state changes must not reach the page.
+            if (window.__refuseToStart) {
+                Object.defineProperty(this, 'state', { get: () => 'suspended' });
+                this.resume = () => Promise.resolve();
+                this.addEventListener = () => {};
+            }
         }
     };
     const play = HTMLMediaElement.prototype.play;
@@ -226,8 +234,9 @@ check('play/pause from Windows reaches the new progression',
 // The context stopping by itself is how an interruption reaches the page. Suspending it from here
 // stands in for a call starting; resuming it from here, for the call ending.
 console.log('\n=== Interruptions ===');
-const interrupt = () => page.evaluate(() => window.__contexts[0].suspend());
-const endInterruption = () => page.evaluate(() => window.__contexts[0].resume());
+const interrupt = () => page.evaluate(() => window.__contexts.at(-1).suspend());
+const endInterruption = () => page.evaluate(() => window.__contexts.at(-1).resume());
+const contexts = () => page.evaluate(() => window.__contexts.map(c => c.state));
 await page.keyboard.press(' ');
 await page.waitForTimeout(1500);
 check('playing before the interruption', (await snapshot()).playButton === 'Pause');
@@ -248,11 +257,63 @@ await page.keyboard.press(' ');
 await page.waitForTimeout(1200);
 state = await snapshot();
 check('play after an interruption brings the sound back',
-    state.playButton === 'Pause' && await page.evaluate(() => window.__contexts[0].state) === 'running',
-    state.playButton);
+    state.playButton === 'Pause' && (await contexts()).at(-1) === 'running', state.playButton);
 await page.keyboard.press(' ');
 await page.waitForTimeout(500);
 check('and spaceBar still pauses it', (await snapshot()).playButton === 'Play Progression');
+
+// Paused, then the audio taken away: the case that left an iPhone silent until Chrome restarted.
+// The next play makes a new context rather than trusting the old one.
+let before = await contexts();
+await interrupt();
+await page.waitForTimeout(500);
+await page.evaluate(() => {
+    window.__startedOn = [];
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args) {
+        window.__startedOn.push(window.__contexts.indexOf(this.context));
+        return start.apply(this, args);
+    };
+});
+await page.keyboard.press(' ');
+await page.waitForTimeout(1500);
+let after = await contexts();
+state = await snapshot();
+check('play after losing the audio while paused makes a new context',
+    after.length === before.length + 1 && after.at(-2) === 'closed' && after.at(-1) === 'running',
+    after.join(', '));
+const startedOn = await page.evaluate(() => [...new Set(window.__startedOn)]);
+check('and the progression plays on it', state.playButton === 'Pause' &&
+    startedOn.length === 1 && startedOn[0] === after.length - 1,
+    `${state.playButton}, sources on context ${startedOn.join(', ')}`);
+await page.keyboard.press(' ');
+await page.waitForTimeout(500);
+
+// A context that never starts: playback goes back to paused and says why, and the next play tries
+// a new one.
+await page.evaluate(() => { window.__refuseToStart = true; });
+await interrupt();
+await page.waitForTimeout(500);
+await page.keyboard.press(' ');
+await page.waitForTimeout(2000);
+state = await snapshot();
+check('a start that never gets going goes back to paused', state.playButton === 'Play Progression',
+    state.playButton);
+check('and says so', state.announcement === 'The sound could not start. Press play to try again.',
+    state.announcement);
+check('and tells the system', state.playbackState === 'paused', state.playbackState);
+await page.evaluate(() => { window.__refuseToStart = false; });
+before = await contexts();
+await page.keyboard.press(' ');
+await page.waitForTimeout(1500);
+after = await contexts();
+state = await snapshot();
+check('the next play tries a new context, and plays',
+    after.length === before.length + 1 && after.at(-1) === 'running' && state.playButton === 'Pause',
+    `${after.join(', ')}; ${state.playButton}`);
+await page.keyboard.press(' ');
+await page.waitForTimeout(500);
+check('and spaceBar pauses it', (await snapshot()).playButton === 'Play Progression');
 
 // The same keys on a song's audio track. The progression above is left open and paused, so this
 // also shows the keys moving to whatever played last.
@@ -329,7 +390,7 @@ check('playbackState is paused', track.playbackState === 'paused', track.playbac
 let trackMeasure = await trackMeasureNow();
 windowsSession('Next');
 await page.waitForTimeout(500);
-let after = await trackMeasureNow();
+after = await trackMeasureNow();
 check('next from Windows stays in the measure', after === trackMeasure, `${trackMeasure} to ${after}`);
 windowsSession('Previous');
 await page.waitForTimeout(500);

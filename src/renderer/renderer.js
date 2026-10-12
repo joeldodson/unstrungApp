@@ -1613,16 +1613,18 @@ let chordPlaybackToken = 0;
 const sampleBufferCache = new Map();
 
 function getSharedAudioContext() {
+    if (sharedAudioContext && sharedAudioContextSuspect && !anythingPlaying()) {
+        replaceSharedAudioContext();
+    }
     if (!sharedAudioContext) {
-        // Tells iOS this page plays media, as a music app does, rather than incidental sound. It is
-        // there to let playback carry on with the screen locked, which a page's audio otherwise
-        // does not; whether it does is for a phone to show. Safari only, and harmless elsewhere.
+        // Tells iOS this page plays media, as a music app does, rather than incidental sound. It
+        // is what lets playback carry on with the screen locked. Safari only, harmless elsewhere.
         if ('audioSession' in navigator) {
             try { navigator.audioSession.type = 'playback'; } catch { /* not settable */ }
         }
-        sharedAudioContext = new AudioContext();
-        sharedAudioContext.addEventListener('statechange',
-            () => handleAudioInterruption(sharedAudioContext));
+        const context = new AudioContext();
+        context.addEventListener('statechange', () => handleAudioInterruption(context));
+        sharedAudioContext = context;
     }
     resumeIfSuspended(sharedAudioContext);
     return sharedAudioContext;
@@ -2485,7 +2487,7 @@ function setAudioTrackPlayingState(state, playing) {
     state.playing = playing;
     state.ui.playButton.textContent = playing ? 'Pause' : 'Play Track';
     state.ui.playButton.setAttribute('aria-pressed', String(playing));
-    updateMediaSession('audioTrack', state);
+    playbackChanged('audioTrack', state);
 }
 
 // --- Metronome ------------------------------------------------------------------------
@@ -4854,7 +4856,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
             state.playing = playing;
             playButton.textContent = playing ? 'Pause' : 'Play Progression';
             playButton.setAttribute('aria-pressed', String(playing));
-            updateMediaSession('chordPractice', state);
+            playbackChanged('chordPractice', state);
         }
     };
 
@@ -6287,7 +6289,8 @@ const MEDIA_SESSION_KINDS = {
         title: state => state.item?.practiceName ?? 'Practice',
         toggle: state => toggleChordPracticePlayback(state),
         startOfMeasure: CHORD_PRACTICE_SHORTCUTS.ArrowDown,
-        restart: state => restartChordPractice(state)
+        restart: state => restartChordPractice(state),
+        announce: (state, text) => state.announce(text)
     },
     audioTrack: {
         // Expanded, as for the playback keys: a collapsed track is stopped, and starting it again
@@ -6301,7 +6304,8 @@ const MEDIA_SESSION_KINDS = {
         },
         toggle: state => toggleAudioTrackPlayback(state),
         startOfMeasure: state => seekToStartOfCurrentMeasure(state),
-        restart: state => restartAudioTrackSelection(state)
+        restart: state => restartAudioTrackSelection(state),
+        announce: (state, text) => announceAudioTrack(state, text)
     }
 };
 
@@ -6351,9 +6355,6 @@ function setMediaSessionHandlers(enabled) {
 
 /** Keeps what the system shows in step with a progression or audio track starting or stopping. */
 function updateMediaSession(kind, state) {
-    // Something starting is the answer to an interruption, so nothing paused by one is restarted
-    // on top of it.
-    if (state.playing) interruptedPlayback = [];
     if (!mediaSessionSupported) return;
     if (state.playing) {
         if (mediaSessionOwner === null) setMediaSessionHandlers(true);
@@ -6398,8 +6399,76 @@ function clearMediaSession(state) {
 // itself. Anything starting in the meantime clears it.
 let interruptedPlayback = [];
 
+// Whether the shared context may no longer make sound. On an iPhone a context that lost the audio
+// while nothing was playing -- the page paused, then the screen locked -- did not recover: every
+// progression and track stayed silent until Chrome was restarted, however play was pressed. Which
+// state it was left in is not known, and it may even report itself running, so its state cannot
+// be trusted to say. Instead it is replaced, on the next play, by a new one, which is what
+// restarting Chrome amounted to. Decoded samples are not tied to a context and carry over.
+let sharedAudioContextSuspect = false;
+
+function anythingPlaying() {
+    return chordPracticeStates.some(entry => entry.state.playing) ||
+        [...audioTrackPanels.values()].some(entry => entry.state.playing);
+}
+
+/**
+ * Drops the shared context so the next request makes a new one.
+ *
+ * Only while nothing is playing, so there is nothing to fade or stop: the references to its nodes
+ * are cleared rather than stopped, since the stop functions take a new playback token, and this
+ * runs from inside a start that has already taken its own.
+ */
+function replaceSharedAudioContext() {
+    const old = sharedAudioContext;
+    sharedAudioContext = null;
+    sharedAudioContextSuspect = false;
+    chordMasterGain = null;
+    chordActiveSources = [];
+    audioTrackMasterGain = null;
+    audioTrackSources = [];
+    chordPracticeMasterGain = null;
+    chordPracticeSources = [];
+    old.close().catch(() => {});
+}
+
+// Hidden with nothing playing is when the phone takes the audio away and may not give it back.
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && !anythingPlaying()) sharedAudioContextSuspect = true;
+});
+
+/** Called whenever a progression or audio track starts or stops. */
+function playbackChanged(kind, state) {
+    if (state.playing) {
+        // Something starting is the answer to an interruption, so nothing paused by one is
+        // restarted on top of it.
+        interruptedPlayback = [];
+        confirmAudioStarted(kind, state);
+    }
+    updateMediaSession(kind, state);
+}
+
+/**
+ * Goes back to paused if the sound never started.
+ *
+ * A phone can refuse to start audio, as an iPhone appears to when play is pressed on headphones
+ * with the screen locked. Without this the page went on showing playback that was not happening,
+ * and the headphones and the button disagreed about whether it was playing. The context is
+ * replaced on the next try.
+ */
+function confirmAudioStarted(kind, state) {
+    setTimeout(() => {
+        const context = sharedAudioContext;
+        if (!state.playing || !context || context.state === 'running') return;
+        sharedAudioContextSuspect = true;
+        const handler = MEDIA_SESSION_KINDS[kind];
+        handler.toggle(state);
+        handler.announce(state, 'The sound could not start. Press play to try again.');
+    }, 1000);
+}
+
 function handleAudioInterruption(context) {
-    if (context.state === 'closed') return;
+    if (context !== sharedAudioContext || context.state === 'closed') return;
     if (context.state === 'running') {
         const paused = interruptedPlayback;
         interruptedPlayback = [];
@@ -6414,6 +6483,9 @@ function handleAudioInterruption(context) {
         ...chordPracticeStates.map(entry => ({ kind: 'chordPractice', state: entry.state })),
         ...[...audioTrackPanels.values()].map(entry => ({ kind: 'audioTrack', state: entry.state }))
     ].filter(entry => entry.state.playing);
+    // Losing the audio with nothing playing is the case that did not recover. Losing it mid-play,
+    // as to a call, keeps the context, so that it can carry on by itself when the call ends.
+    if (playing.length === 0) sharedAudioContextSuspect = true;
     for (const { kind, state } of playing) MEDIA_SESSION_KINDS[kind].toggle(state);
     interruptedPlayback.push(...playing);
 }
