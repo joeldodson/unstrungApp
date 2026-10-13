@@ -10,6 +10,16 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.5 - Taking the sound back from another app
+
+Published 2026-10-12.
+
+0.7.5 fixes having to press play twice to take the sound back from another app on an iPhone or iPad.
+
+### Taking the sound back from another app
+
+On an iPhone or iPad, pressing play in unstrung while another app was playing, such as a podcast, could pause again at once, saying "Paused at measure" and the measure, so play had to be pressed a second time. One press now plays.
+
 ## unstrung 0.7.4 - Playing again after the screen was locked
 
 Published 2026-10-12.
