@@ -200,6 +200,24 @@ Known gap: if a refused start on the phone does fire a state change, it is taken
 interruption during playback, which does not mark the context suspect. The next play resumes the
 old context; if that stays stuck, the start check marks it, and the play after that replaces it.
 
+### Third phone test, 0.7.4 (2026-10-12)
+
+- Paused, locked, unlocked, play: plays. Fixed.
+- Paused, locked, AirPods pressed, unlocked: the progression played at once on unlocking. Most
+  likely the press started it with a new context, iOS held the page's timers while locked so the
+  start check never ran, and the context was allowed to run on unlocking. Joel finds it acceptable.
+- Playing, locked: every AirPods action works while locked (pause, resume, start of measure, start
+  of progression). With something playing, iOS keeps the page running.
+- Playing, Overcast started: the progression paused. Back in Chrome with the podcast still
+  playing, the first play said "Paused at measure n" and went straight back to Play; the second
+  play worked. Not the refused start, which would have said so: the context passed through a
+  stopped state on its way back to running, and that was read as a fresh interruption.
+
+Change in 0.7.5: for one second after something starts (`audioStartDeadline`), a change of the
+context to anything but running is taken as part of the start. The context is asked to resume
+again, and the start check decides at the end of the second whether it worked. The cost: a real
+interruption in that second is reported as "The sound could not start" rather than paused for.
+
 ### Media stream routing did not work in Electron
 
 The first version routed the progression's master gain into a `MediaStreamAudioDestinationNode`

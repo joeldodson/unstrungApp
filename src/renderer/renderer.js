@@ -6437,6 +6437,15 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden && !anythingPlaying()) sharedAudioContextSuspect = true;
 });
 
+// How long a start has to get the sound running before it counts as refused.
+const AUDIO_START_SECONDS = 1;
+
+// Until when a change of the context's state belongs to a start rather than being an interruption.
+// Taking the audio back from a podcast that was playing, an iPhone moved the context through a
+// stopped state on its way to running. Read as an interruption, that paused the progression again
+// at once, saying "Paused at measure 3", and play had to be pressed a second time.
+let audioStartDeadline = 0;
+
 /** Called whenever a progression or audio track starts or stops. */
 function playbackChanged(kind, state) {
     if (state.playing) {
@@ -6457,6 +6466,7 @@ function playbackChanged(kind, state) {
  * replaced on the next try.
  */
 function confirmAudioStarted(kind, state) {
+    audioStartDeadline = performance.now() + AUDIO_START_SECONDS * 1000;
     setTimeout(() => {
         const context = sharedAudioContext;
         if (!state.playing || !context || context.state === 'running') return;
@@ -6464,7 +6474,7 @@ function confirmAudioStarted(kind, state) {
         const handler = MEDIA_SESSION_KINDS[kind];
         handler.toggle(state);
         handler.announce(state, 'The sound could not start. Press play to try again.');
-    }, 1000);
+    }, AUDIO_START_SECONDS * 1000);
 }
 
 function handleAudioInterruption(context) {
@@ -6477,6 +6487,11 @@ function handleAudioInterruption(context) {
                 MEDIA_SESSION_KINDS[kind].toggle(state);
             }
         }
+        return;
+    }
+    // Still starting: ask again, and leave the start check to decide whether it worked.
+    if (performance.now() < audioStartDeadline) {
+        context.resume().catch(() => {});
         return;
     }
     const playing = [

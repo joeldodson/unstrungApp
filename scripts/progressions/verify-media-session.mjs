@@ -251,6 +251,8 @@ await page.waitForTimeout(800);
 state = await snapshot();
 check('the context coming back by itself starts it again', state.playButton === 'Pause',
     state.playButton);
+// Past the second after a start, when a stop still counts as part of starting.
+await page.waitForTimeout(500);
 await interrupt();
 await page.waitForTimeout(500);
 await page.keyboard.press(' ');
@@ -314,6 +316,21 @@ check('the next play tries a new context, and plays',
 await page.keyboard.press(' ');
 await page.waitForTimeout(500);
 check('and spaceBar pauses it', (await snapshot()).playButton === 'Play Progression');
+
+// Taking the audio back from a playing podcast, an iPhone stopped the context once on its way to
+// running. A stop just after play is pressed belongs to the start, so it is not an interruption.
+const announcedBefore = (await snapshot()).announcement;
+await page.keyboard.press(' ');
+await page.waitForTimeout(100);
+await interrupt();
+await page.waitForTimeout(1500);
+state = await snapshot();
+check('a stop just after play does not pause it', state.playButton === 'Pause', state.playButton);
+check('and says nothing', state.announcement === announcedBefore, state.announcement);
+check('and the context is running again', (await contexts()).at(-1) === 'running',
+    (await contexts()).at(-1));
+await page.keyboard.press(' ');
+await page.waitForTimeout(500);
 
 // The same keys on a song's audio track. The progression above is left open and paused, so this
 // also shows the keys moving to whatever played last.
@@ -400,6 +417,8 @@ windowsSession('PlayPause');
 await page.waitForTimeout(1000);
 track = await trackState();
 check('play/pause from Windows resumes the track', track.playLabel === 'Pause', track.playLabel);
+// Past the second after a start, when a stop still counts as part of starting.
+await page.waitForTimeout(500);
 await interrupt();
 await page.waitForTimeout(500);
 track = await trackState();
