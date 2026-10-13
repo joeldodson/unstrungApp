@@ -10,6 +10,22 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.6 - A chord change on every measure
+
+Published 2026-10-12.
+
+0.7.6 makes generated chord progressions change chord on every measure, and speaks the chord names by default.
+
+### No chord held over
+
+The Chord Practice dialog has a new checkbox after Number of measures: **No chord held over into the next measure.** It is checked to begin with. The chord then changes on every measure, which is what practising changes needs. Chords with the same root count as the same chord, so G7 never follows G, and E7 never follows Em.
+
+Before, a long progression could hold a chord several times, and now and then for three measures, such as C, C, C7. Uncheck the box for progressions that sometimes hold a chord for two measures, as most real songs do.
+
+### Chord names spoken by default
+
+Speak the name of the next chord is now checked when the Chord Practice dialog opens.
+
 ## unstrung 0.7.5 - Taking the sound back from another app
 
 Published 2026-10-12.
