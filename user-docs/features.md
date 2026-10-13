@@ -197,10 +197,13 @@ The Chord Practice dialog asks for:
   The tempo counts beats, so the lower number does not change the speed: 6/8 at 90 is ninety eighth notes a minute.
 - **Tempo,** from 30 to 240 beats per minute.
 - **Number of measures,** from 2 to 256.
-  A chord is sometimes held for two measures, as in most real progressions.
+- **No chord held over into the next measure,** checked to begin with.
+  The chord then changes on every measure, which is what practising changes needs.
+  Chords with the same root count as the same chord, so G7 never follows G.
+  Unchecked, a chord is sometimes held for two measures, as in most real progressions.
 - **Times to play the progression,** up to 50, or 0 to repeat until you stop, and whether to count in before every repeat.
 - **Metronome.**
-- **Speak the name of the next chord on the last beat of each measure.**
+- **Speak the name of the next chord on the last beat of each measure,** checked to begin with.
   The voice and its volume are set in Settings.
 
 Press Generate Progression.

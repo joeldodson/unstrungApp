@@ -20,7 +20,10 @@ eyesunstrung.vip.
 - `js-synthesizer-investigation.md` -- FluidSynth in WebAssembly as an audio engine. Studied and set
   aside.
 - `media-session-experiment.md` -- headphone, lock-screen and media-key control of playback through
-  the Media Session API, above all AirPods on iOS. A plan for an experiment; not built.
+  the Media Session API, above all AirPods on iOS. Built in 0.7.2 to 0.7.5, with the phone tests
+  that shaped it.
+- `held-chords.md` -- where generated progressions hold a chord over, and the option, on by
+  default, for a change of chord on every measure.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.

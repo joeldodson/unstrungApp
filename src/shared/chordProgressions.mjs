@@ -198,6 +198,7 @@ function chooseDegrees(model, mode, level, allowed, count, random) {
     }
 
     let cadenceName = null;
+    let cadenceLength = 0;
     if (count >= 2) {
         const cadenceWeights = {};
         for (const [index, cadence] of (modeModel.cadences ?? []).entries()) {
@@ -210,10 +211,48 @@ function chooseDegrees(model, mode, level, allowed, count, random) {
             const cadence = modeModel.cadences[Number(cadenceIndex)];
             degrees.splice(count - cadence.chords.length, cadence.chords.length, ...cadence.chords);
             cadenceName = cadence.name;
+            cadenceLength = cadence.chords.length;
         }
     }
 
-    return { degrees, cadence: cadenceName, skeleton: skeleton.length ? skeleton.join(' ') : null };
+    return {
+        degrees, cadence: cadenceName, cadenceLength,
+        skeleton: skeleton.length ? skeleton.join(' ') : null
+    };
+}
+
+/**
+ * Makes every measure a change of chord, for a progression that asks for it.
+ *
+ * Roots are compared rather than names. G7 after G, or E after Em, is the same chord with a finger
+ * moved, not a change worth practising, and counting it as a change is what let a run of three
+ * through: "Em Em E7".
+ *
+ * The cadence is kept, since it is what makes the progression end; where it would repeat the
+ * chord before it, that chord is the one replaced. A replacement is drawn the way the run was, from
+ * what usually follows the chord before it, and never shares a root with either neighbour, so it
+ * cannot make a new pair.
+ */
+function separateRepeatedRoots(modeModel, degrees, allowed, cadenceLength, random) {
+    const semitones = degree => modeModel.degrees[degree]?.semitones;
+    const cadenceStart = degrees.length - cadenceLength;
+    for (let position = 1; position < degrees.length; position++) {
+        if (semitones(degrees[position]) !== semitones(degrees[position - 1])) continue;
+        const target = position >= cadenceStart ? position - 1 : position;
+        const neighbours = [degrees[target - 1], degrees[target + 1]]
+            .filter(degree => degree !== undefined).map(semitones);
+        const candidates = allowed.filter(degree => !neighbours.includes(semitones(degree)));
+        if (candidates.length === 0) continue;
+
+        const previous = degrees[target - 1];
+        const weights = previous === undefined
+            ? restrict(modeModel.startWeights, candidates)
+            : restrict(modeModel.transitions[previous], candidates);
+        const even = Object.fromEntries(candidates.map(degree => [degree, 1]));
+        degrees[target] = weightedPick(Object.keys(weights).length > 0 ? weights : even, random)
+            ?? candidates[0];
+    }
+    return degrees;
 }
 
 /**
@@ -257,7 +296,8 @@ function breakLongRuns(chords, allowedDegrees, buildChord, random) {
  * step away can still be jarring, which is why every entry is also tied to a position rather than
  * being dropped in anywhere.
  */
-function borrowedChordFor(model, mode, key, tier, degree, nextDegree, isPlayable, random) {
+function borrowedChordFor(model, mode, key, tier, degree, nextDegree, isPlayable, random,
+    avoidRoots = []) {
     if (!tier || tier.probability <= 0) return null;
     if (random() >= tier.probability) return null;
 
@@ -269,6 +309,8 @@ function borrowedChordFor(model, mode, key, tier, degree, nextDegree, isPlayable
         if (borrowed.replacesDegree && borrowed.replacesDegree !== degree) continue;
         // A borrowed chord the player cannot fret is no more use than a diatonic one they cannot.
         if (!isPlayable(transpose(key, borrowed.semitones), borrowed.suffix)) continue;
+        // The A7 that points at Dm shares its root with an Am before it: no change of chord.
+        if (avoidRoots.includes(transpose(key, borrowed.semitones))) continue;
         candidates[index] = borrowed.weight;
     }
 
@@ -289,7 +331,7 @@ function borrowedChordFor(model, mode, key, tier, degree, nextDegree, isPlayable
  * touch the last two chords, which are the cadence: that is what makes the progression end, and a
  * borrowed chord inside it undoes exactly that.
  */
-function applyBorrowing(model, mode, key, tier, chords, isPlayable, random) {
+function applyBorrowing(model, mode, key, tier, chords, isPlayable, random, noHeldChords = false) {
     if (!tier || tier.probability <= 0) return chords;
 
     for (let position = 0; position < chords.length - 2; position++) {
@@ -298,8 +340,11 @@ function applyBorrowing(model, mode, key, tier, chords, isPlayable, random) {
         if (chords[position].repeatOfPrevious) continue;
         if (chords[position + 1]?.repeatOfPrevious) continue;
 
+        const avoidRoots = noHeldChords
+            ? [chords[position - 1]?.root, chords[position + 1]?.root].filter(Boolean)
+            : [];
         const borrowed = borrowedChordFor(model, mode, key, tier,
-            chords[position].degree, chords[position + 1]?.degree, isPlayable, random);
+            chords[position].degree, chords[position + 1]?.degree, isPlayable, random, avoidRoots);
         if (!borrowed) continue;
 
         chords[position] = {
@@ -334,6 +379,9 @@ function upgradeChord(chord, level, isPlayable, random) {
  * `chordCount` counts slots, not distinct chords: a slot may repeat the one before it, which is
  * how a chord held for two bars is written, and is common enough that leaving it out makes
  * everything sound like it is changing on every bar.
+ *
+ * `noHeldChords` asks for the opposite: a change of chord on every measure, for practising the
+ * changes themselves. No slot repeats the one before it, and no two neighbours share a root.
  */
 export function generateProgression(model, {
     key = 'C',
@@ -342,7 +390,8 @@ export function generateProgression(model, {
     chordCount = 8,
     seed = null,
     library = null,
-    borrowingId = 'none'
+    borrowingId = 'none',
+    noHeldChords = false
 } = {}) {
     const level = model.levels.find(entry => entry.id === levelId) ?? model.levels[0];
     const tier = (model.borrowing?.tiers ?? []).find(entry => entry.id === borrowingId) ?? null;
@@ -368,7 +417,9 @@ export function generateProgression(model, {
         };
     }
 
-    const { degrees, cadence, skeleton } = chooseDegrees(model, mode, level, allowed, chordCount, random);
+    const { degrees, cadence, cadenceLength, skeleton } =
+        chooseDegrees(model, mode, level, allowed, chordCount, random);
+    if (noHeldChords) separateRepeatedRoots(model.modes[mode], degrees, allowed, cadenceLength, random);
 
     const chords = [];
     for (const [position, degree] of degrees.entries()) {
@@ -381,7 +432,8 @@ export function generateProgression(model, {
         // Never repeat into a degree that already matches what follows, or the held chord and the
         // next one merge into a run of three.
         const previous = chords[chords.length - 1];
-        if (previous && !previous.repeatOfPrevious && position > 0 && position < degrees.length - 2
+        if (!noHeldChords && previous && !previous.repeatOfPrevious
+            && position > 0 && position < degrees.length - 2
             && degrees[position + 1] !== previous.degree
             && random() < (level.repeatProbability ?? 0)) {
             chords.push({ ...previous, position, repeatOfPrevious: true });
@@ -399,7 +451,7 @@ export function generateProgression(model, {
         upgradeChord({ ...chordForDegree(model, mode, key, degree), position }, level, isPlayable, random);
     breakLongRuns(chords, allowed, buildChord, random);
 
-    applyBorrowing(model, mode, key, tier, chords, isPlayable, random);
+    applyBorrowing(model, mode, key, tier, chords, isPlayable, random, noHeldChords);
 
     return {
         key, mode, levelId, level: level.name,

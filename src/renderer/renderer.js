@@ -3769,6 +3769,7 @@ const chordPracticeBeatsInput = document.getElementById('chord-practice-beats-in
 const chordPracticeBeatUnitInput = document.getElementById('chord-practice-beat-unit-input');
 const chordPracticeTempoInput = document.getElementById('chord-practice-tempo-input');
 const chordPracticeCountInput = document.getElementById('chord-practice-count-input');
+const chordPracticeNoHeldCheckbox = document.getElementById('chord-practice-no-held-checkbox');
 const chordPracticeRepeatInput = document.getElementById('chord-practice-repeat-input');
 const chordPracticeMetronomeCheckbox = document.getElementById('chord-practice-metronome-checkbox');
 const chordPracticeCountInEachPassCheckbox =
@@ -5194,6 +5195,7 @@ async function generateChordPractice() {
         levelId,
         borrowingId,
         chordCount: Math.max(2, Math.min(256, Number(chordPracticeCountInput.value) || 8)),
+        noHeldChords: chordPracticeNoHeldCheckbox.checked,
         library: chordPracticeLibrary
     });
 
@@ -5281,6 +5283,9 @@ async function openChordPracticeDialog() {
     resetChordPracticeDialog();
 
     chordPracticeSpeakCheckbox.disabled = !chordPracticeSpeechSupported;
+    // Checked by default, but not when it cannot be: a box read as checked and unavailable says
+    // the names will be spoken when they will not.
+    if (!chordPracticeSpeechSupported) chordPracticeSpeakCheckbox.checked = false;
     // Said only when something is wrong: it is why the checkbox is unavailable.
     chordPracticeSpeechNote.textContent = chordPracticeSpeechSupported
         ? '' : 'The chord name recordings are missing from this build.';
