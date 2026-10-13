@@ -218,6 +218,20 @@ context to anything but running is taken as part of the start. The context is as
 again, and the start check decides at the end of the second whether it worked. The cost: a real
 interruption in that second is reported as "The sound could not start" rather than paused for.
 
+### Fourth phone test, 0.7.5 (2026-10-12), and where it was left
+
+Taking the sound back from a playing Overcast still needs two presses: the first says "Paused at
+measure n" and returns to Play, the second plays. The button is right each time. Joel is content
+to leave it; everything else works.
+
+What the message shows: it comes only from the progression's pause. The start check did not fire
+("The sound could not start" was not said), so the context was running a second after play, and
+was stopped after the one-second window. Either iOS takes the audio from Overcast in more than one
+step and the later one comes after the window, or starting the silent media element makes iOS send
+the page a pause action. To tell them apart, a build could word the pause differently for each
+cause (interruption, pause action). Lengthening `AUDIO_START_SECONDS` would help only with the
+first.
+
 ### Media stream routing did not work in Electron
 
 The first version routed the progression's master gain into a `MediaStreamAudioDestinationNode`
