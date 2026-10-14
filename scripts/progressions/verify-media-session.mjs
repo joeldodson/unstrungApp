@@ -65,7 +65,15 @@ await page.evaluate(() => {
                 this.resume = () => Promise.resolve();
                 this.addEventListener = () => {};
             }
+            // Imitates a context that says it is running and makes no sound: its clock never moves.
+            if (window.__deadFromBirth) window.__stopClock(this);
         }
+    };
+    // Stops a context's clock while it goes on reporting itself running, as an iPhone's did after
+    // a progression ran to its end with the screen locked.
+    window.__stopClock = context => {
+        const frozenAt = context.currentTime;
+        Object.defineProperty(context, 'currentTime', { get: () => frozenAt });
     };
     const play = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
@@ -316,6 +324,46 @@ check('the next play tries a new context, and plays',
 await page.keyboard.press(' ');
 await page.waitForTimeout(500);
 check('and spaceBar pauses it', (await snapshot()).playButton === 'Play Progression');
+
+// A context that reports itself running while its clock stands still. Nothing has said anything
+// is wrong, so only the clock can tell.
+before = await contexts();
+await page.evaluate(() => window.__stopClock(window.__contexts.at(-1)));
+await page.waitForTimeout(1500);
+await page.keyboard.press(' ');
+await page.waitForTimeout(1500);
+after = await contexts();
+state = await snapshot();
+check('play replaces a context whose clock stopped, and plays at once',
+    after.length === before.length + 1 && after.at(-2) === 'closed' && state.playButton === 'Pause',
+    `${after.join(', ')}; ${state.playButton}`);
+await page.keyboard.press(' ');
+await page.waitForTimeout(500);
+
+// A start whose clock never moves, though the context says it is running.
+await page.evaluate(() => {
+    window.__deadFromBirth = true;
+    window.__stopClock(window.__contexts.at(-1));
+});
+await page.waitForTimeout(1500);
+await page.keyboard.press(' ');
+await page.waitForTimeout(2000);
+state = await snapshot();
+check('a start whose clock does not move goes back to paused, and says so',
+    state.playButton === 'Play Progression' &&
+    state.announcement === 'The sound could not start. Press play to try again.',
+    `${state.playButton}; ${state.announcement}`);
+await page.evaluate(() => { window.__deadFromBirth = false; });
+before = await contexts();
+await page.keyboard.press(' ');
+await page.waitForTimeout(1500);
+after = await contexts();
+state = await snapshot();
+check('and the next play tries a new context, and plays',
+    after.length === before.length + 1 && state.playButton === 'Pause',
+    `${after.join(', ')}; ${state.playButton}`);
+await page.keyboard.press(' ');
+await page.waitForTimeout(500);
 
 // Taking the audio back from a playing podcast, an iPhone stopped the context once on its way to
 // running. A stop just after play is pressed belongs to the start, so it is not an interruption.

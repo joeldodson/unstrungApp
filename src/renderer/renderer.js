@@ -1613,8 +1613,9 @@ let chordPlaybackToken = 0;
 const sampleBufferCache = new Map();
 
 function getSharedAudioContext() {
-    if (sharedAudioContext && sharedAudioContextSuspect && !anythingPlaying()) {
-        replaceSharedAudioContext();
+    if (sharedAudioContext && !anythingPlaying()) {
+        checkSharedAudioClock();
+        if (sharedAudioContextSuspect) replaceSharedAudioContext();
     }
     if (!sharedAudioContext) {
         // Tells iOS this page plays media, as a music app does, rather than incidental sound. It
@@ -1623,7 +1624,11 @@ function getSharedAudioContext() {
             try { navigator.audioSession.type = 'playback'; } catch { /* not settable */ }
         }
         const context = new AudioContext();
-        context.addEventListener('statechange', () => handleAudioInterruption(context));
+        context.addEventListener('statechange', () => {
+            // A clock that stopped because the context did has not stopped by surprise.
+            sharedAudioClockMark = null;
+            handleAudioInterruption(context);
+        });
         sharedAudioContext = context;
     }
     resumeIfSuspended(sharedAudioContext);
@@ -6424,10 +6429,43 @@ function anythingPlaying() {
  * are cleared rather than stopped, since the stop functions take a new playback token, and this
  * runs from inside a start that has already taken its own.
  */
+// The last time the shared context's clock was seen to move, as { wall, audio }: performance.now()
+// and the context's currentTime at that moment.
+//
+// A context can report itself running and make no sound. On an iPhone a progression ran to its end
+// with the screen locked, and afterwards nothing would play: no state change had said anything was
+// wrong, so it was neither suspect nor refused. But a context that is really running keeps its
+// clock moving with real time, and that one's had stopped. So the clock is compared with real time,
+// and a running context whose clock stood still is treated as dead, however it got that way.
+let sharedAudioClockMark = null;
+
+/**
+ * Looks at the shared context's clock, and marks the context suspect if it claims to be running
+ * while its clock stood still.
+ *
+ * Done whenever playback starts or stops, whenever the page is hidden or shown, and before play
+ * makes use of the context. The mark only moves on when the clock does, so a clock that has
+ * stopped keeps the evidence until something looks.
+ */
+function checkSharedAudioClock() {
+    const context = sharedAudioContext;
+    if (!context || context.state !== 'running') return;
+    const now = performance.now();
+    const mark = sharedAudioClockMark;
+    if (mark === null || context.currentTime > mark.audio + 0.01) {
+        sharedAudioClockMark = { wall: now, audio: context.currentTime };
+    }
+    if (mark === null) return;
+    const wallSeconds = (now - mark.wall) / 1000;
+    const audioSeconds = context.currentTime - mark.audio;
+    if (wallSeconds > 1 && audioSeconds < wallSeconds / 2) sharedAudioContextSuspect = true;
+}
+
 function replaceSharedAudioContext() {
     const old = sharedAudioContext;
     sharedAudioContext = null;
     sharedAudioContextSuspect = false;
+    sharedAudioClockMark = null;
     chordMasterGain = null;
     chordActiveSources = [];
     audioTrackMasterGain = null;
@@ -6439,6 +6477,7 @@ function replaceSharedAudioContext() {
 
 // Hidden with nothing playing is when the phone takes the audio away and may not give it back.
 document.addEventListener('visibilitychange', () => {
+    checkSharedAudioClock();
     if (document.hidden && !anythingPlaying()) sharedAudioContextSuspect = true;
 });
 
@@ -6453,6 +6492,7 @@ let audioStartDeadline = 0;
 
 /** Called whenever a progression or audio track starts or stops. */
 function playbackChanged(kind, state) {
+    checkSharedAudioClock();
     if (state.playing) {
         // Something starting is the answer to an interruption, so nothing paused by one is
         // restarted on top of it.
@@ -6469,12 +6509,26 @@ function playbackChanged(kind, state) {
  * with the screen locked. Without this the page went on showing playback that was not happening,
  * and the headphones and the button disagreed about whether it was playing. The context is
  * replaced on the next try.
+ *
+ * Judged by the context's clock moving, not by the state it reports: a context on an iPhone said
+ * it was running while making no sound. If the check itself runs late, as it does when a locked
+ * phone holds the page's timers, it waits another second from then rather than judging a start
+ * the phone may only now have allowed.
  */
 function confirmAudioStarted(kind, state) {
     audioStartDeadline = performance.now() + AUDIO_START_SECONDS * 1000;
+    const context = sharedAudioContext;
+    const startWall = performance.now();
+    const startAudio = context?.currentTime ?? 0;
     setTimeout(() => {
-        const context = sharedAudioContext;
-        if (!state.playing || !context || context.state === 'running') return;
+        if (!state.playing || context !== sharedAudioContext) return;
+        const wallSeconds = (performance.now() - startWall) / 1000;
+        if (wallSeconds > AUDIO_START_SECONDS * 2) {
+            confirmAudioStarted(kind, state);
+            return;
+        }
+        const audioSeconds = context.currentTime - startAudio;
+        if (context.state === 'running' && audioSeconds >= wallSeconds / 2) return;
         sharedAudioContextSuspect = true;
         const handler = MEDIA_SESSION_KINDS[kind];
         handler.toggle(state);
