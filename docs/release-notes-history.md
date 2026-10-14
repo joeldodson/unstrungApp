@@ -10,6 +10,22 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.7.7 - Playing again after finishing with the screen locked
+
+Published 2026-10-13.
+
+0.7.7 fixes a progression or audio track that would not play again on an iPhone after it had finished with the screen locked, and adds to the Features document.
+
+### Playing again after finishing with the screen locked
+
+On an iPhone or iPad, a progression that ran to its end while the screen was locked could leave unstrung silent afterwards: pressing play did nothing and said nothing. unstrung now notices when its sound has stopped working, even when nothing reports it, and starts it afresh when play is pressed. If the sound still cannot start, unstrung says "The sound could not start. Press play to try again."
+
+Starting playback from headphones on a locked phone after unstrung has been idle for a while still does nothing. That is a limit iOS puts on web pages, which apps such as podcast players do not have.
+
+### Features
+
+The Features document has two new sections, Platform is a Feature and Media Controls Integration, which take the place of Media Keys and Headphones.
+
 ## unstrung 0.7.6 - A chord change on every measure
 
 Published 2026-10-12.
