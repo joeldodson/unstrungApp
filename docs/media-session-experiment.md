@@ -232,6 +232,29 @@ the page a pause action. To tell them apart, a build could word the pause differ
 cause (interruption, pause action). Lengthening `AUDIO_START_SECONDS` would help only with the
 first.
 
+### Fifth phone test, 0.7.6, iOS 26 (2026-10-13)
+
+A 75-measure progression at 60 (five minutes) played to its end with the phone asleep. Some time
+later an AirPods press did nothing. Unlocked, play in the page did nothing, and said nothing.
+After a podcast was started and stopped in Overcast, play worked.
+
+- The AirPods press: almost certainly the iOS limit. A web page holds Now Playing only while its
+  sound is active; idle in a locked phone, the page is suspended. Only an app with the background
+  audio mode keeps the place Overcast has. A thin iOS app around the web code is the way to that,
+  and a project of its own.
+- Play doing nothing: unstrung's gap. The page was already hidden when playback ended, so the
+  context was never marked suspect, and on unlocking it reported itself running while making no
+  sound, so the start check, which looked at the state, passed. Overcast interrupting it marked
+  it suspect, and the next play replaced it.
+
+Change in 0.7.7: the context's clock is compared with real time (`checkSharedAudioClock`) whenever
+playback starts or stops, the page is hidden or shown, and before play uses the context. The mark
+moves on only when the clock does, so a stopped clock keeps the evidence. A running context whose
+clock moved less than half as far as real time is marked suspect and replaced on the next play.
+The start check judges by the clock too, and if its own timer ran late (a locked phone holds the
+page's timers) it waits another second rather than judging. The test stops a context's clock by
+overriding `currentTime` while its state stays running.
+
 ### Media stream routing did not work in Electron
 
 The first version routed the progression's master gain into a `MediaStreamAudioDestinationNode`

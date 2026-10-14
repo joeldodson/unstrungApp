@@ -1,15 +1,44 @@
 # unstrung Features
 
-Prompter's Note: This file was written by Claude.
-I was going to edit it down to bare essentials.
-I decided, though, that some people like more complete directions.
+Prompter's Note: This file was initially written by Claude.
+I've lightly edited some areas and some sections are all human written.
+There is still a lot that smells like AI writing though.
+But it is accurate and has good details, I decided to leave it as is.
 The user interface (UI) for unstrung is very accessible and, I think, intuitive.
 You might want to simply try it and arrow around in the features when you use them.
-This file can be a good reference if you get lost.
-
 If you have not yet, spend a few minutes skimming the
 [Introduction to unstrung](/unstrung/docs/introduction/).
 It might help to understand the features and why they exist as they do.
+
+## Platform is a Feature
+
+As noted elsewhere, unstrung started as an Electron based desktop app.
+It was designed to be downloaded and installed.
+I chose Electron for its web based core and tight control over components and their versions.
+Building an Electron app you know exactly what you are using, it's all packaged and installed with your own code.
+It's a lot of work though to get into app stores and support multiple platforms, even only Windows and macOS.
+
+As noted in the [Introduction to eyesunstrung](https://eyesunstrung.vip/articles/introduction/), Claude assured me almost all of unstrung would run in a browser.
+So I did a complete redesign with the goal of a single look and feel for unstrung across any platform.
+My initial thought though was to still require a Chromium based browser to still have some level of consistency.
+Then I wanted to try it on a browser on my phone.
+I'll keep my rantings about Apple and WebKit to myself and simply note all browsers on iOS are effectively Safari (WebKit) underneath.
+(I really wish Google could make TalkBack on Android less laggy, I'd switch.)
+The unfortunate reality is most blind people, at least in the U.S., use iOS.
+So I broadened my target to browsers on iOS which indirectly opens support for Firefox on Windows, macOS, and Linux.
+
+I initially thought I'd limit functionality on non Chromium based browsers lacking support for some APIs.
+Claude suggested workarounds though which sounded not too bad.
+And I figured if people are using those platforms and browsers, that's the experience they'd expect anyway.
+
+To get to my point, I've mostly abandoned the comforting idea of knowing what versions of which components unstrung is running on.
+I try to test features on Electron, Chrome on Windows, and Chrome on iOS.
+I hope that reduces most critical bugs.
+You will run into issues, be ready to try and find workarounds.
+You can read below about challenges I've already run into with media controls on iOS, including how I was able to get something to work again.
+Be flexible and patient when you run into something not working as you'd expect.
+Try to find a workaround.
+And look in the footer of any page on eyesunstrung.vip for how to provide feedback.
 
 ## The Window
 
@@ -109,6 +138,43 @@ Each track then has three collapsed sections:
 The measures are collapsed because a song can run to hundreds of lines.
 Expand them when you want the detail.
 
+## Media Controls Integration
+
+Before we get into playing audio tracks from a song or playing along with a chord progression, let's discuss controlling playback.
+Media controls are a universal, platform independent idea.
+Most keyboards have play/pause, next track, and previous track buttons.
+Headphones and earbuds might have similar controls.
+For example, some support single click for play/pause, double click for "next track", and triple click for "previous track."
+Those might be mapped differently depending on the application; maybe fast forward and rewind some seconds instead of entire tracks.
+
+You'll read below about unstrung's keyboard commands to control audio playback.
+Those are specific to unstrung and work only when the screen reader is in focus mode, when keys are passed through to the application.
+In addition to the proprietary keyboard commands unstrung has defined, media controls are also supported.
+
+Audio track and chord progression playback is focused on measures.
+You select which measures to play, including how many times to loop the selection.
+Hit the play button and the audio will begin playing.
+You can pause/resume playback with the media control mechanism, or using the spaceBar keyboard command.
+You can restart the progression using previous track from media control, or upArrow on the keyboard.
+Media control's "next track" (in quotes because we're kind of redefining that button), or downArrow on the keyboard, moves audio to the beginning of the current measure.
+Remember the keyboard commands require your screen reader to be passing keyboard input through (focus mode in NVDA) while media controls work independent of the screen reader.
+
+If you haven't, read the section above about Platform is a Feature.
+The web based version of unstrung, especially on mobile, has implemented media control ... creatively (some might call it a hack).
+There are times it will not work, or be inconsistent.
+Suppose your phone goes to sleep.
+A chord progression, for example, should continue to play.
+And you should be able to start and stop it while the phone is still sleeping.
+I've had times though when the progression has been stopped for a while, I could not get it to start again.
+Even unlocking my phone and hitting play in the browser tab would not restart the progression.
+I switched to another app and listened to some audio, then back to unstrung and the progression would now play.
+Since version 0.7.7, unstrung tries to notice when the sound has stopped working and start it afresh.
+So first, press play in the browser tab.
+It should play, or say "The sound could not start. Press play to try again."
+If it says that, press play again.
+If that does not work, try what I did: play some audio in another app, then come back to unstrung and press play.
+Worst case you might need to close the tab with unstrung and open a new one.
+
 ## Playing a Track
 
 Expand the "Audio Track" section at the end of a track.
@@ -157,25 +223,6 @@ In NVDA, nvdaKey+spaceBar turns focus mode on and off.
 unstrung cannot do it for you.
 Turn focus mode off before you move somewhere else, or the keys you press there will go to unstrung instead of moving you around.
 
-### Media Keys and Headphones
-
-The media keys on a keyboard, and the buttons on headphones, control an audio track or a chord progression.
-They work without focus mode, and while unstrung is in the background.
-
-- Play/pause: start and stop, as spaceBar does.
-- Next track: back to the start of the measure you are in, as downArrow does.
-- Previous track: back to the start of the selected measures, or of the progression, as upArrow does.
-
-On AirPods, next track is a double press and previous track a triple press.
-The keys act on whatever is playing.
-When nothing is, they act on the progression or expanded audio track in front, or else on the one played last.
-If another app played more recently, such as a music player, the keys may go to it instead.
-
-When something takes the sound away, such as a phone call or another app starting to play, playback pauses.
-When the phone gives the sound back by itself, as it should after a call, playback carries on, as a podcast app does.
-After another app has played, press play to carry on.
-If the phone does not let the sound start, unstrung says "The sound could not start. Press play to try again." and stays paused.
-
 ## Chord Practice
 
 Chord practice generates a chord progression and plays it for you to play along with.
@@ -223,7 +270,7 @@ A progression's item has:
 - **Move Around the Progression** and **Keyboard Control,** the same buttons and keys as an audio track.
   b also says the chord of the measure you are in.
 
-The media keys and headphone buttons control a progression as they do an audio track; see Media Keys and Headphones, under Playing a Track.
+The media keys and headphone buttons control a progression as they do an audio track; see Media Controls Integration, before Playing a Track.
 
 ### Saving and Opening Progressions
 
