@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp } from '../lib/app-ui.mjs';
 
 let failures = 0;
 const check = (label, condition, detail = '') => {
@@ -36,9 +36,8 @@ const windowsSession = (send = '') => {
     return { title: field('title'), status: field('status'), current: field('current') === 'True' };
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 await page.waitForTimeout(1500);
 
 // The handlers are registered on the first play, so wrapping after load is soon enough.
@@ -483,6 +482,6 @@ session = windowsSession();
 check('closing the song ends the session', session === null, JSON.stringify(session));
 check('no metadata left', (await snapshot()).title === null);
 
-await app.close();
+await close();
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

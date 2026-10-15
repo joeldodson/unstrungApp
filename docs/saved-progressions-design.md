@@ -1,5 +1,9 @@
 # Saved, edited and hand-made chord progressions
 
+On the song-composer branch, progressions are saved as alphaTex, and the JSON format described
+below, Copy to Clipboard and Edit Progression Text have been removed. See
+`strumming-patterns-and-metronome.md`.
+
 A record of the design discussion held 2026-09-18 to 2026-09-19, what was decided, and why. The
 feature shipped in version 0.5.0, which is committed but not yet built or released as of 2026-09-20.
 

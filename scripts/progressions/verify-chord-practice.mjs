@@ -6,7 +6,7 @@
 // a chord is scheduled on the last beat of the bar before it.
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
 
 let failures = 0;
 const check = (label, condition, detail = '') => {
@@ -14,12 +14,10 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(3000);
 
 console.log('=== The dialog ===');
@@ -81,7 +79,7 @@ await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
 const borrowedTab = await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
         .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent);
     const rows = [...panel.querySelectorAll('ul.chords-used > li > details')].map(d => ({
@@ -109,8 +107,7 @@ if (borrowedRows.length > 0) {
 
 // Generating closed the dialog, so the sections below have to open it again before they can set
 // anything. Everything after this point expects beginner, C major and no borrowing.
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(1200);
 await page.selectOption('#chord-practice-borrowing-select', 'none');
 await page.selectOption('#chord-practice-level-select', 'beginner');
@@ -127,14 +124,13 @@ await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
 const tab = await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     if (!panel) return null;
     // Only the chord rows, which are the one list carrying that class.
     const details = [...panel.querySelectorAll('ul.chords-used > li > details')];
     return {
         dialogClosed: !document.getElementById('chord-practice-dialog').open,
-        tabName: [...document.querySelectorAll('[role="tab"]')]
-            .find(t => t.getAttribute('aria-selected') === 'true')?.textContent,
+        tabName: document.querySelector('#open-items-list button[aria-current="true"]')?.textContent,
         headings: [...panel.querySelectorAll('h2, h3')].map(h => `${h.tagName}: ${h.textContent}`),
         // The metadata list: the only plain list outside a chord's own disclosure.
         summaryItems: [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
@@ -200,7 +196,7 @@ check('the details carry the fingering or say it is missing',
 console.log('\n=== A chord with no fingering says so inside, not on its name ===');
 const unfingered = await page.evaluate(() => {
     // Generated at the advanced level, which admits chords the library has no shape for.
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     return [...panel.querySelectorAll('ul.chords-used > li > details')].map(d => ({
         summary: d.querySelector('summary').textContent,
         rows: [...d.querySelectorAll('li')].map(li => li.textContent)
@@ -226,7 +222,7 @@ check('instrumentation installed', timing === true);
 
 // One button toggles: it reads Play, then Pause once running.
 const clickTransport = () => page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     [...panel.querySelectorAll('button')].find(b => /^(Play Progression|Pause)$/.test(b.textContent)).click();
 });
 await clickTransport();
@@ -252,7 +248,7 @@ if (speech.length >= 2) {
 
 console.log('\n=== Transport matches the audio track ===');
 const panelState = () => page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     const play = [...panel.querySelectorAll('button')].find(b => /^(Play Progression|Pause)$/.test(b.textContent));
     return {
         playLabel: play.textContent,
@@ -266,7 +262,7 @@ const panelState = () => page.evaluate(() => {
 });
 
 const controls = await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     const labelled = [...panel.querySelectorAll('input, select')].every(el =>
         panel.querySelector(`label[for="${el.id}"]`));
     // The key list is the last plain list in the panel, under the Keyboard Control heading.
@@ -296,7 +292,7 @@ check('the tempo keys name their step size',
 
 // Focus the panel itself so the bare keys reach the transport.
 await page.evaluate(() => {
-    [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus();
+    document.querySelector('#item-panels > section:not([hidden])').focus();
 });
 
 const press = async key => {
@@ -353,7 +349,7 @@ check('F speeds it back up', afterFaster.tempo === '70', afterFaster.tempo);
 // refilling it in one task is coalesced into a single mutation, so an unchanged string looked like
 // no change. It worked while playing, where the answer keeps moving, and went silent when paused.
 await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     const region = panel.querySelector('[aria-live]');
     window.__announcements = [];
     new MutationObserver(() => {
@@ -410,14 +406,14 @@ check('repeats defaults to 0, meaning until stopped', loopState.repeats === '0',
 // Eight bars of 4/4 at 70 bpm is 27.4 s, too long to wait for a wrap; push the tempo up so a
 // whole pass fits inside the check, then confirm playback survives past the end of pass one.
 await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     const tempo = panel.querySelector('input[id^="chord-practice-tab-tempo"]');
     tempo.value = '240';
     tempo.dispatchEvent(new Event('change'));
 });
 await page.waitForTimeout(500);
 await page.evaluate(() => {
-    [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus();
+    document.querySelector('#item-panels > section:not([hidden])').focus();
 });
 await page.keyboard.press(' ');
 // One pass at 240 bpm is 8 s; wait past it and confirm it is still going.
@@ -437,8 +433,7 @@ await page.keyboard.press(' ');
 await page.waitForTimeout(400);
 
 console.log('\n=== The dialog has no seed field ===');
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(1000);
 const seedless = await page.evaluate(() => {
     const dialog = document.getElementById('chord-practice-dialog');
@@ -456,7 +451,7 @@ await page.waitForTimeout(1500);
 
 console.log('\n=== Speaking the names is a control on the tab, not only a choice in the dialog ===');
 const speakUi = await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
     const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
     const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
@@ -483,24 +478,35 @@ check('the metadata no longer states it as well',
 if (speakUi.disabled) {
     console.log('  (no recordings available, so the toggle is disabled and cannot be exercised)');
 } else {
+    // Speaking is on by default, and this checks turning it on, so it is turned off first.
+    await page.evaluate(() => {
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
+        const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
+        const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
+        if (!box.checked) return;
+        box.checked = false;
+        box.dispatchEvent(new Event('change'));
+    });
+    await page.waitForTimeout(1500);
+
     // Move away from the start, so "back to measure 1" is a claim that can fail.
     await page.evaluate(() =>
-        [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+        document.querySelector('#item-panels > section:not([hidden])').focus());
     await press('ArrowRight');
     await press('ArrowRight');
     const beforeToggle = await press('b');
     console.log(`  before toggling -> ${beforeToggle.announcement}`);
 
     await page.evaluate(() => {
-        const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
         const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
         const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
-        box.checked = !box.checked;
+        box.checked = true;
         box.dispatchEvent(new Event('change'));
     });
     await page.waitForTimeout(1500);
     await page.evaluate(() =>
-        [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+        document.querySelector('#item-panels > section:not([hidden])').focus());
     const afterToggle = await press('b');
     console.log(`  after toggling  -> ${afterToggle.announcement}`);
     check('toggling starts the progression again from the first measure',
@@ -522,8 +528,7 @@ if (speakUi.disabled) {
 }
 
 console.log('\n=== The dialog opens with every field back to its default ===');
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(1200);
 const readDialog = () => page.evaluate(() => ({
     level: document.getElementById('chord-practice-level-select').value,
@@ -561,8 +566,7 @@ check('the fields really were changed', changed.tempo === '150' && changed.level
 
 await page.click('#chord-practice-cancel-button');
 await page.waitForTimeout(500);
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(1200);
 const reopened = await readDialog();
 console.log(`  reopened: ${JSON.stringify(reopened)}`);
@@ -578,9 +582,10 @@ check('the length is back to 8 measures', reopened.count === '8', reopened.count
 check('the repeat count is back to 0', reopened.repeat === '0', reopened.repeat);
 check('count in before every repeat is off again', reopened.countIn === false);
 check('the metronome is on again', reopened.metronome === true);
-check('speaking the names is off again', reopened.speak === false);
+// On by default since fdc09fc, as user-docs/features.md says.
+check('speaking the names is on again', reopened.speak === true);
 await page.evaluate(() => document.getElementById('chord-practice-dialog').close());
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

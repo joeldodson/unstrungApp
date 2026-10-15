@@ -6,7 +6,7 @@
 // Both are about a second visit, so both are driven by actually leaving and coming back.
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
 
 let failures = 0;
 const check = (label, condition, detail = '') => {
@@ -14,13 +14,11 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 const openFrets = async () => {
-    await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].webContents.send('frets:open'));
+    await runMenuCommand(page, 'frets-to-chord');
     await page.waitForTimeout(1500);
 };
 const frets = () => page.evaluate(() =>
@@ -176,5 +174,5 @@ check('it is read immediately after the notes', placed,
     said[0]?.rows.slice(0, 3).join(' | '));
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

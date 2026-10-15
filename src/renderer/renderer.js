@@ -12,10 +12,14 @@ import {
     generateProgression, chordDisplayName, usableKeys, KEY_ROOTS
 } from '../shared/chordProgressions.mjs';
 import {
-    serializeProgression, parseSavedProgression, keyPitchClasses, isChordInKey, degreeChords,
-    MAX_MEASURES, MAX_BEATS
-} from '../shared/savedProgressions.mjs';
-import { readProgressionText } from '../shared/progressionText.mjs';
+    keyPitchClasses, isChordInKey, degreeChords, MAX_MEASURES, MAX_BEATS
+} from '../shared/keyChords.mjs';
+import {
+    songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, alphaTexError
+} from '../shared/songScore.mjs';
+import {
+    everyBeatDown, fitPattern, formatStrummingPattern, BUILT_IN_PATTERNS
+} from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import { createMenuButton } from './menu.js';
 
@@ -4144,22 +4148,78 @@ async function chordPracticeLoadSpeech(state, myToken) {
     return byName;
 }
 
+// How strokes sound. An upstroke catches only the top strings and a little softer, as a hand
+// coming back up does. Accents are heard against the strokes around them, so where a pattern has
+// any, the others are softened as well as the accents raised.
+const CHORD_PRACTICE_UPSTROKE_STRINGS = 4;
+const CHORD_PRACTICE_UPSTROKE_GAIN = 0.8;
+const CHORD_PRACTICE_ACCENT_GAIN = 1.3;
+const CHORD_PRACTICE_UNACCENTED_GAIN = 0.85;
+// A strum rings on past the next one, as it did when every beat was strummed: 1.8 times the gap
+// before the next stroke. A mute is the exception: it stops the strings, so nothing rings past it.
+const CHORD_PRACTICE_RING_FACTOR = 1.8;
+
+/**
+ * The strokes of one measure of the progression's pattern, worked out once per tab.
+ *
+ * Each is { slot, direction, accent, mute, ringSlots }: ringSlots is how many slots it rings
+ * before the next stroke, counted round into the next measure, since the pattern repeats.
+ */
+function chordPracticeStrokes(progression) {
+    const { slots, slotsPerBeat } = progressionPattern(progression);
+    const struck = slots
+        .map((slot, index) => ({ ...slot, index }))
+        .filter(slot => slot.stroke !== 'miss');
+    const accented = struck.some(slot => slot.accent);
+    return {
+        slotsPerBeat,
+        strokes: struck.map((slot, n) => {
+            const next = struck[(n + 1) % struck.length];
+            const gap = next.index > slot.index ? next.index - slot.index : next.index + slots.length - slot.index;
+            return {
+                slot: slot.index,
+                direction: slot.stroke === 'up' ? 'up' : 'down',
+                mute: slot.stroke === 'mute',
+                gain: !accented ? 1 : slot.accent ? CHORD_PRACTICE_ACCENT_GAIN : CHORD_PRACTICE_UNACCENTED_GAIN,
+                ringSlots: gap,
+                ringFactor: next.stroke === 'mute' ? 1 : CHORD_PRACTICE_RING_FACTOR
+            };
+        })
+    };
+}
+
+/** How long a stroke rings, in seconds, at the tab's tempo. */
+function chordPracticeStrokeRing(state, stroke) {
+    const slotSeconds = 60 / state.tempo / state.strokes.slotsPerBeat;
+    return stroke.ringSlots * slotSeconds * stroke.ringFactor;
+}
+
 /**
  * Sounds one strum.
+ *
+ * A downstroke sweeps from the lowest string; an upstroke from the highest, over the top four.
+ * A mute sounds nothing yet: there is no recording of deadened strings, and the stroke before it
+ * already stops ringing where it falls.
  *
  * `skipSeconds` enters the samples partway through, for a chord that was already ringing when
  * playback restarted. Without it a restart cuts whatever is sounding and waits for the next beat,
  * which at a practice tempo is most of a second of silence.
  */
-function scheduleChordPracticeStrum(state, midi, at, skipSeconds = 0) {
+function scheduleChordPracticeStrum(state, midi, stroke, at, skipSeconds = 0) {
+    if (stroke.mute) return;
     const context = getSharedAudioContext();
-    const secondsPerBeat = 60 / state.tempo;
-    for (const [stringIndex, note] of midi.entries()) {
+    const sweep = stroke.direction === 'up'
+        ? midi.slice(-CHORD_PRACTICE_UPSTROKE_STRINGS).reverse()
+        : midi;
+    const level = CHORD_PRACTICE_NOTE_GAIN * stroke.gain *
+        (stroke.direction === 'up' ? CHORD_PRACTICE_UPSTROKE_GAIN : 1);
+    const strokeRing = chordPracticeStrokeRing(state, stroke);
+    for (const [stringIndex, note] of sweep.entries()) {
         const buffer = state.buffers.get(note);
         if (!buffer) continue;
 
         const spread = stringIndex * CHORD_PRACTICE_STRUM_DELAY_SECONDS;
-        const ring = Math.min(secondsPerBeat * 1.8, buffer.duration);
+        const ring = Math.min(strokeRing, buffer.duration);
         // Each string of a strum begins a little later, so a resumed strum is that much less far
         // into its own sample -- and a string the sweep had not yet reached starts from the top.
         const into = Math.max(0, skipSeconds - spread);
@@ -4170,8 +4230,10 @@ function scheduleChordPracticeStrum(state, midi, at, skipSeconds = 0) {
         const source = context.createBufferSource();
         source.buffer = buffer;
         const gain = context.createGain();
-        gain.gain.setValueAtTime(CHORD_PRACTICE_NOTE_GAIN, start);
-        gain.gain.setValueAtTime(CHORD_PRACTICE_NOTE_GAIN, start + remaining - 0.15);
+        // The fade is shortened for a short ring, so it cannot start before the note does.
+        const fade = Math.min(0.15, remaining / 2);
+        gain.gain.setValueAtTime(level, start);
+        gain.gain.setValueAtTime(level, start + remaining - fade);
         gain.gain.linearRampToValueAtTime(0, start + remaining);
         source.connect(gain).connect(chordPracticeMasterGain);
         source.start(start, into);
@@ -4219,29 +4281,33 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, 
         if (measureStart >= toSeconds) break;
         const midi = chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? [];
 
-        for (let beat = 0; beat < state.beatsPerBar; beat++) {
+        // The metronome keeps the beat, whatever the pattern does.
+        for (let beat = 0; beat < state.beatsPerBar && state.metronome; beat++) {
             const beatSeconds = measureStart + beat * secondsPerBeat;
+            if (beatSeconds < fromSeconds - 1e-6 || beatSeconds >= toSeconds - 1e-6) continue;
+            chordPracticeSources.push({
+                source: scheduleMetronomeClick(
+                    context, chordPracticeMasterGain, at(beatSeconds), beat === 0),
+                endsAt: at(beatSeconds) + METRONOME_CLICK_SECONDS
+            });
+        }
+
+        const slotSeconds = secondsPerBeat / state.strokes.slotsPerBeat;
+        for (const stroke of state.strokes.strokes) {
+            const strokeSeconds = measureStart + stroke.slot * slotSeconds;
 
             // A strum that began before this window and has not finished ringing. Only on the
-            // first chunk of a run, since later windows scheduled these when their beat fell
-            // inside them. The click is not re-entered: it has already happened.
-            if (beatSeconds < fromSeconds - 1e-6) {
+            // first chunk of a run, since later windows scheduled these when they fell inside them.
+            if (strokeSeconds < fromSeconds - 1e-6) {
                 if (!includeRinging) continue;
-                const into = fromSeconds - beatSeconds;
-                if (into < secondsPerBeat * 1.8) {
-                    scheduleChordPracticeStrum(state, midi, baseContext, into);
+                const into = fromSeconds - strokeSeconds;
+                if (into < chordPracticeStrokeRing(state, stroke)) {
+                    scheduleChordPracticeStrum(state, midi, stroke, baseContext, into);
                 }
                 continue;
             }
-            if (beatSeconds >= toSeconds - 1e-6) continue;
-            if (state.metronome) {
-                chordPracticeSources.push({
-                    source: scheduleMetronomeClick(
-                        context, chordPracticeMasterGain, at(beatSeconds), beat === 0),
-                    endsAt: at(beatSeconds) + METRONOME_CLICK_SECONDS
-                });
-            }
-            scheduleChordPracticeStrum(state, midi, at(beatSeconds));
+            if (strokeSeconds >= toSeconds - 1e-6) continue;
+            scheduleChordPracticeStrum(state, midi, stroke, at(strokeSeconds));
         }
 
         // Announced with the measure it belongs to, so it is scheduled in the same chunk.
@@ -4683,9 +4749,6 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const editButton = makeButton('Edit Progression');
     const saveButton = makeButton('Save Progression', 'Control+S');
     const saveAsButton = makeButton('Save Progression As', 'Control+Shift+S');
-    // The way to keep or pass on a progression where saving cannot work, such as any browser on
-    // an iPhone: the same text a saved file holds, which the editor's Edit Progression Text reads.
-    const copyButton = makeButton('Copy to Clipboard');
     container.append(fileActions);
 
     const playbackHeading = document.createElement('h3');
@@ -4832,6 +4895,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const state = {
         progression,
         beatsPerBar: progression.beatsPerBar,
+        // What the strumming hand does in each measure. An edit rebuilds the tab, so once is enough.
+        strokes: chordPracticeStrokes(progression),
         tempo: options.tempo,
         // The file this progression was opened from or last saved to, and whether it has changed
         // since. A generated progression starts with neither, and is not "unsaved": it was never
@@ -4870,7 +4935,6 @@ function buildChordPracticeTab(progression, options, file = {}) {
     editButton.addEventListener('click', () => openProgressionEditor({ state }));
     saveButton.addEventListener('click', () => saveChordPractice(state));
     saveAsButton.addEventListener('click', () => saveChordPractice(state, { saveAs: true }));
-    copyButton.addEventListener('click', () => copyChordPracticeText(state));
     playButton.addEventListener('click', () => toggleChordPracticePlayback(state));
     for (const { button, action } of transportButtons) {
         button.addEventListener('click', () => action(state));
@@ -4965,11 +5029,13 @@ async function ensureChordPracticeReady() {
  */
 function prepareProgression({
     key, mode, beatsPerBar, beatUnit, chords, origin, fresh = false,
-    level = null, cadence = null, borrowing = null, borrowedCount = 0
+    level = null, cadence = null, borrowing = null, borrowedCount = 0, pattern = null
 }) {
     const prepared = {
         key, mode, beatsPerBar, beatUnit, origin, fresh, level, cadence, borrowing, borrowedCount
     };
+    // The strumming pattern, kept only where it fits the time signature.
+    prepared.pattern = progressionPattern({ beatsPerBar, pattern });
     if (fresh) {
         prepared.chords = chords;
         return prepared;
@@ -5004,6 +5070,7 @@ function chordPracticeMetadataRows(progression) {
         rows.push(
             `Level - ${levelName}`,
             `Time signature - ${progression.beatsPerBar}/${progression.beatUnit}`,
+            `Strumming - ${strummingPatternLabel(progression)}`,
             `Length - ${progression.chords.length} measures`,
             `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
             `Chords from outside the key - ${progression.borrowing ?? 'stay in the key'}` +
@@ -5015,6 +5082,7 @@ function chordPracticeMetadataRows(progression) {
     const outside = progression.chords.filter(chord => chord.outsideKey || chord.borrowed).length;
     rows.push(
         `Time signature - ${progression.beatsPerBar}/${progression.beatUnit}`,
+        `Strumming - ${strummingPatternLabel(progression)}`,
         `Length - ${progression.chords.length} measures`,
         `Chords from outside the key - ${outside === 0 ? 'none' : outside}`);
     return rows;
@@ -5097,6 +5165,65 @@ function replaceChordPracticeProgression(entry, progression, { dirty }) {
     return state;
 }
 
+// --- Progressions as songs -------------------------------------------------------------------
+// A progression is saved as a song: alphaTex, the plain-text score notation alphaTab reads and
+// writes, with the tempo and the strumming pattern in it. The player never sees the format; see
+// docs/strumming-patterns-and-metronome.md.
+
+const PROGRESSION_FILE_EXTENSION = 'atex';
+
+/** The progression's strumming pattern, or a downstroke on every beat where it has none that fits. */
+function progressionPattern(progression) {
+    const pattern = progression.pattern;
+    if (pattern && pattern.slots.length === progression.beatsPerBar * pattern.slotsPerBeat) return pattern;
+    return everyBeatDown(progression.beatsPerBar);
+}
+
+/** The pattern as the Metadata list says it: its name where it is a built-in one, else its text. */
+function strummingPatternLabel(progression) {
+    const pattern = progressionPattern(progression);
+    const text = formatStrummingPattern(pattern.slots);
+    const builtIn = BUILT_IN_PATTERNS.find(p => p.beatsPerBar === progression.beatsPerBar && p.text === text);
+    if (builtIn) return builtIn.name;
+    return text === formatStrummingPattern(everyBeatDown(progression.beatsPerBar).slots) ? 'Every beat, down' : text;
+}
+
+/** The alphaTex a saved file holds. Throws only on a program error. */
+function progressionFileText(progression, tempo) {
+    const song = songFromProgression(progression, {
+        library: chordPracticeLibrary, tempo, pattern: progressionPattern(progression)
+    });
+    const written = songToAlphaTex(song);
+    if (written.error) throw new Error(`measure ${written.measure}: ${written.error}`);
+    return written.text;
+}
+
+function importAlphaTex(text) {
+    const importer = new alphaTab.importer.AlphaTexImporter();
+    importer.initFromString(text, new alphaTab.Settings());
+    return importer.readScore();
+}
+
+/**
+ * Reads a saved progression's text into the shape chord practice is built from.
+ *
+ * alphaTex is read by alphaTab and then into measures, and must come out as one chord a measure
+ * with one pattern throughout, which is all chord practice can show yet. Returns { progression } or
+ * { error }, the error worded to follow "Could not open name:".
+ */
+function readProgressionFile(text) {
+    let score;
+    try {
+        score = importAlphaTex(text);
+    } catch (error) {
+        const { message, line, column } = alphaTexError(error);
+        return { error: line === null ? `it could not be read: ${message}`
+            : `it could not be read at line ${line}, column ${column}: ${message}` };
+    }
+    return progressionFromSong(readSongFromScore(score, { library: chordPracticeLibrary }),
+        { library: chordPracticeLibrary, maxMeasures: MAX_MEASURES });
+}
+
 /**
  * The name the Save dialog offers: key, measures, level, borrowing. "Am-60-intermediate-occasional".
  *
@@ -5122,7 +5249,7 @@ function suggestedProgressionName(progression) {
  * System Access API both download a copy instead.
  */
 async function saveChordPractice(state, { saveAs = false } = {}) {
-    const text = serializeProgression(state.progression);
+    const text = progressionFileText(state.progression, state.tempo);
     let result;
     try {
         result = await window.unstrung.saveProgression({
@@ -5148,30 +5275,13 @@ async function saveChordPractice(state, { saveAs = false } = {}) {
     refreshChordPracticeNames(state);
     if (result.downloaded) {
         // A browser without the File System Access API: a copy, wherever the browser keeps downloads.
-        state.announce(`Downloaded ${result.name}.json. Open Saved Progression can open it from your downloads.`);
+        state.announce(`Downloaded ${result.name}.${PROGRESSION_FILE_EXTENSION}. ` +
+            'Open Saved Progression can open it from your downloads.');
     } else {
         state.announce(`Saved as ${result.name}.` + (result.insideFolder ? '' :
             ' That is outside the progressions folder, so Open Saved Progression will not list it.'));
     }
     return true;
-}
-
-/**
- * Copies the tab's progression to the clipboard, as the text a saved file holds.
- *
- * The clipboard is asked for straight from the click, with nothing awaited first: Safari, and so
- * every browser on iOS, allows writing to it only while the click is still being handled. Writing
- * needs no permission anywhere unstrung runs (a secure page, or the desktop app); reading would,
- * which is why pasting goes through an ordinary text field instead.
- */
-function copyChordPracticeText(state) {
-    const text = serializeProgression(state.progression);
-    const writing = navigator.clipboard?.writeText
-        ? navigator.clipboard.writeText(text)
-        : Promise.reject(new Error('no clipboard'));
-    writing.then(
-        () => state.announce('Copied the progression to the clipboard.'),
-        () => state.announce('The browser would not copy to the clipboard.'));
 }
 
 // Control+S and Control+Shift+S save the chord practice tab in front. With a modifier they reach
@@ -5428,9 +5538,7 @@ function buildProgressionTreeItems(nodes, container, skipped) {
             }
             count += inside;
         } else {
-            const parsed = node.error
-                ? { error: node.error }
-                : parseSavedProgression(node.text, { model: progressionModel, library: chordPracticeLibrary });
+            const parsed = node.error ? { error: node.error } : readProgressionFile(node.text);
             if (parsed.error) {
                 skipped.push(`${node.path} - ${parsed.error}`);
                 continue;
@@ -5479,7 +5587,7 @@ async function openSavedProgressionFile(relativePath) {
         progressionOpenStatus.textContent = `Could not open that progression: ${error.message}`;
         return;
     }
-    const parsed = parseSavedProgression(file.text, { model: progressionModel, library: chordPracticeLibrary });
+    const parsed = readProgressionFile(file.text);
     if (parsed.error) {
         // Checked when the tree was built, but the file is read again here and may have changed.
         progressionOpenStatus.textContent = `Could not open ${file.name}: ${parsed.error}.`;
@@ -5500,9 +5608,16 @@ async function openSavedProgressionFile(relativePath) {
         setStatus(`${file.name} is already open.`);
         return;
     }
-    openChordPracticeTab(prepareProgression(parsed.progression), progressionOpenOptions,
+    openChordPracticeTab(prepareProgression(parsed.progression), openedProgressionOptions(parsed, progressionOpenOptions),
         { filePath: file.filePath, fileName: file.name, dirty: false });
     setStatus(`Opened ${file.name}.`);
+}
+
+/** Playback options for an opened progression: the tempo saved with it, where it has one. */
+function openedProgressionOptions(parsed, options) {
+    const tempo = parsed.progression.tempo;
+    if (!Number.isFinite(tempo)) return options;
+    return { ...options, tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO, Math.min(CHORD_PRACTICE_MAX_TEMPO, Math.round(tempo))) };
 }
 
 /**
@@ -5510,9 +5625,9 @@ async function openSavedProgressionFile(relativePath) {
  * one progression file. The platform asks for the file before anything here is awaited, so the
  * picker still counts as answering the key press or click.
  *
- * The progression opens with no file to save back to, since nothing can be saved here anyway. Text
- * that does not read as a saved progression is refused with the reason, as the folder tree does,
- * and the status bar points to Edit Progression Text, which mends simple mistakes.
+ * The progression opens with no file to save back to, since nothing can be saved here anyway. A
+ * file that does not read as a saved progression is refused with the reason, as the folder tree
+ * does.
  */
 async function openProgressionFromUpload() {
     let file;
@@ -5524,13 +5639,13 @@ async function openProgressionFromUpload() {
     }
     if (!file) return;
     await ensureChordPracticeReady();
-    const parsed = parseSavedProgression(file.text, { model: progressionModel, library: chordPracticeLibrary });
+    const parsed = readProgressionFile(file.text);
     if (parsed.error) {
-        setStatus(`Could not open ${file.name}: ${parsed.error}. ` +
-            'Edit Progression Text, in Manually Create Chord Progression, can mend simple mistakes.');
+        setStatus(`Could not open ${file.name}: ${parsed.error}.`);
         return;
     }
-    openChordPracticeTab(prepareProgression(parsed.progression), chordPracticePlaybackOptions({ fromDialog: false }),
+    openChordPracticeTab(prepareProgression(parsed.progression),
+        openedProgressionOptions(parsed, chordPracticePlaybackOptions({ fromDialog: false })),
         { filePath: null, fileName: file.name, dirty: false });
     setStatus(`Opened ${file.name}.`);
 }
@@ -5680,17 +5795,14 @@ const editorChordInput = document.getElementById('progression-editor-chord-input
 const editorSuggestions = document.getElementById('progression-editor-suggestions');
 const editorStatus = document.getElementById('progression-editor-status');
 const editorApplyButton = document.getElementById('progression-editor-apply-button');
-const editorTextDetails = document.getElementById('progression-editor-text-details');
-const editorTextInput = document.getElementById('progression-editor-text-input');
-const editorTextReport = document.getElementById('progression-editor-text-report');
-const editorTextSummary = document.getElementById('progression-editor-text-summary');
-const editorTextFixes = document.getElementById('progression-editor-text-fixes');
 
 const editor = {
     measures: [],
     current: 0,
     entry: null,
     origin: { made: 'hand' },
+    // The strumming pattern, carried through an edit.
+    pattern: null,
     options: null,
     opener: null,
     original: '',
@@ -5705,7 +5817,8 @@ function editorKey() {
 
 function editorSnapshot() {
     return JSON.stringify([editorKeySelect.value, editorBeatsInput.value, editorBeatUnitInput.value,
-        editor.measures.map(chord => (chord ? `${chord.root}|${chord.suffix}` : null))]);
+        editor.measures.map(chord => (chord ? `${chord.root}|${chord.suffix}` : null)),
+        editor.pattern ? formatStrummingPattern(editor.pattern.slots) : '']);
 }
 
 function editorKeyClasses() {
@@ -6077,6 +6190,8 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorBeatUnitInput.value = String(progression.beatUnit);
         editor.measures = progression.chords.map(chord => ({ root: chord.root, suffix: chord.suffix }));
         editor.origin = progression.origin ?? { made: 'hand' };
+        // Not edited here yet, but kept: applying changes must not lose it.
+        editor.pattern = progression.pattern ?? null;
         editorHeading.textContent = 'Editing Chord Progression';
         editorApplyButton.textContent = 'Apply Changes';
     } else {
@@ -6085,15 +6200,13 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorBeatUnitInput.value = '4';
         editor.measures = [null];
         editor.origin = { made: 'hand' };
+        editor.pattern = null;
         editorHeading.textContent = 'Creating Chord Progression';
         editorApplyButton.textContent = 'Create Progression';
     }
 
     editor.original = editor.entry ? editorSnapshot() : '';
     editorStatus.textContent = '';
-    editorTextDetails.open = false;
-    editorTextInput.value = '';
-    editorTextReport.hidden = true;
     renderEditorMeasures();
     syncEditorChordField();
 
@@ -6139,8 +6252,9 @@ function applyProgressionEditor() {
     const origin = previous.made === 'hand'
         ? { made: 'hand' }
         : { made: 'edited', levelId: previous.levelId, borrowingId: previous.borrowingId };
+    // A pattern that no longer fits a changed time signature gives way to a downstroke on every beat.
     const progression = prepareProgression({
-        key, mode, beatsPerBar, beatUnit, chords: editor.measures, origin
+        key, mode, beatsPerBar, beatUnit, chords: editor.measures, origin, pattern: editor.pattern
     });
 
     // Focus goes to the tab, not back to whatever opened the dialog.
@@ -6157,58 +6271,6 @@ function applyProgressionEditor() {
             'It is not saved yet.');
     }
 }
-
-/**
- * Fills the dialog from the text in Edit Progression Text, as if the progression had been built
- * here by hand: key, time signature and measures. Nothing is made until Create Progression or
- * Apply Changes, the same as any other change in the dialog.
- *
- * What was mended to read the text is listed after the button, and said. Text that cannot be read
- * changes nothing: the reason is listed and said, and the caret goes to where reading stopped.
- */
-function updateEditorFromText() {
-    const result = readProgressionText(editorTextInput.value, { model: progressionModel, library: chordPracticeLibrary });
-    editorTextFixes.replaceChildren();
-    editorTextReport.hidden = false;
-
-    if (result.error) {
-        const reason = result.line === null
-            ? result.error[0].toUpperCase() + result.error.slice(1)
-            : `Line ${result.line}, column ${result.column}: ${result.error}`;
-        editorTextSummary.textContent = `The progression was not changed. ${reason}`;
-        editorAnnounce(editorTextSummary.textContent);
-        if (result.offset !== null) {
-            editorTextInput.focus();
-            editorTextInput.setSelectionRange(result.offset, result.offset);
-        }
-        return;
-    }
-
-    const { progression, fixes } = result;
-    editorKeySelect.value = `${progression.key}|${progression.mode}`;
-    editorBeatsInput.value = String(progression.beatsPerBar);
-    editorBeatUnitInput.value = String(progression.beatUnit);
-    editor.measures = progression.chords.map(chord => (chord ? { root: chord.root, suffix: chord.suffix } : null));
-    editor.origin = progression.origin;
-    editor.current = 0;
-    renderEditorMeasures();
-    syncEditorChordField();
-
-    const count = progression.chords.length;
-    editorTextSummary.textContent =
-        `Progression updated: ${progression.key} ${progression.mode}, ` +
-        `${progression.beatsPerBar}/${progression.beatUnit}, ${count} ${count === 1 ? 'measure' : 'measures'}.` +
-        (fixes.length === 0 ? '' : ` ${fixes.length} ${fixes.length === 1 ? 'thing was' : 'things were'} ` +
-            'fixed to read it, listed next.');
-    for (const text of fixes) {
-        const item = document.createElement('li');
-        item.textContent = text;
-        editorTextFixes.append(item);
-    }
-    editorAnnounce(editorTextSummary.textContent);
-}
-
-document.getElementById('progression-editor-text-button').addEventListener('click', updateEditorFromText);
 
 editorApplyButton.addEventListener('click', applyProgressionEditor);
 document.getElementById('progression-editor-cancel-button')

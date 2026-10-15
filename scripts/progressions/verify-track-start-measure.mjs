@@ -5,7 +5,7 @@
 
 const APP_DIR = `${import.meta.dirname}/../..`.split('\\').join('/');
 const SONG = 'Grateful Dead-Ripple-12-20-2025.gp';
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp } from '../lib/app-ui.mjs';
 const { readFile } = await import('node:fs/promises');
 
 let failures = 0;
@@ -14,13 +14,12 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 const bytes = [...new Uint8Array(await readFile(`${APP_DIR}/musicfiles/${SONG}`))];
 await app.evaluate(({ BrowserWindow }, payload) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('tabs:open-file', {
+    BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
         fileName: payload.fileName, data: new Uint8Array(payload.bytes)
     });
 }, { fileName: SONG, bytes });
@@ -33,27 +32,29 @@ const cases = [
 ];
 
 for (const testCase of cases) {
-    await page.evaluate(index => {
-        const buttons = [...document.querySelectorAll('button')]
-            .filter(b => /Create Audio Track/.test(b.textContent));
-        buttons[index]?.click();
-    }, testCase.index);
+    // Each track ends with an Audio Track disclosure; expanding it builds that track's controls.
+    const inTrack = (index, action) => page.evaluate(({ index, action }) => {
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
+        const disclosure = panel.querySelectorAll('details.audio-track-disclosure')[index];
+        if (action === 'open') disclosure.open = true;
+        if (action === 'create') {
+            [...disclosure.querySelectorAll('button')]
+                .find(b => /^Create Track$/.test(b.textContent.trim()))?.click();
+        }
+        if (action === 'notes') {
+            return [...disclosure.querySelectorAll('li')]
+                .map(li => li.textContent.trim())
+                .find(text => /^Notes - /.test(text)) ?? '(no Notes row)';
+        }
+        return null;
+    }, { index, action });
+
+    await inTrack(testCase.index, 'open');
     await page.waitForTimeout(3000);
-
     // The summary is filled once the track itself has been built.
-    await page.evaluate(() => {
-        const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-        [...panel.querySelectorAll('button')]
-            .find(b => /^Create Track$/.test(b.textContent.trim()))?.click();
-    });
+    await inTrack(testCase.index, 'create');
     await page.waitForTimeout(9000);
-
-    const notesRow = await page.evaluate(() => {
-        const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-        return [...panel.querySelectorAll('li')]
-            .map(li => li.textContent.trim())
-            .find(text => /^Notes - /.test(text)) ?? '(no Notes row)';
-    });
+    const notesRow = await inTrack(testCase.index, 'notes');
 
     console.log(`\n=== ${testCase.name}`);
     console.log(`  ${notesRow}`);
@@ -61,5 +62,5 @@ for (const testCase of cases) {
 }
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

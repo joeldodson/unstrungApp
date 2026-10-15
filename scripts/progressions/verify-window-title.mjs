@@ -9,7 +9,7 @@ const SONGS = [
     'Grateful Dead-Ripple-12-20-2025.gp',
     'Ripple.gp5'
 ];
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp } from '../lib/app-ui.mjs';
 const { readFile } = await import('node:fs/promises');
 
 let failures = 0;
@@ -18,9 +18,8 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 const windowTitle = () => app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].getTitle());
@@ -72,5 +71,5 @@ console.log(`  title: ${JSON.stringify(closed)}`);
 check('back to the plain application name', closed === 'unstrung', closed);
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

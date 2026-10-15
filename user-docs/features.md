@@ -226,7 +226,8 @@ Turn focus mode off before you move somewhere else, or the keys you press there 
 ## Chord Practice
 
 Chord practice generates a chord progression and plays it for you to play along with.
-Each measure has one chord, strummed on every beat, with a metronome and, if you want it, the name of the next chord spoken.
+Each measure has one chord, strummed with the progression's strumming pattern, with a metronome and, if you want it, the name of the next chord spoken.
+A generated progression is strummed down on every beat.
 
 ### Generating a Progression
 
@@ -260,12 +261,13 @@ The progression opens as a new item in the list of open items.
 
 A progression's item has:
 
-- **Metadata:** the key, level, time signature, length, the cadence it ends with, how many chords come from outside the key, and whether it has been saved.
+- **Metadata:** the key, level, time signature, strumming pattern, length, the cadence it ends with, how many chords come from outside the key, and whether it has been saved.
+  The strumming pattern is given by name, such as Every beat, down, or written out, such as D - D U - U D U: D is a downstroke, U an upstroke, a dash a beat or half beat the hand passes without strumming, and x a muted strum.
 - **Chords Used:** each different chord once, collapsed, with its fingering and notes.
   A chord from outside the key says which key it comes from and why.
 - **Progression:** the chords in order, one per measure.
   While there are unsaved changes, this heading, the item's name and the level 2 heading at the top all say "unsaved changes".
-- The Edit Progression, Save Progression, Save Progression As and Copy to Clipboard buttons.
+- The Edit Progression, Save Progression and Save Progression As buttons.
 - **Playback:** whether to speak the chord names, tempo, times to play, count in, metronome, and the Play Progression button.
 - **Move Around the Progression** and **Keyboard Control,** the same buttons and keys as an audio track.
   b also says the chord of the measure you are in.
@@ -277,25 +279,23 @@ The media keys and headphone buttons control a progression as they do an audio t
 Save Progression, or ctrl+s, saves the progression.
 The first time, unstrung suggests a name such as Am-60-intermediate-occasional: the key, the number of measures, the level and the setting for chords from outside the key.
 Save Progression As, or ctrl+shift+s, saves a copy under a new name.
-Only the key, time signature and chords are saved, not the tempo, metronome or number of repeats.
+The key, time signature, chords, strumming pattern and tempo are saved.
+The metronome and the number of repeats are not.
+Opening a progression sets the tempo to the one it was saved with.
 
 Progressions are saved as ordinary files in a folder you choose in Settings, so they can be copied, backed up and shared like any other file.
 On the desktop version, the folder is Unstrung\Progressions in your Documents folder unless you choose another.
+The files end in .atex.
+They are alphaTex, a plain-text way of writing music that other programs built on alphaTab can open too.
 
 To open one, choose Open Saved Progression from the Chord Progressions submenu, or press ctrl+shift+o.
 The folder is shown as a tree.
 upArrow and downArrow move, rightArrow and leftArrow open and close a folder, a letter moves to the next name starting with that letter, and enter opens the progression.
 Any file that cannot be opened is listed after the tree with the reason.
+That includes music chord practice cannot show yet, such as a measure with two chords in it, or single notes rather than chords.
 
 If you close a progression with unsaved changes, or quit the desktop app with one open, unstrung asks whether to save first.
 A progression that has just been generated and never saved is not asked about.
-
-### Copying a Progression as Text
-
-Copy to Clipboard copies the progression as text, the same text a saved file holds.
-Paste it into an email, a message or a text file to keep it or pass it on.
-This works in every browser, including where saving does not, such as on an iPhone or iPad.
-To bring it back, paste it into Edit Progression Text, described next.
 
 ### Editing a Progression, or Making Your Own
 
@@ -321,16 +321,6 @@ enter takes the chord and goes back to the measure in the list.
 
 Apply Changes, or Create Progression for a new one, puts the progression in its item.
 With changes made, escape does not close the dialog; press Cancel to discard them.
-
-The dialog starts with Edit Progression Text, collapsed.
-Expand it, paste a progression's text into the Progression text field, and press Update Progression.
-The dialog's key, time signature and measures are filled in from the text, as if you had made the progression in the dialog.
-Nothing changes in the item until you press Apply Changes or Create Progression.
-
-Text that has been through an email or been edited by hand is mended where it safely can be: curly quotation marks, a missing or extra comma, words before or after the progression, chords written as names such as Am7, keys spelled another way such as Db for C#.
-What was mended is listed after the button, each with its line or measure.
-A chord unstrung does not know leaves its measure empty, for you to fill.
-Text that cannot be read at all changes nothing; unstrung says why, with the line and column, and puts the cursor there.
 
 ## Chord Library
 

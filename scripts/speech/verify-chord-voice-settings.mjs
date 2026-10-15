@@ -4,6 +4,8 @@
 // progression being made. The check that matters is that a change in Settings survives being
 // written to disk and reaches the next progression generated.
 
+import { runMenuCommand } from '../lib/app-ui.mjs';
+
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
 const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
 
@@ -30,8 +32,7 @@ let page = await app.firstWindow();
 await page.waitForLoadState('domcontentloaded');
 
 const openSettings = async () => {
-    await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].webContents.send('settings:open'));
+    await runMenuCommand(page, 'settings');
     await page.waitForTimeout(1200);
 };
 
@@ -53,7 +54,8 @@ const section = await page.evaluate(() => {
     const voice = document.getElementById('settings-chord-voice-select');
     const volume = document.getElementById('settings-chord-volume-input');
     return {
-        heading: [...panel.querySelectorAll('h3')].map(h => h.textContent),
+        // The dialog's section headings are level 2 now, with the dialog's name at level 1.
+        heading: [...panel.querySelectorAll('h2, h3')].map(h => h.textContent),
         inGeneral: panel.contains(voice) && panel.contains(volume),
         voices: [...voice.options].map(o => o.textContent),
         voice: voice.value,
@@ -81,12 +83,15 @@ check('the percentage is explained', section.explained);
 const quiet = await page.evaluate(() => {
     const panel = document.getElementById('settings-panel-general');
     const collapsed = [...panel.querySelectorAll('details')];
-    // A paragraph holding a labelled control is the control, not prose.
+    // A paragraph holding a labelled control is the control, not prose; an empty status line says
+    // nothing until something happens.
     const proseOutsideControls = [...panel.querySelectorAll(':scope > p')]
         .filter(p => !p.querySelector('input, select, textarea, button'))
-        .map(p => p.textContent.replace(/\s+/g, ' ').trim());
+        .map(p => p.textContent.replace(/\s+/g, ' ').trim())
+        .filter(text => text !== '');
     return {
         collapsed: collapsed.length,
+        volumeDisclosure: collapsed.some(d => d.querySelector('summary')?.textContent === 'About Spoken Chord Volume'),
         allClosed: collapsed.every(d => !d.open),
         proseOutsideControls,
         describedBy: document.getElementById('settings-chord-volume-input')
@@ -98,16 +103,16 @@ console.log(`  loose prose in the panel: ${quiet.proseOutsideControls.length ===
 console.log(`  hint on the volume field: "${quiet.hint}"`);
 check('nothing is read out on opening beyond the controls themselves',
     quiet.proseOutsideControls.length === 0, quiet.proseOutsideControls.join(' / '));
+// The General tab now also has a disclosure about the progressions folder.
 check('the longer explanation is behind a collapsed disclosure',
-    quiet.collapsed === 1 && quiet.allClosed, `${quiet.collapsed} disclosures`);
+    quiet.volumeDisclosure && quiet.allClosed, `${quiet.collapsed} disclosures`);
 check('the volume field describes itself on focus',
     quiet.describedBy === 'settings-chord-volume-hint' && quiet.hint.length < 40,
     `${quiet.describedBy}: ${quiet.hint}`);
 
 console.log('\n=== The chord practice dialog no longer carries them ===');
 await page.evaluate(() => document.getElementById('settings-dialog').close());
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(1500);
 const dialog = await page.evaluate(() => ({
     hasVoice: Boolean(document.getElementById('chord-practice-voice-select')),
@@ -133,8 +138,7 @@ console.log(`  after restart: ${reloaded.chordVoice} at ${reloaded.chordVoicePer
 check('the voice was remembered', reloaded.chordVoice === 'david', reloaded.chordVoice);
 check('the volume was remembered', reloaded.chordVoicePercent === 40, String(reloaded.chordVoicePercent));
 
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(1500);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.fill('#chord-practice-count-input', '4');
@@ -164,7 +168,7 @@ await page.evaluate(() => {
     };
 });
 await page.evaluate(() =>
-    [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden).focus());
+    document.querySelector('#item-panels > section:not([hidden])').focus());
 await page.keyboard.press(' ');
 await page.waitForTimeout(6000);
 await page.keyboard.press(' ');

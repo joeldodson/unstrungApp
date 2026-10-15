@@ -6,12 +6,24 @@
 //
 // Asserts on structure, names, focus and file contents -- never on anything visual.
 
-import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { launchApp, runMenuCommand, closeCurrentItem } from '../lib/app-ui.mjs';
+import { readSongFromScore, describeMeasure } from '../../src/shared/songScore.mjs';
 
-const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+const APP_DIR = path.join(import.meta.dirname, '..', '..');
+const alphaTab = await import(pathToFileURL(path.join(APP_DIR, 'node_modules', '@coderline', 'alphatab', 'dist', 'alphaTab.mjs')).href);
+const library = JSON.parse(await readFile(path.join(APP_DIR, 'src', 'assets', 'chords', 'chord-library.json'), 'utf8'));
+
+/** A saved progression file, as alphaTab reads it: the song with its measures. */
+async function readSavedSong(filePath) {
+    const importer = new alphaTab.importer.AlphaTexImporter();
+    importer.initFromString(await readFile(filePath, 'utf8'), new alphaTab.Settings());
+    const song = readSongFromScore(importer.readScore(), { library });
+    song.chordNames = song.measures.map(m => describeMeasure(m, 0).replace('Measure 0, ', ''));
+    return song;
+}
 
 let failures = 0;
 const check = (label, condition, detail = '') => {
@@ -19,17 +31,8 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const profile = await mkdtemp(path.join(tmpdir(), 'unstrung-progressions-'));
+const { app, page, profile, close } = await launchApp();
 const folder = path.join(profile, 'Documents', 'Unstrung', 'Progressions');
-
-const app = await _electron.launch({
-    args: ['.'], cwd: APP_DIR, env: { ...process.env, UNSTRUNG_TEST_PROFILE: profile }
-});
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
-
-const send = channel => app.evaluate(({ BrowserWindow }, name) =>
-    BrowserWindow.getAllWindows()[0].webContents.send(name), channel);
 
 // The Save dialog answers with whatever path is queued here, and counts how often it was asked.
 const answerSaveDialogWith = target => app.evaluate(({ dialog }, filePath) => {
@@ -45,15 +48,14 @@ const saveDialogCalls = () => app.evaluate(() => globalThis.__saveDialogCalls ??
 const offeredName = async () => path.basename(await app.evaluate(() => globalThis.__saveDialogOffered ?? ''));
 
 const activePanel = () => page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     if (!panel) return null;
     const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
         .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent);
     const progressionList = panel.querySelector('ul.progression-list');
     return {
         heading: panel.querySelector('h2').textContent,
-        tabName: [...document.querySelectorAll('#tablist [role="tab"]')]
-            .find(t => t.getAttribute('aria-selected') === 'true')?.textContent,
+        tabName: document.querySelector('#open-items-list button[aria-current="true"]')?.textContent,
         windowTitle: document.title,
         meta,
         chords: [...progressionList.querySelectorAll('li')].map(li => li.textContent),
@@ -62,7 +64,7 @@ const activePanel = () => page.evaluate(() => {
         })),
         announcement: panel.querySelector('[aria-live]').textContent,
         focused: document.activeElement?.textContent ?? '',
-        tabCount: document.querySelectorAll('#tablist [role="tab"]').length
+        tabCount: document.querySelectorAll('#open-items-list h1 > button').length
     };
 });
 
@@ -70,13 +72,13 @@ const activePanel = () => page.evaluate(() => {
 const bare = text => String(text ?? '').replace(', outside the key', '');
 
 const clickInPanel = label => page.evaluate(text => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     [...panel.querySelectorAll('button')].find(b => b.textContent === text).click();
 }, label);
 
 try {
     console.log('=== Settings, General: the progressions folder ===');
-    await send('settings:open');
+    await runMenuCommand(page, 'settings');
     await page.waitForTimeout(800);
     const settings = await page.evaluate(() => ({
         value: document.getElementById('settings-progressions-directory-input').value,
@@ -117,15 +119,15 @@ try {
     await page.click('#settings-ok-button');
     await page.waitForTimeout(300);
 
-    console.log('\n=== The chord practice dialog offers saved and hand-made progressions ===');
-    await send('chord-practice:open');
+    // Opening a saved progression and making one by hand moved from the chord practice dialog to
+    // the menu (5c91d72).
+    console.log('\n=== The menu offers saved and hand-made progressions ===');
+    const menuCommands = await page.evaluate(() =>
+        [...document.querySelectorAll('#app-menu-list [data-command]')].map(item => item.dataset.command));
+    check('Open Saved Progression is offered', menuCommands.includes('open-progression'), menuCommands.join(', '));
+    check('Create Progression by Hand is offered', menuCommands.includes('new-progression'), menuCommands.join(', '));
+    await runMenuCommand(page, 'chord-practice');
     await page.waitForTimeout(1500);
-    const practiceButtons = await page.evaluate(() =>
-        [...document.querySelectorAll('#chord-practice-dialog button')].map(b => b.textContent));
-    check('Open Saved Progression is offered',
-        practiceButtons.includes('Open Saved Progression…'), practiceButtons.join(', '));
-    check('Create Progression by Hand is offered',
-        practiceButtons.includes('Create Progression by Hand…'), practiceButtons.join(', '));
 
     console.log('\n=== A generated progression can be saved ===');
     await page.selectOption('#chord-practice-key-select', 'C|major');
@@ -150,25 +152,23 @@ try {
     const generatedOutside = Number(/, (\d+) used$/.exec(borrowedLine)?.[1] ?? 0);
 
     await mkdir(path.join(folder, 'Blues'), { recursive: true });
-    const firstSave = path.join(folder, 'Blues', 'Twelve bar.json');
+    const firstSave = path.join(folder, 'Blues', 'Twelve bar.atex');
     await answerSaveDialogWith(firstSave);
     await clickInPanel('Save Progression');
     await page.waitForTimeout(800);
     tab = await activePanel();
-    const saved = JSON.parse(await readFile(firstSave, 'utf8'));
-    console.log(`  file: ${JSON.stringify(saved).slice(0, 160)}…`);
+    const saved = await readSavedSong(firstSave);
+    console.log(`  file: ${saved.key} ${saved.mode}, ${saved.beatsPerBar}/${saved.beatUnit} at ${saved.tempo}: ${saved.chordNames.join(' ')}`);
     const offered = await offeredName();
     console.log(`  the Save dialog offered: ${offered}`);
     check('the Save dialog offers key, measures, level and borrowing as the name',
-        offered === 'C-8-beginner-occasional.json', offered);
-    check('the file holds the chords in order',
-        saved.chords.length === 8 && saved.chords.every(c => c.root && c.suffix));
-    check('the file says it was generated, and at which level',
-        saved.origin?.made === 'generated' && typeof saved.origin.levelId === 'string',
-        JSON.stringify(saved.origin));
-    check('the file carries no seed and no tempo',
-        !('seed' in saved) && !('tempo' in saved) && !JSON.stringify(saved).includes('seed'));
-    check('the time signature is saved', saved.timeSignature?.beatsPerBar === 4 && saved.timeSignature?.beatUnit === 4);
+        offered === 'C-8-beginner-occasional.atex', offered);
+    check('the file holds the chords in order', saved.chordNames.join(' ') === generatedChords.join(' '),
+        `${saved.chordNames.join(' ')} vs ${generatedChords.join(' ')}`);
+    check('every measure reads back as a plain measure', saved.measures.every(m => m.form === 'plain'));
+    check('the key, time signature and tempo are saved',
+        saved.key === 'C' && saved.mode === 'major' && saved.beatsPerBar === 4 && saved.beatUnit === 4 && saved.tempo === 80,
+        `${saved.key} ${saved.mode} ${saved.beatsPerBar}/${saved.beatUnit} at ${saved.tempo}`);
     console.log(`  tab now: ${tab.tabName} | ${tab.heading} | ${tab.announcement}`);
     check('the tab is named after the file', tab.tabName === 'Practice - Twelve bar', tab.tabName);
     check('the heading is named after the file', tab.heading === 'Chord Practice - Twelve bar', tab.heading);
@@ -198,7 +198,8 @@ try {
         };
     });
     console.log(`  measures: ${editorOpen.options.join(' | ')}`);
-    check('the editor opens titled Edit Progression', editorOpen.open && editorOpen.heading === 'Edit Progression');
+    check('the editor opens titled for editing',
+        editorOpen.open && editorOpen.heading === 'Editing Chord Progression Dialog Box', editorOpen.heading);
     check('one option per measure, named by its chord',
         editorOpen.options.map(o => o.replace(', outside the key', '')).join(' ') === generatedChords.join(' '),
         editorOpen.options.join(' | '));
@@ -386,7 +387,7 @@ try {
         tab.meta.includes(`Chords from outside the key - ${2 + generatedOutside}`), tab.meta.join(' | '));
     check('focus is back on Edit Progression', tab.focused === 'Edit Progression', tab.focused);
     const bbRow = await page.evaluate(() => {
-        const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
         const details = [...panel.querySelectorAll('ul.chords-used > li > details')]
             .find(d => d.querySelector('summary').textContent === 'Bb');
         return details ? [...details.querySelectorAll('li')].map(li => li.textContent) : [];
@@ -396,31 +397,32 @@ try {
 
     console.log('\n=== Control+S saves over the file without asking where ===');
     const callsBefore = await saveDialogCalls();
-    await page.evaluate(() => [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+    await page.evaluate(() => document.querySelector('#item-panels > section:not([hidden])').focus());
     await page.keyboard.press('Control+s');
     await page.waitForTimeout(800);
     tab = await activePanel();
-    const resaved = JSON.parse(await readFile(firstSave, 'utf8'));
+    const resaved = await readSavedSong(firstSave);
     check('no Save dialog was shown', (await saveDialogCalls()) === callsBefore);
-    check('the file now holds the edited chords', resaved.chords.length === 9 && resaved.chords[0].root === 'Bb');
-    check('the file says it was edited', resaved.origin.made === 'edited', resaved.origin.made);
+    check('the file now holds the edited chords', resaved.chordNames.length === 9 && resaved.chordNames[0] === 'Bb',
+        resaved.chordNames.join(' '));
     check('the unsaved marker is gone', !/unsaved/.test(tab.heading) && !/unsaved/.test(tab.tabName), tab.tabName);
 
     console.log('\n=== Open Saved Progression: the tree ===');
-    // Two files that cannot open, and one more good one, at the top level.
-    await writeFile(path.join(folder, 'Broken.json'), '{ not json', 'utf8');
-    await writeFile(path.join(folder, 'Unknown chord.json'), JSON.stringify({
-        format: 1, key: 'C', mode: 'major', timeSignature: { beatsPerBar: 4, beatUnit: 4 },
-        chords: [{ root: 'C', suffix: 'major' }, { root: 'H', suffix: 'major' }], origin: { made: 'hand' }
-    }), 'utf8');
-    await writeFile(path.join(folder, 'Waltz.json'), JSON.stringify({
-        format: 1, key: 'G', mode: 'major', timeSignature: { beatsPerBar: 3, beatUnit: 4 },
-        chords: [{ root: 'G', suffix: 'major' }, { root: 'D', suffix: '7' }, { root: 'G', suffix: 'major' }],
-        origin: { made: 'hand' }
-    }), 'utf8');
+    // Two files that cannot open, and one more good one, at the top level: broken alphaTex, a
+    // melody chord practice cannot show, and a waltz.
+    const G = '(3.6 2.5 0.4 0.3 0.2 3.1)';
+    const D7 = '(0.4 2.3 1.2 2.1)';
+    await writeFile(path.join(folder, 'Broken.atex'), '\\tempo 90\n\\ts (4 4) (3.6 2.5 0.4.4 |\n', 'utf8');
+    await writeFile(path.join(folder, 'Melody.atex'), '\\tempo 90\n\\ts (4 4) 3.6.4 2.5.4 0.4.4 0.3.4 |\n', 'utf8');
+    await writeFile(path.join(folder, 'Waltz.atex'), [
+        '\\tempo 90',
+        `\\ts (3 4) \\ks gmajor ${G}.4 {sd ch "G"} ${G}.4 {sd} ${G}.4 {sd} |`,
+        `${D7}.4 {sd ch "D7"} ${D7}.4 {sd} ${D7}.4 {sd} |`,
+        `${G}.4 {sd ch "G"} ${G}.4 {sd} ${G}.4 {sd} |`
+    ].join('\n') + '\n', 'utf8');
     await mkdir(path.join(folder, 'Empty'), { recursive: true });
 
-    await send('progressions:open-dialog');
+    await runMenuCommand(page, 'open-progression');
     await page.waitForTimeout(1000);
     const tree = await page.evaluate(() => {
         const root = document.getElementById('progression-open-tree');
@@ -456,8 +458,8 @@ try {
     check('focus starts on the first item', tree.focused === 'Blues', tree.focused);
     check('files that cannot open are listed with the reason',
         !tree.skippedHidden && tree.skipped.length === 2 &&
-        tree.skipped.some(s => s === 'Broken.json - not valid JSON') &&
-        tree.skipped.some(s => /Unknown chord\.json - .*H in measure 2 is not in the chord library/.test(s)),
+        tree.skipped.some(s => /^Broken\.atex - it could not be read at line 2, column \d+/.test(s)) &&
+        tree.skipped.some(s => /^Melody\.atex - measure 1 is written out/.test(s)),
         tree.skipped.join(' ; '));
 
     const treeFocus = () => page.evaluate(() => ({
@@ -493,13 +495,13 @@ try {
         tab.meta.join(' | '));
     check('the chords are the file\'s', tab.chords.join(' ') === 'G D7 G', tab.chords.join(' '));
     const beatsInState = await page.evaluate(() => {
-        const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
         return panel.querySelector('[aria-live]') !== null;
     });
     check('the tab has its live region', beatsInState);
 
     // The same file again goes to the tab it is already in.
-    await send('progressions:open-dialog');
+    await runMenuCommand(page, 'open-progression');
     await page.waitForTimeout(1000);
     const remembered = await treeFocus();
     check('the tree reopens on the progression last opened', remembered.text === 'Waltz', remembered.text);
@@ -512,7 +514,7 @@ try {
     check('and says so', status === 'Waltz is already open.', status);
 
     console.log('\n=== Creating a progression by hand ===');
-    await send('progressions:new');
+    await runMenuCommand(page, 'new-progression');
     await page.waitForTimeout(800);
     const fresh = await page.evaluate(() => ({
         heading: document.getElementById('progression-editor-heading').textContent,
@@ -521,7 +523,7 @@ try {
         options: [...document.querySelectorAll('#progression-editor-measures [role="option"]')].map(o => o.textContent)
     }));
     check('the same editor opens, titled for creating',
-        fresh.heading === 'Create Progression by Hand' && fresh.apply === 'Create Progression', fresh.heading);
+        fresh.heading === 'Creating Chord Progression Dialog Box' && fresh.apply === 'Create Progression', fresh.heading);
     check('focus starts on the key', fresh.focused === 'progression-editor-key-select', fresh.focused);
     check('it starts with one empty measure', fresh.options.join('|') === 'no chord', fresh.options.join(', '));
 
@@ -560,12 +562,12 @@ try {
     await page.waitForTimeout(600);
     const handName = await offeredName();
     tab = await activePanel();
-    check('a hand-made progression is offered key, measures and "hand"', handName === 'Am-3-hand.json', handName);
+    check('a hand-made progression is offered key, measures and "hand"', handName === 'Am-3-hand.atex', handName);
     check('cancelling the Save dialog says so and saves nothing',
         tab.announcement === 'Not saved.' && /unsaved/.test(tab.tabName), `${tab.announcement} / ${tab.tabName}`);
 
     console.log('\n=== Closing a tab with unsaved changes asks first ===');
-    await send('tabs:close-current');
+    await closeCurrentItem(page);
     await page.waitForTimeout(500);
     const asked = await page.evaluate(() => ({
         open: document.getElementById('unsaved-dialog').open,
@@ -575,7 +577,7 @@ try {
     }));
     console.log(`  ${asked.message}`);
     check('the question is asked, naming the tab',
-        asked.open && asked.message === 'Practice - A minor has unsaved changes. Save them before closing the tab?',
+        asked.open && asked.message === 'Practice - A minor has unsaved changes. Save them before closing it?',
         asked.message);
     check('it offers Save, Don\'t Save and Cancel', asked.buttons.join('|') === "Save|Don't Save|Cancel");
     await page.click('#unsaved-dialog-cancel-button');
@@ -598,7 +600,7 @@ try {
     check('Cancel keeps the app open', stillOpen === 1);
 
     // Don't Save closes the tab, which leaves nothing unsaved and lets the app close normally.
-    await send('tabs:close-current');
+    await closeCurrentItem(page);
     await page.waitForTimeout(400);
     await page.click('#unsaved-dialog-discard-button');
     await page.waitForTimeout(400);
@@ -609,7 +611,6 @@ try {
     console.log(`  files in the progressions folder: ${files.join(', ')}`);
 } finally {
     console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-    await app.close();
-    await rm(profile, { recursive: true, force: true });
+    await close();
 }
 process.exit(failures === 0 ? 0 : 1);

@@ -7,7 +7,7 @@
 
 const APP_DIR = `${import.meta.dirname}/../..`.split('\\').join('/');
 const SONG = `${APP_DIR}/musicfiles/Grateful Dead-Ripple-12-20-2025.gp`;
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp } from '../lib/app-ui.mjs';
 const { readFile } = await import('node:fs/promises');
 
 let failures = 0;
@@ -16,13 +16,12 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 const songBytes = [...new Uint8Array(await readFile(SONG))];
 await app.evaluate(({ BrowserWindow }, { fileName, bytes }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('tabs:open-file', {
+    BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
         fileName, data: new Uint8Array(bytes)
     });
 }, { fileName: 'Grateful Dead-Ripple-12-20-2025.gp', bytes: songBytes });
@@ -111,5 +110,5 @@ for (const track of read) {
 check('no other measure gained a section', stray.length === 0, stray.slice(0, 5).join(' | '));
 
 console.log(`\n${failures === 0 ? 'all checks passed' : `${failures} FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

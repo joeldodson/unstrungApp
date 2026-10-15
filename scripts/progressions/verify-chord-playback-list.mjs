@@ -5,7 +5,7 @@
 // button, and the queue is a plain list ahead of it that can be read at leisure.
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
 
 let failures = 0;
 const check = (label, ok, detail = '') => {
@@ -13,15 +13,13 @@ const check = (label, ok, detail = '') => {
     console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chords:open'));
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
+await runMenuCommand(page, 'chord-library');
 await page.waitForTimeout(3000);
 
 const read = () => page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
     const list = panel.querySelector('#chords-playback-list');
     return {
         headings: [...panel.querySelectorAll('h2, h3')].map(h => h.textContent),
@@ -104,5 +102,5 @@ check('the list says nothing is selected',
     state.items.length === 1 && /Nothing selected/.test(state.items[0]), state.items.join(' | '));
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

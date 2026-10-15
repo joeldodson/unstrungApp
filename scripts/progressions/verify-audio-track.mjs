@@ -9,7 +9,7 @@
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
 const SONG = `${APP_DIR}/musicfiles/Grateful Dead-Ripple-12-20-2025.gp`;
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp } from '../lib/app-ui.mjs';
 const { readFile } = await import('node:fs/promises');
 
 let failures = 0;
@@ -18,34 +18,33 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 const songBytes = [...new Uint8Array(await readFile(SONG))];
 await app.evaluate(({ BrowserWindow }, { fileName, bytes }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('tabs:open-file', {
+    BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
         fileName, data: new Uint8Array(bytes)
     });
 }, { fileName: 'Grateful Dead-Ripple-12-20-2025.gp', bytes: songBytes });
 await page.waitForTimeout(5000);
 
 console.log('=== Creating an audio track for the lead part ===');
-// The Create Audio Track button lives in the song tab, one per track.
-const created = await page.evaluate(async () => {
-    const buttons = [...document.querySelectorAll('button')]
-        .filter(b => /Create Audio Track/i.test(b.textContent));
-    if (buttons.length === 0) return { found: 0 };
-    buttons[0].click();
-    return { found: buttons.length };
+// Each track of the song ends with an Audio Track disclosure; expanding it builds the track's
+// controls in place. The first is the lead part.
+const TRACK = '#item-panels > section:not([hidden]) details.audio-track-disclosure[open]';
+const created = await page.evaluate(() => {
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
+    const disclosures = [...panel.querySelectorAll('details.audio-track-disclosure')];
+    if (disclosures.length > 0) disclosures[0].open = true;
+    return { found: disclosures.length, summary: disclosures[0]?.querySelector('summary').textContent };
 });
-console.log(`  Create Audio Track buttons found: ${created.found}`);
+console.log(`  Audio Track disclosures found: ${created.found}, opened ${created.summary}`);
 check('the song offers audio tracks', created.found > 0);
 await page.waitForTimeout(3000);
 
-// The track panel appears in its own tab; find the Create Track button inside it and press it.
-const panelState = () => page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+const panelState = () => page.evaluate(selector => {
+    const panel = document.querySelector(selector);
     if (!panel) return null;
     const play = [...panel.querySelectorAll('button')]
         .find(b => /^(Play Track|Pause)$/.test(b.textContent));
@@ -56,21 +55,21 @@ const panelState = () => page.evaluate(() => {
         playDisabled: play?.disabled ?? null,
         announcement: live[0]?.textContent ?? '',
         status: live.map(el => el.textContent).join(' | '),
-        // Control ids carry a per-page suffix so two audio track pages cannot collide, so this
-        // matches the prefix within the panel rather than a fixed id.
+        // Control ids carry a per-track suffix so two audio tracks cannot collide, so this
+        // matches the prefix within the track rather than a fixed id.
         metronome: panel.querySelector('[id^="audio-track-metronome-checkbox"]')?.checked ?? null
     };
-});
+}, TRACK);
 
 let state = await panelState();
-console.log(`  panel buttons: ${state.buttons.join(', ')}`);
-check('the track panel opened', state.buttons.some(b => /Create Track/i.test(b)),
-    state.buttons.join(', '));
+console.log(`  track buttons: ${state?.buttons.join(', ')}`);
+check('the track\'s controls appeared', state?.buttons.some(b => /Create Track/i.test(b)),
+    state?.buttons.join(', '));
 
-await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    [...panel.querySelectorAll('button')].find(b => /^Create Track$/.test(b.textContent))?.click();
-});
+await page.evaluate(selector => {
+    const track = document.querySelector(selector);
+    [...track.querySelectorAll('button')].find(b => /^Create Track$/.test(b.textContent))?.click();
+}, TRACK);
 // Building the note timeline and fetching samples for a hundred-measure track takes a while.
 for (let i = 0; i < 60; i++) {
     state = await panelState();
@@ -83,7 +82,7 @@ check('the track was created and can be played', state.playDisabled === false,
 
 console.log('\n=== Transport keys ===');
 await page.evaluate(() =>
-    [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+    document.querySelector('#item-panels > section:not([hidden])').focus());
 
 const press = async key => {
     await page.keyboard.press(key);
@@ -124,14 +123,13 @@ check('M says nothing', afterM.announcement === beforeM.announcement, afterM.ann
 await press('m');
 
 console.log('\n=== Repeated questions are answered every time ===');
-await page.evaluate(() => {
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
-    const region = panel.querySelector('[aria-live]');
+await page.evaluate(selector => {
+    const region = document.querySelector(selector).querySelector('[aria-live]');
     window.__said = [];
     new MutationObserver(() => {
         if (region.textContent) window.__said.push(region.textContent);
     }).observe(region, { childList: true, characterData: true, subtree: true });
-});
+}, TRACK);
 await press('b');
 await press('b');
 await press('b');
@@ -162,5 +160,5 @@ console.log(`  Space -> ${paused.announcement}`);
 check('Space pauses', paused.playLabel === 'Play Track', paused.playLabel);
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

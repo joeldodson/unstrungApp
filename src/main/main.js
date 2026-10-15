@@ -259,7 +259,7 @@ ipcMain.handle('settings:validate-and-save-directory', async (_event, dirPath) =
 
 // --- Saved chord progressions ---
 //
-// Saved as JSON files in an ordinary folder the user can reach from Explorer or Finder, rather
+// Saved as alphaTex files in an ordinary folder the user can reach from Explorer or Finder, rather
 // than in the app's own data. That gives backup, sharing and sub-folders for free, and means no
 // export or import feature is needed to get them out.
 //
@@ -267,7 +267,7 @@ ipcMain.handle('settings:validate-and-save-directory', async (_event, dirPath) =
 // platform, so this is not a Windows path; it is stored as empty rather than spelled out, so a
 // machine whose Documents folder moves still finds it.
 
-const PROGRESSION_EXTENSION = '.json';
+const PROGRESSION_EXTENSION = '.atex';
 const MAX_PROGRESSION_FILE_BYTES = 1024 * 1024;
 const MAX_PROGRESSION_FOLDER_DEPTH = 12;
 
@@ -422,7 +422,7 @@ ipcMain.handle('progressions:save', async (event, { text, filePath, suggestedNam
         const result = await dialog.showSaveDialog(window, {
             title: 'Save chord progression',
             defaultPath: path.join(directory, `${safeFileName(suggestedName)}${PROGRESSION_EXTENSION}`),
-            filters: [{ name: 'Chord progressions', extensions: ['json'] }],
+            filters: [{ name: 'Chord progressions', extensions: [PROGRESSION_EXTENSION.slice(1)] }],
             properties: ['createDirectory', 'showOverwriteConfirmation']
         });
         if (result.canceled || !result.filePath) return null;

@@ -1,24 +1,15 @@
 // Changing the search must not leave a selection behind that has nowhere to appear.
-const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
-const { mkdtempSync } = await import('node:fs');
-const { tmpdir } = await import('node:os');
-const { join } = await import('node:path');
+import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
 
 let failures = 0;
 const check = (l, ok, d = '') => { if (!ok) failures++; console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${l}${d ? `  -- ${d}` : ''}`); };
 
-const app = await _electron.launch({
-    args: ['.', `--user-data-dir=${mkdtempSync(join(tmpdir(), 'unstrung-t-'))}`], cwd: APP_DIR
-});
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chords:open'));
+const { page, close } = await launchApp();
+await runMenuCommand(page, 'chord-library');
 await page.waitForTimeout(3000);
 
 const state = () => page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
+    const p = document.querySelector('#item-panels > section:not([hidden])');
     const boxes = [...p.querySelectorAll('#chords-results-list > li > input[type="checkbox"]')];
     return {
         heading: p.querySelector('#chords-results-heading').textContent,
@@ -83,5 +74,5 @@ check('pressing Play plays rather than asking for a selection',
 await page.evaluate(() => document.getElementById('chords-play-button').click());
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

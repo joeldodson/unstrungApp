@@ -5,7 +5,7 @@
 // number field; arrows and digits do, and those still belong to it.
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
 
 let failures = 0;
 const check = (label, ok, detail = '') => {
@@ -13,12 +13,10 @@ const check = (label, ok, detail = '') => {
     console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(2500);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.fill('#chord-practice-count-input', '8');
@@ -28,7 +26,7 @@ await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
 const read = () => page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
+    const p = document.querySelector('#item-panels > section:not([hidden])');
     return {
         announcement: p.querySelector('[aria-live]').textContent,
         tempo: p.querySelector('input[id^="chord-practice-tab-tempo"]').value,
@@ -41,7 +39,7 @@ const read = () => page.evaluate(() => {
 });
 
 const focusTempo = () => page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
+    const p = document.querySelector('#item-panels > section:not([hidden])');
     p.querySelector('input[id^="chord-practice-tab-tempo"]').focus();
 });
 
@@ -86,7 +84,7 @@ check('the arrow steps the field rather than restarting playback',
     Number(afterArrow.tempo) === Number(beforeArrow) + 1, `${beforeArrow} -> ${afterArrow.tempo}`);
 
 await page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
+    const p = document.querySelector('#item-panels > section:not([hidden])');
     const box = p.querySelector('input[id^="chord-practice-tab-repeat"]');
     box.focus();
     box.value = '';
@@ -103,5 +101,5 @@ check('focus is still in the spinner after all of that',
     /chord-practice-tab-repeat/.test(stillThere.focused), stillThere.focused);
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

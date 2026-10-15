@@ -6,7 +6,7 @@
 
 const APP_DIR = `${import.meta.dirname}/../..`.split('\\').join('/');
 const SONG = `${APP_DIR}/musicfiles/Grateful Dead-Ripple-12-20-2025.gp`;
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp } from '../lib/app-ui.mjs';
 const { readFile } = await import('node:fs/promises');
 
 let failures = 0;
@@ -15,13 +15,12 @@ const check = (label, condition, detail = '') => {
     console.log(`  ${condition ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 const songBytes = [...new Uint8Array(await readFile(SONG))];
 await app.evaluate(({ BrowserWindow }, { fileName, bytes }) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('tabs:open-file', {
+    BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
         fileName, data: new Uint8Array(bytes)
     });
 }, { fileName: 'Grateful Dead-Ripple-12-20-2025.gp', bytes: songBytes });
@@ -45,7 +44,8 @@ console.log(`  ${firstTrack.join('\n  ')}`);
 check('the first track leads with its heading', /^TRACK: Track 1/.test(firstTrack[0] ?? ''), firstTrack[0]);
 check('Chords Used comes first of the regions', /^REGION: Chords Used/.test(firstTrack[1] ?? ''), firstTrack[1]);
 check('Measures follows it', /^REGION: Measures/.test(firstTrack[2] ?? ''), firstTrack[2]);
-check('Create Audio Track is last', firstTrack[3] === 'BUTTON: Create Audio Track', firstTrack[3]);
+// The Create Audio Track button became an Audio Track disclosure that builds the track in place.
+check('the Audio Track disclosure is last', /^REGION: Audio Track - /.test(firstTrack[3] ?? ''), firstTrack[3]);
 
 console.log('\n=== Chords Used starts collapsed and empty ===');
 const before = await page.evaluate(() => {
@@ -131,5 +131,5 @@ const bass = await page.evaluate(async () => {
 check('the empty region explains itself', bass !== null && /No chords/.test(bass), bass ?? 'no empty region found');
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

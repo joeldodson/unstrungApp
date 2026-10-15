@@ -20,7 +20,10 @@
 // "written out", with the reason. See docs/strumming-patterns-and-metronome.md.
 
 import { chordDisplayName } from './chordProgressions.mjs';
-import { identifyChordFromNotes, IDENTIFY_SUFFIXES, PITCH_CLASS_NAMES } from './musicTheory.mjs';
+import {
+    identifyChordFromNotes, spellChordNotes, IDENTIFY_SUFFIXES, PITCH_CLASS_NAMES, PITCH_CLASSES,
+    STANDARD_TUNING_MIDI
+} from './musicTheory.mjs';
 import { coarsestPattern, everyBeatDown, formatStrummingPattern } from './strummingPatterns.mjs';
 
 export const TICKS_PER_QUARTER = 960;
@@ -71,6 +74,39 @@ export function libraryFrets(library, chord) {
         .sort((a, b) => b.string - a.string);
 }
 
+/**
+ * Frets for a chord the library has no fingering for, worked out from its spelling.
+ *
+ * A score has to hold notes, and some advanced chords in the library have no voicing at all.
+ * This is not a fingering anyone would teach: the root on string 6, and each string above it the
+ * next chord tone within four frets, or left out. Chord practice still plays nothing for these
+ * chords, as before; the notes are there so the file says what the chord is.
+ */
+export function spelledFrets(chord) {
+    let classes;
+    try {
+        classes = spellChordNotes(chord.root, chord.suffix).map(name => PITCH_CLASSES[name]);
+    } catch {
+        return null;
+    }
+    if (classes.length === 0 || classes.some(c => c === undefined)) return null;
+    const base = ((classes[0] - STANDARD_TUNING_MIDI[6]) % 12 + 12) % 12;
+    const frets = [{ string: 6, fret: base }];
+    let next = 1;
+    for (const string of [5, 4, 3, 2, 1]) {
+        for (let tries = 0; tries < classes.length; tries++) {
+            const pitchClass = classes[(next + tries) % classes.length];
+            const fret = base + ((pitchClass - STANDARD_TUNING_MIDI[string] - base) % 12 + 12) % 12;
+            if (fret <= base + 4) {
+                frets.push({ string, fret });
+                next += tries + 1;
+                break;
+            }
+        }
+    }
+    return frets;
+}
+
 /** A generated or edited progression as a song: one chord a measure, one pattern throughout. */
 export function songFromProgression(progression, { library, tempo = 90, pattern = null, title = '' }) {
     const songPattern = pattern ?? everyBeatDown(progression.beatsPerBar);
@@ -83,7 +119,10 @@ export function songFromProgression(progression, { library, tempo = 90, pattern 
         tempo,
         measures: progression.chords.map(chord => ({
             section: null,
-            chords: [{ root: chord.root, suffix: chord.suffix, beat: 1, frets: libraryFrets(library, chord) }],
+            chords: [{
+                root: chord.root, suffix: chord.suffix, beat: 1,
+                frets: libraryFrets(library, chord) ?? spelledFrets(chord)
+            }],
             pattern: { slotsPerBeat: songPattern.slotsPerBeat, slots: songPattern.slots }
         }))
     };
@@ -213,9 +252,10 @@ function alphaTexBeat(beat) {
  * audioTrack.mjs can, still knows the shape.
  */
 export function songToAlphaTex(song) {
+    // alphaTab 1.8's own style: arguments in parentheses, and no dot after the score's metadata.
     const lines = [];
     if (song.title) lines.push(`\\title ${quoted(song.title)}`);
-    lines.push(`\\tempo ${song.tempo}`, '.');
+    lines.push(`\\tempo ${song.tempo}`);
 
     const declared = new Map();
     for (const measure of song.measures) {
@@ -240,10 +280,10 @@ export function songToAlphaTex(song) {
         const parts = [];
         // A time signature is written where it changes, and alphaTab carries it forward.
         const measureSignature = `${measure.beatsPerBar ?? song.beatsPerBar} ${measure.beatUnit ?? song.beatUnit}`;
-        if (measureSignature !== timeSignature) parts.push(`\\ts ${measureSignature}`);
+        if (measureSignature !== timeSignature) parts.push(`\\ts (${measureSignature})`);
         timeSignature = measureSignature;
         if (index === 0 && song.key) parts.push(`\\ks ${song.key.toLowerCase()}${song.mode}`);
-        if (measure.section) parts.push(`\\section ${quoted(measure.section)}`);
+        if (measure.section) parts.push(`\\section (${quoted(measure.section)})`);
         parts.push(...expanded.beats.map(alphaTexBeat));
         lines.push(`${parts.join(' ')} |`);
     }
@@ -413,7 +453,10 @@ function readBar(bar, song, stringCount, context) {
     }
     if (pending) {
         // Named, but not struck before the bar ends: the library's shape stands in.
-        current = { root: pending.root, suffix: pending.suffix, frets: libraryFrets(song.library, pending) };
+        current = {
+            root: pending.root, suffix: pending.suffix,
+            frets: libraryFrets(song.library, pending) ?? spelledFrets(pending)
+        };
         if (!current.frets) return fail(`it names ${chordDisplayName(pending)}, which has no fingering`);
         changes.push({ tick: pending.tick, chord: current });
     }
@@ -519,6 +562,68 @@ export function readSongFromScore(score, { library, trackIndex = 0 }) {
             ? 'plain' : 'patterned';
     }
     return song;
+}
+
+/**
+ * A song as chord practice shows it: one chord a measure, one strumming pattern throughout.
+ *
+ * Returns { progression } in the shape chord practice is built from, with the song's tempo and
+ * pattern, or { error } saying, in the words the Open dialog uses, what chord practice cannot show
+ * yet. A saved song does not record that it was generated, so it reads as made by hand.
+ */
+export function progressionFromSong(song, { library, maxMeasures = 256 }) {
+    if (!song.key) return { error: 'its key signature is not one of the keys unstrung offers' };
+    if (song.measures.length === 0) return { error: 'it has no measures' };
+    if (song.measures.length > maxMeasures) return { error: `it has more than ${maxMeasures} measures` };
+
+    const chords = [];
+    let pattern = null;
+    for (const [index, measure] of song.measures.entries()) {
+        const number = index + 1;
+        if (measure.form === 'written') return { error: `measure ${number} is written out, because ${measure.reason}` };
+        if (measure.form === 'silent') return { error: `measure ${number} is silent, which chord practice cannot show yet` };
+        if (measure.beatsPerBar) return { error: `measure ${number} changes the time signature, which chord practice cannot show yet` };
+        if (measure.chords.length !== 1) return { error: `measure ${number} has more than one chord, which chord practice cannot show yet` };
+        const chord = measure.chords[0];
+        if (!(library?.chords ?? []).some(e => e.root === chord.root && e.suffix === chord.suffix)) {
+            return { error: `measure ${number} has ${chordDisplayName(chord)}, which is not in the chord library` };
+        }
+        const text = formatStrummingPattern(measure.pattern.slots);
+        if (pattern && text !== pattern.text) {
+            return { error: 'it uses more than one strumming pattern, which chord practice cannot show yet' };
+        }
+        pattern ??= { text, slotsPerBeat: measure.pattern.slotsPerBeat, slots: measure.pattern.slots };
+        chords.push({ root: chord.root, suffix: chord.suffix });
+    }
+    return {
+        progression: {
+            key: song.key,
+            mode: song.mode,
+            beatsPerBar: song.beatsPerBar,
+            beatUnit: song.beatUnit,
+            tempo: song.tempo,
+            chords,
+            pattern: { slotsPerBeat: pattern.slotsPerBeat, slots: pattern.slots },
+            origin: { made: 'hand' }
+        }
+    };
+}
+
+/**
+ * The first error alphaTab reported reading alphaTex, as { message, line, column, offset }.
+ *
+ * alphaTab throws one error for the lot and keeps the details on its cause, in three lists.
+ * Hints and warnings are passed over: only an error stopped the reading.
+ */
+export function alphaTexError(error) {
+    const inner = error?.cause ?? error;
+    for (const list of [inner?.lexerDiagnostics, inner?.parserDiagnostics, inner?.semanticDiagnostics]) {
+        const item = (list?.items ?? []).find(d => d.severity === 2);
+        if (item) {
+            return { message: item.message, line: item.start?.line ?? null, column: item.start?.col ?? null, offset: item.start?.offset ?? null };
+        }
+    }
+    return { message: error?.message ?? String(error), line: null, column: null, offset: null };
 }
 
 /** A short description of a measure, as a list item or `b` might say it. */

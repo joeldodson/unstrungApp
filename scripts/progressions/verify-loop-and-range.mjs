@@ -10,7 +10,7 @@
 // not yet heard.
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
 const { readFile } = await import('node:fs/promises');
 
 let failures = 0;
@@ -19,13 +19,11 @@ const check = (label, ok, detail = '') => {
     console.log(`  ${ok ? 'ok  ' : 'FAIL'}  ${label}${detail ? `  -- ${detail}` : ''}`);
 };
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 // --- 1 and 2: chord practice ---------------------------------------------------------
-await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(2500);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.fill('#chord-practice-count-input', '4');
@@ -35,7 +33,7 @@ await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
 const panel = () => page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
+    const p = document.querySelector('#item-panels > section:not([hidden])');
     return {
         announcement: p.querySelector('[aria-live]').textContent,
         boxes: [...p.querySelectorAll('input[type="checkbox"]')].map(b => ({
@@ -53,7 +51,7 @@ check('a count-in-each-repeat checkbox exists, worded as the audio track words i
 
 console.log('\n=== Up arrow keeps the play count ===');
 await page.evaluate(() =>
-    [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+    document.querySelector('#item-panels > section:not([hidden])').focus());
 await page.keyboard.press(' ');
 // 4 measures of 4 beats at 240 bpm is 4 s a pass; wait for a few passes.
 await page.waitForTimeout(11000);
@@ -80,18 +78,18 @@ console.log('\n=== Audio track B with a measure range selected ===');
 const songBytes = [...new Uint8Array(await readFile(
     `${APP_DIR}/musicfiles/Grateful Dead-Ripple-12-20-2025.gp`))];
 await app.evaluate(({ BrowserWindow }, bytes) =>
-    BrowserWindow.getAllWindows()[0].webContents.send('tabs:open-file', {
+    BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
         fileName: 'Ripple.gp', data: new Uint8Array(bytes)
     }), songBytes);
 await page.waitForTimeout(5000);
-await page.evaluate(() => [...document.querySelectorAll('button')]
-    .find(b => /Create Audio Track/i.test(b.textContent))?.click());
+// Each track ends with an Audio Track disclosure; expanding it builds that track's controls.
+await page.evaluate(() => { document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure').open = true; });
 await page.waitForTimeout(3000);
 
 await page.evaluate(() => {
     // Control ids carry a per-page suffix so two audio track pages cannot collide, so these match
     // the prefix within the current panel rather than a fixed id.
-    const panel = [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden);
+    const panel = document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]');
     const set = (prefix, value) => {
         const input = panel.querySelector(`[id^="${prefix}"]`);
         input.value = value;
@@ -101,24 +99,23 @@ await page.evaluate(() => {
     set('audio-track-last-measure-input', '21');
 });
 await page.waitForTimeout(600);
-await page.evaluate(() => [...document.querySelectorAll('[role="tabpanel"]')]
-    .find(p => !p.hidden).querySelectorAll('button').forEach(b => {
+await page.evaluate(() => document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]').querySelectorAll('button').forEach(b => {
         if (/^Create Track$/.test(b.textContent)) b.click();
     }));
 for (let i = 0; i < 40; i++) {
     const ready = await page.evaluate(() => {
-        const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
+        const p = document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]');
         return ![...p.querySelectorAll('button')].find(b => /^Play Track$/.test(b.textContent))?.disabled;
     });
     if (ready) break;
     await page.waitForTimeout(1000);
 }
 await page.evaluate(() =>
-    [...document.querySelectorAll('[role="tabpanel"]')].find(p => !p.hidden).focus());
+    document.querySelector('#item-panels > section:not([hidden])').focus());
 await page.keyboard.press('b');
 await page.waitForTimeout(700);
 const said = await page.evaluate(() => {
-    const p = [...document.querySelectorAll('[role="tabpanel"]')].find(x => !x.hidden);
+    const p = document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]');
     return [...p.querySelectorAll('[aria-live]')][0].textContent;
 });
 console.log(`  B with 7 through 21 selected: ${said}`);
@@ -127,5 +124,5 @@ check('B reports against the selection, not the whole song',
 check('B does not say "of 102"', !/of 102/.test(said), said);
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
-await app.close();
+await close();
 process.exit(failures === 0 ? 0 : 1);

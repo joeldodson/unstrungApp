@@ -7,12 +7,11 @@
 
 const APP_DIR = `${import.meta.dirname}/../..`.split('\\').join('/');
 const SONG = 'Grateful Dead-Ripple-12-20-2025.gp';
-const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
+import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
 const { readFile } = await import('node:fs/promises');
 
-const app = await _electron.launch({ args: ['.'], cwd: APP_DIR });
-const page = await app.firstWindow();
-await page.waitForLoadState('domcontentloaded');
+// On a scratch profile, so nothing here reaches the real settings or recent files.
+const { app, page, close } = await launchApp();
 
 // How a control gets its name, in the order the accessible-name calculation tries them.
 // Everything in the document, not only what is on screen: a control in a tab that is not current
@@ -104,7 +103,7 @@ let problems = 0;
 // --- A song, then an audio track for two different tracks of it ---
 const bytes = [...new Uint8Array(await readFile(`${APP_DIR}/musicfiles/${SONG}`))];
 await app.evaluate(({ BrowserWindow }, payload) => {
-    BrowserWindow.getAllWindows()[0].webContents.send('tabs:open-file', {
+    BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
         fileName: payload.fileName, data: new Uint8Array(payload.bytes)
     });
 }, { fileName: SONG, bytes });
@@ -128,7 +127,7 @@ for (const which of [0, 1]) {
 
 // --- The audio track page after its track has been built, in case that adds controls ---
 await page.evaluate(() => {
-    const panels = [...document.querySelectorAll('[role="tabpanel"]:not([hidden])')];
+    const panels = [...document.querySelectorAll('#item-panels > section:not([hidden])')];
     for (const panel of panels) {
         const button = [...panel.querySelectorAll('button')].find(b => /^Create Track$/.test(b.textContent.trim()));
         button?.click();
@@ -139,18 +138,14 @@ problems += await report('Audio track page after Create Track');
 
 // --- Dialogs, one at a time ---
 const DIALOGS = [
-    ['Chord Library', 'chords:open'],
-    ['Frets to Chord', 'frets:open'],
-    ['Guitar Samples', 'guitar-samples:open'],
-    ['Chord Practice', 'chord-practice:open'],
-    ['Settings', 'settings:open']
+    ['Chord Library', 'chord-library'],
+    ['Frets to Chord', 'frets-to-chord'],
+    ['Guitar Samples', 'guitar-samples'],
+    ['Chord Practice', 'chord-practice'],
+    ['Settings', 'settings']
 ];
-for (const [name, channel] of DIALOGS) {
-    const sent = await app.evaluate(({ BrowserWindow }, ch) => {
-        BrowserWindow.getAllWindows()[0].webContents.send(ch);
-        return true;
-    }, channel);
-    if (!sent) continue;
+for (const [name, command] of DIALOGS) {
+    await runMenuCommand(page, command);
     await page.waitForTimeout(2500);
     problems += await report(name);
     await page.evaluate(() => {
@@ -161,8 +156,7 @@ for (const [name, channel] of DIALOGS) {
 
 // --- Two chord practice tabs, which is the same collision risk the audio track page had ---
 for (const pass of [1, 2]) {
-    await app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows()[0].webContents.send('chord-practice:open'));
+    await runMenuCommand(page, 'chord-practice');
     await page.waitForTimeout(2000);
     await page.evaluate(() => {
         const dialog = document.querySelector('dialog[open]');
@@ -175,5 +169,5 @@ for (const pass of [1, 2]) {
 }
 
 console.log(`\n${problems === 0 ? 'no problems found' : `${problems} problems found`}`);
-await app.close();
+await close();
 process.exit(0);

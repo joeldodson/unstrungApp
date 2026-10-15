@@ -41,9 +41,9 @@ code but the files: every version saved has to keep opening. So the end state is
 - **alphaTab's `Score` is the song.** Nobody else uses unstrung yet, so format 1 progression files
   are not supported. There is no format of our own and no converter.
 - **Saved as alphaTex**, alphaTab's plain-text score notation, which alphaTab both reads and writes
-  (`AlphaTexImporter`, `AlphaTexExporter` in alphaTab 1.8). Text keeps Copy to Clipboard and
-  pasting working, including on iOS. Guitar Pro 7 was the alternative: a zipped binary that cannot
-  go on the clipboard as text. alphaTab also has `Gp7Exporter`, so Guitar Pro export can be a
+  (`AlphaTexImporter`, `AlphaTexExporter` in alphaTab 1.8). Text was chosen partly to keep Copy
+  to Clipboard and pasting working; both were later removed (see Stage 1). Guitar Pro 7 was the
+  alternative: a zipped binary. alphaTab also has `Gp7Exporter`, so Guitar Pro export can be a
   feature later.
 - **The format is hidden from the player.** Generating a progression, chord practice and the
   progression editor look as they do now. Behind them, unstrung builds a `Score` in memory, and a
@@ -204,7 +204,8 @@ grid takes them without a redesign.
 
 Joel's own strumming patterns and metronome presets are JSON files in a folder under
 Documents/Unstrung, like progressions: backed up, synced and shared as ordinary files. Where files
-cannot be saved (every iOS browser), copy to clipboard is the fallback, as it is for progressions.
+cannot be saved in place (every iOS browser), saving downloads a copy and opening uses the upload
+picker, as for progressions.
 
 ### Progressions carry copies of their patterns
 
@@ -319,6 +320,57 @@ Why measures were written out:
   play others, 117 hammer-ons and pull-offs, 114 slides, 68 bends, 67 vibrato, and a few grace
   notes, tuplets, palm mutes, staccato and harmonics: real detail, correctly written out.
 - 11: chord names neither the library nor the identifier knows.
+
+## Stage 1 in the app (2026-10-14, branch song-composer)
+
+Chord practice looks as it did. Underneath:
+
+- **Saving writes alphaTex**, `.atex`, with the tempo and the strumming pattern. No published
+  convention for an alphaTex file extension was found; `.atex` was chosen and is easy to change
+  (`PROGRESSION_EXTENSION` in `src/main/main.js` and `src/web/platform.js`,
+  `PROGRESSION_FILE_EXTENSION` in the renderer).
+- **Opening reads alphaTex** through alphaTab's `AlphaTexImporter`, then `readSongFromScore`,
+  then `progressionFromSong`, which accepts only what chord practice can show: one chord a
+  measure, one pattern throughout, one time signature, chords in the library. Anything else is
+  listed in the Open dialog with the reason, such as "measure 1 has more than one chord, which
+  chord practice cannot show yet".
+- **The JSON format is gone.** A first version still opened `.json` files from before; Joel asked
+  for it removed completely, with no backward compatibility, since nobody else uses unstrung yet.
+  `src/shared/savedProgressions.mjs` kept only its key helpers and became
+  `src/shared/keyChords.mjs`.
+- **Copy to Clipboard and Edit Progression Text are gone**, with the lenient reader behind the
+  latter (`src/shared/progressionText.mjs`) and its check. They were a way to keep a progression
+  where saving could not work; opening a file through the upload picker now works in iOS
+  browsers, and saving there downloads a copy, so Joel removed them.
+- **The file's tempo becomes the practice tempo** when it is opened.
+- **Chord practice plays the pattern.** Strums come from the pattern's slots rather than one per
+  beat: an upstroke sweeps the top four strings from the highest, a little softer; an accent is
+  louder and, where a pattern has accents, the other strokes a little softer; a strum rings 1.8
+  times the gap to the next stroke, as it rang 1.8 beats before, except before a mute, where it
+  stops. Mutes sound nothing yet. "Every beat, down" sounds as chord practice did. The metronome
+  and spoken names stay on the beats. Playback moving to the audio track player is still to come.
+- **Metadata has a Strumming line**: a built-in pattern's name, or the pattern written out.
+- **Chords with no fingering in the library** (38, all advanced) are written with frets worked out
+  from their spelling (`spelledFrets`), since a score has to hold notes. Chord practice still
+  plays nothing for them, as before.
+- **The writer uses alphaTab 1.8's syntax**: metadata arguments in parentheses, no dot after the
+  score metadata. The older form reads, but with warnings.
+
+Choosing a pattern -- in the Chord Practice dialog, the editor, or per measure -- is not built
+yet, so a pattern other than "Every beat, down" comes only from an opened file.
+
+Checked by `scripts/songs/verify-progression-files.mjs`, which drives the real app on a scratch
+profile.
+
+Sixteen older Playwright scripts had stopped working before this began: they gave menu commands
+through IPC messages the app stopped listening for when the menu moved into the page, found open
+items as tabs, and made audio tracks with a Create Audio Track button that became a disclosure.
+They now go through `scripts/lib/app-ui.mjs` (`launchApp` on a scratch profile, `runMenuCommand`,
+`closeCurrentItem`), and all pass. Expectations that had changed on purpose were updated, each
+with a comment: speaking chord names on by default (fdc09fc), Open Saved Progression and Create
+by Hand on the menu rather than in the Chord Practice dialog, and dialog headings and the
+unsaved-changes question as they now read (5c91d72). `verify-saved-progressions.mjs` checks
+alphaTex files.
 
 ## Open questions
 

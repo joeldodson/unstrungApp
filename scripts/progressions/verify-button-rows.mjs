@@ -109,7 +109,7 @@ try {
     check('no two buttons share a line', report.shared.length === 0, report.shared.join(' ; '));
     check('the rows lay their buttons out side by side', report.sideBySide);
     check('the progression\'s file buttons are one row',
-        report.practiceRow === 'Edit Progression / Save Progression / Save Progression As / Copy to Clipboard',
+        report.practiceRow === 'Edit Progression / Save Progression / Save Progression As',
         report.practiceRow);
 } finally {
     console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

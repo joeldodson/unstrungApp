@@ -31,9 +31,11 @@ const SONG_FILE_TYPES = [{
     description: 'Music notation files',
     accept: { 'application/octet-stream': ['.gp', '.gpx', '.gp5', '.gp4', '.gp3', '.musicxml', '.xml'] }
 }];
+// Progressions are saved as alphaTex.
+const PROGRESSION_EXTENSION = '.atex';
 const PROGRESSION_FILE_TYPES = [{
     description: 'Chord progressions',
-    accept: { 'application/json': ['.json'] }
+    accept: { 'text/plain': [PROGRESSION_EXTENSION] }
 }];
 
 // --- Small helpers ------------------------------------------------------------------------
@@ -345,7 +347,7 @@ async function scanProgressionFolder(folder, relative, depth) {
                 type: 'folder', name: entry.name, path: entryRelative,
                 children: await scanProgressionFolder(entry, entryRelative, depth + 1)
             });
-        } else if (entry.name.toLowerCase().endsWith('.json')) {
+        } else if (entry.name.toLowerCase().endsWith(PROGRESSION_EXTENSION)) {
             const file = { type: 'file', name: baseName(entry.name), path: entryRelative };
             try {
                 const blob = await entry.getFile();
@@ -512,8 +514,8 @@ window.unstrung = {
     // Where it goes is the browser's choice: the Downloads folder, or Files on iOS.
     saveProgression: async ({ text, filePath, suggestedName }) => {
         if (!hasFilePickers) {
-            const fileName = `${safeFileName(suggestedName)}.json`;
-            const url = URL.createObjectURL(new Blob([String(text)], { type: 'application/json' }));
+            const fileName = `${safeFileName(suggestedName)}${PROGRESSION_EXTENSION}`;
+            const url = URL.createObjectURL(new Blob([String(text)], { type: 'text/plain' }));
             const link = document.createElement('a');
             link.href = url;
             link.download = fileName;
@@ -530,7 +532,7 @@ window.unstrung = {
             try {
                 handle = await window.showSaveFilePicker({
                     id: 'unstrung-progressions',
-                    suggestedName: `${safeFileName(suggestedName)}.json`,
+                    suggestedName: `${safeFileName(suggestedName)}${PROGRESSION_EXTENSION}`,
                     startIn: storedProgressionsFolder ?? 'documents',
                     types: PROGRESSION_FILE_TYPES
                 });
@@ -556,7 +558,9 @@ window.unstrung = {
     // One saved progression, chosen through an upload field. Only called without fileAccess, in
     // place of the folder tree; the desktop app never needs it. Null if cancelled.
     pickProgressionFile: async () => {
-        const file = await pickFileWithUploadField('.json,application/json');
+        // No filter: iOS greys out files whose extension it does not know, which .atex is, as it
+        // does for song files.
+        const file = await pickFileWithUploadField();
         if (!file) return null;
         if (file.size > MAX_PROGRESSION_FILE_BYTES) throw new Error('it is too large to be a saved progression');
         return { name: baseName(file.name), text: await file.text() };

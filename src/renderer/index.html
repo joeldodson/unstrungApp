@@ -305,25 +305,6 @@
     <dialog id="progression-editor-dialog" aria-labelledby="progression-editor-heading-name" tabindex="-1">
         <h1 id="progression-editor-heading"><span id="progression-editor-heading-name">Editing Chord Progression</span> Dialog Box</h1>
 
-        <!-- A progression's text, as Copy to Clipboard writes it, pasted from wherever it was
-             passed on. Update Progression fills the dialog from it; src/shared/progressionText.mjs
-             reads it, mends what it can and says what it mended. -->
-        <details id="progression-editor-text-details">
-            <summary>Edit Progression Text</summary>
-            <p>
-                <label for="progression-editor-text-input">Progression text</label>
-                <textarea id="progression-editor-text-input" rows="8" spellcheck="false"
-                    autocomplete="off" autocapitalize="off"></textarea>
-            </p>
-            <div class="button-row">
-                <button type="button" id="progression-editor-text-button">Update Progression</button>
-            </div>
-            <div id="progression-editor-text-report" hidden>
-                <p id="progression-editor-text-summary"></p>
-                <ul id="progression-editor-text-fixes"></ul>
-            </div>
-        </details>
-
         <p>
             <label for="progression-editor-key-select">Key</label>
             <select id="progression-editor-key-select"></select>
