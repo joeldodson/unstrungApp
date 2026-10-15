@@ -250,14 +250,87 @@ unsaved. A `Score` carries its tempo anyway.
 A JSON progression format 2 was sketched here and dropped for the alphaTab direction; it is in
 this file's history (commit c447f51).
 
+## Prototype (2026-10-14, branch song-composer)
+
+Code with no user interface, to test the riskiest assumptions:
+
+- `src/shared/strummingPatterns.mjs`: pattern text read and written, fitting a pattern to a time
+  signature, the coarsest grid that holds a pattern, and four built-in 4/4 patterns.
+- `src/shared/songScore.mjs`: a song written as alphaTex, and an alphaTab `Score` read back into
+  measures. Writing produces text, so the module imports nothing from alphaTab, like
+  `audioTrack.mjs`.
+- `scripts/songs/check-song-score.mjs`: the checks, all passing.
+- `scripts/songs/survey-song-forms.mjs <folder>`: reads every Guitar Pro file in a folder and counts
+  each six-string track's measures by form, with the reasons measures are written out. The folder
+  is an argument because the files worth surveying are licensed and kept outside the repository.
+
+### What was confirmed
+
+- **The round trip holds.** A song written as alphaTex, read by alphaTab, written out again by
+  alphaTab's own `AlphaTexExporter` and read once more gives the same measures: chords, chord
+  names, a chord change mid-measure, strokes, accents, mutes, ties, sections, tempo, time
+  signature, and the key with its mode. `\ks aminor` keeps minor, so the mode is not lost.
+- **Joel's 3 + 3 + 2 example** round-trips as plain measures with `>D D D >D D D >D D`. Accents
+  are `{ac}` on each note of the beat.
+- **The audio track player plays a written song unchanged.** Strums fall where the pattern puts
+  them, downstrokes sweep from string 6 and upstrokes from string 1, and tied beats are sustained,
+  not struck again. Moving chord practice onto that player needs no change to the player for
+  this.
+- **Direction is written as pick stroke** (`sd`, `su`) rather than brush, so the player spaces
+  the strings as chord practice does now. A brush also carries its own speed, which made strums
+  nearly chords in Guitar Pro files; see the comments in `audioTrack.mjs`.
+
+### What changed on the way
+
+- **A chord may change on a miss.** Old faithful, `D - D U - U D U`, has a miss on beat 3, where
+  chords commonly change: the player changes there and the up on the and of 3 plays the new
+  chord. The first version refused it. Now a chord's name is written on the beat where the
+  harmony changes, as on a lead sheet, even when that beat only sustains the old chord, and the
+  next strike plays the new one.
+- **The exact test compares what is heard, not how it is spelled.** A quarter note and an eighth
+  tied to an eighth sound the same, and Guitar Pro files spell rhythms many ways. Ties are
+  dropped before comparing, and a rest after a rest or a mute adds nothing. Without this,
+  measures from real files would almost never read as simple.
+- **Chords are named by shape, then by notes.** A shape in the chord library is named from it;
+  otherwise `identifyChordFromNotes` names it, which takes in partial chords and power chords.
+  The score's own frets are kept either way, so a G played as a different shape stays that
+  shape.
+- **Each measure has its own time signature,** so one bar of 2/4 no longer affects the rest.
+- **A measure of rests with nothing ringing into it is silent,** a form of its own.
+
+### The survey
+
+The twelve Songsterr files on hand on 2026-10-14, with 45 six-string tracks, give 5,285
+measures. Of
+those, 290 are plain, 1,088 patterned, 1,462 silent and 2,445 written out. Lead and fingerstyle
+tracks are almost all written out, as expected. Rhythm guitar tracks read as mostly simple: the
+best ones are 60 to 90 percent plain, patterned or silent. The patterns found include
+`D U D U D U D U`, `D - D U - U D U`, and a twelve-slot `>D - D U D U >D - D U D U`.
+
+Why measures were written out:
+
+- 1,023: notes that spell no chord, which is single-note lines. Correct.
+- 326: let ring. unstrung's player rings every note until its string is struck again, so let ring
+  changes nothing it plays.
+- 202: the chords and pattern do not say everything. 195 of these have a rest: the chord stops
+  partway through the measure, and a pattern has no symbol for stopping. A mute is a sound, not
+  a stop.
+- 164 ghost notes, 142 beats that tie some strings and strike others, 123 that mute some and
+  play others, 117 hammer-ons and pull-offs, 114 slides, 68 bends, 67 vibrato, and a few grace
+  notes, tuplets, palm mutes, staccato and harmonics: real detail, correctly written out.
+- 11: chord names neither the library nor the identifier knows.
+
 ## Open questions
 
-- A round trip through alphaTex has not been tested. Before building on it: write a `Score` with
-  sections, chord names, tempo, a split measure, strokes and accents, read it back, and compare.
-- Chord practice needs each chord's root and suffix from the chord library, for its spoken name
-  and fingering. alphaTab stores a chord as a name and frets, so the root and suffix are recovered
-  from the name or identified from the notes.
-- Whether the mode survives the round trip. A key signature alone does not tell A minor from C
-  major; Guitar Pro stores major or minor with it. If alphaTex does not keep it, the key is worked
-  out from the chords, which is what the key, cadence and outside-key lines need anyway.- Which metronome extras to build, once the core has been used.
+- A stop symbol for strumming patterns, so a chord that stops partway through a measure can be a
+  pattern instead of written out. 195 measures in the survey.
+- Whether let ring should be ignored when deciding if a measure is simple, since unstrung's
+  player already lets every note ring. A file saved again would keep it either way.
+- The writer always uses standard tuning and no capo. Songs read from files with another tuning
+  or a capo need both carried through.
+- The player does not yet play accents louder; it plays dynamics. Muted strums are silent: the
+  "short damped click" is not built.
+- A written-out measure is described only by its reason. Describing its beats, as audio tracks
+  do, is the next step for a song view.
+- A chord name written inside a written-out measure does not yet carry into the next measure.- Which metronome extras to build, once the core has been used.
 - Triplets and swing, and with them counting compound time by the felt beat.
