@@ -18,7 +18,7 @@ import {
     songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, alphaTexError
 } from '../shared/songScore.mjs';
 import {
-    everyBeatDown, fitPattern, formatStrummingPattern, BUILT_IN_PATTERNS
+    everyBeatDown, formatStrummingPattern, patternsFor, builtInPatternLike
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import { createMenuButton } from './menu.js';
@@ -3776,6 +3776,7 @@ const chordPracticeKeySelect = document.getElementById('chord-practice-key-selec
 const chordPracticeBorrowingSelect = document.getElementById('chord-practice-borrowing-select');
 const chordPracticeBeatsInput = document.getElementById('chord-practice-beats-input');
 const chordPracticeBeatUnitInput = document.getElementById('chord-practice-beat-unit-input');
+const chordPracticePatternSelect = document.getElementById('chord-practice-pattern-select');
 const chordPracticeTempoInput = document.getElementById('chord-practice-tempo-input');
 const chordPracticeCountInput = document.getElementById('chord-practice-count-input');
 const chordPracticeNoHeldCheckbox = document.getElementById('chord-practice-no-held-checkbox');
@@ -4577,6 +4578,24 @@ function setChordPracticeMetronome(state, enabled) {
 }
 
 /**
+ * Strums the progression with another pattern, in place.
+ *
+ * Like the tempo, how it is strummed is something a player tries out, so it is not an unsaved
+ * change and closing does not ask about it; saving does write it, as it writes the tempo. The
+ * chords and the samples stay; only the strums are laid out again, from where playback is.
+ */
+function setChordPracticePattern(state, pattern) {
+    state.progression.pattern = pattern;
+    state.strokes = chordPracticeStrokes(state.progression);
+    state.ui.strummingItem.textContent = `Strumming - ${progressionPatternLabel(state.progression)}`;
+    if (!state.playing) return;
+    const position = chordPracticePosition(state);
+    state.pass = chordPracticeCurrentPass(state);
+    stopChordPracticePlayback();
+    startChordPracticePlayback(state, position, { countIn: false });
+}
+
+/**
  * Turns the spoken chord names on or off, which costs a restart.
  *
  * Every other playback setting can be changed in place, because the scheduler only has to be told
@@ -4698,6 +4717,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const savedAsItem = document.createElement('li');
     summaryList.append(savedAsItem);
     container.append(summaryList);
+    // Likewise the strumming line, which the pattern list under Playback changes.
+    const strummingItem = [...summaryList.children].find(item => item.textContent.startsWith('Strumming - '));
 
     // Each distinct chord once, with everything known about it. This is what you study before
     // playing: the progression below repeats chords, and repeating their fingerings with them
@@ -4770,6 +4791,18 @@ function buildChordPracticeTab(progression, options, file = {}) {
         'and starts the progression again from the first measure.';
     speakParagraph.append(speakCheckbox, speakLabel);
     container.append(speakParagraph);
+
+    // The same list as the Chord Practice dialog's, to try patterns on the progression as it
+    // plays. Not an edit: see setChordPracticePattern.
+    const patternParagraph = document.createElement('p');
+    const patternSelect = document.createElement('select');
+    patternSelect.id = uniqueControlId('chord-practice-tab-pattern');
+    fillPatternSelect(patternSelect, progression.beatsPerBar, progression.beatUnit, progressionPattern(progression));
+    const patternLabel = document.createElement('label');
+    patternLabel.htmlFor = patternSelect.id;
+    patternLabel.textContent = 'Strumming pattern';
+    patternParagraph.append(patternLabel, patternSelect);
+    container.append(patternParagraph);
 
     const tempoParagraph = document.createElement('p');
     const tempoInput = document.createElement('input');
@@ -4921,7 +4954,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         anchorSeconds: 0,
         anchorContextTime: null,
         ui: { tempoInput, metronomeCheckbox, repeatInput, countInEachPassCheckbox,
-            speakCheckbox, playButton, heading, savedAsItem, editButton, progressionHeading },
+            speakCheckbox, patternSelect, playButton, heading, savedAsItem, strummingItem, editButton, progressionHeading },
         announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
@@ -4943,6 +4976,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
         () => setChordPracticeMetronome(state, metronomeCheckbox.checked));
     speakCheckbox.addEventListener('change',
         () => setChordPracticeSpeak(state, speakCheckbox.checked));
+    patternSelect.addEventListener('change',
+        () => setChordPracticePattern(state, selectedPattern(patternSelect)));
     // Read at each wrap rather than when playback starts, so ticking it mid-loop takes effect from
     // the next repeat instead of needing playback restarted.
     countInEachPassCheckbox.addEventListener('change',
@@ -5070,7 +5105,7 @@ function chordPracticeMetadataRows(progression) {
         rows.push(
             `Level - ${levelName}`,
             `Time signature - ${progression.beatsPerBar}/${progression.beatUnit}`,
-            `Strumming - ${strummingPatternLabel(progression)}`,
+            `Strumming - ${progressionPatternLabel(progression)}`,
             `Length - ${progression.chords.length} measures`,
             `Ends with - ${progression.cadence ?? 'no cadence available in this key'}`,
             `Chords from outside the key - ${progression.borrowing ?? 'stay in the key'}` +
@@ -5082,7 +5117,7 @@ function chordPracticeMetadataRows(progression) {
     const outside = progression.chords.filter(chord => chord.outsideKey || chord.borrowed).length;
     rows.push(
         `Time signature - ${progression.beatsPerBar}/${progression.beatUnit}`,
-        `Strumming - ${strummingPatternLabel(progression)}`,
+        `Strumming - ${progressionPatternLabel(progression)}`,
         `Length - ${progression.chords.length} measures`,
         `Chords from outside the key - ${outside === 0 ? 'none' : outside}`);
     return rows;
@@ -5179,13 +5214,54 @@ function progressionPattern(progression) {
     return everyBeatDown(progression.beatsPerBar);
 }
 
-/** The pattern as the Metadata list says it: its name where it is a built-in one, else its text. */
-function strummingPatternLabel(progression) {
-    const pattern = progressionPattern(progression);
+/**
+ * The pattern as the Metadata list and the pattern lists say it: its name where it is a built-in
+ * one, then the strokes, which are what a player needs to play along. "Old Faithful: D - D U - U D U".
+ */
+function strummingPatternLabel(pattern, beatsPerBar, beatUnit) {
     const text = formatStrummingPattern(pattern.slots);
-    const builtIn = BUILT_IN_PATTERNS.find(p => p.beatsPerBar === progression.beatsPerBar && p.text === text);
-    if (builtIn) return builtIn.name;
-    return text === formatStrummingPattern(everyBeatDown(progression.beatsPerBar).slots) ? 'Every beat, down' : text;
+    const builtIn = builtInPatternLike(pattern, beatsPerBar, beatUnit);
+    return builtIn ? `${builtIn.name}: ${builtIn.text}` : text;
+}
+
+function progressionPatternLabel(progression) {
+    return strummingPatternLabel(progressionPattern(progression), progression.beatsPerBar, progression.beatUnit);
+}
+
+/**
+ * Fills a strumming pattern list with the patterns for a time signature, keeping the one chosen
+ * where the new time signature has it too, by name, and the first, Down Only, otherwise.
+ *
+ * `current` is a pattern to offer as well when it is not a built-in one: a progression opened
+ * from a file may strum something of its own. Each option's value is its place in `patterns`,
+ * which the list keeps for reading back.
+ */
+function fillPatternSelect(select, beatsPerBar, beatUnit, current = null) {
+    const previous = select.patterns?.[Number(select.value)]?.name;
+    const patterns = patternsFor(beatsPerBar, beatUnit);
+    let chosen = previous ? patterns.findIndex(p => p.name === previous) : 0;
+    if (current && current.slots.length === beatsPerBar * current.slotsPerBeat) {
+        const builtIn = builtInPatternLike(current, beatsPerBar, beatUnit);
+        if (builtIn) chosen = patterns.findIndex(p => p.name === builtIn.name);
+        else {
+            patterns.push({ name: null, slotsPerBeat: current.slotsPerBeat, slots: current.slots });
+            chosen = patterns.length - 1;
+        }
+    }
+    select.patterns = patterns;
+    select.replaceChildren(...patterns.map((pattern, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = pattern.name ? `${pattern.name}: ${pattern.text}` : `This progression's own: ${formatStrummingPattern(pattern.slots)}`;
+        return option;
+    }));
+    select.value = String(Math.max(0, chosen));
+}
+
+/** The pattern chosen in a list filled by fillPatternSelect. */
+function selectedPattern(select) {
+    const pattern = select.patterns?.[Number(select.value)];
+    return pattern ? { slotsPerBeat: pattern.slotsPerBeat, slots: pattern.slots } : null;
 }
 
 /** The alphaTex a saved file holds. Throws only on a program error. */
@@ -5320,9 +5396,13 @@ async function generateChordPractice() {
     }
 
     const options = chordPracticePlaybackOptions({ fromDialog: true });
+    // The list is refilled when the time signature fields change, but those can be typed in and
+    // Generate pressed without leaving them, so it is refilled here before being read.
+    chordPracticeRefreshPatterns();
     const progression = prepareProgression({
         ...generated, beatsPerBar, beatUnit, fresh: true,
-        origin: { made: 'generated', levelId, borrowingId }
+        origin: { made: 'generated', levelId, borrowingId },
+        pattern: selectedPattern(chordPracticePatternSelect)
     });
 
     // Focus goes to the new tab, not back to whatever opened the dialog.
@@ -5368,7 +5448,20 @@ function resetChordPracticeDialog() {
     }
     // The key list depends on the level, which has just been put back.
     chordPracticeRefreshKeys();
+    // And the patterns on the time signature. Forgetting the last choice puts Down Only first.
+    chordPracticePatternSelect.patterns = null;
+    chordPracticeRefreshPatterns();
 }
+
+/** The patterns for the time signature the dialog shows. */
+function chordPracticeRefreshPatterns() {
+    const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
+    const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
+    fillPatternSelect(chordPracticePatternSelect, beatsPerBar, beatUnit);
+}
+
+chordPracticeBeatsInput.addEventListener('change', chordPracticeRefreshPatterns);
+chordPracticeBeatUnitInput.addEventListener('change', chordPracticeRefreshPatterns);
 
 async function openChordPracticeDialog() {
     chordPracticeDialogOpener = document.activeElement;
@@ -5789,6 +5882,16 @@ const editorHeading = document.getElementById('progression-editor-heading-name')
 const editorKeySelect = document.getElementById('progression-editor-key-select');
 const editorBeatsInput = document.getElementById('progression-editor-beats-input');
 const editorBeatUnitInput = document.getElementById('progression-editor-beat-unit-input');
+const editorPatternSelect = document.getElementById('progression-editor-pattern-select');
+
+/** The patterns for the time signature the editor shows, keeping the one chosen where it can. */
+function refreshEditorPatterns() {
+    const beatsPerBar = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatsInput.value) || 4));
+    const beatUnit = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatUnitInput.value) || 4));
+    fillPatternSelect(editorPatternSelect, beatsPerBar, beatUnit);
+}
+editorBeatsInput.addEventListener('change', refreshEditorPatterns);
+editorBeatUnitInput.addEventListener('change', refreshEditorPatterns);
 const editorMeasures = document.getElementById('progression-editor-measures');
 const editorChordLabel = document.getElementById('progression-editor-chord-label');
 const editorChordInput = document.getElementById('progression-editor-chord-input');
@@ -5801,8 +5904,6 @@ const editor = {
     current: 0,
     entry: null,
     origin: { made: 'hand' },
-    // The strumming pattern, carried through an edit.
-    pattern: null,
     options: null,
     opener: null,
     original: '',
@@ -5818,7 +5919,7 @@ function editorKey() {
 function editorSnapshot() {
     return JSON.stringify([editorKeySelect.value, editorBeatsInput.value, editorBeatUnitInput.value,
         editor.measures.map(chord => (chord ? `${chord.root}|${chord.suffix}` : null)),
-        editor.pattern ? formatStrummingPattern(editor.pattern.slots) : '']);
+        editorPatternSelect.value]);
 }
 
 function editorKeyClasses() {
@@ -6190,8 +6291,10 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorBeatUnitInput.value = String(progression.beatUnit);
         editor.measures = progression.chords.map(chord => ({ root: chord.root, suffix: chord.suffix }));
         editor.origin = progression.origin ?? { made: 'hand' };
-        // Not edited here yet, but kept: applying changes must not lose it.
-        editor.pattern = progression.pattern ?? null;
+        // The progression's own pattern is chosen, and offered even if it is not a built-in one.
+        editorPatternSelect.patterns = null;
+        fillPatternSelect(editorPatternSelect, progression.beatsPerBar, progression.beatUnit,
+            progressionPattern(progression));
         editorHeading.textContent = 'Editing Chord Progression';
         editorApplyButton.textContent = 'Apply Changes';
     } else {
@@ -6200,7 +6303,8 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorBeatUnitInput.value = '4';
         editor.measures = [null];
         editor.origin = { made: 'hand' };
-        editor.pattern = null;
+        editorPatternSelect.patterns = null;
+        fillPatternSelect(editorPatternSelect, 4, 4);
         editorHeading.textContent = 'Creating Chord Progression';
         editorApplyButton.textContent = 'Create Progression';
     }
@@ -6252,9 +6356,11 @@ function applyProgressionEditor() {
     const origin = previous.made === 'hand'
         ? { made: 'hand' }
         : { made: 'edited', levelId: previous.levelId, borrowingId: previous.borrowingId };
-    // A pattern that no longer fits a changed time signature gives way to a downstroke on every beat.
+    // Refilled first, in case the time signature was typed and Apply pressed without leaving it.
+    refreshEditorPatterns();
     const progression = prepareProgression({
-        key, mode, beatsPerBar, beatUnit, chords: editor.measures, origin, pattern: editor.pattern
+        key, mode, beatsPerBar, beatUnit, chords: editor.measures, origin,
+        pattern: selectedPattern(editorPatternSelect)
     });
 
     // Focus goes to the tab, not back to whatever opened the dialog.

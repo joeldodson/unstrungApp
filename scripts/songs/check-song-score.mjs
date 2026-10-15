@@ -8,7 +8,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseStrummingPattern, formatStrummingPattern, fitPattern, BUILT_IN_PATTERNS } from '../../src/shared/strummingPatterns.mjs';
+import {
+    parseStrummingPattern, formatStrummingPattern, fitPattern, coarsestPattern, patternsFor, builtInPatternLike,
+    BUILT_IN_PATTERNS
+} from '../../src/shared/strummingPatterns.mjs';
 import { songFromProgression, songToAlphaTex, readSongFromScore, describeMeasure, libraryFrets } from '../../src/shared/songScore.mjs';
 import { generateProgression } from '../../src/shared/chordProgressions.mjs';
 import { buildAudioTrack } from '../../src/shared/audioTrack.mjs';
@@ -63,10 +66,39 @@ console.log('\n=== Pattern text ===');
     check('an unknown letter is refused', /Slot 2/.test(parseStrummingPattern('D Q D U').error ?? ''));
     check('eight slots in 4/4 are eighths', fitPattern(read.slots, 4).slotsPerBeat === 2);
     check('six slots do not fit 4/4', !!fitPattern(read.slots.slice(0, 6), 4).error);
-    for (const builtIn of BUILT_IN_PATTERNS) {
-        check(`built-in "${builtIn.name}" reads and fits`, !parseStrummingPattern(builtIn.text).error
-            && !fitPattern(parseStrummingPattern(builtIn.text).slots, builtIn.beatsPerBar).error);
+}
+
+console.log('\n=== Built-in patterns ===');
+{
+    const signatures = [...new Set(BUILT_IN_PATTERNS.map(p => p.timeSignature))];
+    for (const signature of signatures) {
+        const [beatsPerBar, beatUnit] = signature.split('/').map(Number);
+        const listed = BUILT_IN_PATTERNS.filter(p => p.timeSignature === signature);
+        const problems = [];
+        for (const entry of listed) {
+            const read = parseStrummingPattern(entry.text);
+            if (read.error) { problems.push(`${entry.name}: ${read.error}`); continue; }
+            const fit = fitPattern(read.slots, beatsPerBar);
+            if (fit.error) { problems.push(`${entry.name}: ${fit.error}`); continue; }
+            // Written coarsest, so one read back from a score compares equal.
+            const coarse = coarsestPattern(read.slots, fit.slotsPerBeat);
+            if (formatStrummingPattern(coarse.slots) !== entry.text) problems.push(`${entry.name} is not written on its coarsest grid`);
+        }
+        const names = listed.map(p => p.name);
+        if (new Set(names).size !== names.length) problems.push('two patterns share a name');
+        const texts = listed.map(p => p.text);
+        if (new Set(texts).size !== texts.length) problems.push('two patterns are the same strokes');
+        check(`${signature}: ${listed.length} patterns, Down Only and All Down-Up first, all valid`,
+            problems.length === 0 && names[0] === 'Down Only' && names[1] === 'All Down-Up', problems.join('; '));
     }
+    const fiveFour = patternsFor(5, 4).map(p => `${p.name}: ${p.text}`);
+    check('a time signature with none listed gets Down Only and All Down-Up',
+        fiveFour.join(' | ') === 'Down Only: D D D D D | All Down-Up: D U D U D U D U D U', fiveFour.join(' | '));
+    const nineEight = patternsFor(9, 8).map(p => p.text);
+    check('in compound time, All Down-Up alternates on the eighths', nineEight[1] === 'D U D U D U D U D', nineEight[1]);
+    const read = parseStrummingPattern('D - D - D - D -');
+    check('the same strokes on a finer grid are recognised as a built-in',
+        builtInPatternLike({ slotsPerBeat: 2, slots: read.slots }, 4, 4)?.name === 'Down Only');
 }
 
 console.log('\n=== A generated progression, as chord practice plays it today ===');

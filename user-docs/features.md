@@ -227,7 +227,6 @@ Turn focus mode off before you move somewhere else, or the keys you press there 
 
 Chord practice generates a chord progression and plays it for you to play along with.
 Each measure has one chord, strummed with the progression's strumming pattern, with a metronome and, if you want it, the name of the next chord spoken.
-A generated progression is strummed down on every beat.
 
 ### Generating a Progression
 
@@ -243,6 +242,8 @@ The Chord Practice dialog asks for:
   These are mostly chords that lead into the next one, such as D7 before G in the key of C, and chords borrowed from the minor key.
 - **Beats per measure** and **note value that gets one beat,** the two numbers of the time signature.
   The tempo counts beats, so the lower number does not change the speed: 6/8 at 90 is ninety eighth notes a minute.
+- **Strumming pattern,** from the patterns for the time signature, described under Strumming Patterns.
+  It starts on Down Only, and the list changes when the time signature does.
 - **Tempo,** from 30 to 240 beats per minute.
 - **Number of measures,** from 2 to 256.
 - **No chord held over into the next measure,** checked to begin with.
@@ -262,13 +263,16 @@ The progression opens as a new item in the list of open items.
 A progression's item has:
 
 - **Metadata:** the key, level, time signature, strumming pattern, length, the cadence it ends with, how many chords come from outside the key, and whether it has been saved.
-  The strumming pattern is given by name, such as Every beat, down, or written out, such as D - D U - U D U: D is a downstroke, U an upstroke, a dash a beat or half beat the hand passes without strumming, and x a muted strum.
+  The strumming pattern is given by its name and its strokes, such as Old Faithful: D - D U - U D U.
+  A pattern unstrung does not have a name for is given by its strokes alone.
 - **Chords Used:** each different chord once, collapsed, with its fingering and notes.
   A chord from outside the key says which key it comes from and why.
 - **Progression:** the chords in order, one per measure.
   While there are unsaved changes, this heading, the item's name and the level 2 heading at the top all say "unsaved changes".
 - The Edit Progression, Save Progression and Save Progression As buttons.
-- **Playback:** whether to speak the chord names, tempo, times to play, count in, metronome, and the Play Progression button.
+- **Playback:** whether to speak the chord names, the strumming pattern, tempo, times to play, count in, metronome, and the Play Progression button.
+  Changing the strumming pattern carries on from where the progression is, so you can try patterns while it plays.
+  Like the tempo, it is not counted as an unsaved change, but saving keeps the pattern you are on.
 - **Move Around the Progression** and **Keyboard Control,** the same buttons and keys as an audio track.
   b also says the chord of the measure you are in.
 
@@ -279,7 +283,7 @@ The media keys and headphone buttons control a progression as they do an audio t
 Save Progression, or ctrl+s, saves the progression.
 The first time, unstrung suggests a name such as Am-60-intermediate-occasional: the key, the number of measures, the level and the setting for chords from outside the key.
 Save Progression As, or ctrl+shift+s, saves a copy under a new name.
-The key, time signature, chords, strumming pattern and tempo are saved.
+The key, time signature, chords, strumming pattern and tempo are saved, the pattern and tempo as they are set under Playback.
 The metronome and the number of repeats are not.
 Opening a progression sets the tempo to the one it was saved with.
 
@@ -297,12 +301,67 @@ That includes music chord practice cannot show yet, such as a measure with two c
 If you close a progression with unsaved changes, or quit the desktop app with one open, unstrung asks whether to save first.
 A progression that has just been generated and never saved is not asked about.
 
+### Strumming Patterns
+
+A strumming pattern is written the way guitar teachers write it, one stroke for each place the hand passes the strings.
+D is a downstroke and U an upstroke.
+A dash is a place the hand passes without strumming, while the chord rings on.
+x is a muted strum, a chuck, which stops the chord ringing; unstrung does not sound the chuck itself yet.
+An accented stroke has a greater-than sign before it, as in >D.
+With eight places in a measure of 4/4, the downstrokes fall on the beats and the upstrokes on the ands between them.
+
+These come with unstrung, and each list starts with Down Only and All Down-Up.
+Any other time signature has those two.
+
+4/4:
+
+- Down Only: D D D D, a downstroke on each beat.
+- All Down-Up: D U D U D U D U, down on each beat and up on each and.
+- Old Faithful: D - D U - U D U, the most common strum of all, also called the Island Strum.
+- Boom-Chicka: D - D U D - D U, country and folk.
+- Eighth-Note Downs: D D D D D D D D, driving rock and punk.
+- Three-Three-Two: >D D D >D D D >D D, eighth-note downs accented on beat 1, the and of 2, and beat 4.
+- Backbeat Chuck: D - x U - U x U, Old Faithful with chucks on beats 2 and 4.
+- Reggae Offbeat: - U - U - U - U, upstrokes on the ands only.
+
+3/4:
+
+- Down Only: D D D.
+- All Down-Up: D U D U D U.
+- Waltz Strum: D - D U D U, down, down-up, down-up.
+- Oom-Pah-Pah: >D D D, the first beat strong.
+- Down Down Down-Up: D - D - D U.
+
+6/8, six eighth-note beats felt in two:
+
+- Down Only: D D D D D D.
+- All Down-Up: D U D U D U.
+- On the Pulse: D - - D - -, downs on 1 and 4.
+- Accented Downs: >D D D >D D D.
+- Rolling Six: D U D D U D.
+- Ballad Six: D - U D - U.
+
+2/4:
+
+- Down Only: D D.
+- All Down-Up: D U D U.
+- Down, Down-Up: D - D U, polkas and marches.
+
+12/8, four beats of three eighths:
+
+- Down Only: twelve downs.
+- All Down-Up: down and up in turn on the eighths.
+- On the Pulse: D - - D - - D - - D - -.
+- Slow Blues: every eighth down, strong on each beat.
+
 ### Editing a Progression, or Making Your Own
 
 Edit Progression opens the Editing Chord Progression dialog.
 Manually Create Chord Progression, in the Chord Progressions submenu, opens the same dialog as Creating Chord Progression, with one empty measure.
 
-The dialog sets the key and time signature, and lists the measures, one chord each.
+The dialog sets the key, time signature and strumming pattern, and lists the measures, one chord each.
+The strumming pattern starts on the progression's own.
+A progression opened from a file whose pattern unstrung has no name for keeps it, listed as this progression's own.
 In the list of measures:
 
 - enter: choose a new chord for the measure.

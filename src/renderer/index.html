@@ -225,6 +225,12 @@
             <input type="number" inputmode="numeric" id="chord-practice-beat-unit-input" min="1" max="16" step="1" value="4" />
         </p>
 
+        <!-- Filled with the patterns for the time signature above, and refilled when it changes. -->
+        <p>
+            <label for="chord-practice-pattern-select">Strumming pattern</label>
+            <select id="chord-practice-pattern-select"></select>
+        </p>
+
         <p>
             <label for="chord-practice-tempo-input">Tempo (beats per minute)</label>
             <input type="number" inputmode="numeric" id="chord-practice-tempo-input" min="30" max="240" step="1" value="80" />
@@ -318,6 +324,11 @@
         <p>
             <label for="progression-editor-beat-unit-input">Note value that gets one beat</label>
             <input type="number" inputmode="numeric" id="progression-editor-beat-unit-input" min="1" max="16" step="1" value="4" />
+        </p>
+
+        <p>
+            <label for="progression-editor-pattern-select">Strumming pattern</label>
+            <select id="progression-editor-pattern-select"></select>
         </p>
 
         <h2 id="progression-editor-measures-heading">Measures</h2>

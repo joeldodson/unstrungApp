@@ -78,7 +78,7 @@ try {
     await page.waitForTimeout(1500);
     let tab = await activePanel();
     console.log(`  meta: ${tab.meta.join(' | ')}`);
-    check('the metadata names its strumming', tab.meta.includes('Strumming - Every beat, down'), tab.meta.join(' | '));
+    check('the metadata names its strumming', tab.meta.includes('Strumming - Down Only: D D D D'), tab.meta.join(' | '));
     const generated = tab.chords;
 
     console.log('\n=== Saving writes alphaTex ===');
@@ -146,7 +146,7 @@ try {
     tab = await activePanel();
     console.log(`  meta: ${tab.meta.join(' | ')}`);
     check('its chords', tab.chords.join(' ') === 'G C', tab.chords.join(' '));
-    check('its strumming pattern, by name', tab.meta.includes('Strumming - Old faithful'), tab.meta.join(' | '));
+    check('its strumming pattern, by name', tab.meta.includes('Strumming - Old Faithful: D - D U - U D U'), tab.meta.join(' | '));
     check('its tempo', tab.tempo === '96', String(tab.tempo));
     check('its key', tab.meta.includes('Key - G major'), tab.meta.join(' | '));
 
@@ -169,6 +169,45 @@ try {
     check('the pattern and tempo survive', resaved.pattern?.text === 'D - D U - U D U' && resaved.tempo === 96 &&
         resaved.measures.every(m => m.form === 'plain'), `${resaved.pattern?.text} at ${resaved.tempo}`);
 
+    console.log('\n=== Trying another pattern while it plays ===');
+    const playbackPattern = () => page.evaluate(() => {
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
+        const select = [...panel.querySelectorAll('select')].find(s => s.id.startsWith('chord-practice-tab-pattern'));
+        return {
+            label: panel.querySelector(`label[for="${select?.id}"]`)?.textContent,
+            chosen: select?.selectedOptions[0]?.textContent,
+            id: select?.id,
+            playing: panel.querySelector('button[aria-pressed]')?.getAttribute('aria-pressed'),
+            heading: panel.querySelector('h2').textContent,
+            item: document.querySelector('#open-items-list button[aria-current="true"]')?.textContent
+        };
+    });
+    let playback = await playbackPattern();
+    check('Playback has a labelled pattern list', playback.label === 'Strumming pattern', playback.label);
+    check('it starts on the progression\'s pattern', playback.chosen === 'Old Faithful: D - D U - U D U', playback.chosen);
+    const errorsBefore = consoleErrors.length;
+    await clickInPanel('Play Progression');
+    await page.waitForTimeout(2500);
+    await page.selectOption(`#${playback.id}`, { label: 'All Down-Up: D U D U D U D U' });
+    await page.waitForTimeout(2500);
+    playback = await playbackPattern();
+    tab = await activePanel();
+    check('changing it keeps playing', playback.playing === 'true', playback.playing);
+    check('the Metadata line follows', tab.meta.includes('Strumming - All Down-Up: D U D U D U D U'), tab.meta.join(' | '));
+    check('it is not an unsaved change', !/unsaved/.test(playback.heading) && !/unsaved/.test(playback.item),
+        `${playback.heading} / ${playback.item}`);
+    check('no errors while changing it', consoleErrors.length === errorsBefore, consoleErrors.slice(errorsBefore).join(' ; '));
+    await clickInPanel('Pause');
+    await page.waitForTimeout(300);
+    const savesBefore = await saveDialogCalls();
+    await clickInPanel('Save Progression');
+    await page.waitForTimeout(800);
+    const triedPattern = readAlphaTex(await readFile(strumPath, 'utf8'));
+    check('saving writes the pattern being played, without asking where', triedPattern.pattern?.text === 'D U D U D U D U' &&
+        (await saveDialogCalls()) === savesBefore, triedPattern.pattern?.text);
+    // Back to Old Faithful for the checks that follow.
+    await page.selectOption(`#${playback.id}`, { label: 'Old Faithful: D - D U - U D U' });
+
     console.log('\n=== Editing keeps the pattern ===');
     await clickInPanel('Edit Progression');
     await page.waitForTimeout(800);
@@ -184,7 +223,54 @@ try {
     await page.waitForTimeout(1000);
     tab = await activePanel();
     check('the changed chord is in, and the pattern stays', tab.chords.join(' ') === 'G Am' &&
-        tab.meta.includes('Strumming - Old faithful'), `${tab.chords.join(' ')} | ${tab.meta.join(' | ')}`);
+        tab.meta.includes('Strumming - Old Faithful: D - D U - U D U'), `${tab.chords.join(' ')} | ${tab.meta.join(' | ')}`);
+
+    console.log('\n=== Choosing a pattern in the editor ===');
+    await clickInPanel('Edit Progression');
+    await page.waitForTimeout(800);
+    const editorPatterns = await page.evaluate(() => {
+        const select = document.getElementById('progression-editor-pattern-select');
+        return {
+            labelled: document.querySelector('label[for="progression-editor-pattern-select"]')?.textContent,
+            options: [...select.options].map(o => o.textContent),
+            chosen: select.selectedOptions[0]?.textContent
+        };
+    });
+    console.log(`  options: ${editorPatterns.options.join(' | ')}`);
+    check('the editor has a labelled Strumming pattern list', editorPatterns.labelled === 'Strumming pattern', editorPatterns.labelled);
+    check('it starts on the progression\'s own pattern', editorPatterns.chosen === 'Old Faithful: D - D U - U D U', editorPatterns.chosen);
+    await page.selectOption('#progression-editor-pattern-select', { label: 'Boom-Chicka: D - D U D - D U' });
+    await page.click('#progression-editor-apply-button');
+    await page.waitForTimeout(1000);
+    tab = await activePanel();
+    check('applied, the progression strums the new pattern', tab.meta.includes('Strumming - Boom-Chicka: D - D U D - D U'),
+        tab.meta.join(' | '));
+
+    console.log('\n=== Choosing a pattern when generating ===');
+    await menu('chord-practice');
+    await page.waitForTimeout(1200);
+    const fourFour = await page.evaluate(() => [...document.getElementById('chord-practice-pattern-select').options].map(o => o.textContent));
+    console.log(`  4/4: ${fourFour.join(' | ')}`);
+    check('4/4 offers its patterns, Down Only first and chosen', fourFour[0] === 'Down Only: D D D D' &&
+        fourFour.includes('Old Faithful: D - D U - U D U') && fourFour.length === 8, fourFour.join(' | '));
+    await page.fill('#chord-practice-beats-input', '3');
+    await page.dispatchEvent('#chord-practice-beats-input', 'change');
+    const threeFour = await page.evaluate(() => [...document.getElementById('chord-practice-pattern-select').options].map(o => o.textContent));
+    console.log(`  3/4: ${threeFour.join(' | ')}`);
+    check('changing the time signature to 3/4 offers 3/4 patterns', threeFour.includes('Waltz Strum: D - D U D U') &&
+        !threeFour.some(t => t.startsWith('Old Faithful')), threeFour.join(' | '));
+    await page.selectOption('#chord-practice-pattern-select', { label: 'Waltz Strum: D - D U D U' });
+    await page.click('#chord-practice-generate-button');
+    await page.waitForTimeout(1500);
+    tab = await activePanel();
+    check('the generated progression strums the chosen pattern', tab.meta.includes('Strumming - Waltz Strum: D - D U D U') &&
+        tab.meta.includes('Time signature - 3/4'), tab.meta.join(' | '));
+    const waltzPath = path.join(folder, 'Generated waltz.atex');
+    await answerSaveDialogWith(waltzPath);
+    await clickInPanel('Save Progression');
+    await page.waitForTimeout(800);
+    const waltz = readAlphaTex(await readFile(waltzPath, 'utf8'));
+    check('and saves it', waltz.pattern?.text === 'D - D U D U' && waltz.beatsPerBar === 3, `${waltz.pattern?.text}`);
 
     check('no errors in the console', consoleErrors.length === 0, consoleErrors.join(' ; '));
 } finally {

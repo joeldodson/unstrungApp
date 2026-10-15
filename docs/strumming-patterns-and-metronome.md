@@ -202,6 +202,9 @@ grid takes them without a redesign.
 
 ### The library is files in a folder
 
+Changed on 2026-10-14: patterns a player makes are to be kept in settings instead; see Built-in
+patterns and choosing one. The original decision:
+
 Joel's own strumming patterns and metronome presets are JSON files in a folder under
 Documents/Unstrung, like progressions: backed up, synced and shared as ordinary files. Where files
 cannot be saved in place (every iOS browser), saving downloads a copy and opening uses the upload
@@ -238,9 +241,13 @@ chord.
   Beats are counted from 1, as players count them. Even split was chosen over always requiring a
   beat (more typing for the common case) and over a list of chords with a start field each (more
   Tab stops).
-- **Announcing them.** `b` says the chord sounding at that moment first, then the rest of the
-  measure: "Measure 5, C, after G on beat 1". Saying them in order was set aside: it leaves the
-  player to work out which chord is playing now.
+- **Announcing them.** `b` says the measure's chords as the editor writes them, then the beat
+  playback is on: "Measure 5 of 8, G C@3, beat 2, play 1". The beat says which chord is sounding
+  without reordering the chords. Decided 2026-10-15, from Joel's own suggestion, replacing the
+  first decision, which put the chord sounding first: "Measure 5, C, after G on beat 1". That one
+  changed order depending on when b was pressed, which made it hard to follow. Measures with one
+  chord get the beat too, so every answer has the same shape. Whether NVDA says "@" as "at" at
+  Joel's punctuation level is for him to hear; "C at 3" is the fallback.
 
 ### Progressions save a song tempo
 
@@ -356,8 +363,8 @@ Chord practice looks as it did. Underneath:
 - **The writer uses alphaTab 1.8's syntax**: metadata arguments in parentheses, no dot after the
   score metadata. The older form reads, but with warnings.
 
-Choosing a pattern -- in the Chord Practice dialog, the editor, or per measure -- is not built
-yet, so a pattern other than "Every beat, down" comes only from an opened file.
+Choosing a pattern was not built in this stage; it followed the same day, with the built-in
+patterns. Per-measure patterns are still to come.
 
 Checked by `scripts/songs/verify-progression-files.mjs`, which drives the real app on a scratch
 profile.
@@ -371,6 +378,64 @@ with a comment: speaking chord names on by default (fdc09fc), Open Saved Progres
 by Hand on the menu rather than in the Chord Practice dialog, and dialog headings and the
 unsaved-changes question as they now read (5c91d72). `verify-saved-progressions.mjs` checks
 alphaTex files.
+
+## Built-in patterns and choosing one (2026-10-14)
+
+Joel asked for patterns that ship with unstrung, working in the browser too, starting with all
+downstrokes on the beat and down-up on every beat, then the five to seven most common for each
+common time signature, named the way guitar terminology names them. Making and editing patterns
+comes later.
+
+- **The library** is `BUILT_IN_PATTERNS` in `src/shared/strummingPatterns.mjs`, plain data in the
+  bundle, so the browser has it with nothing to fetch. 4/4 has eight, 3/4 five, 6/8 six, 2/4
+  three, 12/8 four. Every list starts with Down Only and All Down-Up, and any other time
+  signature gets those two, made for it (`patternsFor`). In compound time All Down-Up alternates
+  on the eighths, since the beat is already an eighth.
+- **Where they came from.** Beginner lessons and forums agree on the core: Old Faithful,
+  D DU UDU, is the most taught strum, also called the Island Strum; four downs; straight down-up
+  eighths; boom-chicka, D DUD DU; chucks on the backbeat; reggae upstrokes on the ands. In 3/4 the
+  usual first pattern is down, down-up, down-up. In 6/8 the weight goes on 1 and 4: two downs, or
+  DUD DUD. Three-Three-Two is Joel's own example. Sources consulted included Wikipedia's Strum
+  article, the JustinGuitar community, Good Guitarist, Acoustic Guitar's boom-chuck lesson and
+  fachords.
+- **Notation** stays the slot-by-slot form: `D - D U - U D U`. Teachers also write it grouped by
+  beat, D DU UDU, which the descriptions use, but that form cannot say where a miss falls.
+- **Each pattern is written on its coarsest grid**, so a pattern read back from a score, which
+  always comes back coarsest, compares equal; `check-song-score.mjs` checks this.
+  `builtInPatternLike` names any pattern with the same strokes.
+- **Down Only replaces "Every beat, down"** as the name of chord practice's old strum.
+- **Choosing.** The Chord Practice dialog and the progression editor each have a Strumming pattern
+  list after the time signature, refilled when the time signature changes, keeping the choice by
+  name where the new list has it. Options read as name and strokes: "Old Faithful: D - D U - U D U".
+  The editor starts on the progression's own pattern; one from a file that matches no built-in is
+  offered as "This progression's own".
+- **The Metadata line** gives the name and the strokes, which are what a player needs to play
+  along.
+- **Saving.** A progression keeps its pattern as the strokes written out in the alphaTex file, as
+  before; nothing records which built-in it was, since the strokes name it again. Patterns a player
+  makes are to be kept in unstrung's settings, which are the app's settings file on the desktop and
+  the browser's local storage on the web, as name, time signature and strokes in this notation.
+  Not built yet.
+
+### Trying patterns while it plays (2026-10-15)
+
+Joel asked to try different patterns on a progression without editing and saving it, as a
+guitarist tries patterns on a song: the pattern, though written into the file, is a property to
+play with.
+
+- The Playback section has the same Strumming pattern list as the Chord Practice dialog, after the
+  speak checkbox, labelled "Strumming pattern".
+- Changing it lays the strums out again from where playback is, like the tempo and the metronome
+  (`setChordPracticePattern`). It does not go back to the first measure as the speak checkbox
+  does: the chords and samples are already loaded, so nothing has to be fetched. Joel had asked
+  for the same warning as the speak checkbox; a shorter one, "Changing this rebuilds the audio",
+  was tried and dropped on 2026-10-15. Beside the speak checkbox's warning it read as if the
+  pattern restarted the progression too, and like the tempo it needs no explanation.
+- It is not an unsaved change and closing does not ask about it, as Joel asked. Saving writes the
+  pattern being played, as it writes the tempo; the editor starts on it too.
+- In the file the pattern is written out measure by measure, as each chord's strokes; the
+  progression in the app holds it as one setting and expands it as it plays, so nothing has to be
+  regenerated to change it.
 
 ## Open questions
 
