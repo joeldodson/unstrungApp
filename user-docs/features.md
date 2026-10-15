@@ -308,6 +308,7 @@ D is a downstroke and U an upstroke.
 A dash is a place the hand passes without strumming, while the chord rings on.
 x is a muted strum, a chuck, which stops the chord ringing; unstrung does not sound the chuck itself yet.
 An accented stroke has a greater-than sign before it, as in >D.
+A pattern with no accents of its own is played with beat 1 a little stronger, as a player leans on the downbeat without thinking about it; a written accent is much stronger.
 With eight places in a measure of 4/4, the downstrokes fall on the beats and the upstrokes on the ands between them.
 
 These come with unstrung, and each list starts with Down Only and All Down-Up.
@@ -353,6 +354,40 @@ Any other time signature has those two.
 - All Down-Up: down and up in turn on the eighths.
 - On the Pulse: D - - D - - D - - D - -.
 - Slow Blues: every eighth down, strong on each beat.
+
+### Your Own Strumming Patterns
+
+Choose Strumming Patterns from the menu.
+It opens as an item in the list of open items, with you on the Time signature list.
+The Pattern list after it has that time signature's patterns, the ones that come with unstrung first and yours after them, each of yours ending in "yours".
+After them, a line says what the chosen pattern is and reads its strokes out in words, such as "1 down, and miss, 2 down, and up".
+
+The buttons after it:
+
+- **Play:** plays the pattern on G, C, D and F, two measures each, with the metronome on the beats, round and round until you press it again; while playing it reads Pause.
+  Choosing another pattern while it plays switches to that one.
+- **New Pattern:** opens the New Strumming Pattern dialog.
+- **Copy to My Patterns:** opens the same dialog with the chosen pattern's strokes, to make one of your own from it.
+- **Edit:** changes one of yours.
+  The patterns that come with unstrung cannot be changed, so a name always means the same strokes; copy one instead.
+- **Delete:** removes one of yours.
+
+The dialog asks for a name, the time signature and the strokes.
+The strokes are typed as described under Strumming Patterns, and the line after the field reads them back in words as you type, or says what is wrong.
+Play plays them the same way, until you press Pause or close the dialog, and Save Pattern keeps the pattern.
+A name has to be new in its time signature, and so do the strokes: strokes that are already a pattern are refused, with that pattern's name.
+
+Your patterns are listed in the Chord Practice dialog, the progression editor and a progression's Playback section, after the ones that come with unstrung.
+They are kept with your settings.
+
+Under Export and Import:
+
+- **Export My Patterns** saves all of yours to one text file, to back up or pass on.
+  Each line is one pattern, written as its time signature, a comma, its name, a colon and its strokes, such as 4/4, Busy Folk: D - D U D U D U.
+- **Import Patterns** adds the patterns in such a file to yours.
+  One you already have is skipped.
+  One with a name you already use but other strokes is added with "(imported)" after its name.
+  Any line that could not be added is listed with the reason.
 
 ### Editing a Progression, or Making Your Own
 

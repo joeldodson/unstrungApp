@@ -402,7 +402,7 @@ comes later.
   beat, D DU UDU, which the descriptions use, but that form cannot say where a miss falls.
 - **Each pattern is written on its coarsest grid**, so a pattern read back from a score, which
   always comes back coarsest, compares equal; `check-song-score.mjs` checks this.
-  `builtInPatternLike` names any pattern with the same strokes.
+  `namedPatternLike` names any pattern with the same strokes.
 - **Down Only replaces "Every beat, down"** as the name of chord practice's old strum.
 - **Choosing.** The Chord Practice dialog and the progression editor each have a Strumming pattern
   list after the time signature, refilled when the time signature changes, keeping the choice by
@@ -436,6 +436,81 @@ play with.
 - In the file the pattern is written out measure by measure, as each chord's strokes; the
   progression in the app holds it as one setting and expands it as it plays, so nothing has to be
   regenerated to change it.
+
+## Making your own patterns: the design (2026-10-15)
+
+Decided with Joel before building. Replaces "The library is files in a folder" above.
+
+- **Built-in patterns are not editable.** A built-in name always means the same strokes, and an
+  update to unstrung cannot collide with a player's edits. Copy to My Patterns makes an editable
+  copy of one under a new name.
+- **Stored in settings**: the desktop app's settings file (`app-state.json` in the app's data
+  folder) and the browser's local storage, through the same `window.unstrung` settings calls, so
+  patterns work alike everywhere, iOS browsers included. A pattern is a name, a time signature and
+  its strokes, a few dozen characters. Chosen over a folder of files, which would be reachable
+  in File Explorer but would mean opening and saving one file at a time where there is no folder
+  access.
+- **Export and import** make up for settings being out of reach: export writes every pattern of
+  the player's own to one file, import reads one back. The file is plain text, one pattern per
+  line, as the lists read them: `4/4, Busy Folk: D - D U D U D U`. Readable and editable in any
+  editor and by screen reader, and easy to paste into a message. Import lists each line it could
+  not read, with the reason; a line matching a pattern already kept is skipped, and one reusing a
+  name with other strokes is added with "(imported)" after the name. alphaTex was considered and
+  set aside: a pattern is not a score, and it would be far harder to read or edit by hand.
+- **Its own item.** Strumming Patterns on the menu opens an item listing the built-in and the
+  player's own patterns by time signature, with Play, New, Copy to My Patterns, Edit, Delete,
+  Export and Import. The Strumming pattern lists in the dialogs and under Playback include the
+  player's own patterns after the built-in ones. Buttons beside each list were the alternative:
+  quicker in the moment, but no one place to see, delete, export or import.
+- **Strokes are typed** in one text field, as the lists show them: `D - D U - U D U`. A line under
+  the field reads it back slot by slot ("1 down, and miss, 2 down, and up...") or says what is
+  wrong, and Play sounds it on a chord. Slot-by-slot editing was set aside for now.
+- Names must be unique within a time signature, built-in names included.
+
+### As built (2026-10-15)
+
+- **Shared:** `checkOwnPattern`, `formatPatternFile`, `parsePatternFile`, `mergeImportedPatterns`
+  and `describeStrummingPattern` in `src/shared/strummingPatterns.mjs`; `patternsFor` and
+  `namedPatternLike` take the player's own patterns too.
+- **Strokes must be new as well as names.** Found while testing: an imported "Calypso" with Old
+  Faithful's strokes made a progression strumming those strokes be named by whichever list came
+  first. So strokes that are already a pattern in the time signature, built-in or the player's
+  own, on any grid, are refused with that pattern's name: "Those strokes are already Old Faithful
+  in 4/4." An import line like that is listed with the same reason.
+- **Platform:** `saveStrummingPatterns`, `exportStrummingPatterns` and `importStrummingPatterns` on
+  `window.unstrung`. The desktop app keeps patterns in `app-state.json` as `strummingPatterns`,
+  checking their shape on load, and uses the system Save and Open dialogs for `.txt` files; the
+  web version keeps them in local storage with the other settings, saves through the browser's
+  Save dialog where there is one and downloads otherwise, and imports through the upload picker.
+- **The item** has a Time signature select, then a Pattern select with that time signature's
+  patterns, built-in first and the player's own after, each own one ending in "yours". It first
+  had one native list box (`select` with `size`) grouped by `optgroup`, which NVDA made hard to
+  use; see `screen-reader-findings.md`. Arriving puts focus on Time signature, and coming back
+  keeps both lists where they were. What the chosen pattern is, and its strokes in words, are in a
+  paragraph after the lists rather than a description, so they are not read on every visit. Edit and Delete on a built-in pattern say why not, rather than being disabled.
+  Delete does not ask first: a pattern is one line, and Export is the backup.
+- **Play** is a Play/Pause toggle, in the item and in the dialog. It plays G, C, D and F, two
+  measures each, at 80 beats a minute with metronome clicks, round and round until Pause; each
+  time round is laid out on the audio clock two seconds before it is due. In the item, choosing
+  another pattern while it plays switches to it. Closing the dialog or the item stops it. It goes
+  through the chord library's playback, so it stops a chord library or another preview but leaves
+  a progression playing. It first played two measures on G and stopped; Joel found that too short
+  to get the feel of a pattern (2026-10-15).
+- **On the menu's top level**, after Chords, rather than under Chord Progressions: patterns will be
+  used by more than progressions.
+- **The dialog** reads the strokes back in words as the strokes field's description, updated as
+  they are typed. Save puts focus on the field a problem is in.
+- **Copy to My Patterns** starts the name as the original's with "(copy)" after it.
+- **A gentle downbeat** (2026-10-15). Joel asked whether built-in patterns without accents should
+  accent beat 1, as the most common approach. Leaning on beat 1 is common but not universal --
+  rock and pop accent 2 and 4, reggae the offbeats -- and teachers write patterns without accents.
+  Writing `>` into the patterns would also change their strokes, so files and the player's own
+  patterns without it would stop matching them by name. Instead, playback lifts the stroke on
+  beat 1 by 12 percent when a pattern has no accents of its own (`CHORD_PRACTICE_DOWNBEAT_GAIN`),
+  softening nothing else; a written accent is 30 percent up with the rest 15 percent down. Chord
+  practice and Play both strum through `chordPracticeStrokes`, so both have it.
+- Checked by `scripts/songs/verify-strumming-patterns.mjs` and the "Your own patterns" section of
+  `scripts/songs/check-song-score.mjs`.
 
 ## Open questions
 

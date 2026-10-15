@@ -63,6 +63,9 @@
                                 data-command="guitar-samples">Listen to Guitar Samples…</div></li>
                         </ul>
                     </li>
+                    <!-- At the top level: patterns are used by more than chord progressions. -->
+                    <li role="none"><div role="menuitem" tabindex="-1" id="menu-strumming-patterns"
+                        data-command="strumming-patterns">Strumming Patterns</div></li>
                     <li role="separator"></li>
                     <li role="none"><div role="menuitem" tabindex="-1" id="menu-settings"
                         data-command="settings">Settings…</div></li>
@@ -389,6 +392,58 @@
         <div class="button-row">
             <button type="button" id="progression-editor-apply-button">Apply Changes</button>
             <button type="button" id="progression-editor-cancel-button">Cancel</button>
+        </div>
+    </dialog>
+
+    <!-- Making or changing one of the player's own strumming patterns, from the Strumming Patterns
+         item. See src/shared/strummingPatterns.mjs, A player's own patterns. -->
+    <dialog id="pattern-dialog" aria-labelledby="pattern-dialog-heading-name" tabindex="-1">
+        <h1 id="pattern-dialog-heading"><span id="pattern-dialog-heading-name">New Strumming Pattern</span> Dialog Box</h1>
+
+        <p>
+            <label for="pattern-name-input">Name</label>
+            <input type="text" id="pattern-name-input" maxlength="60" autocomplete="off" />
+        </p>
+
+        <p>
+            <label for="pattern-beats-input">Beats per measure</label>
+            <input type="number" inputmode="numeric" id="pattern-beats-input" min="1" max="16" step="1" value="4" />
+        </p>
+
+        <p>
+            <label for="pattern-beat-unit-input">Note value that gets one beat</label>
+            <input type="number" inputmode="numeric" id="pattern-beat-unit-input" min="1" max="16" step="1" value="4" />
+        </p>
+
+        <div class="field-row">
+            <p>
+                <label for="pattern-strokes-input">Strokes</label>
+                <input type="text" id="pattern-strokes-input" autocomplete="off" spellcheck="false"
+                    autocapitalize="characters" aria-describedby="pattern-readback" />
+            </p>
+            <details>
+                <summary>How Strokes Are Written</summary>
+                <p>
+                    One stroke for each place the hand passes the strings, separated by spaces: D for
+                    down, U for up, a dash for passing without strumming, x for a muted chuck. A
+                    greater-than sign before a stroke accents it. In 4/4, four strokes are one on
+                    each beat, eight add the ands between them, and sixteen are sixteenth notes.
+                    For example, Old Faithful is D - D U - U D U.
+                </p>
+            </details>
+        </div>
+
+        <!-- The strokes read back in words, as the strokes field's description, or what is wrong
+             with them. A screen reader may pass over the dashes and greater-than signs in the
+             field itself. -->
+        <p id="pattern-readback"></p>
+
+        <p id="pattern-status" aria-live="polite"></p>
+
+        <div class="button-row">
+            <button type="button" id="pattern-play-button" aria-pressed="false">Play</button>
+            <button type="button" id="pattern-save-button">Save Pattern</button>
+            <button type="button" id="pattern-cancel-button">Cancel</button>
         </div>
     </dialog>
 

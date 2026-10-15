@@ -18,7 +18,8 @@ import {
     songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, alphaTexError
 } from '../shared/songScore.mjs';
 import {
-    everyBeatDown, formatStrummingPattern, patternsFor, builtInPatternLike
+    everyBeatDown, formatStrummingPattern, patternsFor, namedPatternLike, parseStrummingPattern, fitPattern,
+    checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import { createMenuButton } from './menu.js';
@@ -3801,6 +3802,9 @@ const CHORD_PRACTICE_MAX_TEMPO = 240;
 
 let chordPracticeDialogOpener = null;
 let chordPracticeLibrary = null;
+// The player's own strumming patterns, from settings: { name, timeSignature, text } each. Read
+// with the chord library before any pattern list is filled; see ensureChordPracticeReady.
+let ownStrummingPatterns = [];
 let chordPracticeSpeechSupported = null;
 
 /** Every key the chosen level can offer, spelled the way it is spoken: "C major". */
@@ -4098,15 +4102,22 @@ function chordPracticeMeasureAt(state, seconds) {
 
 /** Fetches and decodes every guitar note the progression needs, once. */
 async function chordPracticeLoadNotes(state, myToken) {
-    const sampleNotes = await loadGuitarSampleNotesOnce();
-    if (myToken !== chordPracticeToken) return null;
-
     const wanted = new Set();
     for (const chord of state.progression.chords) {
         for (const midi of chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? []) {
             wanted.add(midi);
         }
     }
+    return loadPracticeNoteBuffers(wanted, () => myToken !== chordPracticeToken);
+}
+
+/**
+ * Fetches and decodes the guitar notes for a set of pitches, nearest sample to each, keyed by
+ * pitch. Null if `cancelled` says the playback that wanted them has since been abandoned.
+ */
+async function loadPracticeNoteBuffers(wanted, cancelled) {
+    const sampleNotes = await loadGuitarSampleNotesOnce();
+    if (cancelled()) return null;
 
     const buffers = new Map();
     for (const midi of wanted) {
@@ -4120,7 +4131,7 @@ async function chordPracticeLoadNotes(state, myToken) {
             const arrayBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
             buffers.set(midi, await getSharedAudioContext().decodeAudioData(arrayBuffer));
         } catch { /* one missing sample must not stop the run */ }
-        if (myToken !== chordPracticeToken) return null;
+        if (cancelled()) return null;
     }
     return buffers;
 }
@@ -4156,6 +4167,9 @@ const CHORD_PRACTICE_UPSTROKE_STRINGS = 4;
 const CHORD_PRACTICE_UPSTROKE_GAIN = 0.8;
 const CHORD_PRACTICE_ACCENT_GAIN = 1.3;
 const CHORD_PRACTICE_UNACCENTED_GAIN = 0.85;
+// A pattern with no accents of its own still leans a little on the downbeat, as a player does
+// without thinking about it: much less than a written accent, and nothing else is softened.
+const CHORD_PRACTICE_DOWNBEAT_GAIN = 1.12;
 // A strum rings on past the next one, as it did when every beat was strummed: 1.8 times the gap
 // before the next stroke. A mute is the exception: it stops the strings, so nothing rings past it.
 const CHORD_PRACTICE_RING_FACTOR = 1.8;
@@ -4181,7 +4195,9 @@ function chordPracticeStrokes(progression) {
                 slot: slot.index,
                 direction: slot.stroke === 'up' ? 'up' : 'down',
                 mute: slot.stroke === 'mute',
-                gain: !accented ? 1 : slot.accent ? CHORD_PRACTICE_ACCENT_GAIN : CHORD_PRACTICE_UNACCENTED_GAIN,
+                gain: accented
+                    ? (slot.accent ? CHORD_PRACTICE_ACCENT_GAIN : CHORD_PRACTICE_UNACCENTED_GAIN)
+                    : (slot.index === 0 ? CHORD_PRACTICE_DOWNBEAT_GAIN : 1),
                 ringSlots: gap,
                 ringFactor: next.stroke === 'mute' ? 1 : CHORD_PRACTICE_RING_FACTOR
             };
@@ -4205,8 +4221,11 @@ function chordPracticeStrokeRing(state, stroke) {
  * `skipSeconds` enters the samples partway through, for a chord that was already ringing when
  * playback restarted. Without it a restart cuts whatever is sounding and waits for the next beat,
  * which at a practice tempo is most of a second of silence.
+ *
+ * output sends the strum somewhere other than chord practice's own playback, as the pattern
+ * preview does: { destination, sources }, the sources list taking each { source, endsAt }.
  */
-function scheduleChordPracticeStrum(state, midi, stroke, at, skipSeconds = 0) {
+function scheduleChordPracticeStrum(state, midi, stroke, at, skipSeconds = 0, output = null) {
     if (stroke.mute) return;
     const context = getSharedAudioContext();
     const sweep = stroke.direction === 'up'
@@ -4236,10 +4255,10 @@ function scheduleChordPracticeStrum(state, midi, stroke, at, skipSeconds = 0) {
         gain.gain.setValueAtTime(level, start);
         gain.gain.setValueAtTime(level, start + remaining - fade);
         gain.gain.linearRampToValueAtTime(0, start + remaining);
-        source.connect(gain).connect(chordPracticeMasterGain);
+        source.connect(gain).connect(output?.destination ?? chordPracticeMasterGain);
         source.start(start, into);
         source.stop(start + remaining + 0.01);
-        chordPracticeSources.push({ source, endsAt: start + remaining + 0.01 });
+        (output?.sources ?? chordPracticeSources).push({ source, endsAt: start + remaining + 0.01 });
     }
 }
 
@@ -5053,6 +5072,7 @@ async function ensureChordPracticeReady() {
         chordVoice: settings.chordVoice ?? 'zira',
         chordVoicePercent: settings.chordVoicePercent ?? 75
     };
+    ownStrummingPatterns = Array.isArray(settings.strummingPatterns) ? settings.strummingPatterns : [];
 }
 
 /**
@@ -5216,11 +5236,12 @@ function progressionPattern(progression) {
 
 /**
  * The pattern as the Metadata list and the pattern lists say it: its name where it is a built-in
- * one, then the strokes, which are what a player needs to play along. "Old Faithful: D - D U - U D U".
+ * one or one of the player's own, then the strokes, which are what a player needs to play along.
+ * "Old Faithful: D - D U - U D U".
  */
 function strummingPatternLabel(pattern, beatsPerBar, beatUnit) {
     const text = formatStrummingPattern(pattern.slots);
-    const builtIn = builtInPatternLike(pattern, beatsPerBar, beatUnit);
+    const builtIn = namedPatternLike(pattern, beatsPerBar, beatUnit, ownStrummingPatterns);
     return builtIn ? `${builtIn.name}: ${builtIn.text}` : text;
 }
 
@@ -5238,10 +5259,10 @@ function progressionPatternLabel(progression) {
  */
 function fillPatternSelect(select, beatsPerBar, beatUnit, current = null) {
     const previous = select.patterns?.[Number(select.value)]?.name;
-    const patterns = patternsFor(beatsPerBar, beatUnit);
+    const patterns = patternsFor(beatsPerBar, beatUnit, ownStrummingPatterns);
     let chosen = previous ? patterns.findIndex(p => p.name === previous) : 0;
     if (current && current.slots.length === beatsPerBar * current.slotsPerBeat) {
-        const builtIn = builtInPatternLike(current, beatsPerBar, beatUnit);
+        const builtIn = namedPatternLike(current, beatsPerBar, beatUnit, ownStrummingPatterns);
         if (builtIn) chosen = patterns.findIndex(p => p.name === builtIn.name);
         else {
             patterns.push({ name: null, slotsPerBeat: current.slotsPerBeat, slots: current.slots });
@@ -5252,7 +5273,7 @@ function fillPatternSelect(select, beatsPerBar, beatUnit, current = null) {
     select.replaceChildren(...patterns.map((pattern, index) => {
         const option = document.createElement('option');
         option.value = String(index);
-        option.textContent = pattern.name ? `${pattern.name}: ${pattern.text}` : `This progression's own: ${formatStrummingPattern(pattern.slots)}`;
+        option.textContent = pattern.name ? `${pattern.name}: ${pattern.text}` : `From this progression: ${formatStrummingPattern(pattern.slots)}`;
         return option;
     }));
     select.value = String(Math.max(0, chosen));
@@ -5502,6 +5523,502 @@ async function openChordPracticeDialog() {
     chordPracticeDialog.showModal();
     chordPracticeDialog.focus();
 }
+
+// --- Strumming Patterns -------------------------------------------------------------------------
+// The patterns that ship with unstrung and the player's own, in one item opened from the menu:
+// play any of them, make new ones, copy a built-in one to change it, edit and delete the player's
+// own, and export or import them as a text file. Built-in patterns cannot be changed, so a name
+// always means the same strokes. See docs/strumming-patterns-and-metronome.md.
+
+// Play in the Strumming Patterns item and the pattern dialog: a short progression, two measures of
+// each chord, round and round until Pause, with the metronome on the beats.
+const PATTERN_PREVIEW_CHORDS = [
+    { root: 'G', suffix: 'major' }, { root: 'C', suffix: 'major' },
+    { root: 'D', suffix: 'major' }, { root: 'F', suffix: 'major' }
+];
+const PATTERN_PREVIEW_MEASURES_EACH = 2;
+const PATTERN_PREVIEW_TEMPO = 80;
+// How far ahead of the next time round it is laid out.
+const PATTERN_PREVIEW_LEAD_SECONDS = 2;
+
+let strummingPatternsItemId = null;
+let strummingPatternsUi = null;
+
+/** Every pattern the item lists, built-in then the player's own, by time signature. */
+function allListedPatterns() {
+    const builtInSignatures = [...new Set(BUILT_IN_PATTERNS.map(p => p.timeSignature))];
+    const ownOnly = [...new Set(ownStrummingPatterns.map(p => p.timeSignature))]
+        .filter(signature => !builtInSignatures.includes(signature))
+        .sort((a, b) => {
+            const [aBeats, aUnit] = a.split('/').map(Number);
+            const [bBeats, bUnit] = b.split('/').map(Number);
+            return aUnit - bUnit || aBeats - bBeats;
+        });
+    const listed = [];
+    for (const signature of [...builtInSignatures, ...ownOnly]) {
+        const [beatsPerBar, beatUnit] = signature.split('/').map(Number);
+        for (const pattern of patternsFor(beatsPerBar, beatUnit, ownStrummingPatterns)) {
+            listed.push({ ...pattern, timeSignature: signature, beatsPerBar, beatUnit });
+        }
+    }
+    return listed;
+}
+
+// The Play button that is playing, if any, its timer and what it has scheduled. Only one plays at
+// a time, the item's or the dialog's.
+const patternPreview = { button: null, timer: null, sources: [] };
+
+function setPreviewButton(button, playing) {
+    button.textContent = playing ? 'Pause' : 'Play';
+    button.setAttribute('aria-pressed', String(playing));
+}
+
+/** Stops the pattern preview, and puts its button back to Play. */
+function stopPatternPreview() {
+    clearTimeout(patternPreview.timer);
+    patternPreview.timer = null;
+    if (patternPreview.button) setPreviewButton(patternPreview.button, false);
+    patternPreview.button = null;
+    patternPreview.sources = [];
+    stopChordPlayback();
+}
+
+/**
+ * Plays a pattern on G, C, D and F, two measures each, at 80 beats a minute with the metronome on
+ * the beats, round and round until stopped. `button` is the Play button, which reads Pause while
+ * it plays.
+ *
+ * Through the chord library's playback, so the chord library playing anything stops it, and it
+ * leaves a progression's playback alone. Each time round is laid out a couple of seconds before it
+ * is due, on the audio clock, so the loop joins without a gap.
+ */
+async function startPatternPreview(button, pattern, beatsPerBar) {
+    stopPatternPreview();
+    patternPreview.button = button;
+    setPreviewButton(button, true);
+    const myToken = chordPlaybackToken;
+    const stillMine = () => myToken === chordPlaybackToken && patternPreview.button === button;
+
+    await ensureChordPracticeReady();
+    const voicings = PATTERN_PREVIEW_CHORDS.map(chord => chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? []);
+    const buffers = await loadPracticeNoteBuffers(new Set(voicings.flat()), () => !stillMine());
+    if (!buffers || !stillMine()) return;
+
+    const context = getSharedAudioContext();
+    const master = context.createGain();
+    master.gain.value = 1;
+    master.connect(context.destination);
+    chordMasterGain = master;
+
+    const player = { tempo: PATTERN_PREVIEW_TEMPO, buffers, strokes: chordPracticeStrokes({ beatsPerBar, pattern }) };
+    const secondsPerBeat = 60 / PATTERN_PREVIEW_TEMPO;
+    const slotSeconds = secondsPerBeat / player.strokes.slotsPerBeat;
+    const measureSeconds = beatsPerBar * secondsPerBeat;
+    const roundSeconds = PATTERN_PREVIEW_CHORDS.length * PATTERN_PREVIEW_MEASURES_EACH * measureSeconds;
+
+    const scheduleRound = start => {
+        // Something else stopped the chord library's playback: let the button say so.
+        if (!stillMine()) {
+            if (patternPreview.button === button) {
+                setPreviewButton(button, false);
+                patternPreview.button = null;
+            }
+            return;
+        }
+        // Only what is still sounding is kept, so a long listen does not pile up finished sources.
+        const now = context.currentTime;
+        const output = { destination: master, sources: patternPreview.sources.filter(entry => entry.endsAt > now) };
+        for (const [chordIndex, midi] of voicings.entries()) {
+            for (let repeat = 0; repeat < PATTERN_PREVIEW_MEASURES_EACH; repeat++) {
+                const measureStart = start + (chordIndex * PATTERN_PREVIEW_MEASURES_EACH + repeat) * measureSeconds;
+                for (let beat = 0; beat < beatsPerBar; beat++) {
+                    const at = measureStart + beat * secondsPerBeat;
+                    output.sources.push({ source: scheduleMetronomeClick(context, master, at, beat === 0), endsAt: at + METRONOME_CLICK_SECONDS });
+                }
+                for (const stroke of player.strokes.strokes) {
+                    scheduleChordPracticeStrum(player, midi, stroke, measureStart + stroke.slot * slotSeconds, 0, output);
+                }
+            }
+        }
+        patternPreview.sources = output.sources;
+        chordActiveSources = output.sources.map(entry => entry.source);
+        const next = start + roundSeconds;
+        patternPreview.timer = setTimeout(() => scheduleRound(next),
+            Math.max(0, (next - PATTERN_PREVIEW_LEAD_SECONDS - context.currentTime) * 1000));
+    };
+    scheduleRound(context.currentTime + 0.1);
+}
+
+/** Play and Pause in one button: starts the preview from this button, or stops it. */
+function togglePatternPreview(button, pattern, beatsPerBar) {
+    if (patternPreview.button === button) {
+        stopPatternPreview();
+        return false;
+    }
+    startPatternPreview(button, pattern, beatsPerBar);
+    return true;
+}
+
+/** Keeps the player's patterns, and refills every list that offers them. */
+async function saveOwnStrummingPatterns(patterns) {
+    ownStrummingPatterns = await window.unstrung.saveStrummingPatterns(patterns);
+    for (const { state } of chordPracticeStates) {
+        fillPatternSelect(state.ui.patternSelect, state.progression.beatsPerBar, state.progression.beatUnit,
+            progressionPattern(state.progression));
+        state.ui.strummingItem.textContent = `Strumming - ${progressionPatternLabel(state.progression)}`;
+    }
+}
+
+/** What the item says about the pattern chosen in its list. */
+function describeListedPattern(pattern) {
+    const words = `In words: ${describeStrummingPattern(pattern.slots, pattern.slotsPerBeat)}.`;
+    return pattern.own ? `One of yours. ${words}` : `${pattern.about} ${words}`;
+}
+
+/**
+ * Fills the item's two lists, time signatures and then that time signature's patterns, and
+ * chooses a pattern: the one named by `choose` ({ timeSignature, name }) where given, else the one
+ * chosen before, else the first of the time signature shown, else Down Only in 4/4.
+ *
+ * Two plain dropdowns rather than one list box grouped by time signature: NVDA read the list box
+ * as a run of "clickable" items, named its groups only at their first item, and in focus mode its
+ * arrows went nowhere. See docs/screen-reader-findings.md.
+ */
+function renderStrummingPatternList(choose = null) {
+    const ui = strummingPatternsUi;
+    if (!ui) return;
+    const before = chosenListedPattern();
+    const wanted = choose
+        ?? (before ? { timeSignature: before.timeSignature, name: before.name } : null)
+        ?? (ui.signatureSelect.value ? { timeSignature: ui.signatureSelect.value, name: null } : null);
+    ui.all = allListedPatterns();
+
+    const signatures = [...new Set(ui.all.map(p => p.timeSignature))];
+    ui.signatureSelect.replaceChildren(...signatures.map(signature => {
+        const option = document.createElement('option');
+        option.value = signature;
+        option.textContent = signature;
+        return option;
+    }));
+    ui.signatureSelect.value = signatures.includes(wanted?.timeSignature) ? wanted.timeSignature : signatures[0];
+    fillListedPatterns(wanted?.name ?? null);
+}
+
+/** Fills the Pattern list for the time signature chosen, choosing `name` where it is there. */
+function fillListedPatterns(name = null) {
+    const ui = strummingPatternsUi;
+    ui.patterns = ui.all.filter(p => p.timeSignature === ui.signatureSelect.value);
+    ui.list.replaceChildren(...ui.patterns.map((pattern, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = `${pattern.name}: ${pattern.text}${pattern.own ? ', yours' : ''}`;
+        return option;
+    }));
+    const found = name ? ui.patterns.findIndex(p => p.name === name) : -1;
+    ui.list.value = String(Math.max(0, found));
+    ui.about.textContent = describeListedPattern(ui.patterns[Number(ui.list.value)]);
+}
+
+function chosenListedPattern() {
+    return strummingPatternsUi?.patterns?.[Number(strummingPatternsUi.list.value)] ?? null;
+}
+
+async function openStrummingPatternsItem() {
+    // Only ever one, like the chord library.
+    const existing = openItems.find(item => item.id === strummingPatternsItemId);
+    if (existing) {
+        showItem(existing.id);
+        strummingPatternsUi?.signatureSelect.focus();
+        return;
+    }
+    await ensureChordPracticeReady();
+
+    const container = document.createElement('div');
+    const heading = document.createElement('h2');
+    heading.textContent = 'Strumming Patterns';
+    container.append(heading);
+
+    const listHeading = document.createElement('h3');
+    listHeading.textContent = 'Patterns';
+    container.append(listHeading);
+
+    // The time signature first, then the patterns in it, as the Chord Practice dialog asks.
+    const signatureParagraph = document.createElement('p');
+    const signatureSelect = document.createElement('select');
+    signatureSelect.id = uniqueControlId('strumming-patterns-time-signature');
+    const signatureLabel = document.createElement('label');
+    signatureLabel.htmlFor = signatureSelect.id;
+    signatureLabel.textContent = 'Time signature';
+    signatureParagraph.append(signatureLabel, signatureSelect);
+    container.append(signatureParagraph);
+
+    const listParagraph = document.createElement('p');
+    const list = document.createElement('select');
+    list.id = uniqueControlId('strumming-patterns-list');
+    const listLabel = document.createElement('label');
+    listLabel.htmlFor = list.id;
+    listLabel.textContent = 'Pattern';
+    listParagraph.append(listLabel, list);
+    container.append(listParagraph);
+
+    // Not a description on the list, which would be read every time it is reached; it is here,
+    // after it, for reading when wanted.
+    const about = document.createElement('p');
+    container.append(about);
+
+    const actions = createButtonRow();
+    const makeButton = (row, label) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        row.append(button);
+        return button;
+    };
+    const playButton = makeButton(actions, 'Play');
+    const newButton = makeButton(actions, 'New Pattern');
+    const copyButton = makeButton(actions, 'Copy to My Patterns');
+    const editButton = makeButton(actions, 'Edit');
+    const deleteButton = makeButton(actions, 'Delete');
+    container.append(actions);
+
+    const exchangeHeading = document.createElement('h3');
+    exchangeHeading.textContent = 'Export and Import';
+    container.append(exchangeHeading);
+    const exchange = createButtonRow();
+    const exportButton = makeButton(exchange, 'Export My Patterns');
+    const importButton = makeButton(exchange, 'Import Patterns');
+    container.append(exchange);
+
+    const status = document.createElement('p');
+    status.setAttribute('aria-live', 'polite');
+    const problems = document.createElement('ul');
+    problems.hidden = true;
+    container.append(status, problems);
+
+    const item = createOpenItem('Strumming Patterns', container, {
+        kind: 'strumming-patterns',
+        onClose: () => {
+            stopPatternPreview();
+            strummingPatternsUi = null;
+            strummingPatternsItemId = null;
+        }
+    });
+    strummingPatternsItemId = item.id;
+    const announce = text => announceLiveRegion(status, text);
+    strummingPatternsUi = { signatureSelect, list, about, status, problems, announce, all: [], patterns: null };
+    renderStrummingPatternList();
+
+    // Choosing another pattern while it plays switches to that one, so patterns can be compared
+    // by ear without pressing Play each time.
+    const playChosenIfPlaying = () => {
+        const pattern = chosenListedPattern();
+        if (pattern && patternPreview.button === playButton) startPatternPreview(playButton, pattern, pattern.beatsPerBar);
+    };
+    signatureSelect.addEventListener('change', () => {
+        fillListedPatterns();
+        playChosenIfPlaying();
+    });
+    list.addEventListener('change', () => {
+        const pattern = chosenListedPattern();
+        if (pattern) about.textContent = describeListedPattern(pattern);
+        playChosenIfPlaying();
+    });
+    playButton.setAttribute('aria-pressed', 'false');
+    playButton.addEventListener('click', () => {
+        const pattern = chosenListedPattern();
+        if (!pattern) return;
+        if (togglePatternPreview(playButton, pattern, pattern.beatsPerBar)) announce(`Playing ${pattern.name}.`);
+    });
+    newButton.addEventListener('click', () => {
+        const pattern = chosenListedPattern();
+        openPatternDialog({ beatsPerBar: pattern?.beatsPerBar ?? 4, beatUnit: pattern?.beatUnit ?? 4 });
+    });
+    copyButton.addEventListener('click', () => {
+        const pattern = chosenListedPattern();
+        if (!pattern) return;
+        openPatternDialog({
+            name: `${pattern.name} (copy)`, beatsPerBar: pattern.beatsPerBar, beatUnit: pattern.beatUnit, text: pattern.text
+        });
+    });
+    editButton.addEventListener('click', () => {
+        const pattern = chosenListedPattern();
+        if (!pattern) return;
+        if (!pattern.own) {
+            announce(`${pattern.name} is built in. Copy to My Patterns makes one you can change.`);
+            return;
+        }
+        openPatternDialog({
+            editing: ownStrummingPatterns.find(p => p.timeSignature === pattern.timeSignature && p.name === pattern.name),
+            name: pattern.name, beatsPerBar: pattern.beatsPerBar, beatUnit: pattern.beatUnit, text: pattern.text
+        });
+    });
+    deleteButton.addEventListener('click', async () => {
+        const pattern = chosenListedPattern();
+        if (!pattern) return;
+        if (!pattern.own) {
+            announce(`${pattern.name} is built in, and stays.`);
+            return;
+        }
+        const index = strummingPatternsUi.patterns.indexOf(pattern);
+        const next = strummingPatternsUi.patterns[index + 1] ?? strummingPatternsUi.patterns[index - 1];
+        await saveOwnStrummingPatterns(ownStrummingPatterns.filter(p =>
+            !(p.timeSignature === pattern.timeSignature && p.name === pattern.name)));
+        renderStrummingPatternList(next ? { timeSignature: next.timeSignature, name: next.name } : null);
+        announce(`Deleted ${pattern.name}.`);
+    });
+    exportButton.addEventListener('click', async () => {
+        if (ownStrummingPatterns.length === 0) {
+            announce('You have no patterns of your own to export yet.');
+            return;
+        }
+        let result;
+        try {
+            result = await window.unstrung.exportStrummingPatterns({
+                text: formatPatternFile(ownStrummingPatterns), suggestedName: 'unstrung strumming patterns'
+            });
+        } catch (error) {
+            announce(`Could not export: ${error.message}`);
+            return;
+        }
+        if (!result) { announce('Not exported.'); return; }
+        const count = ownStrummingPatterns.length;
+        announce(`${result.downloaded ? 'Downloaded' : 'Exported'} ${count} ${count === 1 ? 'pattern' : 'patterns'} as ${result.name}.`);
+    });
+    importButton.addEventListener('click', async () => {
+        let file;
+        try {
+            file = await window.unstrung.importStrummingPatterns();
+        } catch (error) {
+            announce(`Could not import: ${error.message}.`);
+            return;
+        }
+        if (!file) return;
+        const merged = mergeImportedPatterns(ownStrummingPatterns, file.text);
+        if (merged.added > 0) await saveOwnStrummingPatterns(merged.own);
+        renderStrummingPatternList();
+
+        const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+        const parts = [`Imported ${plural(merged.added, 'pattern', 'patterns')} from ${file.name}.`];
+        if (merged.skipped) parts.push(`${plural(merged.skipped, 'was', 'were')} already here.`);
+        const notes = [
+            ...merged.renamed.map(r => ({ line: r.line, text: `kept as ${r.to}, since ${r.from} is already a pattern with other strokes` })),
+            ...merged.problems.map(p => ({ line: p.line, text: p.reason }))
+        ].sort((a, b) => a.line - b.line);
+        if (notes.length) parts.push(`${plural(notes.length, 'line needs', 'lines need')} a note, listed next.`);
+        problems.replaceChildren(...notes.map(note => {
+            const li = document.createElement('li');
+            li.textContent = `Line ${note.line}: ${note.text}.`;
+            return li;
+        }));
+        problems.hidden = notes.length === 0;
+        announce(parts.join(' '));
+    });
+
+    showItem(item.id);
+    signatureSelect.focus();
+}
+
+// The dialog for making, copying and editing a pattern of the player's own.
+const patternDialog = document.getElementById('pattern-dialog');
+const patternDialogHeadingName = document.getElementById('pattern-dialog-heading-name');
+const patternNameInput = document.getElementById('pattern-name-input');
+const patternBeatsInput = document.getElementById('pattern-beats-input');
+const patternBeatUnitInput = document.getElementById('pattern-beat-unit-input');
+const patternStrokesInput = document.getElementById('pattern-strokes-input');
+const patternReadback = document.getElementById('pattern-readback');
+const patternStatus = document.getElementById('pattern-status');
+const patternEditor = { editing: null, opener: null };
+
+/** The dialog's strokes read as a pattern for its time signature, or why they cannot be. */
+function patternDialogStrokes() {
+    const beatsPerBar = Number(patternBeatsInput.value);
+    const read = parseStrummingPattern(patternStrokesInput.value);
+    if (read.error) return { error: read.error };
+    const fit = fitPattern(read.slots, beatsPerBar);
+    if (fit.error) return { error: fit.error };
+    return { pattern: { slotsPerBeat: fit.slotsPerBeat, slots: read.slots }, beatsPerBar };
+}
+
+function updatePatternReadback() {
+    if (!patternStrokesInput.value.trim()) {
+        patternReadback.textContent = '';
+        return;
+    }
+    const result = patternDialogStrokes();
+    patternReadback.textContent = result.error
+        ? `Not yet a pattern: ${result.error}`
+        : `In words: ${describeStrummingPattern(result.pattern.slots, result.pattern.slotsPerBeat)}.`;
+}
+
+/**
+ * Opens the pattern dialog. With `editing`, one of the player's own patterns, it changes that one;
+ * otherwise it makes a new one, starting from the name, time signature and strokes given.
+ */
+function openPatternDialog({ editing = null, name = '', beatsPerBar = 4, beatUnit = 4, text = '' } = {}) {
+    patternEditor.editing = editing;
+    patternEditor.opener = document.activeElement;
+    patternDialogHeadingName.textContent = editing ? 'Edit Strumming Pattern' : 'New Strumming Pattern';
+    patternNameInput.value = name;
+    patternBeatsInput.value = String(beatsPerBar);
+    patternBeatUnitInput.value = String(beatUnit);
+    patternStrokesInput.value = text;
+    patternStatus.textContent = '';
+    updatePatternReadback();
+    patternDialog.showModal();
+    patternNameInput.focus();
+}
+
+for (const input of [patternStrokesInput, patternBeatsInput, patternBeatUnitInput]) {
+    input.addEventListener('input', updatePatternReadback);
+}
+
+const patternPlayButton = document.getElementById('pattern-play-button');
+patternPlayButton.addEventListener('click', () => {
+    // Pause works whatever the field holds; Play needs strokes that make a pattern.
+    if (patternPreview.button === patternPlayButton) {
+        stopPatternPreview();
+        return;
+    }
+    const result = patternDialogStrokes();
+    if (result.error) {
+        announceLiveRegion(patternStatus, result.error);
+        patternStrokesInput.focus();
+        return;
+    }
+    startPatternPreview(patternPlayButton, result.pattern, result.beatsPerBar);
+});
+
+document.getElementById('pattern-save-button').addEventListener('click', async () => {
+    const checked = checkOwnPattern({
+        name: patternNameInput.value,
+        beatsPerBar: Number(patternBeatsInput.value),
+        beatUnit: Number(patternBeatUnitInput.value),
+        text: patternStrokesInput.value
+    }, { own: ownStrummingPatterns, replacing: patternEditor.editing });
+    if (checked.error) {
+        announceLiveRegion(patternStatus, checked.error);
+        ({ name: patternNameInput, timeSignature: patternBeatsInput, strokes: patternStrokesInput })[checked.field]?.focus();
+        return;
+    }
+    const kept = patternEditor.editing
+        ? ownStrummingPatterns.map(p => (p === patternEditor.editing ? checked.pattern : p))
+        : [...ownStrummingPatterns, checked.pattern];
+    await saveOwnStrummingPatterns(kept);
+    // Back to the list, on the pattern just saved.
+    patternEditor.opener = strummingPatternsUi?.list ?? patternEditor.opener;
+    patternDialog.close();
+    renderStrummingPatternList({ timeSignature: checked.pattern.timeSignature, name: checked.pattern.name });
+    strummingPatternsUi?.announce(`Saved ${checked.pattern.name}.`);
+});
+
+document.getElementById('pattern-cancel-button').addEventListener('click', () => patternDialog.close());
+
+patternDialog.addEventListener('close', () => {
+    if (patternPreview.button === patternPlayButton) stopPatternPreview();
+    if (patternEditor.opener?.isConnected) patternEditor.opener.focus();
+    patternEditor.opener = null;
+    patternEditor.editing = null;
+});
 
 // --- Unsaved changes -------------------------------------------------------------------------
 //
@@ -6749,6 +7266,7 @@ const MENU_COMMANDS = {
     'chord-practice': () => openChordPracticeDialog(),
     'new-progression': () => openProgressionEditor(),
     'open-progression': () => openProgressionOpenDialog(),
+    'strumming-patterns': () => openStrummingPatternsItem(),
     'chord-library': () => openChordLibraryTab(),
     'frets-to-chord': () => openFretsToChordDialog(),
     'guitar-samples': () => openGuitarSamplesDialog(),

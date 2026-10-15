@@ -133,8 +133,24 @@ async function dbSet(key, value) {
 
 const SETTINGS_KEY = 'unstrung-settings';
 const DEFAULT_SETTINGS = {
-    terseBeatDescriptions: false, autoCollapseOnTabChange: true, chordVoice: 'zira', chordVoicePercent: 75
+    terseBeatDescriptions: false, autoCollapseOnTabChange: true, chordVoice: 'zira', chordVoicePercent: 75,
+    // The player's own strumming patterns, { name, timeSignature, text } each.
+    strummingPatterns: []
 };
+
+/** Hands the browser a file to save, wherever it keeps downloads. */
+function downloadTextFile(fileName, text) {
+    const url = URL.createObjectURL(new Blob([String(text)], { type: 'text/plain' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    // Some browsers start reading the file only after the click has returned.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 function readSettings() {
     try {
@@ -515,16 +531,7 @@ window.unstrung = {
     saveProgression: async ({ text, filePath, suggestedName }) => {
         if (!hasFilePickers) {
             const fileName = `${safeFileName(suggestedName)}${PROGRESSION_EXTENSION}`;
-            const url = URL.createObjectURL(new Blob([String(text)], { type: 'text/plain' }));
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = fileName;
-            link.hidden = true;
-            document.body.append(link);
-            link.click();
-            link.remove();
-            // Some browsers start reading the file only after the click has returned.
-            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+            downloadTextFile(fileName, text);
             return { filePath: null, name: baseName(fileName), insideFolder: false, downloaded: true };
         }
         let handle = filePath ? knownProgressionFiles.get(filePath) : null;
@@ -636,5 +643,42 @@ window.unstrung = {
         if (Number.isFinite(percent)) changes.chordVoicePercent = Math.max(0, Math.min(100, Math.round(percent)));
         const saved = writeSettings(changes);
         return { chordVoice: saved.chordVoice, chordVoicePercent: saved.chordVoicePercent };
+    },
+
+    // The player's own strumming patterns, kept in local storage with the other settings, and
+    // exported and imported as one text file. Export asks for nothing before the Save dialog, for
+    // the same reason saveProgression does; without one it downloads the file.
+    saveStrummingPatterns: async patterns => {
+        const kept = (Array.isArray(patterns) ? patterns : [])
+            .filter(p => p && typeof p.name === 'string' && typeof p.timeSignature === 'string' && typeof p.text === 'string')
+            .map(p => ({ name: p.name, timeSignature: p.timeSignature, text: p.text }));
+        return writeSettings({ strummingPatterns: kept }).strummingPatterns;
+    },
+    exportStrummingPatterns: async ({ text, suggestedName }) => {
+        const fileName = `${safeFileName(suggestedName)}.txt`;
+        if (!hasFilePickers) {
+            downloadTextFile(fileName, text);
+            return { filePath: null, name: fileName, downloaded: true };
+        }
+        let handle;
+        try {
+            handle = await window.showSaveFilePicker({
+                id: 'unstrung-patterns', suggestedName: fileName, startIn: 'documents',
+                types: [{ description: 'Text files', accept: { 'text/plain': ['.txt'] } }]
+            });
+        } catch (error) {
+            if (isCancel(error)) return null;
+            throw error;
+        }
+        const writable = await handle.createWritable();
+        await writable.write(String(text));
+        await writable.close();
+        return { filePath: null, name: handle.name };
+    },
+    importStrummingPatterns: async () => {
+        const file = await pickFileWithUploadField('.txt,text/plain');
+        if (!file) return null;
+        if (file.size > 1024 * 1024) throw new Error('it is too large to be a file of strumming patterns');
+        return { name: file.name, text: await file.text() };
     }
 };

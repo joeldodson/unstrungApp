@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-    parseStrummingPattern, formatStrummingPattern, fitPattern, coarsestPattern, patternsFor, builtInPatternLike,
+    parseStrummingPattern, formatStrummingPattern, fitPattern, coarsestPattern, patternsFor, namedPatternLike,
+    checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern,
     BUILT_IN_PATTERNS
 } from '../../src/shared/strummingPatterns.mjs';
 import { songFromProgression, songToAlphaTex, readSongFromScore, describeMeasure, libraryFrets } from '../../src/shared/songScore.mjs';
@@ -98,7 +99,58 @@ console.log('\n=== Built-in patterns ===');
     check('in compound time, All Down-Up alternates on the eighths', nineEight[1] === 'D U D U D U D U D', nineEight[1]);
     const read = parseStrummingPattern('D - D - D - D -');
     check('the same strokes on a finer grid are recognised as a built-in',
-        builtInPatternLike({ slotsPerBeat: 2, slots: read.slots }, 4, 4)?.name === 'Down Only');
+        namedPatternLike({ slotsPerBeat: 2, slots: read.slots }, 4, 4)?.name === 'Down Only');
+}
+
+console.log('\n=== Your own patterns ===');
+{
+    const busy = checkOwnPattern({ name: '  Busy   Folk ', beatsPerBar: 4, beatUnit: 4, text: 'd - d u d u d u' });
+    check('a pattern is tidied as it is kept', busy.pattern?.name === 'Busy Folk' && busy.pattern?.text === 'D - D U D U D U' &&
+        busy.pattern?.timeSignature === '4/4', JSON.stringify(busy));
+    const own = [busy.pattern];
+    check('a built-in name is refused', /built-in/.test(checkOwnPattern({ name: 'old faithful', beatsPerBar: 4, beatUnit: 4, text: 'D D D D' }).error ?? ''));
+    check('a name already yours is refused', /already have/.test(checkOwnPattern({ name: 'busy folk', beatsPerBar: 4, beatUnit: 4, text: 'D D D D' }, { own }).error ?? ''));
+    check('the same name in another time signature is fine', !!checkOwnPattern({ name: 'Busy Folk', beatsPerBar: 3, beatUnit: 4, text: 'D U D - D U' }, { own }).pattern);
+    check('editing keeps its own name', !!checkOwnPattern({ name: 'Busy Folk', beatsPerBar: 4, beatUnit: 4, text: 'D - - - D - - -' }, { own, replacing: own[0] }).pattern);
+    const twin = checkOwnPattern({ name: 'Calypso', beatsPerBar: 4, beatUnit: 4, text: 'D - D U - U D U' }, { own });
+    check('strokes that are already a pattern are refused, naming it', twin.field === 'strokes' &&
+        twin.error === 'Those strokes are already Old Faithful in 4/4.', twin.error);
+    check('including on a finer grid', /already Down Only/.test(checkOwnPattern({ name: 'Slow', beatsPerBar: 4, beatUnit: 4, text: 'D - D - D - D -' }).error ?? ''));
+    check('and your own', /already Busy Folk/.test(checkOwnPattern({ name: 'Again', beatsPerBar: 4, beatUnit: 4, text: 'D - D U D U D U' }, { own }).error ?? ''));
+    const wrongCount = checkOwnPattern({ name: 'Short', beatsPerBar: 4, beatUnit: 4, text: 'D U D' });
+    check('strokes that do not fill the measure point at the strokes', wrongCount.field === 'strokes', JSON.stringify(wrongCount));
+    check('no name points at the name', checkOwnPattern({ name: ' ', beatsPerBar: 4, beatUnit: 4, text: 'D D D D' }).field === 'name');
+
+    const file = formatPatternFile([...own, { name: 'Lilt', timeSignature: '3/4', text: '>D - D U D U' }]);
+    check('the file is a note, then a line a pattern',
+        file.split('\n')[1] === '4/4, Busy Folk: D - D U D U D U' && file.split('\n')[2] === '3/4, Lilt: >D - D U D U' && file.startsWith('#'), file);
+
+    const merged = mergeImportedPatterns(own, [
+        file,
+        '4/4, Old Faithful: D - D U - U D U',
+        '4/4, Busy Folk: D - - - D U D U',
+        '4/4, Old Faithful: D - D U - - D U',
+        '4/4: D D D D',
+        '4/4, Too few: D U',
+        '',
+        '# a note'
+    ].join('\n'));
+    console.log(`  added ${merged.added}, skipped ${merged.skipped}, renamed ${merged.renamed.map(r => `${r.from} -> ${r.to}`).join('; ')}`);
+    for (const problem of merged.problems) console.log(`  line ${problem.line}: ${problem.reason}`);
+    check('an exported file imported over itself adds only what is new', merged.added === 3 && merged.skipped === 2,
+        `${merged.added} added, ${merged.skipped} skipped`);
+    check('a name reused with other strokes is kept as (imported)',
+        merged.renamed.map(r => r.to).join('|') === 'Busy Folk (imported)|Old Faithful (imported)', merged.renamed.map(r => r.to).join('|'));
+    check('lines that cannot be read are listed with their line numbers',
+        // The file ends with a newline, so its patterns take lines 1 to 4 and these follow from 5.
+        merged.problems.map(p => p.line).join(',') === '8,9' && merged.problems.every(p => /^[a-z]/.test(p.reason)),
+        merged.problems.map(p => `${p.line}: ${p.reason}`).join('; '));
+    check('own patterns join the lists after the built-in ones',
+        patternsFor(4, 4, merged.own).slice(-3).map(p => `${p.own ? 'own' : 'built-in'} ${p.name}`).join('|') ===
+        'own Busy Folk|own Busy Folk (imported)|own Old Faithful (imported)', patternsFor(4, 4, merged.own).map(p => p.name).join('|'));
+    check('the read-back says each slot in words',
+        describeStrummingPattern(parseStrummingPattern('>D - D U').slots, 2) === '1 accented down, and miss, 2 down, and up');
+    check('and in sixteenths', describeStrummingPattern(parseStrummingPattern('D U D U').slots, 4) === '1 down, e up, and down, a up');
 }
 
 console.log('\n=== A generated progression, as chord practice plays it today ===');

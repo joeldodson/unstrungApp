@@ -73,8 +73,18 @@ const DEFAULT_CHORD_VOICE_SETTINGS = { chordVoice: 'zira', chordVoicePercent: 50
 // the platform's Documents folder rather than being frozen into the state file.
 let appState = {
     recentFiles: [], defaultOpenDirectory: '', progressionsDirectory: '',
-    ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS
+    ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS,
+    // The player's own strumming patterns: { name, timeSignature, text } each. See
+    // src/shared/strummingPatterns.mjs, A player's own patterns.
+    strummingPatterns: []
 };
+
+/** Keeps only well-formed patterns, so a hand-edited state file cannot break the lists. */
+function readStrummingPatterns(value) {
+    if (!Array.isArray(value)) return [];
+    return value.filter(p => p && typeof p.name === 'string' && typeof p.timeSignature === 'string' &&
+        typeof p.text === 'string').map(p => ({ name: p.name, timeSignature: p.timeSignature, text: p.text }));
+}
 
 function readBoolean(value, fallback) {
     return typeof value === 'boolean' ? value : fallback;
@@ -99,12 +109,13 @@ async function loadAppState() {
             chordVoice: typeof parsed.chordVoice === 'string'
                 ? parsed.chordVoice : DEFAULT_CHORD_VOICE_SETTINGS.chordVoice,
             chordVoicePercent: Number.isFinite(parsed.chordVoicePercent)
-                ? parsed.chordVoicePercent : DEFAULT_CHORD_VOICE_SETTINGS.chordVoicePercent
+                ? parsed.chordVoicePercent : DEFAULT_CHORD_VOICE_SETTINGS.chordVoicePercent,
+            strummingPatterns: readStrummingPatterns(parsed.strummingPatterns)
         };
     } catch {
         return {
             recentFiles: [], defaultOpenDirectory: '', progressionsDirectory: '',
-            ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS
+            ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS, strummingPatterns: []
         };
     }
 }
@@ -189,7 +200,8 @@ ipcMain.handle('settings:get', () => ({
     terseBeatDescriptions: appState.terseBeatDescriptions,
     autoCollapseOnTabChange: appState.autoCollapseOnTabChange,
     chordVoice: appState.chordVoice,
-    chordVoicePercent: appState.chordVoicePercent
+    chordVoicePercent: appState.chordVoicePercent,
+    strummingPatterns: appState.strummingPatterns
 }));
 
 /**
@@ -206,6 +218,46 @@ ipcMain.handle('settings:save-chord-voice', async (_event, settings) => {
     }
     await saveAppState();
     return { chordVoice: appState.chordVoice, chordVoicePercent: appState.chordVoicePercent };
+});
+
+/** The player's whole list of strumming patterns, replacing what was kept. */
+ipcMain.handle('settings:save-strumming-patterns', async (_event, patterns) => {
+    appState.strummingPatterns = readStrummingPatterns(patterns);
+    await saveAppState();
+    return appState.strummingPatterns;
+});
+
+// Exporting and importing strumming patterns: one plain text file, chosen in the system dialogs.
+// Settings are out of reach in File Explorer, so this is how patterns are backed up and shared.
+const PATTERN_FILE_FILTERS = [{ name: 'Text files', extensions: ['txt'] }, { name: 'All files', extensions: ['*'] }];
+const MAX_PATTERN_FILE_BYTES = 1024 * 1024;
+
+ipcMain.handle('patterns:export', async (event, { text, suggestedName }) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showSaveDialog(window, {
+        title: 'Export strumming patterns',
+        defaultPath: path.join(app.getPath('documents'), `${safeFileName(suggestedName)}.txt`),
+        filters: PATTERN_FILE_FILTERS,
+        properties: ['createDirectory', 'showOverwriteConfirmation']
+    });
+    if (result.canceled || !result.filePath) return null;
+    await writeFileAtomically(result.filePath, String(text));
+    return { filePath: result.filePath, name: path.basename(result.filePath) };
+});
+
+ipcMain.handle('patterns:import', async event => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showOpenDialog(window, {
+        title: 'Import strumming patterns',
+        defaultPath: app.getPath('documents'),
+        filters: PATTERN_FILE_FILTERS,
+        properties: ['openFile']
+    });
+    if (result.canceled || !result.filePaths?.[0]) return null;
+    const filePath = result.filePaths[0];
+    const { size } = await fs.stat(filePath);
+    if (size > MAX_PATTERN_FILE_BYTES) throw new Error('it is too large to be a file of strumming patterns');
+    return { name: path.basename(filePath), text: await fs.readFile(filePath, 'utf8') };
 });
 
 ipcMain.handle('settings:save-screen-reader', async (_event, settings) => {

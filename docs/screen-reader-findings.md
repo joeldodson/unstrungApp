@@ -30,6 +30,16 @@ Found 2026-09-19 in the progression editor: the measures list's keyboard notes w
 **Fix:** move notes like this into a collapsed `<details>`, placed before the control they explain.
 The Settings dialog already did this for "About spoken chord volume".
 
+## A list box with option groups is hard to use
+
+Found 2026-10-15 in the Strumming Patterns item: every pattern in one native list box, a
+`<select size="12">` with an `<optgroup>` for each time signature. In browse mode NVDA read it as a
+run of "list clickable" items, said a group's name only on its first item, and after Enter, in
+focus mode, the arrow keys did not move through it. Joel could not find the other time signatures.
+**Fix:** two ordinary dropdowns, as the Chord Practice dialog has: a Time signature select, then a
+Pattern select listing that time signature's patterns. Plain `<select>` elements behave well
+everywhere else in unstrung; avoid `size` and `<optgroup>`.
+
 ## A status line that keeps its text is read again later
 
 Found 2026-09-19 in the progression editor: a live region announcing "Measure 3 is F." kept that
