@@ -23,6 +23,112 @@ A record of the design discussion begun 2026-10-14. Nothing here is built yet.
   (`metronomeClickBuffer`, `scheduleMetronomeClick`). Audio tracks and chord practice share it.
 - Saved progressions (format 1) hold key, mode, time signature and one chord per measure. Tempo was
   deliberately left out in 0.5.0; see `saved-progressions-design.md`.
+- Guitar Pro files are read by alphaTab into its `Score`: measures, beats with durations, rests,
+  notes as string and fret, chords, dynamics, pick stroke and brush (strum) direction.
+  `src/shared/audioTrack.mjs` turns that into the timeline the audio track player plays.
+
+## Direction: alphaTab is the song model
+
+Decided 2026-10-14, after the decisions below were first made. Several of them are changed by it,
+and each says so.
+
+The strumming design had been growing a song format of its own: patterns, sections, tempo, two
+chords in a measure. A beat-level song editor (add a measure, add a beat of a chosen duration that
+is a rest, a note by string and fret or by name, or a chord, with accent and stroke direction)
+would have needed a fourth model of a song. The cost of growing a format step by step is not the
+code but the files: every version saved has to keep opening. So the end state is decided now.
+
+- **alphaTab's `Score` is the song.** Nobody else uses unstrung yet, so format 1 progression files
+  are not supported. There is no format of our own and no converter.
+- **Saved as alphaTex**, alphaTab's plain-text score notation, which alphaTab both reads and writes
+  (`AlphaTexImporter`, `AlphaTexExporter` in alphaTab 1.8). Text keeps Copy to Clipboard and
+  pasting working, including on iOS. Guitar Pro 7 was the alternative: a zipped binary that cannot
+  go on the clipboard as text. alphaTab also has `Gp7Exporter`, so Guitar Pro export can be a
+  feature later.
+- **The format is hidden from the player.** Generating a progression, chord practice and the
+  progression editor look as they do now. Behind them, unstrung builds a `Score` in memory, and a
+  file is written only on save.
+- **Chord practice moves to the audio track player.** One player for songs, progressions and
+  opened Guitar Pro files. That player has to learn to speak the next chord's name first.
+- **Patterns are applied, not linked.** A `Score` holds the beats themselves, with no way to say "this
+  measure follows the song's pattern". The editor applies a pattern to the whole song, a section or
+  selected measures by writing out its strokes. Changing a pattern later means applying it again,
+  as in notation software. Keeping the link would have needed our own information beside or inside
+  the file: a small format of our own again.
+- **Built in stages**, each writing files already in the final format: first the `Score` built from
+  a progression, played by the audio track player; then strumming patterns, the metronome,
+  sections, tempo and split measures; then editing measures beat by beat; then opening Guitar Pro
+  files in the editor.
+
+### Converting both ways
+
+There will be a good deal of conversion code, all in `src/shared`, so that the player never sees
+alphaTab's model:
+
+- **Writing:** chords and patterns in, a `Score` out. The simpler half.
+- **Reading:** a `Score` in, each measure's chords and strumming pattern out. A measure of G strummed
+  down-up in eighths is stored as eight eighth-note beats, each holding all six notes of G with its
+  own brush direction; the reader gives it back as "G, D U D U D U D U". It places each beat on the
+  slot grid: a beat longer than a slot leaves the following slots as misses, since the chord rings
+  through them; a rest becomes a mute; an accent becomes `>`.
+
+Checked by parsing that measure through alphaTab and writing it back out: eight beats, brush type 2
+for down and 1 for up, in order. The chord name "G" was attached only to the first beat, with none
+on the other seven, so the reader carries the last named chord forward or identifies the chord from
+its notes.
+
+### A boat or a ship: everything is a song, simplified measure by measure
+
+There is no point at which a progression stops being a progression. Everything is a song, and how
+simply it can be shown is decided per measure, not per file, by an exact test rather than a guess:
+read the measure into its simple form, write that back, and compare. The same beats means the simple
+form loses nothing.
+
+- **Plain:** one chord, played with the song's most common pattern. Shown as "G", as today.
+- **Patterned:** chords on the grid with another pattern, or two chords in the measure. Shown as
+  "G, D - D U - U D U" or "G C at 3".
+- **Written out:** anything else -- single notes, bends, ties across the bar line, triplets off the
+  grid. Shown beat by beat, as audio tracks already describe beats.
+
+A generated progression is all plain measures and looks exactly as it does now. A Songsterr file may
+be mostly written out. A simplified song made by hand is plain and patterned.
+
+- **The current editor keeps working on any song.** A written-out measure is listed as "Measure 7,
+  written out", and its chord field is protected: typing a chord there replaces its beats, so the
+  editor asks first.
+- **Spoken chord names follow chord changes, not measures.** The next name is spoken one beat
+  before the change, in any kind of measure, as long as the chord is known. Each phrase is
+  pre-rendered, so its length is known: when the next change comes too soon for it, that name is
+  skipped. An exact rule again.
+- **The metadata lists the strumming patterns found**, most common first, with their measures:
+  "D U D U D U D U, measures 1 to 8; >D D D >D D D >D D, measures 9 to 16". After three it says "and
+  2 others". A pattern matching one in the library or the built-in set is given its name.
+
+### One kind of open item
+
+Progressions and opened song files become one kind of open item: measures at their simplest level,
+the chord list where it applies, spoken names, the metronome. Keeping two kinds was set aside: a
+progression grown into a song would have to move from one to the other.
+
+### A saved song does not record that it was generated
+
+A `Score` has no field for it, and none is added. Today the difference is only information: the
+level, cadence and outside-key count in the metadata, and a suggested file name such as
+`Am-60-intermediate-occasional`. After this change:
+
+- The level and the outside-key setting show until the progression is first saved, and are not
+  kept. They cannot be worked out from the chords: a progression of open chords was not
+  necessarily generated at Beginner.
+- The key, the cadence and the chords from outside the key are worked out from the chords whenever
+  a song opens, so they show for any song, generated or not.
+- The suggested file name, such as `Am-60-intermediate-occasional`, still works: it is offered at
+  the first save, while the level and setting are still known.
+- Writing "Generated by unstrung: intermediate, occasional" into the score's notices was the
+  alternative, set aside.
+
+What alphaTex was checked for, in alphaTab's source: pick stroke `su` and `sd`, brush `bu` and
+`bd`, accent `ac` and heavy accent `hac`, each read and written. `audioTrack.mjs` does not yet play
+accents; it does play dynamics.
 
 ## The shared foundation: a grid of slots
 
@@ -52,6 +158,8 @@ grid takes them without a redesign.
   or follow the strumming pattern. Follow is a live link: it clicks wherever the pattern strikes,
   accented on the beats, and changes when the pattern does. A "make a metronome pattern from this"
   button on a strumming pattern makes an editable copy for the case where the two should diverge.
+  With alphaTab as the song model, follow means clicking wherever the score has a stroke, with the
+  score's accents.
 - Audio tracks get the same metronome choice, without following a strumming pattern, since a file
   has its own rhythm. A metronome pattern applies only to measures in its time signature; other
   measures click every beat, as now.
@@ -100,13 +208,15 @@ cannot be saved (every iOS browser), copy to clipboard is the fallback, as it is
 
 ### Progressions carry copies of their patterns
 
-A progression file embeds each pattern it uses, so copying, sharing and the clipboard keep working.
-Editing a library pattern later does not change progressions already using it.
+Replaced by the alphaTab direction. It was: a progression file embeds each pattern it uses. Now a
+song holds only the strokes a pattern wrote out, which keeps the property that mattered: a shared
+file plays the same without the sender's library.
 
 ### Layers: progression, section, measure
 
-The most specific wins: a measure's pattern, else its section's, else the progression's, else the
-built-in "Every beat, down", which is today's behaviour.
+Changed by the alphaTab direction. It was: the most specific pattern wins, measure over section
+over progression. The three remain, as what the editor can apply a pattern to. A generated
+progression with no pattern chosen gets "Every beat, down", which is today's behaviour.
 
 ### Sections are labels on measures
 
@@ -117,7 +227,8 @@ hold in mind. Repeats can be added later.
 ### Two chords in a measure, now
 
 A measure can hold more than one chord, each starting at a position in the measure. Built together
-with strumming patterns rather than later.
+with strumming patterns rather than later. In a `Score` this is ordinary: each beat carries its own
+chord.
 
 - **Entering them.** The editor's chord field takes several chords separated by spaces. Without
   beats they split the measure evenly: `G C` in 4/4 is G on beat 1 and C on beat 3. Where the
@@ -134,39 +245,19 @@ with strumming patterns rather than later.
 
 This reverses the 0.5.0 decision. Once a progression is a simplified song, its tempo is part of what
 it is. The practice tempo starts from the saved one and can be changed without marking the file
-unsaved.
+unsaved. A `Score` carries its tempo anyway.
 
-## A sketch of format 2
-
-Not final. Format 1 files still open.
-
-```json
-{
-  "format": 2,
-  "key": "G",
-  "mode": "major",
-  "timeSignature": { "beatsPerBar": 4, "beatUnit": 4 },
-  "tempo": 96,
-  "patterns": {
-    "p1": { "name": "Old faithful", "subdivision": 2, "measures": 1, "strokes": "D - D U - U D U" },
-    "p2": { "name": "Down on the beat", "subdivision": 2, "measures": 1, "strokes": "D - D - D - D -" }
-  },
-  "strumming": "p1",
-  "measures": [
-    { "section": { "name": "Verse" }, "strumming": "p2",
-      "chords": [ { "root": "G", "suffix": "major" } ] },
-    { "chords": [ { "root": "G", "suffix": "major", "beat": 1 }, { "root": "C", "suffix": "major", "beat": 3 } ] },
-    { "section": { "name": "Chorus", "strumming": "p1" },
-      "chords": [ { "root": "D", "suffix": "major" } ] }
-  ]
-}
-```
-
-A section starts at the measure that carries `section` and runs until the next one, so sections can
-neither overlap nor leave gaps. `beat` is where the chord starts, counted from 1 as in the editor;
-2.5 is the and of beat 2. A measure with one chord leaves it out.
+A JSON progression format 2 was sketched here and dropped for the alphaTab direction; it is in
+this file's history (commit c447f51).
 
 ## Open questions
 
-- Which metronome extras to build, once the core has been used.
+- A round trip through alphaTex has not been tested. Before building on it: write a `Score` with
+  sections, chord names, tempo, a split measure, strokes and accents, read it back, and compare.
+- Chord practice needs each chord's root and suffix from the chord library, for its spoken name
+  and fingering. alphaTab stores a chord as a name and frets, so the root and suffix are recovered
+  from the name or identified from the notes.
+- Whether the mode survives the round trip. A key signature alone does not tell A minor from C
+  major; Guitar Pro stores major or minor with it. If alphaTex does not keep it, the key is worked
+  out from the chords, which is what the key, cadence and outside-key lines need anyway.- Which metronome extras to build, once the core has been used.
 - Triplets and swing, and with them counting compound time by the felt beat.

@@ -25,8 +25,8 @@ eyesunstrung.vip.
 - `held-chords.md` -- where generated progressions hold a chord over, and the option, on by
   default, for a change of chord on every measure.
 - `strumming-patterns-and-metronome.md` -- a slot grid shared by strumming patterns and a
-  configurable metronome, and patterns, sections, split measures and tempo in progression files.
-  Designed, not built.
+  configurable metronome, and alphaTab's score, saved as alphaTex, as the model for songs and
+  chord progressions. Designed, not built.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
