@@ -10,6 +10,43 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.8.0 - Strumming patterns
+
+Published 2026-10-15.
+
+0.8.0 adds strumming patterns: built-in ones for the common time signatures, a choice of pattern when generating, editing or playing a progression, and patterns of your own. Progressions are now saved in a new format, alphaTex, which also keeps the tempo and the strumming pattern.
+
+### Strumming patterns
+
+A progression is now strummed with a strumming pattern instead of always a downstroke on every beat. Patterns are written the way guitar teachers write them: D for a downstroke, U for an upstroke, a dash where the hand passes the strings without strumming, x for a muted chuck, and a greater-than sign before an accented stroke. Old Faithful is D - D U - U D U.
+
+unstrung comes with patterns for 4/4, 3/4, 6/8, 2/4 and 12/8, among them Old Faithful, Boom-Chicka, Waltz Strum and Rolling Six. Every list starts with Down Only, which is how progressions were strummed before, and All Down-Up. Any other time signature has those two.
+
+- The Chord Practice dialog has a Strumming pattern list after the time signature. It starts on Down Only.
+- The progression editor has the same list, starting on the progression's own pattern.
+- A progression's Playback section has it too, so you can try patterns while the progression plays. Changing it carries on from where the progression is, and it does not count as an unsaved change.
+- The Metadata list names the pattern and gives its strokes, such as "Strumming - Old Faithful: D - D U - U D U".
+
+An upstroke catches the top four strings and is a little softer, an accented stroke is louder, and a pattern with no accents leans a little on beat 1. Muted chucks stop the chord ringing but make no sound of their own yet.
+
+### Your own strumming patterns
+
+Strumming Patterns, a new item on the menu, lists every pattern by time signature: a Time signature list, then a Pattern list. Play plays the chosen pattern on G, C, D and F, two measures each, until you press Pause. Choosing another pattern while it plays switches to it.
+
+New Pattern makes one of your own, and Copy to My Patterns starts one from any pattern. Edit and Delete change your own; the built-in patterns cannot be changed. The strokes are read back in words as you type them, such as "1 down, and miss, 2 down, and up". Your patterns are kept with your settings and appear in every pattern list.
+
+Export My Patterns saves all of yours to a text file, one pattern per line, such as "4/4, Busy Folk: D - D U D U D U". Import Patterns adds the patterns in such a file to yours, and lists any line it could not add, with the reason.
+
+### Progressions saved as alphaTex
+
+Progressions are now saved as .atex files: alphaTex, a plain-text way of writing music that other programs built on alphaTab can open. A saved progression keeps its tempo and its strumming pattern as well as its key, time signature and chords. Opening one sets the tempo it was saved with.
+
+Progressions saved by earlier versions, as .json files, no longer open. Open Saved Progression lists only .atex files.
+
+### Removed
+
+Copy to Clipboard, in a progression's item, and Edit Progression Text, in the progression editor, are gone. Opening a file through the upload picker now works in every browser, including on an iPhone or iPad, and saving there downloads a copy, so they are no longer needed.
+
 ## unstrung 0.7.7 - Playing again after finishing with the screen locked
 
 Published 2026-10-13.
