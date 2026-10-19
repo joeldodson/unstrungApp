@@ -10,8 +10,8 @@ eyesunstrung.vip.
 - `web-deployment-and-guitar-input.md` -- running Unstrung in a browser, sample size and
   compression, SoundFonts, and a plan for a tuner, timing feedback and chord checking. Not built.
 - `browser-parity-layout.md` -- replacing tabs and the native menu with a left column of open
-  items and a page menu, so the desktop app and a browser version work the same way. On the
-  `web-based-unstrung` branch.
+  items and a page menu, so the desktop app and a browser version work the same way. Built in
+  0.6.0.
 - `eyesunstrung-site-and-web-app.md` -- rebuilding eyesunstrung.vip with Eleventy and serving the
   web version of Unstrung from it at `/unstrung/app/`, and the documentation pages built from
   `user-docs/`.
@@ -27,6 +27,9 @@ eyesunstrung.vip.
 - `strumming-patterns-and-metronome.md` -- a slot grid shared by strumming patterns and a
   configurable metronome, and alphaTab's score, saved as alphaTex, as the model for songs and
   chord progressions. Designed, not built.
+- `speak-the-notes.md` -- speaking each note or chord just before it sounds, so a song can be
+  learned by ear, and why pitching the speech needs platform code. Built on a branch, measured and
+  set aside; the branch was deleted 2026-10-19.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
