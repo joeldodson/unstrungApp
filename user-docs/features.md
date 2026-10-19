@@ -100,6 +100,8 @@ The menu holds:
 - **Recent Files,** the last ten song files you opened.
 - **Chord Progressions:** Generate Practice Progression…, Manually Create Chord Progression… and Open Saved Progression….
 - **Chords:** Chord Library, Frets to Chord… and Listen to Guitar Samples….
+- **Strumming Patterns**
+- **Metronome**
 - **Settings…**
 - **Help:** the help documents, and About unstrung….
 
@@ -218,6 +220,7 @@ The same list is in the Audio Track section, under the Keyboard Control heading.
 - m: metronome on or off.
 - s: slower by 5 beats per minute.
 - f: faster by 5 beats per minute.
+- d: back to the default tempo, which is the song's own until you type another into the Tempo field.
 
 In NVDA, nvdaKey+spaceBar turns focus mode on and off.
 unstrung cannot do it for you.
@@ -275,6 +278,7 @@ A progression's item has:
   Like the tempo, it is not counted as an unsaved change, but saving keeps the pattern you are on.
 - **Move Around the Progression** and **Keyboard Control,** the same buttons and keys as an audio track.
   b also says the chord of the measure you are in.
+  d goes back to the tempo the progression opened with, until you type another into the Tempo field.
 
 The media keys and headphone buttons control a progression as they do an audio track; see Media Controls Integration, before Playing a Track.
 
@@ -415,6 +419,54 @@ enter takes the chord and goes back to the measure in the list.
 
 Apply Changes, or Create Progression for a new one, puts the progression in its item.
 With changes made, escape does not close the dialog; press Cancel to discard them.
+
+## Metronome
+
+Choose Metronome from the menu.
+It opens as an item in the list of open items, with you on the Time signature list.
+Its clicks follow a strumming pattern: one click wherever the pattern strikes the strings, and none where it passes without strumming.
+Beat 1 is the strong click, a higher pitch.
+The other beats are a normal click, and the strokes between them a soft, lower one.
+In 6/8 and 12/8 the normal click is on every third eighth, the beats you feel, so 6/8 is heard on 1 and 4.
+A pattern with accents of its own, such as Three-Three-Two, puts the strong click on its accents and the soft one everywhere else.
+
+Under Settings:
+
+- **Time signature** and **Strumming pattern,** the same patterns as in the Strumming Patterns item, the ones that come with unstrung and yours.
+  After them, a line says where the clicks fall, such as "Clicks on 1 strong, 2, 2 and soft, 3 and soft, 4, 4 and soft".
+- **Tempo,** from 30 to 240 beats per minute, 80 to begin with.
+  The tempo you type here is the default tempo.
+- **Volume,** from 1 to 5, 3 to begin with.
+
+Under Controls:
+
+- **Start:** starts the metronome, and reads Stop while it plays.
+  It is a toggle button, pressed while the metronome plays.
+- **Slower** and **Faster:** change the tempo by 5 beats per minute.
+- **Default Tempo:** goes back to the tempo last typed into the Tempo field.
+  Slower and Faster do not change it.
+- **Quieter** and **Louder:** change the volume by one.
+
+Changing the tempo, the volume or the pattern while it plays carries on without starting the measure again.
+Each button says what it did, such as "85 BPM" or "Volume 4", and says so when the tempo or volume is already as far as it goes.
+The metronome keeps playing while you look at another open item.
+Closing the item stops it, and opening it again keeps your settings until unstrung is closed.
+
+### Metronome Keys
+
+While focus is in the metronome and your screen reader is in focus mode, these keys do what the buttons do.
+The same list is in the item, under the Keyboard Control heading.
+
+- spaceBar: start and stop.
+  On a button it starts and stops rather than pressing the button; enter still presses it.
+- f: faster.
+- s: slower.
+- d: back to the default tempo.
+- upArrow: louder.
+- downArrow: quieter.
+
+In the Tempo and Volume fields, digits and the arrows change the field, while the letters still work.
+In the two lists every key belongs to the list.
 
 ## Chord Library
 

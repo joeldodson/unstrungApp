@@ -26,7 +26,8 @@ eyesunstrung.vip.
   default, for a change of chord on every measure.
 - `strumming-patterns-and-metronome.md` -- a slot grid shared by strumming patterns and a
   configurable metronome, and alphaTab's score, saved as alphaTex, as the model for songs and
-  chord progressions. Designed, not built.
+  chord progressions. Partly built: alphaTex files, built-in and your own strumming patterns
+  (0.8.0), and the Metronome item, clicking in the rhythm of a pattern.
 - `speak-the-notes.md` -- speaking each note or chord just before it sounds, so a song can be
   learned by ear, and why pitching the speech needs platform code. Built on a branch, measured and
   set aside; the branch was deleted 2026-10-19.

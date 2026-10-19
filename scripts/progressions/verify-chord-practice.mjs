@@ -282,8 +282,9 @@ check('the transport buttons match the audio track',
     controls.buttons.includes('Play Progression') && controls.buttons.includes('Restart'),
     controls.buttons.join(', '));
 console.log(`  keyboard commands listed: ${controls.keyRows.length}`);
-// Nine rows, one per key, worded as the audio track words them.
-check('the audio track keys are documented', controls.keyRows.length === 9,
+// Ten rows, one per key, worded as the audio track words them. The tenth, D for the default
+// tempo, came with the metronome.
+check('the audio track keys are documented', controls.keyRows.length === 10,
     `${controls.keyRows.length} rows`);
 check('the tempo keys name their step size',
     controls.keyRows.some(r => r === 'S - slower by 5 BPM') &&

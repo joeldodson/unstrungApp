@@ -1,6 +1,8 @@
 # Strumming patterns and a configurable metronome
 
-A record of the design discussion begun 2026-10-14. Nothing here is built yet.
+A record of the design discussion begun 2026-10-14. What has been built since is recorded in the
+dated sections near the end: Stage 1, the built-in patterns, your own patterns, and the Metronome
+item.
 
 ## What Joel asked for
 
@@ -511,6 +513,79 @@ Decided with Joel before building. Replaces "The library is files in a folder" a
   practice and Play both strum through `chordPracticeStrokes`, so both have it.
 - Checked by `scripts/songs/verify-strumming-patterns.mjs` and the "Your own patterns" section of
   `scripts/songs/check-song-score.mjs`.
+
+## The Metronome item (2026-10-19)
+
+Joel asked for a top-level Metronome item whose clicks come from the strumming patterns, built-in
+and his own, with tempo, pattern and a volume of 1 to 5; a Start/Stop toggle, Faster, Slower,
+Louder, Quieter and Default Tempo, which goes back to the tempo first configured; and keys for them
+while the item has focus: f, s, d, upArrow and downArrow. This is the "own open item" of the
+metronome decision above, with "follow the strumming pattern" as its only kind of pattern for now.
+Metronome patterns of their own (the `3 0 2 1` digits and a slot list box to edit them), saved
+presets, and the metronome choice in chord practice and audio tracks are still to come.
+
+- **Shared:** `src/shared/metronome.mjs`. `metronomeLevels` gives each slot its level from the
+  pattern: silent on a miss; a pattern with accents of its own has its accents at 3 and every
+  other stroke at 1, so Three-Three-Two is heard in threes and twos; one without has beat 1 at 3,
+  the other pulses at 2 and the strokes between at 1. The pulse is the beat, or every third eighth
+  in compound time, so 6/8 is heard on 1 and 4 as decided above. `describeMetronomeClicks` says it
+  in words beside the list: "Clicks on 1 strong, 2, 2 and soft...". An off-beat is named with its
+  beat ("2 and"), since a bare "and" cannot say which beat it follows when that beat has no click.
+  Also the tempo and volume bounds, the volume gains, and the timing arithmetic below. Checked by
+  `scripts/metronome/check-metronome.mjs`.
+- **Three click sounds.** The synthesized click had two, 1600 Hz for beat 1 and 1000 Hz for the
+  other beats. A third, 700 Hz and shorter, is the soft click, so an and differs in pitch as well
+  as loudness (`METRONOME_CLICK_TONES` in the renderer).
+- **Volume.** Levels 1 to 5 set the gain of an accented click: 0.08, 0.13, 0.21, 0.34, 0.55, each
+  about 1.6 times the last, some 4 decibels, so the steps sound even. Level 1 is a little under the
+  beat click that plays with chord practice (0.096); level 5 leaves headroom before clipping when
+  other sound plays too. A normal click is 0.55 of an accent, the ratio chord practice's clicks
+  already use, and a soft one 0.35. Chosen for first testing, to be set by ear. Volume is a gain
+  node in front of every click, so a change is heard at once, even on clicks already laid out.
+- **Tempo** is 30 to 240, as in chord practice, starting at 80, with Faster and Slower stepping 5,
+  as f and s do in chord practice and audio tracks.
+- **Default Tempo** goes back to the tempo last typed into the Tempo field, or 80 before anything
+  is typed; Faster and Slower leave it alone. "Originally configured" was read as what the player
+  set in the field, not whatever the tempo was when Start was pressed.
+- **Scheduling.** The pattern preview lays out a whole round two seconds ahead at a fixed tempo,
+  which cannot take a tempo change mid-round. The metronome lays out slot by slot, 1.5 seconds
+  ahead on the audio clock, topped up every 200 milliseconds; the lead covers a browser holding a
+  background tab's timers to once a second. Times come from an anchor, the clock time of one slot,
+  so they never drift. A tempo change sets a new anchor on the next slot, keeping that slot's
+  place on the clock, and cancels only what was laid out after it; a pattern change does the same
+  on the next beat, keeping the place in the measure if the time signature is the same and
+  starting a new measure if not (`retimeMetronome`, `regridMetronome`). So nothing restarts the
+  measure. Clicks go through their own gain node on the shared audio context, not the chord
+  library's playback, so playing a chord or a pattern preview does not stop the metronome.
+- **Keys.** spaceBar starts and stops, as it pauses chord practice and audio tracks. It is taken
+  on keydown, so on a focused button it starts and stops rather than pressing the button; enter
+  still presses it. The keys work only while focus is inside the item (not from its button in the
+  list of open items), and go through `eventTargetSwallowsKey`, as the other playback keys do: in
+  the lists every key belongs to the list; in the number fields digits and the arrows change the
+  field while letters still reach the metronome. No other playback keys are live then, since
+  chord practice and audio tracks act only when their own item is in front.
+- **Announcements** go through `announceLiveRegion` into a polite, atomic live region after the
+  buttons: "Started, 80 BPM.", "Stopped.", "85 BPM" (just the number, as the other tempo keys say
+  it), "Default tempo, 80 BPM", "Volume 4", and at either end "240 BPM is the fastest." or "Volume
+  1 is the quietest." The other playback keys say nothing at a limit; here silence would leave a
+  key press unanswered.
+- **The item** has Settings (Time signature, Strumming pattern, the line of clicks in words, Tempo,
+  Volume), Controls (Start; Slower, Faster, Default Tempo; Quieter, Louder, in three button rows)
+  and Keyboard Control. Start reads Stop while it plays, with aria-pressed, as Play Track and Play
+  Progression do. The metronome keeps playing while another item is shown, stops when its item
+  closes, and keeps its settings until unstrung closes; they are not saved. Changes to the
+  player's own patterns refill its lists. An interruption, such as a phone call taking the sound,
+  stops it rather than leaving it to resume by itself.
+- **Default tempo elsewhere.** d was added to chord practice and audio tracks too, since it was a
+  few lines each: back to the progression's or song's own tempo, until another is typed into the
+  Tempo field. No button was added there; their tempo keys have none.
+- **Checked** by `scripts/metronome/verify-metronome.mjs`, in the Electron app and, with `--web`,
+  in the web build in Edge; with `--song` and a song file it also checks d in an audio track,
+  since song files are kept outside the repository. It records every click the page schedules, by wrapping
+  `AudioBufferSourceNode` start and stop, and checks timing and pitch from those records: one
+  measure of Old Faithful at 80, the spacing after a tempo change, Three-Three-Two's accents after
+  a pattern change, nothing left to sound after closing. Playwright's WebKit for Windows has no Web
+  Audio, so Safari is unchecked.
 
 ## Open questions
 

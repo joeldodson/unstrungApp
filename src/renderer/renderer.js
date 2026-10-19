@@ -22,6 +22,13 @@ import {
     checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
+import {
+    METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, METRONOME_DEFAULT_TEMPO, METRONOME_TEMPO_STEP,
+    METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, METRONOME_DEFAULT_VOLUME, METRONOME_LEVEL_GAINS,
+    CLICK_SILENT, CLICK_SOFT, CLICK_ACCENT, clampMetronomeTempo, clampMetronomeVolume, metronomeVolumeGain,
+    metronomeLevels, metronomeSlotSeconds, metronomeSlotTime, retimeMetronome, regridMetronome,
+    metronomeSlotInMeasure, describeMetronomeClicks
+} from '../shared/metronome.mjs';
 import { createMenuButton } from './menu.js';
 
 const statusElement = document.getElementById('status');
@@ -2511,17 +2518,28 @@ const METRONOME_CLICK_SECONDS = 0.06;
 
 const metronomeClickBuffers = new Map();
 
+// The pitch and decay of each kind of click. The Metronome item adds a third, lower and shorter,
+// for the soft clicks between the pulses, so an and sounds different from a beat as well as
+// quieter.
+const METRONOME_CLICK_TONES = {
+    accent: { frequency: 1600, decay: 55 },
+    beat: { frequency: 1000, decay: 75 },
+    soft: { frequency: 700, decay: 90 }
+};
+
 function metronomeClickBuffer(accent) {
-    const cacheKey = accent ? 'accent' : 'beat';
-    if (metronomeClickBuffers.has(cacheKey)) return metronomeClickBuffers.get(cacheKey);
+    return metronomeToneBuffer(accent ? 'accent' : 'beat');
+}
+
+function metronomeToneBuffer(kind) {
+    if (metronomeClickBuffers.has(kind)) return metronomeClickBuffers.get(kind);
 
     const context = getSharedAudioContext();
     const frameCount = Math.ceil(METRONOME_CLICK_SECONDS * context.sampleRate);
     const buffer = context.createBuffer(1, frameCount, context.sampleRate);
     const data = buffer.getChannelData(0);
 
-    const frequency = accent ? 1600 : 1000;
-    const decay = accent ? 55 : 75;
+    const { frequency, decay } = METRONOME_CLICK_TONES[kind];
     for (let i = 0; i < frameCount; i++) {
         const t = i / context.sampleRate;
         // Starting at zero phase keeps the attack clean; the decay brings it to near silence well
@@ -2529,7 +2547,7 @@ function metronomeClickBuffer(accent) {
         data[i] = Math.sin(2 * Math.PI * frequency * t) * Math.exp(-t * decay);
     }
 
-    metronomeClickBuffers.set(cacheKey, buffer);
+    metronomeClickBuffers.set(kind, buffer);
     return buffer;
 }
 
@@ -3037,6 +3055,11 @@ function restartAudioTrackSelection(state) {
 }
 
 /** Steps the tempo, keeping the music playing from the measure we are in. */
+function defaultAudioTrackTempo(state) {
+    applyAudioTrackTempo(state, state.defaultTempo, { silent: true });
+    announceAudioTrack(state, `Default tempo, ${state.targetTempo} BPM`);
+}
+
 function stepAudioTrackTempo(state, deltaBpm) {
     applyAudioTrackTempo(state, state.targetTempo + deltaBpm, { silent: true });
     announceAudioTrack(state, `${state.targetTempo} BPM`);
@@ -3122,7 +3145,8 @@ const AUDIO_TRACK_SHORTCUTS = {
     b: { needsTrack: false, run: state => announceCurrentMeasure(state) },
     m: { needsTrack: false, run: state => setAudioTrackMetronome(state, !state.metronome) },
     s: { needsTrack: false, run: state => stepAudioTrackTempo(state, -AUDIO_TRACK_TEMPO_STEP_BPM) },
-    f: { needsTrack: false, run: state => stepAudioTrackTempo(state, AUDIO_TRACK_TEMPO_STEP_BPM) }
+    f: { needsTrack: false, run: state => stepAudioTrackTempo(state, AUDIO_TRACK_TEMPO_STEP_BPM) },
+    d: { needsTrack: false, run: state => defaultAudioTrackTempo(state) }
 };
 
 // Only a field you type into should swallow these keys. A checkbox is an input too, but nothing is
@@ -3592,7 +3616,8 @@ function buildAudioTrackPanel(state) {
         'B - say which measure you are in, and which repeat',
         'M - metronome on or off',
         `S - slower by ${AUDIO_TRACK_TEMPO_STEP_BPM} BPM`,
-        `F - faster by ${AUDIO_TRACK_TEMPO_STEP_BPM} BPM`
+        `F - faster by ${AUDIO_TRACK_TEMPO_STEP_BPM} BPM`,
+        'D - back to the default tempo: the song\'s own, or the one last typed into the Tempo field'
     ]);
     extraControls.append(keysList);
 
@@ -3635,8 +3660,12 @@ function buildAudioTrackPanel(state) {
 
     // Committing on change rather than on every keystroke: a number field fires input for each
     // digit typed, and rebuilding the timeline mid-number would be wasted work.
-    tempoInput.addEventListener('change', () =>
-        applyAudioTrackTempo(state, Number(tempoInput.value)));
+    // A tempo typed here is the one D goes back to.
+    tempoInput.addEventListener('change', () => {
+        const requested = Number(tempoInput.value);
+        applyAudioTrackTempo(state, requested);
+        if (Number.isFinite(requested) && requested > 0) state.defaultTempo = state.targetTempo;
+    });
 
     for (const input of [firstInput, lastInput, repeatInput]) {
         input.addEventListener('change', () => applyAudioTrackSelection(state));
@@ -3695,6 +3724,8 @@ function buildAudioTrackContent(score, trackIndex, trackName, songItemId, detail
         songItemId,
         trackLabel: trackName,
         targetTempo: score.tempo || 120,
+        // What D goes back to: the song's own tempo, until another is typed into the Tempo field.
+        defaultTempo: score.tempo || 120,
         audioTrack: null,
         ready: false,
         ui: null,
@@ -4553,7 +4584,12 @@ function announceChordPracticeMeasure(state) {
     state.announce(`${text}.`);
 }
 
-function stepChordPracticeTempo(state, delta) {
+function defaultChordPracticeTempo(state) {
+    stepChordPracticeTempo(state, state.defaultTempo - state.tempo, { silent: true });
+    state.announce(`Default tempo, ${state.tempo} BPM`);
+}
+
+function stepChordPracticeTempo(state, delta, { silent = false } = {}) {
     const tempo = Math.max(CHORD_PRACTICE_MIN_TEMPO,
         Math.min(CHORD_PRACTICE_MAX_TEMPO, state.tempo + delta));
     if (tempo === state.tempo) return;
@@ -4574,7 +4610,7 @@ function stepChordPracticeTempo(state, delta) {
     else state.setPlaying(false);
     // Just the number, as the audio track does it: the word "tempo" on every step is noise when
     // stepping through a range to find one that fits.
-    state.announce(`${tempo} BPM`);
+    if (!silent) state.announce(`${tempo} BPM`);
 }
 
 /**
@@ -4684,7 +4720,8 @@ const CHORD_PRACTICE_SHORTCUTS = {
     b: state => announceChordPracticeMeasure(state),
     m: state => setChordPracticeMetronome(state, !state.metronome),
     s: state => stepChordPracticeTempo(state, -CHORD_PRACTICE_TEMPO_STEP_BPM),
-    f: state => stepChordPracticeTempo(state, CHORD_PRACTICE_TEMPO_STEP_BPM)
+    f: state => stepChordPracticeTempo(state, CHORD_PRACTICE_TEMPO_STEP_BPM),
+    d: state => defaultChordPracticeTempo(state)
 };
 
 /** The practice state of the tab currently on screen, or null when another kind of tab is. */
@@ -4932,7 +4969,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
         'B - say which measure you are in, its chord, and which repeat',
         'M - metronome on or off',
         `S - slower by ${CHORD_PRACTICE_TEMPO_STEP_BPM} BPM`,
-        `F - faster by ${CHORD_PRACTICE_TEMPO_STEP_BPM} BPM`
+        `F - faster by ${CHORD_PRACTICE_TEMPO_STEP_BPM} BPM`,
+        'D - back to the default tempo: the progression\'s own, or the one last typed into the Tempo field'
     ]);
     container.append(keysList);
 
@@ -4950,6 +4988,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
         // What the strumming hand does in each measure. An edit rebuilds the tab, so once is enough.
         strokes: chordPracticeStrokes(progression),
         tempo: options.tempo,
+        // What D goes back to: the tempo it opened with, until another is typed into the Tempo field.
+        defaultTempo: options.defaultTempo ?? options.tempo,
         // The file this progression was opened from or last saved to, and whether it has changed
         // since. A generated progression starts with neither, and is not "unsaved": it was never
         // anything but a draft, and asking about it on every close would train the answer. Without
@@ -5023,6 +5063,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     tempoInput.addEventListener('change', () => {
         const wanted = Math.max(CHORD_PRACTICE_MIN_TEMPO,
             Math.min(CHORD_PRACTICE_MAX_TEMPO, Number(tempoInput.value) || state.tempo));
+        state.defaultTempo = wanted;
         stepChordPracticeTempo(state, wanted - state.tempo);
     });
 
@@ -5208,7 +5249,7 @@ function replaceChordPracticeProgression(entry, progression, { dirty }) {
     stopChordPracticePlayback();
     clearMediaSession(old);
     const options = {
-        tempo: old.tempo, speak: old.speak, speechVolume: old.speechVolume, voice: old.voice,
+        tempo: old.tempo, defaultTempo: old.defaultTempo, speak: old.speak, speechVolume: old.speechVolume, voice: old.voice,
         metronome: old.metronome, countInEachPass: old.countInEachPass, repeatCount: old.repeatCount
     };
     const { container, state } = buildChordPracticeTab(progression, options,
@@ -5667,6 +5708,7 @@ async function saveOwnStrummingPatterns(patterns) {
             progressionPattern(state.progression));
         state.ui.strummingItem.textContent = `Strumming - ${progressionPatternLabel(state.progression)}`;
     }
+    refreshMetronomePatterns();
 }
 
 /** What the item says about the pattern chosen in its list. */
@@ -6019,6 +6061,438 @@ patternDialog.addEventListener('close', () => {
     patternEditor.opener = null;
     patternEditor.editing = null;
 });
+
+// --- Metronome ---------------------------------------------------------------------------------
+// An item of its own, opened from the menu: clicks in the rhythm of a strumming pattern, built-in
+// or the player's own, at a chosen tempo and volume. Which slots click, and how loud, comes from
+// metronomeLevels in src/shared/metronome.mjs. See docs/strumming-patterns-and-metronome.md.
+//
+// Clicks are laid out on the audio clock a little ahead, as the pattern preview does, but slot by
+// slot rather than a whole round at a time: tempo and pattern change while it plays, and a change
+// takes effect from the next slot or beat, cancelling only what was laid out after it.
+
+// How far ahead clicks are laid out, and how often more are added. The lead covers a timer held
+// back to once a second, as a browser does to a page in a background tab.
+const METRONOME_LEAD_SECONDS = 1.5;
+const METRONOME_TICK_MS = 200;
+// From pressing Start to the first click, so the first one is not cut short.
+const METRONOME_START_DELAY_SECONDS = 0.1;
+// A change takes effect no sooner than this after it is made: a click due sooner is already on its
+// way and is left alone.
+const METRONOME_CHANGE_MARGIN_SECONDS = 0.03;
+// Volume changes glide this fast, so a change while a click sounds does not crackle.
+const METRONOME_VOLUME_GLIDE_SECONDS = 0.01;
+
+const metronome = {
+    itemId: null,
+    ui: null,
+    playing: false,
+    tempo: METRONOME_DEFAULT_TEMPO,
+    // What Default Tempo goes back to: the tempo last typed into the Tempo field, or the starting
+    // tempo before anything is typed. Faster and Slower leave it alone.
+    defaultTempo: METRONOME_DEFAULT_TEMPO,
+    volume: METRONOME_DEFAULT_VOLUME,
+    // The chosen pattern, as { timeSignature, name }, kept while the item is closed.
+    chosen: { timeSignature: '4/4', name: 'Down Only' },
+    // The pattern being played: its levels and grid.
+    grid: null,
+    anchor: null,
+    nextSlot: 0,
+    master: null,
+    sources: [],
+    timer: null
+};
+
+/** The pattern chosen in the item, from allListedPatterns, or null. */
+function chosenMetronomePattern() {
+    const ui = metronome.ui;
+    return ui?.patterns?.[Number(ui.patternSelect.value)] ?? null;
+}
+
+/** The click levels and grid of a listed pattern. */
+function metronomeGrid(pattern) {
+    const levels = metronomeLevels(pattern, pattern.beatsPerBar, pattern.beatUnit);
+    return {
+        levels, timeSignature: pattern.timeSignature,
+        slotsPerBeat: pattern.slotsPerBeat, slotsPerMeasure: levels.length
+    };
+}
+
+/**
+ * Fills the item's two lists, time signatures and then that time signature's patterns, keeping
+ * the pattern chosen where it is still there. As the Strumming Patterns item does.
+ */
+function fillMetronomeLists() {
+    const ui = metronome.ui;
+    ui.all = allListedPatterns();
+    const signatures = [...new Set(ui.all.map(p => p.timeSignature))];
+    ui.signatureSelect.replaceChildren(...signatures.map(signature => {
+        const option = document.createElement('option');
+        option.value = signature;
+        option.textContent = signature;
+        return option;
+    }));
+    ui.signatureSelect.value = signatures.includes(metronome.chosen.timeSignature)
+        ? metronome.chosen.timeSignature : signatures[0];
+    fillMetronomePatterns(metronome.chosen.name);
+}
+
+/** Fills the Strumming pattern list for the time signature chosen, choosing `name` where it is there. */
+function fillMetronomePatterns(name = null) {
+    const ui = metronome.ui;
+    ui.patterns = ui.all.filter(p => p.timeSignature === ui.signatureSelect.value);
+    ui.patternSelect.replaceChildren(...ui.patterns.map((pattern, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = `${pattern.name}: ${pattern.text}${pattern.own ? ', yours' : ''}`;
+        return option;
+    }));
+    const found = name ? ui.patterns.findIndex(p => p.name === name) : -1;
+    ui.patternSelect.value = String(Math.max(0, found));
+    metronomePatternChosen();
+}
+
+/** Takes up the pattern now chosen in the list: says what it clicks, and plays it if playing. */
+function metronomePatternChosen() {
+    const pattern = chosenMetronomePattern();
+    if (!pattern) return;
+    metronome.chosen = { timeSignature: pattern.timeSignature, name: pattern.name };
+    const grid = metronomeGrid(pattern);
+    metronome.ui.about.textContent = describeMetronomeClicks(grid.levels, grid.slotsPerBeat);
+    const before = metronome.grid;
+    metronome.grid = grid;
+    if (!metronome.playing || !before) return;
+    const context = getSharedAudioContext();
+    reanchorMetronome(regridMetronome(metronome.anchor, context.currentTime + METRONOME_CHANGE_MARGIN_SECONDS,
+        before, grid, metronomeSlotSeconds(metronome.tempo, grid.slotsPerBeat),
+        { sameSignature: before.timeSignature === grid.timeSignature }));
+}
+
+/** Plays one click at a level, through the metronome's own volume. */
+function scheduleMetronomeLevelClick(context, at, level) {
+    const source = context.createBufferSource();
+    source.buffer = metronomeToneBuffer(level === CLICK_ACCENT ? 'accent' : level === CLICK_SOFT ? 'soft' : 'beat');
+    const gain = context.createGain();
+    gain.gain.value = METRONOME_LEVEL_GAINS[level];
+    source.connect(gain).connect(metronome.master);
+    source.start(at);
+    return { source, at, endsAt: at + METRONOME_CLICK_SECONDS };
+}
+
+/** Lays out the clicks due in the next little while, then comes back to lay out more. */
+function scheduleMetronomeAhead() {
+    metronome.timer = null;
+    if (!metronome.playing) return;
+    const context = getSharedAudioContext();
+    const now = context.currentTime;
+    const until = now + METRONOME_LEAD_SECONDS;
+    const { levels, slotsPerMeasure } = metronome.grid;
+    // Only what is still to sound is kept, so a long session does not pile up finished sources.
+    metronome.sources = metronome.sources.filter(entry => entry.endsAt > now);
+    for (;;) {
+        const at = metronomeSlotTime(metronome.anchor, metronome.nextSlot);
+        if (at >= until) break;
+        const level = levels[metronomeSlotInMeasure(metronome.nextSlot, slotsPerMeasure)];
+        // A slot already past, after a stalled timer, is skipped rather than played late.
+        if (level !== CLICK_SILENT && at >= now) metronome.sources.push(scheduleMetronomeLevelClick(context, at, level));
+        metronome.nextSlot++;
+    }
+    metronome.timer = setTimeout(scheduleMetronomeAhead, METRONOME_TICK_MS);
+}
+
+/** Carries on from a new anchor: what was laid out from its time on is cancelled and laid out again. */
+function reanchorMetronome(anchor) {
+    const cancelFrom = anchor.time - 1e-6;
+    for (const entry of metronome.sources) {
+        if (entry.at >= cancelFrom) {
+            try { entry.source.stop(); } catch { /* already finished */ }
+        }
+    }
+    metronome.sources = metronome.sources.filter(entry => entry.at < cancelFrom);
+    metronome.anchor = anchor;
+    metronome.nextSlot = anchor.slot;
+    clearTimeout(metronome.timer);
+    scheduleMetronomeAhead();
+}
+
+function setMetronomeButton(playing) {
+    const button = metronome.ui?.startButton;
+    if (!button) return;
+    button.textContent = playing ? 'Stop' : 'Start';
+    button.setAttribute('aria-pressed', String(playing));
+}
+
+function startMetronome() {
+    if (metronome.playing || !metronome.grid) return;
+    const context = getSharedAudioContext();
+    const master = context.createGain();
+    master.gain.value = metronomeVolumeGain(metronome.volume);
+    master.connect(context.destination);
+    metronome.master = master;
+    metronome.sources = [];
+    metronome.playing = true;
+    metronome.anchor = {
+        time: context.currentTime + METRONOME_START_DELAY_SECONDS, slot: 0,
+        slotSeconds: metronomeSlotSeconds(metronome.tempo, metronome.grid.slotsPerBeat)
+    };
+    metronome.nextSlot = 0;
+    setMetronomeButton(true);
+    scheduleMetronomeAhead();
+}
+
+function stopMetronome() {
+    if (!metronome.playing) return;
+    metronome.playing = false;
+    clearTimeout(metronome.timer);
+    metronome.timer = null;
+    const context = sharedAudioContext;
+    if (context && metronome.master) {
+        const now = context.currentTime;
+        const gain = metronome.master.gain;
+        gain.cancelScheduledValues(now);
+        gain.setValueAtTime(gain.value, now);
+        gain.linearRampToValueAtTime(0, now + METRONOME_VOLUME_GLIDE_SECONDS);
+        for (const entry of metronome.sources) {
+            try { entry.source.stop(now + METRONOME_VOLUME_GLIDE_SECONDS); } catch { /* already finished */ }
+        }
+    }
+    metronome.master = null;
+    metronome.sources = [];
+    setMetronomeButton(false);
+}
+
+function announceMetronome(text) {
+    if (metronome.ui) announceLiveRegion(metronome.ui.announce, text);
+}
+
+function toggleMetronome() {
+    if (metronome.playing) {
+        stopMetronome();
+        announceMetronome('Stopped.');
+    } else {
+        startMetronome();
+        announceMetronome(`Started, ${metronome.tempo} BPM.`);
+    }
+}
+
+/** Sets the tempo, carrying on from the next slot when playing. */
+function setMetronomeTempo(tempo) {
+    metronome.tempo = tempo;
+    if (metronome.ui) metronome.ui.tempoInput.value = String(tempo);
+    if (!metronome.playing) return;
+    const context = getSharedAudioContext();
+    reanchorMetronome(retimeMetronome(metronome.anchor, context.currentTime + METRONOME_CHANGE_MARGIN_SECONDS,
+        metronomeSlotSeconds(tempo, metronome.grid.slotsPerBeat)));
+}
+
+/** Faster or Slower: one step, saying the new tempo, or that it is already as far as it goes. */
+function stepMetronomeTempo(delta) {
+    const tempo = clampMetronomeTempo(metronome.tempo + delta);
+    if (tempo === metronome.tempo) {
+        announceMetronome(`${tempo} BPM is the ${delta > 0 ? 'fastest' : 'slowest'}.`);
+        return;
+    }
+    setMetronomeTempo(tempo);
+    // Just the number, as chord practice and audio tracks say it.
+    announceMetronome(`${tempo} BPM`);
+}
+
+function defaultMetronomeTempo() {
+    setMetronomeTempo(metronome.defaultTempo);
+    announceMetronome(`Default tempo, ${metronome.defaultTempo} BPM`);
+}
+
+function setMetronomeVolume(volume) {
+    metronome.volume = volume;
+    if (metronome.ui) metronome.ui.volumeInput.value = String(volume);
+    if (!metronome.master || !sharedAudioContext) return;
+    metronome.master.gain.setTargetAtTime(metronomeVolumeGain(volume), sharedAudioContext.currentTime,
+        METRONOME_VOLUME_GLIDE_SECONDS);
+}
+
+/** Louder or Quieter: one level, saying the new level, or that it is already as far as it goes. */
+function stepMetronomeVolume(delta) {
+    const volume = clampMetronomeVolume(metronome.volume + delta);
+    if (volume === metronome.volume) {
+        announceMetronome(`Volume ${volume} is the ${delta > 0 ? 'loudest' : 'quietest'}.`);
+        return;
+    }
+    setMetronomeVolume(volume);
+    announceMetronome(`Volume ${volume}`);
+}
+
+// Keys while focus is in the Metronome item. Bare keys, as for chord practice and audio tracks,
+// so they need focus mode in NVDA; the buttons do the same outside it. F and S are faster and
+// slower there too. The arrows are free here, since the item has nothing to move through.
+const METRONOME_SHORTCUTS = {
+    ' ': () => toggleMetronome(),
+    f: () => stepMetronomeTempo(METRONOME_TEMPO_STEP),
+    s: () => stepMetronomeTempo(-METRONOME_TEMPO_STEP),
+    d: () => defaultMetronomeTempo(),
+    ArrowUp: () => stepMetronomeVolume(1),
+    ArrowDown: () => stepMetronomeVolume(-1)
+};
+
+document.addEventListener('keydown', event => {
+    const shortcut = METRONOME_SHORTCUTS[event.key];
+    if (!shortcut || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    if (document.querySelector('dialog[open]')) return;
+    const item = openItems.find(i => i.id === metronome.itemId);
+    if (!item || currentItemId !== item.id || !item.panelEl.contains(event.target)) return;
+    // Typing in a field wins: digits and arrows in Tempo and Volume, everything in the lists.
+    // Space on a button starts and stops rather than pressing it, as it pauses chord practice;
+    // Enter still presses the button.
+    if (eventTargetSwallowsKey(event.target, event.key)) return;
+    event.preventDefault();
+    shortcut();
+});
+
+/** Refills the item's lists after the player's own patterns change. */
+function refreshMetronomePatterns() {
+    if (metronome.ui) fillMetronomeLists();
+}
+
+function openMetronomeItem() {
+    // Only ever one: there is one metronome.
+    const existing = openItems.find(item => item.id === metronome.itemId);
+    if (existing) {
+        showItem(existing.id);
+        metronome.ui?.signatureSelect.focus();
+        return;
+    }
+
+    const container = document.createElement('div');
+    const heading = document.createElement('h2');
+    heading.textContent = 'Metronome';
+    container.append(heading);
+
+    const settingsHeading = document.createElement('h3');
+    settingsHeading.textContent = 'Settings';
+    container.append(settingsHeading);
+
+    const labelled = (control, idPrefix, text) => {
+        const paragraph = document.createElement('p');
+        control.id = uniqueControlId(idPrefix);
+        const label = document.createElement('label');
+        label.htmlFor = control.id;
+        label.textContent = text;
+        paragraph.append(label, control);
+        container.append(paragraph);
+        return control;
+    };
+    const numberField = (min, max, value) => {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = String(min);
+        input.max = String(max);
+        input.step = '1';
+        input.value = String(value);
+        return input;
+    };
+
+    // The time signature first, then its patterns, as in the Strumming Patterns item.
+    const signatureSelect = labelled(document.createElement('select'), 'metronome-time-signature', 'Time signature');
+    const patternSelect = labelled(document.createElement('select'), 'metronome-pattern', 'Strumming pattern');
+    // Where the clicks fall, after the list rather than as its description, so it is read when
+    // wanted rather than on every visit.
+    const about = document.createElement('p');
+    container.append(about);
+    const tempoInput = labelled(numberField(METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, metronome.tempo),
+        'metronome-tempo', `Tempo, ${METRONOME_MIN_TEMPO} to ${METRONOME_MAX_TEMPO} BPM`);
+    const volumeInput = labelled(numberField(METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, metronome.volume),
+        'metronome-volume', `Volume, ${METRONOME_MIN_VOLUME} to ${METRONOME_MAX_VOLUME}`);
+
+    const controlsHeading = document.createElement('h3');
+    controlsHeading.textContent = 'Controls';
+    container.append(controlsHeading);
+
+    const makeButton = (row, label) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        row.append(button);
+        return button;
+    };
+    const startRow = createButtonRow();
+    const startButton = makeButton(startRow, metronome.playing ? 'Stop' : 'Start');
+    startButton.setAttribute('aria-pressed', String(metronome.playing));
+    const tempoRow = createButtonRow();
+    const slowerButton = makeButton(tempoRow, 'Slower');
+    const fasterButton = makeButton(tempoRow, 'Faster');
+    const defaultButton = makeButton(tempoRow, 'Default Tempo');
+    const volumeRow = createButtonRow();
+    const quieterButton = makeButton(volumeRow, 'Quieter');
+    const louderButton = makeButton(volumeRow, 'Louder');
+    container.append(startRow, tempoRow, volumeRow);
+
+    // Answers to the buttons and keys. Not role="status", which maps to a status bar on Windows.
+    const announce = document.createElement('p');
+    announce.setAttribute('aria-live', 'polite');
+    announce.setAttribute('aria-atomic', 'true');
+    container.append(announce);
+
+    const keysHeading = document.createElement('h3');
+    keysHeading.textContent = 'Keyboard Control';
+    container.append(keysHeading);
+    const keysNote = document.createElement('p');
+    keysNote.textContent =
+        'These keys work while focus is in the metronome and your screen reader is passing keystrokes' +
+        ' straight through to unstrung, which is focus mode in NVDA. Outside that, use the buttons' +
+        ' above, which do the same things.';
+    container.append(keysNote);
+    const keysList = document.createElement('ul');
+    appendTextItems(keysList, [
+        'Space - start and stop',
+        `F - faster by ${METRONOME_TEMPO_STEP} BPM`,
+        `S - slower by ${METRONOME_TEMPO_STEP} BPM`,
+        'D - back to the default tempo, the one last typed into the Tempo field',
+        'Up arrow - louder',
+        'Down arrow - quieter'
+    ]);
+    container.append(keysList);
+
+    const item = createOpenItem('Metronome', container, {
+        kind: 'metronome',
+        onClose: () => {
+            stopMetronome();
+            metronome.ui = null;
+            metronome.itemId = null;
+        }
+    });
+    metronome.itemId = item.id;
+    metronome.ui = {
+        signatureSelect, patternSelect, about, tempoInput, volumeInput, startButton, announce,
+        all: [], patterns: null
+    };
+    metronome.grid = null;
+    fillMetronomeLists();
+
+    signatureSelect.addEventListener('change', () => fillMetronomePatterns());
+    patternSelect.addEventListener('change', () => metronomePatternChosen());
+    // Committed on change, not on each digit, as the other tempo fields are. A tempo typed here is
+    // the one Default Tempo goes back to.
+    tempoInput.addEventListener('change', () => {
+        const tempo = clampMetronomeTempo(tempoInput.value);
+        if (tempo === null) {
+            tempoInput.value = String(metronome.tempo);
+            return;
+        }
+        metronome.defaultTempo = tempo;
+        setMetronomeTempo(tempo);
+    });
+    volumeInput.addEventListener('change', () => {
+        setMetronomeVolume(clampMetronomeVolume(volumeInput.value) ?? metronome.volume);
+    });
+    startButton.addEventListener('click', () => toggleMetronome());
+    fasterButton.addEventListener('click', () => stepMetronomeTempo(METRONOME_TEMPO_STEP));
+    slowerButton.addEventListener('click', () => stepMetronomeTempo(-METRONOME_TEMPO_STEP));
+    defaultButton.addEventListener('click', () => defaultMetronomeTempo());
+    louderButton.addEventListener('click', () => stepMetronomeVolume(1));
+    quieterButton.addEventListener('click', () => stepMetronomeVolume(-1));
+
+    showItem(item.id);
+    signatureSelect.focus();
+}
 
 // --- Unsaved changes -------------------------------------------------------------------------
 //
@@ -7103,7 +7577,7 @@ let interruptedPlayback = [];
 let sharedAudioContextSuspect = false;
 
 function anythingPlaying() {
-    return chordPracticeStates.some(entry => entry.state.playing) ||
+    return metronome.playing || chordPracticeStates.some(entry => entry.state.playing) ||
         [...audioTrackPanels.values()].some(entry => entry.state.playing);
 }
 
@@ -7244,8 +7718,14 @@ function handleAudioInterruption(context) {
     ].filter(entry => entry.state.playing);
     // Losing the audio with nothing playing is the case that did not recover. Losing it mid-play,
     // as to a call, keeps the context, so that it can carry on by itself when the call ends.
-    if (playing.length === 0) sharedAudioContextSuspect = true;
+    if (playing.length === 0 && !metronome.playing) sharedAudioContextSuspect = true;
     for (const { kind, state } of playing) MEDIA_SESSION_KINDS[kind].toggle(state);
+    // The metronome stops rather than waiting to carry on: clicks coming back by themselves after
+    // a call would be a surprise, and Start is one key away.
+    if (metronome.playing) {
+        stopMetronome();
+        announceMetronome('Stopped: another app took the sound.');
+    }
     interruptedPlayback.push(...playing);
 }
 
@@ -7267,6 +7747,7 @@ const MENU_COMMANDS = {
     'new-progression': () => openProgressionEditor(),
     'open-progression': () => openProgressionOpenDialog(),
     'strumming-patterns': () => openStrummingPatternsItem(),
+    metronome: () => openMetronomeItem(),
     'chord-library': () => openChordLibraryTab(),
     'frets-to-chord': () => openFretsToChordDialog(),
     'guitar-samples': () => openGuitarSamplesDialog(),
