@@ -110,15 +110,28 @@ await page.evaluate(() => {
     };
     proto.start = function (when = 0, ...rest) {
         let frequency = null;
+        let hardAttack = false;
         const buffer = this.buffer;
         if (buffer && buffer.duration < 0.1) {
             const data = buffer.getChannelData(0);
-            let crossings = 0;
-            for (let i = 1; i < data.length; i++) if ((data[i - 1] < 0) !== (data[i] < 0)) crossings++;
-            frequency = Math.round(crossings / 2 / buffer.duration / 100) * 100;
+            const crossingsIn = (from, to) => {
+                let crossings = 0;
+                for (let i = from + 1; i < to; i++) if ((data[i - 1] < 0) !== (data[i] < 0)) crossings++;
+                return crossings;
+            };
+            // The pitch from after the attack, and the attack alone. In the first two milliseconds
+            // a pure tone changes smoothly from sample to sample, so its second difference is
+            // tiny, about 0.01 for 800 Hz; noise on the attack makes it jump.
+            const after = Math.round(buffer.sampleRate * 0.004);
+            frequency = Math.round(crossingsIn(after, data.length) / 2 / ((data.length - after) / buffer.sampleRate) / 100) * 100;
+            const attackEnd = Math.round(buffer.sampleRate * 0.002);
+            let roughness = 0;
+            for (let i = 2; i < attackEnd; i++) roughness += Math.abs(data[i] - 2 * data[i - 1] + data[i - 2]);
+            hardAttack = roughness / (attackEnd - 2) > 0.1;
         }
         // Noise crosses zero far more often than any of the tones.
-        const kind = frequency === 800 ? 'down' : frequency === 2400 ? 'up' : frequency > 5000 ? 'mute' : null;
+        const kind = frequency === 800 ? (hardAttack ? 'strong down' : 'down')
+            : frequency === 2400 ? 'up' : frequency === 3200 ? 'strong up' : frequency > 5000 ? 'mute' : null;
         this.__sound = {
             when, frequency, kind, gain: this.__destination?.gain?.value ?? null,
             cancelled: false, startedAt: this.context.currentTime
@@ -137,8 +150,9 @@ const clicks = () => page.evaluate(() => window.__sounds
     .filter(s => s.kind && !s.cancelled)
     .sort((a, b) => a.when - b.when));
 const audioNow = () => page.evaluate(() => Math.max(0, ...window.__sounds.map(s => s.startedAt)));
-// A click as the checks write it: its sound, with "strong" when it is played at full gain.
-const describe = c => `${c.gain === 1 ? 'strong ' : ''}${c.kind}`;
+// A click as the checks write it, by its sound: down, strong down, up, strong up or mute.
+const describe = c => c.kind;
+const isDown = c => c.kind === 'down' || c.kind === 'strong down';
 const near = (a, b, tolerance = 0.002) => Math.abs(a - b) < tolerance;
 
 // --- The menu ---------------------------------------------------------------------------------
@@ -392,20 +406,20 @@ await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Three-Three-Two: >
 await wait(3500);
 heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
 const slot80 = 60 / 80 / 2;
-const accents = heard.filter(c => c.gain === 1);
+const accents = heard.filter(c => c.kind === 'strong down');
 const accentGaps = accents.slice(1).map((c, i) => Math.round((c.when - accents[i].when) / slot80));
 check('strong clicks now fall three, three, two eighths apart', accentGaps.length >= 3 && accentGaps.every(g => g === 3 || g === 2),
     accentGaps.join(' '));
-check('every click is a down, the strokes between plain', heard.every(c => c.kind === 'down') &&
-    heard.filter(c => c.gain !== 1).every(c => c.gain < 1));
+check('every click is a down, the strong ones louder', heard.every(isDown) &&
+    accents.every(c => c.gain === 1) && heard.filter(c => c.kind === 'down').every(c => c.gain < 1));
 check('still on the eighths at 80', heard.slice(1).every((c, i) => near((c.when - heard[i].when) / slot80, 1, 0.01)));
 
 changedAt = await audioNow();
 await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Eighth-Note Downs: D D D D D D D D' });
 await wait(3500);
 heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
-const strong = heard.filter(c => c.gain === 1);
-check('Eighth-Note Downs is the down click on every eighth', heard.length >= 8 && heard.every(c => c.kind === 'down') &&
+const strong = heard.filter(c => c.kind === 'strong down');
+check('Eighth-Note Downs is the down click on every eighth', heard.length >= 8 && heard.every(isDown) &&
     heard.slice(1).every((c, i) => near((c.when - heard[i].when) / slot80, 1, 0.01)), `${heard.length} clicks`);
 check('only beat 1 is strong', strong.length >= 1 && strong.slice(1).every((c, i) => near(c.when - strong[i].when, 8 * slot80, 0.01)),
     strong.map(c => c.when.toFixed(3)).join(' '));
@@ -415,7 +429,20 @@ await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Backbeat Chuck: D 
 await wait(3500);
 heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
 check('Backbeat Chuck sounds its mutes with the mute click', heard.some(c => c.kind === 'mute') &&
-    heard.some(c => c.kind === 'down') && heard.some(c => c.kind === 'up'), [...new Set(heard.map(c => c.kind))].join(', '));
+    heard.some(isDown) && heard.some(c => c.kind === 'up'), [...new Set(heard.map(c => c.kind))].join(', '));
+
+changedAt = await audioNow();
+await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Reggae Offbeat: - U - U - U - U' });
+await wait(4500);
+// From a beat and a little after the change, by when the new pattern has taken over.
+heard = (await clicks()).filter(c => c.when > changedAt + 1);
+const strongUps = heard.filter(c => c.kind === 'strong up');
+check('Reggae Offbeat, with nothing on beat 1, starts each measure with the strong up',
+    strongUps.length >= 1 && heard.every(c => c.kind === 'up' || c.kind === 'strong up') &&
+    strongUps.slice(1).every((c, i) => near(c.when - strongUps[i].when, 8 * slot80, 0.01)),
+    heard.map(c => c.kind).join(', '));
+check('the strong up is louder than the others', strongUps.every(c => heard.filter(u => u.kind === 'up').every(u => c.gain > u.gain)),
+    `${strongUps[0]?.gain} against ${heard.find(u => u.kind === 'up')?.gain}`);
 await page.selectOption(`${PANEL} select`, '3/4');
 await wait(100);
 state = await item();

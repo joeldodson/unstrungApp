@@ -2523,13 +2523,29 @@ const metronomeClickBuffers = new Map();
 // of a strumming pattern: down a lower, rounder click; up a much higher, shorter tick, which the
 // item also plays quieter; mute a burst of noise, like the chuck of a muted strum. Each decays to
 // near silence inside the buffer, so its end needs no fade.
+//
+// The strong click, which starts the measure or marks an accent, has its own sound as well as
+// being louder, and a strong down differs from a strong up in a different way: a strong down is
+// the down click hit hard, a few milliseconds of noise on its attack like a stick on a block; a
+// strong up is the up tick raised to 3200 Hz.
 const METRONOME_CLICK_TONES = {
     accent: { frequency: 1600, decay: 55 },
     beat: { frequency: 1000, decay: 75 },
     down: { frequency: 800, decay: 70 },
+    downStrong: { frequency: 800, decay: 70, hardAttack: true },
     up: { frequency: 2400, decay: 140 },
+    upStrong: { frequency: 3200, decay: 140 },
     mute: { noise: true, decay: 110 }
 };
+// The hard attack: noise this loud at its start, gone within about three milliseconds.
+const METRONOME_HARD_ATTACK_LEVEL = 0.7;
+const METRONOME_HARD_ATTACK_DECAY = 1200;
+
+/** The tone a metronome click plays: its stroke's, strong or not. A mute has one sound. */
+function metronomeClickTone(click) {
+    if (click.sound === 'mute') return 'mute';
+    return click.strong ? `${click.sound}Strong` : click.sound;
+}
 
 function metronomeClickBuffer(accent) {
     return metronomeToneBuffer(accent ? 'accent' : 'beat');
@@ -2543,8 +2559,8 @@ function metronomeToneBuffer(kind) {
     const buffer = context.createBuffer(1, frameCount, context.sampleRate);
     const data = buffer.getChannelData(0);
 
-    const { frequency, decay, noise } = METRONOME_CLICK_TONES[kind];
-    // Noise from a fixed seed, so the mute click sounds the same every time.
+    const { frequency, decay, noise, hardAttack } = METRONOME_CLICK_TONES[kind];
+    // Noise from a fixed seed, so the mute click and the hard attack sound the same every time.
     let seed = 12345;
     const random = () => {
         seed = (seed * 1103515245 + 12345) % 2147483648;
@@ -2555,7 +2571,10 @@ function metronomeToneBuffer(kind) {
         // Starting at zero phase keeps the attack clean; the decay brings it to near silence well
         // inside the buffer, so the end needs no separate fade.
         const wave = noise ? random() : Math.sin(2 * Math.PI * frequency * t);
-        data[i] = wave * Math.exp(-t * decay);
+        const attack = hardAttack
+            ? random() * METRONOME_HARD_ATTACK_LEVEL * Math.exp(-t * METRONOME_HARD_ATTACK_DECAY) : 0;
+        // Held within full scale: the attack and the tone can add up past it for a moment.
+        data[i] = Math.max(-1, Math.min(1, wave * Math.exp(-t * decay) + attack));
     }
 
     metronomeClickBuffers.set(kind, buffer);
@@ -6182,7 +6201,7 @@ function metronomePatternChosen() {
 /** Plays one click, { sound, strong }, through the metronome's own volume. */
 function scheduleMetronomeStrokeClick(context, at, click) {
     const source = context.createBufferSource();
-    source.buffer = metronomeToneBuffer(click.sound);
+    source.buffer = metronomeToneBuffer(metronomeClickTone(click));
     const gain = context.createGain();
     gain.gain.value = metronomeClickGain(click);
     source.connect(gain).connect(metronome.master);

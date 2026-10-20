@@ -33,7 +33,7 @@ const expected = [
     ['4/4', 'Old Faithful', 'strong-down - down up - up down up'],
     ['4/4', 'Three-Three-Two', 'strong-down down down strong-down down down strong-down down'],
     ['4/4', 'Backbeat Chuck', 'strong-down - mute up - up mute up'],
-    ['4/4', 'Reggae Offbeat', '- up - up - up - up'],
+    ['4/4', 'Reggae Offbeat', '- strong-up - up - up - up'],
     ['3/4', 'Oom-Pah-Pah', 'strong-down down down'],
     ['6/8', 'Down Only', 'strong-down down down down down down'],
     ['6/8', 'Accented Downs', 'strong-down down down strong-down down down'],
@@ -57,7 +57,9 @@ check('a 4/4 pattern of the player\'s own clicks too',
 console.log('How loud each click is');
 const gain = (sound, strong) => metronomeClickGain({ sound, strong });
 check('a strong down is the loudest', gain('down', true) === 1);
-check('a plain down is quieter than a strong one', gain('down', false) < gain('down', true));
+check('a plain down is at least 7 decibels under a strong one', 20 * Math.log10(gain('down', false)) <= -7,
+    `${(20 * Math.log10(gain('down', false))).toFixed(1)} dB`);
+check('a strong up is louder than a plain up', gain('up', true) > gain('up', false));
 check('an up is quieter than a down, strong or plain',
     gain('up', true) < gain('down', true) && gain('up', false) < gain('down', false));
 check('a plain up is at least 10 decibels under a strong down', 20 * Math.log10(gain('up', false)) <= -10,

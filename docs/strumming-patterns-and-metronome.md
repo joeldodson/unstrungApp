@@ -527,7 +527,8 @@ presets, and the metronome choice in chord practice and audio tracks are still t
 - **The sound follows the stroke.** `metronomeClicks` in `src/shared/metronome.mjs` gives each
   slot its click: none on a miss, otherwise the stroke's own sound, down, up or mute, strong or
   plain. A pattern with accents of its own makes its accents strong, so Three-Three-Two is heard
-  in threes and twos; one without is strong on beat 1 only. Strong changes loudness, not sound.
+  in threes and twos; one without makes its first stroke strong, beat 1 in most patterns and the
+  and of 1 in Reggae Offbeat, which has nothing on beat 1.
   `describeMetronomeClicks` says it in words beside the list: "Clicks on 1 strong down, 2 down,
   2 and up...". An off-beat is named with its beat ("2 and"), since a bare "and" cannot say which
   beat it follows when that beat has no click. Also the tempo and volume bounds, the gains, and
@@ -540,10 +541,19 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   design are set aside for now: following a pattern needs the stroke, not a level.
 - **The sounds** (`METRONOME_CLICK_TONES` in the renderer): down is an 800 Hz click with a slow
   decay, round and low; up is a 2400 Hz tick with a fast decay, short and high, played at 0.45 of
-  a down; mute is a burst of noise from a fixed seed, like a chuck, at 0.7. A plain click is 0.55
-  of a strong one, the ratio chord practice's clicks already use. So a plain up is some 12
-  decibels under a strong down and 7 under a plain down, as well as 1.6 octaves higher. The 1600
-  and 1000 Hz clicks of chord practice and audio tracks are unchanged.
+  a down; mute is a burst of noise from a fixed seed, like a chuck, at 0.7. A plain click is 0.4
+  of a strong one, some 8 decibels down. So a plain up is some 15 decibels under a strong down and
+  7 under a plain down, as well as 1.6 octaves higher. The 1600 and 1000 Hz clicks of chord
+  practice and audio tracks are unchanged.
+- **The strong click has its own sound** (changed on 2026-10-19, after Joel tried it again). At
+  first a strong click was the same sound some 5 decibels louder, the 0.55 ratio chord practice
+  uses, and beat 1 was hard to pick out. Joel asked for it louder and harder, and for a pattern
+  with only an up stroke on beat 1 still to mark the measure, differently from a down. So the
+  plain click went down to 0.4; a strong down is the down click with a hard attack, noise at 0.7
+  dying away within about three milliseconds, like a stick on a block; a strong up is the up tick
+  raised from 2400 to 3200 Hz, with no attack. A pattern without accents of its own makes its first
+  stroke strong rather than slot 1, so Reggae Offbeat's measure starts on a strong up. A strong
+  mute is only louder.
 - **Volume.** Levels 1 to 5 set the gain of a strong down click: 0.08, 0.13, 0.21, 0.34, 0.55, each
   about 1.6 times the last, some 4 decibels, so the steps sound even. Level 1 is a little under the
   beat click that plays with chord practice (0.096); level 5 leaves headroom before clipping when
@@ -593,9 +603,10 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   since song files are kept outside the repository. It records every click the page schedules, by
   wrapping `AudioBufferSourceNode` start, stop and connect, and checks timing, sound and gain from
   those records: one measure of Old Faithful at 80, the spacing after a tempo change,
-  Three-Three-Two's accents, Eighth-Note Downs as one sound on every eighth and Backbeat Chuck's
-  mutes after pattern changes, and nothing left to sound after closing. Playwright's WebKit for Windows has no Web
-  Audio, so Safari is unchecked.
+  Three-Three-Two's accents, Eighth-Note Downs as one sound on every eighth, Backbeat Chuck's
+  mutes and Reggae Offbeat's strong up after pattern changes, and nothing left to sound after
+  closing. It tells a strong down by the roughness of its first two milliseconds, which a pure
+  tone does not have. Playwright's WebKit for Windows has no Web Audio, so Safari is unchecked.
 
 ## Open questions
 

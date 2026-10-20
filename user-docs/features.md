@@ -430,8 +430,11 @@ A down stroke is a low, round click.
 An up stroke is a much higher, shorter tick, and quieter.
 A muted strum is a short burst of noise, like a chuck.
 So eight downs in a measure are eight of the same click, and down-up eighths alternate the two.
-Beat 1 is louder, with the same sound, so you can hear where the measure starts.
-A pattern with accents of its own, such as Three-Three-Two, makes its accents louder instead.
+The first stroke of the measure is the strong click, so you can hear where the measure starts.
+That is beat 1 in most patterns, and the and of 1 in a pattern with nothing on beat 1, such as Reggae Offbeat.
+A strong down is louder and hit harder, with a sharp attack.
+A strong up is louder and higher.
+A pattern with accents of its own, such as Three-Three-Two, makes its accents the strong clicks instead.
 
 Under Settings:
 

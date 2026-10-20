@@ -6,9 +6,11 @@
 // stroke an up click, a mute a click of its own. So eight downs in a measure are eight of the same
 // click, and only a pattern that goes up as well sounds two.
 //
-// Each click is strong or plain, which changes only its loudness. A pattern with accents of its
-// own makes its accents strong, so Three-Three-Two is heard in its threes and twos. One without is
-// strong on beat 1, so the measure can be heard to start.
+// Each click is strong or plain. A pattern with accents of its own makes its accents strong, so
+// Three-Three-Two is heard in its threes and twos. One without makes its first stroke strong, so
+// the measure can be heard to start: beat 1 in most patterns, the and of 1 in Reggae Offbeat. A
+// strong click is louder, and the renderer gives it its own sound as well: a hard attack on a down,
+// a higher tick on an up, so the two kinds of strong click differ from each other too.
 //
 // Also the arithmetic for changing tempo or pattern while it plays: the clicks are timed from an
 // anchor, { time, slot, slotSeconds }, the audio clock time of one slot. Changing either sets a new
@@ -37,9 +39,9 @@ export const METRONOME_VOLUME_GAINS = [0.08, 0.13, 0.21, 0.34, 0.55];
 // How loud each sound is beside a down click. An up click is quieter as well as higher, as an
 // upstroke is lighter than a downstroke, so the two differ in loudness as well as pitch.
 export const METRONOME_SOUND_GAINS = { down: 1, up: 0.45, mute: 0.7 };
-// How loud a plain click is beside a strong one: some 5 decibels down, the ratio the chord
-// practice clicks already use between the downbeat and the other beats.
-export const METRONOME_PLAIN_GAIN = 0.55;
+// How loud a plain click is beside a strong one: some 8 decibels down. It was 0.55, about 5
+// decibels, the ratio the chord practice clicks use, and Joel found beat 1 hard to pick out.
+export const METRONOME_PLAIN_GAIN = 0.4;
 
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
@@ -69,9 +71,10 @@ export function metronomeVolumeGain(volume) {
 export function metronomeClicks(pattern) {
     const { slots } = pattern;
     const accented = slots.some(slot => slot.accent && slot.stroke !== 'miss');
+    const firstStroke = slots.findIndex(slot => slot.stroke !== 'miss');
     return slots.map((slot, index) => {
         if (slot.stroke === 'miss') return null;
-        return { sound: slot.stroke, strong: accented ? slot.accent : index === 0 };
+        return { sound: slot.stroke, strong: accented ? slot.accent : index === firstStroke };
     });
 }
 
