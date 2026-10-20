@@ -1,13 +1,13 @@
-// Checks src/shared/metronome.mjs: which slots of each built-in strumming pattern click and how
-// loud, the clicks in words, tempo and volume bounds, and the timing arithmetic for changing tempo
-// or pattern while the metronome plays. Plain Node, no app.
+// Checks src/shared/metronome.mjs: which slots of each built-in strumming pattern click, with which
+// sound and how strongly, the clicks in words, tempo and volume bounds, and the timing arithmetic
+// for changing tempo or pattern while the metronome plays. Plain Node, no app.
 //
 //   node scripts/metronome/check-metronome.mjs
 
 import {
-    metronomeLevels, formatMetronomeLevels, describeMetronomeClicks, clampMetronomeTempo, clampMetronomeVolume,
-    metronomeVolumeGain, metronomeSlotTime, firstMetronomeSlotAfter, retimeMetronome, regridMetronome,
-    metronomeSlotInMeasure, metronomeSlotSeconds, isCompoundTime,
+    metronomeClicks, metronomeClickGain, formatMetronomeClicks, describeMetronomeClicks, clampMetronomeTempo,
+    clampMetronomeVolume, metronomeVolumeGain, metronomeSlotTime, firstMetronomeSlotAfter, retimeMetronome,
+    regridMetronome, metronomeSlotInMeasure, metronomeSlotSeconds,
     METRONOME_VOLUME_GAINS, METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO
 } from '../../src/shared/metronome.mjs';
 import { patternsFor, BUILT_IN_PATTERNS } from '../../src/shared/strummingPatterns.mjs';
@@ -19,51 +19,59 @@ const check = (label, condition, detail = '') => {
 };
 const near = (a, b) => Math.abs(a - b) < 1e-9;
 
-const levelsOf = (signature, name) => {
+const clicksOf = (signature, name) => {
     const [beats, unit] = signature.split('/').map(Number);
     const pattern = patternsFor(beats, unit).find(p => p.name === name);
-    return { levels: formatMetronomeLevels(metronomeLevels(pattern, beats, unit)), pattern };
+    return { clicks: metronomeClicks(pattern), pattern };
 };
 
-console.log('Click levels from the built-in patterns');
+console.log('Clicks from the built-in patterns: the sound follows the stroke');
 const expected = [
-    ['4/4', 'Down Only', '3 2 2 2'],
-    ['4/4', 'All Down-Up', '3 1 2 1 2 1 2 1'],
-    ['4/4', 'Old Faithful', '3 0 2 1 0 1 2 1'],
-    ['4/4', 'Three-Three-Two', '3 1 1 3 1 1 3 1'],
-    ['4/4', 'Backbeat Chuck', '3 0 2 1 0 1 2 1'],
-    ['4/4', 'Reggae Offbeat', '0 1 0 1 0 1 0 1'],
-    ['3/4', 'Down Only', '3 2 2'],
-    ['3/4', 'Oom-Pah-Pah', '3 1 1'],
-    ['6/8', 'Down Only', '3 1 1 2 1 1'],
-    ['6/8', 'Accented Downs', '3 1 1 3 1 1'],
-    ['6/8', 'On the Pulse', '3 0 0 2 0 0'],
-    ['12/8', 'On the Pulse', '3 0 0 2 0 0 2 0 0 2 0 0'],
-    ['2/4', 'Down, Down-Up', '3 0 2 1']
+    ['4/4', 'Down Only', 'strong-down down down down'],
+    ['4/4', 'Eighth-Note Downs', 'strong-down down down down down down down down'],
+    ['4/4', 'All Down-Up', 'strong-down up down up down up down up'],
+    ['4/4', 'Old Faithful', 'strong-down - down up - up down up'],
+    ['4/4', 'Three-Three-Two', 'strong-down down down strong-down down down strong-down down'],
+    ['4/4', 'Backbeat Chuck', 'strong-down - mute up - up mute up'],
+    ['4/4', 'Reggae Offbeat', '- up - up - up - up'],
+    ['3/4', 'Oom-Pah-Pah', 'strong-down down down'],
+    ['6/8', 'Down Only', 'strong-down down down down down down'],
+    ['6/8', 'Accented Downs', 'strong-down down down strong-down down down'],
+    ['12/8', 'On the Pulse', 'strong-down - - down - - down - - down - -']
 ];
-for (const [signature, name, levels] of expected) {
-    const got = levelsOf(signature, name).levels;
-    check(`${signature} ${name}: ${levels}`, got === levels, got);
+for (const [signature, name, words] of expected) {
+    const got = formatMetronomeClicks(clicksOf(signature, name).clicks);
+    check(`${signature} ${name}: ${words}`, got === words, got);
 }
 let allFit = true;
 for (const entry of BUILT_IN_PATTERNS) {
-    const { pattern, levels } = levelsOf(entry.timeSignature, entry.name);
-    if (levels.split(' ').length !== pattern.slots.length) allFit = false;
+    const { pattern, clicks } = clicksOf(entry.timeSignature, entry.name);
+    if (clicks.length !== pattern.slots.length) allFit = false;
 }
-check('every built-in pattern has one level per slot', allFit);
+check('every built-in pattern has one click or none per slot', allFit);
 check('a 4/4 pattern of the player\'s own clicks too',
-    formatMetronomeLevels(metronomeLevels(
-        patternsFor(4, 4, [{ name: 'Mine', timeSignature: '4/4', text: 'D - D U D U D U' }]).find(p => p.own), 4, 4))
-        === '3 0 2 1 2 1 2 1');
-check('6/8 and 12/8 are compound, 3/4 and 3/8 are not',
-    isCompoundTime(6, 8) && isCompoundTime(12, 8) && !isCompoundTime(3, 4) && !isCompoundTime(3, 8));
+    formatMetronomeClicks(metronomeClicks(
+        patternsFor(4, 4, [{ name: 'Mine', timeSignature: '4/4', text: 'D - D U D U D U' }]).find(p => p.own)))
+        === 'strong-down - down up down up down up');
+
+console.log('How loud each click is');
+const gain = (sound, strong) => metronomeClickGain({ sound, strong });
+check('a strong down is the loudest', gain('down', true) === 1);
+check('a plain down is quieter than a strong one', gain('down', false) < gain('down', true));
+check('an up is quieter than a down, strong or plain',
+    gain('up', true) < gain('down', true) && gain('up', false) < gain('down', false));
+check('a plain up is at least 10 decibels under a strong down', 20 * Math.log10(gain('up', false)) <= -10,
+    `${(20 * Math.log10(gain('up', false))).toFixed(1)} dB`);
 
 console.log('The clicks in words');
-const oldFaithful = levelsOf('4/4', 'Old Faithful');
-const words = describeMetronomeClicks(metronomeLevels(oldFaithful.pattern, 4, 4), 2);
-check('Old Faithful', words === 'Clicks on 1 strong, 2, 2 and soft, 3 and soft, 4, 4 and soft.', words);
-const sixteenths = describeMetronomeClicks([3, 1, 1, 1, 2, 0, 0, 0], 4);
-check('sixteenths name e, and, a', sixteenths === 'Clicks on 1 strong, 1 e soft, 1 and soft, 1 a soft, 2.', sixteenths);
+const oldFaithful = clicksOf('4/4', 'Old Faithful');
+const words = describeMetronomeClicks(oldFaithful.clicks, 2);
+check('Old Faithful', words === 'Clicks on 1 strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up.', words);
+const sixteenths = describeMetronomeClicks(metronomeClicks({ slots: [
+    { stroke: 'down', accent: false }, { stroke: 'up', accent: false }, { stroke: 'mute', accent: false },
+    { stroke: 'miss', accent: false }, { stroke: 'down', accent: false }
+] }), 4);
+check('sixteenths name e, and, a', sixteenths === 'Clicks on 1 strong down, 1 e up, 1 and mute, 2 down.', sixteenths);
 
 console.log('Tempo and volume bounds');
 check(`tempo below ${METRONOME_MIN_TEMPO} comes up to it`, clampMetronomeTempo(5) === METRONOME_MIN_TEMPO);

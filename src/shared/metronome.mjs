@@ -1,18 +1,14 @@
 // The metronome: clicks laid out on the slot grid of a strumming pattern.
 //
 // A strumming pattern divides a measure into slots and says what the hand does in each (see
-// strummingPatterns.mjs). The metronome clicks wherever the hand strikes the strings, a down, an
-// up or a mute, and is silent on a miss. Each click has a level, as the design gives them:
+// strummingPatterns.mjs). The metronome clicks wherever the hand strikes the strings, and is silent
+// on a miss. The sound follows the stroke, not where it falls: a down stroke is a down click, an up
+// stroke an up click, a mute a click of its own. So eight downs in a measure are eight of the same
+// click, and only a pattern that goes up as well sounds two.
 //
-//   0  silent
-//   1  soft: a stroke between the pulses, such as an and
-//   2  normal: a stroke on a pulse
-//   3  accent: beat 1, or a stroke the pattern accents with >
-//
-// A pattern with accents of its own decides the accents itself: those strokes are 3 and every
-// other stroke is 1, so Three-Three-Two is heard in its threes and twos rather than in fours. One
-// without accents is accented on beat 1. The pulses are the beats, except in compound time (6/8,
-// 9/8, 12/8), where every third eighth is a pulse, so 6/8 is heard on 1 and 4.
+// Each click is strong or plain, which changes only its loudness. A pattern with accents of its
+// own makes its accents strong, so Three-Three-Two is heard in its threes and twos. One without is
+// strong on beat 1, so the measure can be heard to start.
 //
 // Also the arithmetic for changing tempo or pattern while it plays: the clicks are timed from an
 // anchor, { time, slot, slotSeconds }, the audio clock time of one slot. Changing either sets a new
@@ -32,20 +28,18 @@ export const METRONOME_MIN_VOLUME = 1;
 export const METRONOME_MAX_VOLUME = 5;
 export const METRONOME_DEFAULT_VOLUME = 3;
 
-// The gain of an accented click at each volume, 1 to 5. Each step is about 1.6 times the last,
+// The gain of a strong down click at each volume, 1 to 5. Each step is about 1.6 times the last,
 // some 4 decibels, so the steps sound even. Level 1 is a little under the beat clicks that play
 // along with chord practice; level 5 is as loud as a click can be made without the risk of
 // clipping once other sound is playing as well. Chosen for first testing, to be adjusted by ear.
 export const METRONOME_VOLUME_GAINS = [0.08, 0.13, 0.21, 0.34, 0.55];
 
-// How loud each click level is beside an accent at the same volume. Normal is the ratio the
-// chord practice clicks already use between the downbeat and the other beats.
-export const METRONOME_LEVEL_GAINS = [0, 0.35, 0.55, 1];
-
-export const CLICK_SILENT = 0;
-export const CLICK_SOFT = 1;
-export const CLICK_NORMAL = 2;
-export const CLICK_ACCENT = 3;
+// How loud each sound is beside a down click. An up click is quieter as well as higher, as an
+// upstroke is lighter than a downstroke, so the two differ in loudness as well as pitch.
+export const METRONOME_SOUND_GAINS = { down: 1, up: 0.45, mute: 0.7 };
+// How loud a plain click is beside a strong one: some 5 decibels down, the ratio the chord
+// practice clicks already use between the downbeat and the other beats.
+export const METRONOME_PLAIN_GAIN = 0.55;
 
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
@@ -69,51 +63,46 @@ export function metronomeVolumeGain(volume) {
 }
 
 /**
- * Whether a time signature is compound: a multiple of three eighths, more than three of them. Its
- * pulse is every third eighth.
+ * The click of each slot of a pattern, from its strokes ({ slots } as patternsFor gives them):
+ * null on a miss, otherwise { sound: 'down' | 'up' | 'mute', strong }.
  */
-export function isCompoundTime(beatsPerBar, beatUnit) {
-    return beatUnit === 8 && beatsPerBar > 3 && beatsPerBar % 3 === 0;
-}
-
-/**
- * The click level of each slot of a pattern, from its strokes: { slots, slotsPerBeat } as
- * patternsFor gives them.
- */
-export function metronomeLevels(pattern, beatsPerBar, beatUnit) {
-    const { slots, slotsPerBeat } = pattern;
+export function metronomeClicks(pattern) {
+    const { slots } = pattern;
     const accented = slots.some(slot => slot.accent && slot.stroke !== 'miss');
-    const beatsPerPulse = isCompoundTime(beatsPerBar, beatUnit) ? 3 : 1;
     return slots.map((slot, index) => {
-        if (slot.stroke === 'miss') return CLICK_SILENT;
-        if (accented) return slot.accent ? CLICK_ACCENT : CLICK_SOFT;
-        if (index === 0) return CLICK_ACCENT;
-        const onPulse = index % (slotsPerBeat * beatsPerPulse) === 0;
-        return onPulse ? CLICK_NORMAL : CLICK_SOFT;
+        if (slot.stroke === 'miss') return null;
+        return { sound: slot.stroke, strong: accented ? slot.accent : index === 0 };
     });
 }
 
-/** Levels as the design writes them: digits separated by spaces, `3 0 2 1 2 0 2 1`. */
-export function formatMetronomeLevels(levels) {
-    return levels.join(' ');
+/** How loud a click is beside a strong down click. */
+export function metronomeClickGain(click) {
+    return METRONOME_SOUND_GAINS[click.sound] * (click.strong ? 1 : METRONOME_PLAIN_GAIN);
 }
 
 /**
- * The clicks in words, for reading beside the pattern list: "Clicks on 1 strong, 2, 2 and soft,
- * 3 and soft, 4, 4 and soft." A position between beats is named with its beat, since a bare "and"
- * cannot say which beat it follows when the beat itself has no click.
+ * The clicks written out, one word a slot, for checks: `strong-down - down up - up down up`,
+ * a dash for no click.
  */
-export function describeMetronomeClicks(levels, slotsPerBeat) {
+export function formatMetronomeClicks(clicks) {
+    return clicks.map(click => (click ? `${click.strong ? 'strong-' : ''}${click.sound}` : '-')).join(' ');
+}
+
+/**
+ * The clicks in words, for reading beside the pattern list: "Clicks on 1 strong down, 2 down,
+ * 2 and up, 3 and up, 4 down, 4 and up." A position between beats is named with its beat, since a
+ * bare "and" cannot say which beat it follows when the beat itself has no click.
+ */
+export function describeMetronomeClicks(clicks, slotsPerBeat) {
     const between = { 1: [], 2: ['and'], 4: ['e', 'and', 'a'] }[slotsPerBeat] ?? [];
-    const loudness = { [CLICK_SOFT]: ' soft', [CLICK_NORMAL]: '', [CLICK_ACCENT]: ' strong' };
-    const clicks = levels.flatMap((level, index) => {
-        if (level === CLICK_SILENT) return [];
+    const words = clicks.flatMap((click, index) => {
+        if (!click) return [];
         const beat = Math.floor(index / slotsPerBeat) + 1;
         const within = index % slotsPerBeat;
         const position = within === 0 ? String(beat) : `${beat} ${between[within - 1] ?? ''}`.trim();
-        return [`${position}${loudness[level]}`];
+        return [`${position} ${click.strong ? 'strong ' : ''}${click.sound}`];
     });
-    return clicks.length ? `Clicks on ${clicks.join(', ')}.` : 'No clicks: the pattern strikes nothing.';
+    return words.length ? `Clicks on ${words.join(', ')}.` : 'No clicks: the pattern strikes nothing.';
 }
 
 /** How long one slot lasts, in seconds. The tempo counts beats, the lower number of the signature. */

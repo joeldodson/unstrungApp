@@ -3,9 +3,9 @@
 // bounds, Default Tempo, what is said in the live region, and the clicks themselves.
 //
 // The clicks are checked from data, not by ear: before Start, the page's AudioBufferSourceNode
-// start and stop are wrapped to record when each sound is due and what pitch its buffer holds
-// (1600 Hz accent, 1000 Hz beat, 700 Hz soft). Asserts on text, structure, focus and those
-// records, never on anything visual.
+// start, stop and connect are wrapped to record when each sound is due, what its buffer holds
+// (800 Hz down, 2400 Hz up, noise for a mute) and the gain it is played at. Asserts on text,
+// structure, focus and those records, never on anything visual.
 //
 // Also checks the D key, back to the default tempo, in a chord practice progression, and in an
 // audio track when a song file is named.
@@ -85,6 +85,7 @@ const item = () => page.evaluate(selector => {
         startText: start?.textContent, pressed: start?.getAttribute('aria-pressed'),
         live: live?.textContent ?? null, liveAtomic: live?.getAttribute('aria-atomic'),
         keys: [...panel.querySelectorAll('ul li')].map(li => li.textContent),
+        keysNote: panel.querySelector('ul').previousElementSibling?.textContent ?? '',
         focusedOn: focused === signature ? 'time signature' : focused === pattern ? 'pattern' : focused === tempo ? 'tempo'
             : focused === volume ? 'volume' : focused?.tagName === 'BUTTON' ? `button ${focused.textContent}` : focused?.tagName
     };
@@ -95,13 +96,18 @@ const field = label => page.locator(`${PANEL} input[type="number"]`).nth(label =
 // Presses a key and gives the live region its next task to fill in.
 const key = async name => { await page.keyboard.press(name); await wait(80); };
 
-// Records every sound the page starts from here on: when it is due, its buffer's pitch, and
-// whether it was cancelled before it sounded.
+// Records every sound the page starts from here on: when it is due, its buffer's pitch, the gain
+// of the node it plays into, and whether it was cancelled before it sounded.
 await page.evaluate(() => {
     window.__sounds = [];
     const proto = AudioBufferSourceNode.prototype;
     const start = proto.start;
     const stop = proto.stop;
+    const connect = proto.connect;
+    proto.connect = function (destination, ...rest) {
+        this.__destination = destination;
+        return connect.call(this, destination, ...rest);
+    };
     proto.start = function (when = 0, ...rest) {
         let frequency = null;
         const buffer = this.buffer;
@@ -111,7 +117,12 @@ await page.evaluate(() => {
             for (let i = 1; i < data.length; i++) if ((data[i - 1] < 0) !== (data[i] < 0)) crossings++;
             frequency = Math.round(crossings / 2 / buffer.duration / 100) * 100;
         }
-        this.__sound = { when, frequency, cancelled: false, startedAt: this.context.currentTime };
+        // Noise crosses zero far more often than any of the tones.
+        const kind = frequency === 800 ? 'down' : frequency === 2400 ? 'up' : frequency > 5000 ? 'mute' : null;
+        this.__sound = {
+            when, frequency, kind, gain: this.__destination?.gain?.value ?? null,
+            cancelled: false, startedAt: this.context.currentTime
+        };
         window.__sounds.push(this.__sound);
         return start.call(this, when, ...rest);
     };
@@ -123,10 +134,11 @@ await page.evaluate(() => {
     };
 });
 const clicks = () => page.evaluate(() => window.__sounds
-    .filter(s => [700, 1000, 1600].includes(s.frequency) && !s.cancelled)
+    .filter(s => s.kind && !s.cancelled)
     .sort((a, b) => a.when - b.when));
 const audioNow = () => page.evaluate(() => Math.max(0, ...window.__sounds.map(s => s.startedAt)));
-const KIND = { 1600: 'accent', 1000: 'beat', 700: 'soft' };
+// A click as the checks write it: its sound, with "strong" when it is played at full gain.
+const describe = c => `${c.gain === 1 ? 'strong ' : ''}${c.kind}`;
 const near = (a, b, tolerance = 0.002) => Math.abs(a - b) < tolerance;
 
 // --- The menu ---------------------------------------------------------------------------------
@@ -157,7 +169,8 @@ check('every time signature with patterns is offered', ['4/4', '3/4', '6/8', '2/
     state.signatures.join(', '));
 check('the 4/4 patterns are the Strumming Patterns item\'s', state.patterns.includes('Old Faithful: D - D U - U D U') &&
     state.patterns.includes('Three-Three-Two: >D D D >D D D >D D'), `${state.patterns.length} patterns`);
-check('the clicks are said in words after the list', state.about === 'Clicks on 1 strong, 2, 3, 4.', state.about);
+check('the clicks are said in words after the list', state.about === 'Clicks on 1 strong down, 2 down, 3 down, 4 down.',
+    state.about);
 check('Tempo is a number field from 30 to 240, at 80', state.tempoType === 'number' && state.tempoMin === '30' &&
     state.tempoMax === '240' && state.tempo === '80', `${state.tempoMin}-${state.tempoMax} at ${state.tempo}`);
 check('Volume is a number field from 1 to 5, at 3', state.volumeType === 'number' && state.volumeMin === '1' &&
@@ -170,13 +183,14 @@ check('the live region is polite and atomic', state.live === '' && state.liveAto
 check('the keys are listed', state.keys.join('|') === 'Space - start and stop|F - faster by 5 BPM|S - slower by 5 BPM|' +
     'D - back to the default tempo, the one last typed into the Tempo field|Up arrow - louder|Down arrow - quieter',
     state.keys.join('|'));
+check('the key note says f, s and d work in the lists', /lists, F, S and D still work/.test(state.keysNote), state.keysNote);
 
 // --- Starting, and the clicks -------------------------------------------------------------------
 console.log('\nStarting, and the clicks of Old Faithful at 80');
 await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Old Faithful: D - D U - U D U' });
 state = await item();
 check('choosing Old Faithful says where its clicks fall',
-    state.about === 'Clicks on 1 strong, 2, 2 and soft, 3 and soft, 4, 4 and soft.', state.about);
+    state.about === 'Clicks on 1 strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up.', state.about);
 await button('Start').click();
 await wait(150);
 state = await item();
@@ -185,10 +199,14 @@ check('it says it started, and the tempo', state.live === 'Started, 80 BPM.', st
 await wait(2500);
 let heard = await clicks();
 const first = heard[0]?.when ?? 0;
-const measure = heard.slice(0, 7).map(c => `${(c.when - first).toFixed(3)} ${KIND[c.frequency]}`);
-check('one measure clicks on 1, 2, 2 and, 3 and, 4, 4 and, then 1 again',
-    measure.join(', ') === '0.000 accent, 0.750 beat, 1.125 soft, 1.875 soft, 2.250 beat, 2.625 soft, 3.000 accent',
+const measure = heard.slice(0, 7).map(c => `${(c.when - first).toFixed(3)} ${describe(c)}`);
+check('one measure clicks down on 1, 2 and 4, up on the ands of 2, 3 and 4, then 1 again',
+    measure.join(', ') === '0.000 strong down, 0.750 down, 1.125 up, 1.875 up, 2.250 down, 2.625 up, 3.000 strong down',
     measure.join(', '));
+const gainOf = kind => heard.find(c => describe(c) === kind)?.gain;
+check('a plain down is quieter than a strong one, and an up quieter again',
+    gainOf('strong down') === 1 && gainOf('down') < 1 && gainOf('up') < gainOf('down'),
+    `strong down ${gainOf('strong down')}, down ${gainOf('down')}, up ${gainOf('up')}`);
 
 // --- Tempo keys and Default Tempo ---------------------------------------------------------------
 console.log('\nTempo keys, with focus on the Start button');
@@ -297,10 +315,38 @@ state = await item();
 check('upArrow in the Tempo field steps the tempo, not the volume', state.tempo === '121' && state.volume === '3',
     `${state.tempo} ${state.volume}`);
 await key('ArrowDown');
+
+console.log('\nKeys in the pattern lists');
+await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Old Faithful: D - D U - U D U' });
 await page.locator(`${PANEL} select`).nth(1).focus();
+await key('f');
+state = await item();
+check('f in the Strumming pattern list is faster', state.tempo === '125' && state.live === '125 BPM' &&
+    state.pattern === 'Old Faithful: D - D U - U D U', `${state.tempo}, "${state.live}", ${state.pattern}`);
+await key('s');
 await key('s');
 state = await item();
-check('a letter in the pattern list is left to the list', state.tempo === '120', state.tempo);
+check('s there is slower', state.tempo === '115' && state.pattern === 'Old Faithful: D - D U - U D U', `${state.tempo} ${state.pattern}`);
+await key('d');
+state = await item();
+check('d there is the default tempo', state.tempo === '120' && state.live === 'Default tempo, 120 BPM', state.live);
+await key('ArrowDown');
+state = await item();
+check('downArrow there still moves to the next pattern, not quieter',
+    state.pattern === 'Boom-Chicka: D - D U D - D U' && state.volume === '3', `${state.pattern} ${state.volume}`);
+await key('ArrowUp');
+state = await item();
+check('upArrow there moves back, not louder', state.pattern === 'Old Faithful: D - D U - U D U' && state.volume === '3',
+    `${state.pattern} ${state.volume}`);
+await key('t');
+state = await item();
+check('another letter there still finds a pattern by its first letter',
+    state.pattern === 'Three-Three-Two: >D D D >D D D >D D' && state.tempo === '120', `${state.pattern} ${state.tempo}`);
+await page.locator(`${PANEL} select`).nth(0).focus();
+await key('f');
+state = await item();
+check('f in the Time signature list is faster too', state.tempo === '125' && state.signature === '4/4', `${state.tempo} ${state.signature}`);
+await key('d');
 await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Old Faithful: D - D U - U D U' });
 
 // --- Bounds -------------------------------------------------------------------------------------
@@ -346,12 +392,30 @@ await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Three-Three-Two: >
 await wait(3500);
 heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
 const slot80 = 60 / 80 / 2;
-const accents = heard.filter(c => c.frequency === 1600);
+const accents = heard.filter(c => c.gain === 1);
 const accentGaps = accents.slice(1).map((c, i) => Math.round((c.when - accents[i].when) / slot80));
-check('accents now fall three, three, two eighths apart', accentGaps.length >= 3 && accentGaps.every(g => g === 3 || g === 2),
+check('strong clicks now fall three, three, two eighths apart', accentGaps.length >= 3 && accentGaps.every(g => g === 3 || g === 2),
     accentGaps.join(' '));
-check('the strokes between are soft', heard.filter(c => c.frequency !== 1600).every(c => c.frequency === 700));
+check('every click is a down, the strokes between plain', heard.every(c => c.kind === 'down') &&
+    heard.filter(c => c.gain !== 1).every(c => c.gain < 1));
 check('still on the eighths at 80', heard.slice(1).every((c, i) => near((c.when - heard[i].when) / slot80, 1, 0.01)));
+
+changedAt = await audioNow();
+await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Eighth-Note Downs: D D D D D D D D' });
+await wait(3500);
+heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
+const strong = heard.filter(c => c.gain === 1);
+check('Eighth-Note Downs is the down click on every eighth', heard.length >= 8 && heard.every(c => c.kind === 'down') &&
+    heard.slice(1).every((c, i) => near((c.when - heard[i].when) / slot80, 1, 0.01)), `${heard.length} clicks`);
+check('only beat 1 is strong', strong.length >= 1 && strong.slice(1).every((c, i) => near(c.when - strong[i].when, 8 * slot80, 0.01)),
+    strong.map(c => c.when.toFixed(3)).join(' '));
+
+changedAt = await audioNow();
+await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Backbeat Chuck: D - x U - U x U' });
+await wait(3500);
+heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
+check('Backbeat Chuck sounds its mutes with the mute click', heard.some(c => c.kind === 'mute') &&
+    heard.some(c => c.kind === 'down') && heard.some(c => c.kind === 'up'), [...new Set(heard.map(c => c.kind))].join(', '));
 await page.selectOption(`${PANEL} select`, '3/4');
 await wait(100);
 state = await item();
@@ -384,7 +448,7 @@ await page.evaluate(selector => document.querySelector(selector).closest('li').q
 await wait(100);
 const closedAt = await page.evaluate(() => window.__sounds.length);
 // Stopping cuts what was laid out ahead, from a hundredth of a second after the close.
-const leftAhead = await page.evaluate(() => window.__sounds.filter(s => [700, 1000, 1600].includes(s.frequency) &&
+const leftAhead = await page.evaluate(() => window.__sounds.filter(s => s.kind &&
     !s.cancelled && s.when > window.__lastStopCall + 0.011).length);
 await wait(800);
 check('closing stops it: nothing new is started', (await page.evaluate(() => window.__sounds.length)) === closedAt);

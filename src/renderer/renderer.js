@@ -24,9 +24,9 @@ import {
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import {
     METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, METRONOME_DEFAULT_TEMPO, METRONOME_TEMPO_STEP,
-    METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, METRONOME_DEFAULT_VOLUME, METRONOME_LEVEL_GAINS,
-    CLICK_SILENT, CLICK_SOFT, CLICK_ACCENT, clampMetronomeTempo, clampMetronomeVolume, metronomeVolumeGain,
-    metronomeLevels, metronomeSlotSeconds, metronomeSlotTime, retimeMetronome, regridMetronome,
+    METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, METRONOME_DEFAULT_VOLUME,
+    clampMetronomeTempo, clampMetronomeVolume, metronomeVolumeGain,
+    metronomeClicks, metronomeClickGain, metronomeSlotSeconds, metronomeSlotTime, retimeMetronome, regridMetronome,
     metronomeSlotInMeasure, describeMetronomeClicks
 } from '../shared/metronome.mjs';
 import { createMenuButton } from './menu.js';
@@ -2518,13 +2518,17 @@ const METRONOME_CLICK_SECONDS = 0.06;
 
 const metronomeClickBuffers = new Map();
 
-// The pitch and decay of each kind of click. The Metronome item adds a third, lower and shorter,
-// for the soft clicks between the pulses, so an and sounds different from a beat as well as
-// quieter.
+// The pitch and decay of each kind of click. Accent and beat are the clicks that play along with
+// chord practice and audio tracks. Down, up and mute are the Metronome item's, one for each stroke
+// of a strumming pattern: down a lower, rounder click; up a much higher, shorter tick, which the
+// item also plays quieter; mute a burst of noise, like the chuck of a muted strum. Each decays to
+// near silence inside the buffer, so its end needs no fade.
 const METRONOME_CLICK_TONES = {
     accent: { frequency: 1600, decay: 55 },
     beat: { frequency: 1000, decay: 75 },
-    soft: { frequency: 700, decay: 90 }
+    down: { frequency: 800, decay: 70 },
+    up: { frequency: 2400, decay: 140 },
+    mute: { noise: true, decay: 110 }
 };
 
 function metronomeClickBuffer(accent) {
@@ -2539,12 +2543,19 @@ function metronomeToneBuffer(kind) {
     const buffer = context.createBuffer(1, frameCount, context.sampleRate);
     const data = buffer.getChannelData(0);
 
-    const { frequency, decay } = METRONOME_CLICK_TONES[kind];
+    const { frequency, decay, noise } = METRONOME_CLICK_TONES[kind];
+    // Noise from a fixed seed, so the mute click sounds the same every time.
+    let seed = 12345;
+    const random = () => {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        return seed / 1073741824 - 1;
+    };
     for (let i = 0; i < frameCount; i++) {
         const t = i / context.sampleRate;
         // Starting at zero phase keeps the attack clean; the decay brings it to near silence well
         // inside the buffer, so the end needs no separate fade.
-        data[i] = Math.sin(2 * Math.PI * frequency * t) * Math.exp(-t * decay);
+        const wave = noise ? random() : Math.sin(2 * Math.PI * frequency * t);
+        data[i] = wave * Math.exp(-t * decay);
     }
 
     metronomeClickBuffers.set(kind, buffer);
@@ -6065,7 +6076,7 @@ patternDialog.addEventListener('close', () => {
 // --- Metronome ---------------------------------------------------------------------------------
 // An item of its own, opened from the menu: clicks in the rhythm of a strumming pattern, built-in
 // or the player's own, at a chosen tempo and volume. Which slots click, and how loud, comes from
-// metronomeLevels in src/shared/metronome.mjs. See docs/strumming-patterns-and-metronome.md.
+// metronomeClicks in src/shared/metronome.mjs. See docs/strumming-patterns-and-metronome.md.
 //
 // Clicks are laid out on the audio clock a little ahead, as the pattern preview does, but slot by
 // slot rather than a whole round at a time: tempo and pattern change while it plays, and a change
@@ -6094,7 +6105,7 @@ const metronome = {
     volume: METRONOME_DEFAULT_VOLUME,
     // The chosen pattern, as { timeSignature, name }, kept while the item is closed.
     chosen: { timeSignature: '4/4', name: 'Down Only' },
-    // The pattern being played: its levels and grid.
+    // The pattern being played: its clicks and grid.
     grid: null,
     anchor: null,
     nextSlot: 0,
@@ -6109,12 +6120,12 @@ function chosenMetronomePattern() {
     return ui?.patterns?.[Number(ui.patternSelect.value)] ?? null;
 }
 
-/** The click levels and grid of a listed pattern. */
+/** The clicks and grid of a listed pattern. */
 function metronomeGrid(pattern) {
-    const levels = metronomeLevels(pattern, pattern.beatsPerBar, pattern.beatUnit);
+    const clicks = metronomeClicks(pattern);
     return {
-        levels, timeSignature: pattern.timeSignature,
-        slotsPerBeat: pattern.slotsPerBeat, slotsPerMeasure: levels.length
+        clicks, timeSignature: pattern.timeSignature,
+        slotsPerBeat: pattern.slotsPerBeat, slotsPerMeasure: clicks.length
     };
 }
 
@@ -6158,7 +6169,7 @@ function metronomePatternChosen() {
     if (!pattern) return;
     metronome.chosen = { timeSignature: pattern.timeSignature, name: pattern.name };
     const grid = metronomeGrid(pattern);
-    metronome.ui.about.textContent = describeMetronomeClicks(grid.levels, grid.slotsPerBeat);
+    metronome.ui.about.textContent = describeMetronomeClicks(grid.clicks, grid.slotsPerBeat);
     const before = metronome.grid;
     metronome.grid = grid;
     if (!metronome.playing || !before) return;
@@ -6168,12 +6179,12 @@ function metronomePatternChosen() {
         { sameSignature: before.timeSignature === grid.timeSignature }));
 }
 
-/** Plays one click at a level, through the metronome's own volume. */
-function scheduleMetronomeLevelClick(context, at, level) {
+/** Plays one click, { sound, strong }, through the metronome's own volume. */
+function scheduleMetronomeStrokeClick(context, at, click) {
     const source = context.createBufferSource();
-    source.buffer = metronomeToneBuffer(level === CLICK_ACCENT ? 'accent' : level === CLICK_SOFT ? 'soft' : 'beat');
+    source.buffer = metronomeToneBuffer(click.sound);
     const gain = context.createGain();
-    gain.gain.value = METRONOME_LEVEL_GAINS[level];
+    gain.gain.value = metronomeClickGain(click);
     source.connect(gain).connect(metronome.master);
     source.start(at);
     return { source, at, endsAt: at + METRONOME_CLICK_SECONDS };
@@ -6186,15 +6197,15 @@ function scheduleMetronomeAhead() {
     const context = getSharedAudioContext();
     const now = context.currentTime;
     const until = now + METRONOME_LEAD_SECONDS;
-    const { levels, slotsPerMeasure } = metronome.grid;
+    const { clicks, slotsPerMeasure } = metronome.grid;
     // Only what is still to sound is kept, so a long session does not pile up finished sources.
     metronome.sources = metronome.sources.filter(entry => entry.endsAt > now);
     for (;;) {
         const at = metronomeSlotTime(metronome.anchor, metronome.nextSlot);
         if (at >= until) break;
-        const level = levels[metronomeSlotInMeasure(metronome.nextSlot, slotsPerMeasure)];
+        const click = clicks[metronomeSlotInMeasure(metronome.nextSlot, slotsPerMeasure)];
         // A slot already past, after a stalled timer, is skipped rather than played late.
-        if (level !== CLICK_SILENT && at >= now) metronome.sources.push(scheduleMetronomeLevelClick(context, at, level));
+        if (click && at >= now) metronome.sources.push(scheduleMetronomeStrokeClick(context, at, click));
         metronome.nextSlot++;
     }
     metronome.timer = setTimeout(scheduleMetronomeAhead, METRONOME_TICK_MS);
@@ -6324,6 +6335,11 @@ function stepMetronomeVolume(delta) {
 // Keys while focus is in the Metronome item. Bare keys, as for chord practice and audio tracks,
 // so they need focus mode in NVDA; the buttons do the same outside it. F and S are faster and
 // slower there too. The arrows are free here, since the item has nothing to move through.
+//
+// The tempo keys work from the two lists as well, so the tempo can be changed while trying one
+// pattern after another. Every other key there, the arrows and spaceBar included, stays with the
+// list: arrowing through patterns is the point of being there.
+const METRONOME_LIST_KEYS = new Set(['f', 's', 'd']);
 const METRONOME_SHORTCUTS = {
     ' ': () => toggleMetronome(),
     f: () => stepMetronomeTempo(METRONOME_TEMPO_STEP),
@@ -6339,10 +6355,11 @@ document.addEventListener('keydown', event => {
     if (document.querySelector('dialog[open]')) return;
     const item = openItems.find(i => i.id === metronome.itemId);
     if (!item || currentItemId !== item.id || !item.panelEl.contains(event.target)) return;
-    // Typing in a field wins: digits and arrows in Tempo and Volume, everything in the lists.
-    // Space on a button starts and stops rather than pressing it, as it pauses chord practice;
-    // Enter still presses the button.
-    if (eventTargetSwallowsKey(event.target, event.key)) return;
+    // Typing in a field wins: digits and arrows in Tempo and Volume, and in the lists everything
+    // but the tempo keys. Space on a button starts and stops rather than pressing it, as it pauses
+    // chord practice; Enter still presses the button.
+    const inList = event.target.tagName === 'SELECT';
+    if (inList ? !METRONOME_LIST_KEYS.has(event.key) : eventTargetSwallowsKey(event.target, event.key)) return;
     event.preventDefault();
     shortcut();
 });
@@ -6438,7 +6455,8 @@ function openMetronomeItem() {
     keysNote.textContent =
         'These keys work while focus is in the metronome and your screen reader is passing keystrokes' +
         ' straight through to unstrung, which is focus mode in NVDA. Outside that, use the buttons' +
-        ' above, which do the same things.';
+        ' above, which do the same things. In the Time signature and Strumming pattern lists, F, S' +
+        ' and D still work, and the other keys move through the list.';
     container.append(keysNote);
     const keysList = document.createElement('ul');
     appendTextItems(keysList, [

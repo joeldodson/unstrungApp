@@ -425,15 +425,18 @@ With changes made, escape does not close the dialog; press Cancel to discard the
 Choose Metronome from the menu.
 It opens as an item in the list of open items, with you on the Time signature list.
 Its clicks follow a strumming pattern: one click wherever the pattern strikes the strings, and none where it passes without strumming.
-Beat 1 is the strong click, a higher pitch.
-The other beats are a normal click, and the strokes between them a soft, lower one.
-In 6/8 and 12/8 the normal click is on every third eighth, the beats you feel, so 6/8 is heard on 1 and 4.
-A pattern with accents of its own, such as Three-Three-Two, puts the strong click on its accents and the soft one everywhere else.
+The click follows the stroke, wherever it falls.
+A down stroke is a low, round click.
+An up stroke is a much higher, shorter tick, and quieter.
+A muted strum is a short burst of noise, like a chuck.
+So eight downs in a measure are eight of the same click, and down-up eighths alternate the two.
+Beat 1 is louder, with the same sound, so you can hear where the measure starts.
+A pattern with accents of its own, such as Three-Three-Two, makes its accents louder instead.
 
 Under Settings:
 
 - **Time signature** and **Strumming pattern,** the same patterns as in the Strumming Patterns item, the ones that come with unstrung and yours.
-  After them, a line says where the clicks fall, such as "Clicks on 1 strong, 2, 2 and soft, 3 and soft, 4, 4 and soft".
+  After them, a line says where the clicks fall, such as "Clicks on 1 strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up".
 - **Tempo,** from 30 to 240 beats per minute, 80 to begin with.
   The tempo you type here is the default tempo.
 - **Volume,** from 1 to 5, 3 to begin with.
@@ -466,7 +469,8 @@ The same list is in the item, under the Keyboard Control heading.
 - downArrow: quieter.
 
 In the Tempo and Volume fields, digits and the arrows change the field, while the letters still work.
-In the two lists every key belongs to the list.
+In the Time signature and Strumming pattern lists, f, s and d still change the tempo, so you can change it while trying one pattern after another.
+The arrows and the other keys move through the list.
 
 ## Chord Library
 

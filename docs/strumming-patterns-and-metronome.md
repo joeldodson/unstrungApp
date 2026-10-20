@@ -524,24 +524,31 @@ metronome decision above, with "follow the strumming pattern" as its only kind o
 Metronome patterns of their own (the `3 0 2 1` digits and a slot list box to edit them), saved
 presets, and the metronome choice in chord practice and audio tracks are still to come.
 
-- **Shared:** `src/shared/metronome.mjs`. `metronomeLevels` gives each slot its level from the
-  pattern: silent on a miss; a pattern with accents of its own has its accents at 3 and every
-  other stroke at 1, so Three-Three-Two is heard in threes and twos; one without has beat 1 at 3,
-  the other pulses at 2 and the strokes between at 1. The pulse is the beat, or every third eighth
-  in compound time, so 6/8 is heard on 1 and 4 as decided above. `describeMetronomeClicks` says it
-  in words beside the list: "Clicks on 1 strong, 2, 2 and soft...". An off-beat is named with its
-  beat ("2 and"), since a bare "and" cannot say which beat it follows when that beat has no click.
-  Also the tempo and volume bounds, the volume gains, and the timing arithmetic below. Checked by
-  `scripts/metronome/check-metronome.mjs`.
-- **Three click sounds.** The synthesized click had two, 1600 Hz for beat 1 and 1000 Hz for the
-  other beats. A third, 700 Hz and shorter, is the soft click, so an and differs in pitch as well
-  as loudness (`METRONOME_CLICK_TONES` in the renderer).
-- **Volume.** Levels 1 to 5 set the gain of an accented click: 0.08, 0.13, 0.21, 0.34, 0.55, each
+- **The sound follows the stroke.** `metronomeClicks` in `src/shared/metronome.mjs` gives each
+  slot its click: none on a miss, otherwise the stroke's own sound, down, up or mute, strong or
+  plain. A pattern with accents of its own makes its accents strong, so Three-Three-Two is heard
+  in threes and twos; one without is strong on beat 1 only. Strong changes loudness, not sound.
+  `describeMetronomeClicks` says it in words beside the list: "Clicks on 1 strong down, 2 down,
+  2 and up...". An off-beat is named with its beat ("2 and"), since a bare "and" cannot say which
+  beat it follows when that beat has no click. Also the tempo and volume bounds, the gains, and
+  the timing arithmetic below. Checked by `scripts/metronome/check-metronome.mjs`.
+- **Changed on 2026-10-19, after Joel tried it.** The first version chose the sound by position: a
+  higher click on beat 1, a normal one on the other beats (or every third eighth in compound
+  time), a soft 700 Hz one between them, with the 0 to 3 levels of the design above. So
+  Eighth-Note Downs sounded exactly like All Down-Up, where Joel expected one click, twice as
+  often; and the soft and normal clicks, 700 and 1000 Hz, were too alike. The digit levels of the
+  design are set aside for now: following a pattern needs the stroke, not a level.
+- **The sounds** (`METRONOME_CLICK_TONES` in the renderer): down is an 800 Hz click with a slow
+  decay, round and low; up is a 2400 Hz tick with a fast decay, short and high, played at 0.45 of
+  a down; mute is a burst of noise from a fixed seed, like a chuck, at 0.7. A plain click is 0.55
+  of a strong one, the ratio chord practice's clicks already use. So a plain up is some 12
+  decibels under a strong down and 7 under a plain down, as well as 1.6 octaves higher. The 1600
+  and 1000 Hz clicks of chord practice and audio tracks are unchanged.
+- **Volume.** Levels 1 to 5 set the gain of a strong down click: 0.08, 0.13, 0.21, 0.34, 0.55, each
   about 1.6 times the last, some 4 decibels, so the steps sound even. Level 1 is a little under the
   beat click that plays with chord practice (0.096); level 5 leaves headroom before clipping when
-  other sound plays too. A normal click is 0.55 of an accent, the ratio chord practice's clicks
-  already use, and a soft one 0.35. Chosen for first testing, to be set by ear. Volume is a gain
-  node in front of every click, so a change is heard at once, even on clicks already laid out.
+  other sound plays too. Chosen for first testing, to be set by ear. Volume is a gain node in front
+  of every click, so a change is heard at once, even on clicks already laid out.
 - **Tempo** is 30 to 240, as in chord practice, starting at 80, with Faster and Slower stepping 5,
   as f and s do in chord practice and audio tracks.
 - **Default Tempo** goes back to the tempo last typed into the Tempo field, or 80 before anything
@@ -561,9 +568,11 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   on keydown, so on a focused button it starts and stops rather than pressing the button; enter
   still presses it. The keys work only while focus is inside the item (not from its button in the
   list of open items), and go through `eventTargetSwallowsKey`, as the other playback keys do: in
-  the lists every key belongs to the list; in the number fields digits and the arrows change the
-  field while letters still reach the metronome. No other playback keys are live then, since
-  chord practice and audio tracks act only when their own item is in front.
+  the number fields digits and the arrows change the field while letters still reach the
+  metronome. In the two lists f, s and d reach the metronome too, so the tempo can be changed while
+  arrowing through patterns, which Joel asked for after first trying it; the arrows, spaceBar and
+  other letters stay with the list. No other playback keys are live then, since chord practice
+  and audio tracks act only when their own item is in front.
 - **Announcements** go through `announceLiveRegion` into a polite, atomic live region after the
   buttons: "Started, 80 BPM.", "Stopped.", "85 BPM" (just the number, as the other tempo keys say
   it), "Default tempo, 80 BPM", "Volume 4", and at either end "240 BPM is the fastest." or "Volume
@@ -581,10 +590,11 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   Tempo field. No button was added there; their tempo keys have none.
 - **Checked** by `scripts/metronome/verify-metronome.mjs`, in the Electron app and, with `--web`,
   in the web build in Edge; with `--song` and a song file it also checks d in an audio track,
-  since song files are kept outside the repository. It records every click the page schedules, by wrapping
-  `AudioBufferSourceNode` start and stop, and checks timing and pitch from those records: one
-  measure of Old Faithful at 80, the spacing after a tempo change, Three-Three-Two's accents after
-  a pattern change, nothing left to sound after closing. Playwright's WebKit for Windows has no Web
+  since song files are kept outside the repository. It records every click the page schedules, by
+  wrapping `AudioBufferSourceNode` start, stop and connect, and checks timing, sound and gain from
+  those records: one measure of Old Faithful at 80, the spacing after a tempo change,
+  Three-Three-Two's accents, Eighth-Note Downs as one sound on every eighth and Backbeat Chuck's
+  mutes after pattern changes, and nothing left to sound after closing. Playwright's WebKit for Windows has no Web
   Audio, so Safari is unchecked.
 
 ## Open questions
