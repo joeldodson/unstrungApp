@@ -10,6 +10,39 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.9.0 - Metronome
+
+Published 2026-10-19.
+
+0.9.0 adds a metronome whose clicks follow a strumming pattern, a key to go back to the default tempo while playing, and a default tempo of 60.
+
+### Metronome
+
+Metronome, a new item on the menu, clicks wherever a strumming pattern strikes the strings, and is silent where the hand passes without strumming. It uses the same patterns as the Strumming Patterns item: the ones that come with unstrung and your own.
+
+The click follows the stroke. A down stroke is a low, round click, an up stroke a much higher, quieter tick, and a muted strum a short burst of noise. So Eighth-Note Downs is eight of the same click, and All Down-Up alternates the two. The first stroke of the measure is higher, so you can hear where the measure starts. It is also louder, and a down there is hit harder. A pattern with accents of its own, such as Three-Three-Two, makes its accents louder, and beat 1 is still the higher one.
+
+Under Settings are the Time signature and Strumming pattern lists, a line saying where the clicks fall, such as "Clicks on 1 high strong down, 2 down, 2 and up", the Tempo, from 30 to 240, and the Volume, from 1 to 5.
+
+Under Controls:
+
+- Start, which reads Stop while the metronome plays. It is a toggle button, pressed while playing.
+- Slower and Faster, by 5 beats per minute.
+- Default Tempo, back to the tempo last typed into the Tempo field.
+- Quieter and Louder.
+
+Changing the tempo, the volume or the pattern while it plays carries on without starting the measure again. Each button says what it did, such as "85 BPM" or "Volume 4". The metronome keeps playing while you look at another open item, and stops when you close it.
+
+While focus is in the metronome and your screen reader is in focus mode, spaceBar starts and stops, f is faster, s slower, d the default tempo, upArrow louder and downArrow quieter. f, s and d also work in the two lists, so you can change the tempo while trying one pattern after another; the arrows still move through the list.
+
+### Back to the default tempo
+
+d now goes back to the default tempo in a chord progression and an audio track as well. The default is the progression's or the song's own tempo, until you type another into the Tempo field.
+
+### Default tempo of 60
+
+Where no tempo is given, unstrung now uses 60 beats per minute: the metronome, the Chord Practice dialog, Play in the Strumming Patterns item, and a song file that states no tempo of its own. It was 80, 90 or 120, depending on the place.
+
 ## unstrung 0.8.0 - Strumming patterns
 
 Published 2026-10-15.
