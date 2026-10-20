@@ -578,7 +578,8 @@ check('the key is back to the first one the level allows',
 check('borrowing is back to occasional', reopened.borrowing === 'occasional', reopened.borrowing);
 check('the time signature is back to 4/4',
     reopened.beats === '4' && reopened.beatUnit === '4', `${reopened.beats}/${reopened.beatUnit}`);
-check('the tempo is back to 80', reopened.tempo === '80', reopened.tempo);
+// 60, the default tempo since the metronome was added (it was 80).
+check('the tempo is back to 60', reopened.tempo === '60', reopened.tempo);
 check('the length is back to 8 measures', reopened.count === '8', reopened.count);
 check('the repeat count is back to 0', reopened.repeat === '0', reopened.repeat);
 check('count in before every repeat is off again', reopened.countIn === false);

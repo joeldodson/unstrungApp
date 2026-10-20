@@ -167,7 +167,7 @@ try {
         `${saved.chordNames.join(' ')} vs ${generatedChords.join(' ')}`);
     check('every measure reads back as a plain measure', saved.measures.every(m => m.form === 'plain'));
     check('the key, time signature and tempo are saved',
-        saved.key === 'C' && saved.mode === 'major' && saved.beatsPerBar === 4 && saved.beatUnit === 4 && saved.tempo === 80,
+        saved.key === 'C' && saved.mode === 'major' && saved.beatsPerBar === 4 && saved.beatUnit === 4 && saved.tempo === 60,
         `${saved.key} ${saved.mode} ${saved.beatsPerBar}/${saved.beatUnit} at ${saved.tempo}`);
     console.log(`  tab now: ${tab.tabName} | ${tab.heading} | ${tab.announcement}`);
     check('the tab is named after the file', tab.tabName === 'Practice - Twelve bar', tab.tabName);

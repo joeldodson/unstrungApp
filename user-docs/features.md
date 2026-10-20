@@ -186,7 +186,7 @@ To collapse it again, go to that heading and then up one line.
 ### Setting It Up
 
 - **Tempo in beats per minute,** from 15 to 300.
-  It starts at the tempo the file gives.
+  It starts at the tempo the file gives, or 60 if the file gives none.
 - **Measures Selected,** a collapsed section saying which measures will play.
   Inside it are the first and last measure, how many times to play them (up to 50, or 0 to repeat until you stop), and whether to count in before every repeat or only the first time.
 - **Metronome,** which also counts in one measure of clicks the first time through.
@@ -247,7 +247,7 @@ The Chord Practice dialog asks for:
   The tempo counts beats, so the lower number does not change the speed: 6/8 at 90 is ninety eighth notes a minute.
 - **Strumming pattern,** from the patterns for the time signature, described under Strumming Patterns.
   It starts on Down Only, and the list changes when the time signature does.
-- **Tempo,** from 30 to 240 beats per minute.
+- **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
 - **Number of measures,** from 2 to 256.
 - **No chord held over into the next measure,** checked to begin with.
   The chord then changes on every measure, which is what practising changes needs.
@@ -430,17 +430,17 @@ A down stroke is a low, round click.
 An up stroke is a much higher, shorter tick, and quieter.
 A muted strum is a short burst of noise, like a chuck.
 So eight downs in a measure are eight of the same click, and down-up eighths alternate the two.
-The first stroke of the measure is the strong click, so you can hear where the measure starts.
+The first stroke of the measure is higher, so you can hear where the measure starts.
 That is beat 1 in most patterns, and the and of 1 in a pattern with nothing on beat 1, such as Reggae Offbeat.
-A strong down is louder and hit harder, with a sharp attack.
-A strong up is louder and higher.
-A pattern with accents of its own, such as Three-Three-Two, makes its accents the strong clicks instead.
+It is also louder, and a down there is hit harder, with a sharp attack.
+A pattern with accents of its own, such as Three-Three-Two, makes its accents louder, and its downs hit harder, at their own pitch.
+Its first stroke is still the higher one, so beat 1 stands out from the other accents.
 
 Under Settings:
 
 - **Time signature** and **Strumming pattern,** the same patterns as in the Strumming Patterns item, the ones that come with unstrung and yours.
   After them, a line says where the clicks fall, such as "Clicks on 1 strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up".
-- **Tempo,** from 30 to 240 beats per minute, 80 to begin with.
+- **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
   The tempo you type here is the default tempo.
 - **Volume,** from 1 to 5, 3 to begin with.
 

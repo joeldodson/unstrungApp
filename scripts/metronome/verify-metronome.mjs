@@ -4,7 +4,8 @@
 //
 // The clicks are checked from data, not by ear: before Start, the page's AudioBufferSourceNode
 // start, stop and connect are wrapped to record when each sound is due, what its buffer holds
-// (800 Hz down, 2400 Hz up, noise for a mute) and the gain it is played at. Asserts on text,
+// (800 Hz down, 1200 Hz the first down of a measure, 2400 Hz up, 3200 Hz the first up, noise for
+// a mute, and a hard attack on a strong down) and the gain it is played at. Asserts on text,
 // structure, focus and those records, never on anything visual.
 //
 // Also checks the D key, back to the default tempo, in a chord practice progression, and in an
@@ -130,8 +131,8 @@ await page.evaluate(() => {
             hardAttack = roughness / (attackEnd - 2) > 0.1;
         }
         // Noise crosses zero far more often than any of the tones.
-        const kind = frequency === 800 ? (hardAttack ? 'strong down' : 'down')
-            : frequency === 2400 ? 'up' : frequency === 3200 ? 'strong up' : frequency > 5000 ? 'mute' : null;
+        const kind = frequency === 1200 ? 'high down' : frequency === 800 ? (hardAttack ? 'strong down' : 'down')
+            : frequency === 2400 ? 'up' : frequency === 3200 ? 'high up' : frequency > 5000 ? 'mute' : null;
         this.__sound = {
             when, frequency, kind, gain: this.__destination?.gain?.value ?? null,
             cancelled: false, startedAt: this.context.currentTime
@@ -150,9 +151,9 @@ const clicks = () => page.evaluate(() => window.__sounds
     .filter(s => s.kind && !s.cancelled)
     .sort((a, b) => a.when - b.when));
 const audioNow = () => page.evaluate(() => Math.max(0, ...window.__sounds.map(s => s.startedAt)));
-// A click as the checks write it, by its sound: down, strong down, up, strong up or mute.
+// A click as the checks write it, by its sound: down, strong down, high down, up, high up or mute.
 const describe = c => c.kind;
-const isDown = c => c.kind === 'down' || c.kind === 'strong down';
+const isDown = c => ['down', 'strong down', 'high down'].includes(c.kind);
 const near = (a, b, tolerance = 0.002) => Math.abs(a - b) < tolerance;
 
 // --- The menu ---------------------------------------------------------------------------------
@@ -183,10 +184,10 @@ check('every time signature with patterns is offered', ['4/4', '3/4', '6/8', '2/
     state.signatures.join(', '));
 check('the 4/4 patterns are the Strumming Patterns item\'s', state.patterns.includes('Old Faithful: D - D U - U D U') &&
     state.patterns.includes('Three-Three-Two: >D D D >D D D >D D'), `${state.patterns.length} patterns`);
-check('the clicks are said in words after the list', state.about === 'Clicks on 1 strong down, 2 down, 3 down, 4 down.',
+check('the clicks are said in words after the list', state.about === 'Clicks on 1 high strong down, 2 down, 3 down, 4 down.',
     state.about);
-check('Tempo is a number field from 30 to 240, at 80', state.tempoType === 'number' && state.tempoMin === '30' &&
-    state.tempoMax === '240' && state.tempo === '80', `${state.tempoMin}-${state.tempoMax} at ${state.tempo}`);
+check('Tempo is a number field from 30 to 240, at 60', state.tempoType === 'number' && state.tempoMin === '30' &&
+    state.tempoMax === '240' && state.tempo === '60', `${state.tempoMin}-${state.tempoMax} at ${state.tempo}`);
 check('Volume is a number field from 1 to 5, at 3', state.volumeType === 'number' && state.volumeMin === '1' &&
     state.volumeMax === '5' && state.volume === '3', `${state.volumeMin}-${state.volumeMax} at ${state.volume}`);
 check('the buttons are Start; Slower, Faster, Default Tempo; Quieter, Louder',
@@ -201,10 +202,14 @@ check('the key note says f, s and d work in the lists', /lists, F, S and D still
 
 // --- Starting, and the clicks -------------------------------------------------------------------
 console.log('\nStarting, and the clicks of Old Faithful at 80');
+// Typed, so 80 is also the default tempo the checks below go back to.
+await field('Tempo').fill('80');
+await field('Tempo').press('Tab');
+await wait(80);
 await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Old Faithful: D - D U - U D U' });
 state = await item();
 check('choosing Old Faithful says where its clicks fall',
-    state.about === 'Clicks on 1 strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up.', state.about);
+    state.about === 'Clicks on 1 high strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up.', state.about);
 await button('Start').click();
 await wait(150);
 state = await item();
@@ -215,12 +220,12 @@ let heard = await clicks();
 const first = heard[0]?.when ?? 0;
 const measure = heard.slice(0, 7).map(c => `${(c.when - first).toFixed(3)} ${describe(c)}`);
 check('one measure clicks down on 1, 2 and 4, up on the ands of 2, 3 and 4, then 1 again',
-    measure.join(', ') === '0.000 strong down, 0.750 down, 1.125 up, 1.875 up, 2.250 down, 2.625 up, 3.000 strong down',
+    measure.join(', ') === '0.000 high down, 0.750 down, 1.125 up, 1.875 up, 2.250 down, 2.625 up, 3.000 high down',
     measure.join(', '));
 const gainOf = kind => heard.find(c => describe(c) === kind)?.gain;
 check('a plain down is quieter than a strong one, and an up quieter again',
-    gainOf('strong down') === 1 && gainOf('down') < 1 && gainOf('up') < gainOf('down'),
-    `strong down ${gainOf('strong down')}, down ${gainOf('down')}, up ${gainOf('up')}`);
+    gainOf('high down') === 1 && gainOf('down') < 1 && gainOf('up') < gainOf('down'),
+    `high down ${gainOf('high down')}, down ${gainOf('down')}, up ${gainOf('up')}`);
 
 // --- Tempo keys and Default Tempo ---------------------------------------------------------------
 console.log('\nTempo keys, with focus on the Start button');
@@ -241,7 +246,7 @@ state = await item();
 check('s twice is 75', state.tempo === '75' && state.live === '75 BPM', `${state.tempo}, "${state.live}"`);
 await key('d');
 state = await item();
-check('d goes back to 80, the tempo it started at', state.tempo === '80' && state.live === 'Default tempo, 80 BPM',
+check('d goes back to 80, the tempo last typed', state.tempo === '80' && state.live === 'Default tempo, 80 BPM',
     `${state.tempo}, "${state.live}"`);
 await button('Faster').click();
 await wait(80);
@@ -406,22 +411,25 @@ await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Three-Three-Two: >
 await wait(3500);
 heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
 const slot80 = 60 / 80 / 2;
-const accents = heard.filter(c => c.kind === 'strong down');
+const accents = heard.filter(c => c.kind === 'strong down' || c.kind === 'high down');
 const accentGaps = accents.slice(1).map((c, i) => Math.round((c.when - accents[i].when) / slot80));
 check('strong clicks now fall three, three, two eighths apart', accentGaps.length >= 3 && accentGaps.every(g => g === 3 || g === 2),
     accentGaps.join(' '));
 check('every click is a down, the strong ones louder', heard.every(isDown) &&
     accents.every(c => c.gain === 1) && heard.filter(c => c.kind === 'down').every(c => c.gain < 1));
+const highs = heard.filter(c => c.kind === 'high down');
+check('of the accents, only beat 1 is high', highs.length >= 1 && heard.some(c => c.kind === 'strong down') &&
+    highs.slice(1).every((c, i) => near(c.when - highs[i].when, 8 * slot80, 0.01)), accents.map(c => c.kind).join(', '));
 check('still on the eighths at 80', heard.slice(1).every((c, i) => near((c.when - heard[i].when) / slot80, 1, 0.01)));
 
 changedAt = await audioNow();
 await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Eighth-Note Downs: D D D D D D D D' });
 await wait(3500);
 heard = (await clicks()).filter(c => c.when > changedAt + 0.6);
-const strong = heard.filter(c => c.kind === 'strong down');
+const strong = heard.filter(c => c.kind === 'high down');
 check('Eighth-Note Downs is the down click on every eighth', heard.length >= 8 && heard.every(isDown) &&
     heard.slice(1).every((c, i) => near((c.when - heard[i].when) / slot80, 1, 0.01)), `${heard.length} clicks`);
-check('only beat 1 is strong', strong.length >= 1 && strong.slice(1).every((c, i) => near(c.when - strong[i].when, 8 * slot80, 0.01)),
+check('only beat 1 is marked, high and strong', heard.every(c => c.kind !== 'strong down') && strong.length >= 1 && strong.slice(1).every((c, i) => near(c.when - strong[i].when, 8 * slot80, 0.01)),
     strong.map(c => c.when.toFixed(3)).join(' '));
 
 changedAt = await audioNow();
@@ -436,12 +444,12 @@ await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Reggae Offbeat: - 
 await wait(4500);
 // From a beat and a little after the change, by when the new pattern has taken over.
 heard = (await clicks()).filter(c => c.when > changedAt + 1);
-const strongUps = heard.filter(c => c.kind === 'strong up');
-check('Reggae Offbeat, with nothing on beat 1, starts each measure with the strong up',
-    strongUps.length >= 1 && heard.every(c => c.kind === 'up' || c.kind === 'strong up') &&
+const strongUps = heard.filter(c => c.kind === 'high up');
+check('Reggae Offbeat, with nothing on beat 1, starts each measure with the high up',
+    strongUps.length >= 1 && heard.every(c => c.kind === 'up' || c.kind === 'high up') &&
     strongUps.slice(1).every((c, i) => near(c.when - strongUps[i].when, 8 * slot80, 0.01)),
     heard.map(c => c.kind).join(', '));
-check('the strong up is louder than the others', strongUps.every(c => heard.filter(u => u.kind === 'up').every(u => c.gain > u.gain)),
+check('the high up is louder than the others', strongUps.every(c => heard.filter(u => u.kind === 'up').every(u => c.gain > u.gain)),
     `${strongUps[0]?.gain} against ${heard.find(u => u.kind === 'up')?.gain}`);
 await page.selectOption(`${PANEL} select`, '3/4');
 await wait(100);
@@ -491,6 +499,8 @@ check('opening it again keeps its pattern, tempo and volume, stopped',
 console.log('\nd in a chord practice progression');
 await runMenuCommand(page, 'chord-practice');
 await wait(1500);
+const dialogTempo = await page.inputValue('#chord-practice-tempo-input');
+check('the Chord Practice dialog\'s tempo starts at 60', dialogTempo === '60', dialogTempo);
 await page.fill('#chord-practice-tempo-input', '70');
 await page.click('#chord-practice-generate-button');
 await wait(1500);

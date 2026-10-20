@@ -22,6 +22,7 @@ import {
     checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
+import { DEFAULT_TEMPO, scoreTempo } from '../shared/tempo.mjs';
 import {
     METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, METRONOME_DEFAULT_TEMPO, METRONOME_TEMPO_STEP,
     METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, METRONOME_DEFAULT_VOLUME,
@@ -2524,27 +2525,32 @@ const metronomeClickBuffers = new Map();
 // item also plays quieter; mute a burst of noise, like the chuck of a muted strum. Each decays to
 // near silence inside the buffer, so its end needs no fade.
 //
-// The strong click, which starts the measure or marks an accent, has its own sound as well as
-// being louder, and a strong down differs from a strong up in a different way: a strong down is
-// the down click hit hard, a few milliseconds of noise on its attack like a stick on a block; a
-// strong up is the up tick raised to 3200 Hz.
+// The first stroke of the measure is raised in pitch, half as high again as its stroke's own
+// click: a down to 1200 Hz, an up to 3200 Hz. An accent, a strong click, is louder, and a strong
+// down is hit hard as well, a few milliseconds of noise on its attack like a stick on a block. So
+// beat 1 stands out by pitch even in a pattern whose accents are as loud as it is.
 const METRONOME_CLICK_TONES = {
     accent: { frequency: 1600, decay: 55 },
     beat: { frequency: 1000, decay: 75 },
     down: { frequency: 800, decay: 70 },
     downStrong: { frequency: 800, decay: 70, hardAttack: true },
+    downFirst: { frequency: 1200, decay: 70, hardAttack: true },
     up: { frequency: 2400, decay: 140 },
-    upStrong: { frequency: 3200, decay: 140 },
+    upFirst: { frequency: 3200, decay: 140 },
     mute: { noise: true, decay: 110 }
 };
 // The hard attack: noise this loud at its start, gone within about three milliseconds.
 const METRONOME_HARD_ATTACK_LEVEL = 0.7;
 const METRONOME_HARD_ATTACK_DECAY = 1200;
 
-/** The tone a metronome click plays: its stroke's, strong or not. A mute has one sound. */
+/**
+ * The tone a metronome click plays: its stroke's, raised for the first stroke of the measure, hit
+ * hard for a strong down. A mute has one sound, and a strong up differs only in loudness.
+ */
 function metronomeClickTone(click) {
     if (click.sound === 'mute') return 'mute';
-    return click.strong ? `${click.sound}Strong` : click.sound;
+    if (click.first) return `${click.sound}First`;
+    return click.strong && click.sound === 'down' ? 'downStrong' : click.sound;
 }
 
 function metronomeClickBuffer(accent) {
@@ -3753,9 +3759,9 @@ function buildAudioTrackContent(score, trackIndex, trackName, songItemId, detail
         trackIndex,
         songItemId,
         trackLabel: trackName,
-        targetTempo: score.tempo || 120,
+        targetTempo: scoreTempo(score),
         // What D goes back to: the song's own tempo, until another is typed into the Tempo field.
-        defaultTempo: score.tempo || 120,
+        defaultTempo: scoreTempo(score),
         audioTrack: null,
         ready: false,
         ui: null,
@@ -5113,7 +5119,7 @@ function chordPracticePlaybackOptions({ fromDialog = true } = {}) {
     const repeatWanted = Number(value(chordPracticeRepeatInput));
     return {
         tempo: Math.max(CHORD_PRACTICE_MIN_TEMPO,
-            Math.min(CHORD_PRACTICE_MAX_TEMPO, Number(value(chordPracticeTempoInput)) || 80)),
+            Math.min(CHORD_PRACTICE_MAX_TEMPO, Number(value(chordPracticeTempoInput)) || DEFAULT_TEMPO)),
         speak: checked(chordPracticeSpeakCheckbox) && chordPracticeSpeechSupported === true,
         // From Settings, read once when the tab is made: a tab already open keeps whatever was in
         // force when it was opened.
@@ -5608,7 +5614,7 @@ const PATTERN_PREVIEW_CHORDS = [
     { root: 'D', suffix: 'major' }, { root: 'F', suffix: 'major' }
 ];
 const PATTERN_PREVIEW_MEASURES_EACH = 2;
-const PATTERN_PREVIEW_TEMPO = 80;
+const PATTERN_PREVIEW_TEMPO = DEFAULT_TEMPO;
 // How far ahead of the next time round it is laid out.
 const PATTERN_PREVIEW_LEAD_SECONDS = 2;
 

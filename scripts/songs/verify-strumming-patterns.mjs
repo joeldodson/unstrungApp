@@ -300,13 +300,13 @@ try {
     const levels = [...new Set(await page.evaluate(() => window.__levels))].sort((a, b) => a - b);
     console.log(`  strum levels: ${levels.join(', ')}`);
     check('a pattern without accents leans a little on beat 1', levels.join(',') === '0.44,0.55,0.616', levels.join(','));
-    // G, C, D and F, two measures each of 4/4 at 80, is 24 seconds a time round.
+    // G, C, D and F, two measures each of 4/4 at 60, is 32 seconds a time round.
     const afterFirstRound = await started();
-    await wait(24000);
+    await wait(32000);
     const intoSecondRound = await started();
     play = await playButtonState();
     // A whole time round is laid out at once, so the second doubles the count.
-    console.log(`  sounds laid out: ${afterFirstRound} in the first 3 seconds, ${intoSecondRound} after 27`);
+    console.log(`  sounds laid out: ${afterFirstRound} in the first 3 seconds, ${intoSecondRound} after 35`);
     check('it goes round again, still playing', play.label === 'Pause' && intoSecondRound >= afterFirstRound * 2,
         `${afterFirstRound} then ${intoSecondRound}`);
     await choose('4/4', 'Old Faithful: D - D U - U D U');

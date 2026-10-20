@@ -25,6 +25,7 @@ import {
     STANDARD_TUNING_MIDI
 } from './musicTheory.mjs';
 import { coarsestPattern, everyBeatDown, formatStrummingPattern } from './strummingPatterns.mjs';
+import { DEFAULT_TEMPO, scoreTempo } from './tempo.mjs';
 
 export const TICKS_PER_QUARTER = 960;
 
@@ -108,7 +109,7 @@ export function spelledFrets(chord) {
 }
 
 /** A generated or edited progression as a song: one chord a measure, one pattern throughout. */
-export function songFromProgression(progression, { library, tempo = 90, pattern = null, title = '' }) {
+export function songFromProgression(progression, { library, tempo = DEFAULT_TEMPO, pattern = null, title = '' }) {
     const songPattern = pattern ?? everyBeatDown(progression.beatsPerBar);
     return {
         title,
@@ -524,7 +525,7 @@ export function readSongFromScore(score, { library, trackIndex = 0 }) {
         ...keyFromSignature(firstBar?.keySignature ?? 0, firstBar?.keySignatureType ?? 0),
         beatsPerBar: firstMaster?.timeSignatureNumerator ?? 4,
         beatUnit: firstMaster?.timeSignatureDenominator ?? 4,
-        tempo: score.tempo ?? 120,
+        tempo: scoreTempo(score),
         measures: []
     };
     const stringCount = staff?.tuning?.length ?? 6;

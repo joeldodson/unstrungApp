@@ -3,6 +3,7 @@
 // alphaTab imports and DOM access so it can also run standalone for testing.
 
 import { PITCH_CLASSES, STANDARD_TUNING_MIDI, identifyChordFromNotes, midiToPitchName } from './musicTheory.mjs';
+import { fileTempo } from './tempo.mjs';
 
 const KEY_SIGNATURE_NAMES = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
 
@@ -980,7 +981,8 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
     for (const bar of masterBars) {
         for (const automation of bar.tempoAutomations ?? []) tempos.add(automation.value);
     }
-    if (score.tempo) tempos.add(score.tempo);
+    // Only a tempo the file states: alphaTab reports 120 for a file that states none.
+    if (fileTempo(score)) tempos.add(fileTempo(score));
     const tempoVaries = tempos.size > 1;
 
     // Triplet feel is a property of the bar, and every bar of a song that has it normally carries
@@ -1004,7 +1006,7 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         title: score.title || '(untitled)',
         artist: score.artist || null,
         album: score.album || null,
-        tempo: score.tempo || null,
+        tempo: fileTempo(score),
         tempoVaries,
         feel,
         barCount: masterBars.length,

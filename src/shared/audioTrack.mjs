@@ -4,6 +4,8 @@
 // song is displayed. Kept free of alphaTab imports (it only reads the object it is handed) so
 // it can run standalone for testing, like scoreMetadata.mjs.
 
+import { scoreTempo } from './tempo.mjs';
+
 // alphaTab's tick resolution: a quarter note is 960 ticks, so a 4/4 bar is 3840.
 export const TICKS_PER_QUARTER = 960;
 
@@ -210,12 +212,12 @@ function masterBarDurationTicks(masterBar) {
 function buildTempoMap(score, targetTempo) {
     const segments = [];
     let seconds = 0;
-    let tempo = score.tempo || 120;
+    let tempo = scoreTempo(score);
 
     // A practice tempo scales the whole song rather than flattening it, so a piece that speeds up
     // or slows down partway through keeps those changes in proportion.
-    const scoreTempo = score.tempo || 120;
-    const scale = targetTempo && targetTempo > 0 ? targetTempo / scoreTempo : 1;
+    const fromScore = scoreTempo(score);
+    const scale = targetTempo && targetTempo > 0 ? targetTempo / fromScore : 1;
 
     for (const masterBar of score.masterBars || []) {
         if (masterBar.tempoAutomation && masterBar.tempoAutomation.value > 0) {
@@ -306,7 +308,7 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
                     const startTick = barStartTick + beat.playbackStart;
                     const beatStartSeconds = tickToSeconds(tempoMap, startTick);
                     const beatTempo = tempoMap.segments.find(s =>
-                        startTick >= s.startTick && startTick < s.endTick)?.tempo ?? score.tempo ?? 120;
+                        startTick >= s.startTick && startTick < s.endTick)?.tempo ?? scoreTempo(score);
                     const notatedSeconds = beat.playbackDuration * (60 / (beatTempo * TICKS_PER_QUARTER));
 
                     // A named beat writing only a bass note is shorthand for the whole chord.

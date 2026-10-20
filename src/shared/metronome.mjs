@@ -6,11 +6,15 @@
 // stroke an up click, a mute a click of its own. So eight downs in a measure are eight of the same
 // click, and only a pattern that goes up as well sounds two.
 //
-// Each click is strong or plain. A pattern with accents of its own makes its accents strong, so
-// Three-Three-Two is heard in its threes and twos. One without makes its first stroke strong, so
-// the measure can be heard to start: beat 1 in most patterns, the and of 1 in Reggae Offbeat. A
-// strong click is louder, and the renderer gives it its own sound as well: a hard attack on a down,
-// a higher tick on an up, so the two kinds of strong click differ from each other too.
+// Two things mark a click out from the rest, and they are kept apart:
+//
+//   first   the first stroke of the measure, so the measure can be heard to start: beat 1 in most
+//           patterns, the and of 1 in Reggae Offbeat. The renderer raises its pitch.
+//   strong  louder. A pattern with accents of its own makes its accents strong, so
+//           Three-Three-Two is heard in its threes and twos; one without makes its first stroke
+//           strong as well. The renderer gives a strong down a hard attack too.
+//
+// So beat 1 of Three-Three-Two is as loud as its other two accents and higher than both.
 //
 // Also the arithmetic for changing tempo or pattern while it plays: the clicks are timed from an
 // anchor, { time, slot, slotSeconds }, the audio clock time of one slot. Changing either sets a new
@@ -20,9 +24,11 @@
 // No DOM and no Web Audio here: the renderer schedules the sounds. See
 // docs/strumming-patterns-and-metronome.md.
 
+import { DEFAULT_TEMPO } from './tempo.mjs';
+
 export const METRONOME_MIN_TEMPO = 30;
 export const METRONOME_MAX_TEMPO = 240;
-export const METRONOME_DEFAULT_TEMPO = 80;
+export const METRONOME_DEFAULT_TEMPO = DEFAULT_TEMPO;
 // One press of Faster or Slower, the same step as chord practice and audio tracks.
 export const METRONOME_TEMPO_STEP = 5;
 
@@ -59,14 +65,14 @@ export function clampMetronomeVolume(value) {
     return clamp(Math.round(number), METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME);
 }
 
-/** The gain of an accented click at a volume level. */
+/** The gain of a strong down click at a volume level. */
 export function metronomeVolumeGain(volume) {
     return METRONOME_VOLUME_GAINS[clampMetronomeVolume(volume) - 1];
 }
 
 /**
  * The click of each slot of a pattern, from its strokes ({ slots } as patternsFor gives them):
- * null on a miss, otherwise { sound: 'down' | 'up' | 'mute', strong }.
+ * null on a miss, otherwise { sound: 'down' | 'up' | 'mute', first, strong }.
  */
 export function metronomeClicks(pattern) {
     const { slots } = pattern;
@@ -74,7 +80,8 @@ export function metronomeClicks(pattern) {
     const firstStroke = slots.findIndex(slot => slot.stroke !== 'miss');
     return slots.map((slot, index) => {
         if (slot.stroke === 'miss') return null;
-        return { sound: slot.stroke, strong: accented ? slot.accent : index === firstStroke };
+        const first = index === firstStroke;
+        return { sound: slot.stroke, first, strong: accented ? slot.accent : first };
     });
 }
 
@@ -84,17 +91,22 @@ export function metronomeClickGain(click) {
 }
 
 /**
- * The clicks written out, one word a slot, for checks: `strong-down - down up - up down up`,
+ * The clicks written out, one word a slot, for checks: `high-strong-down - down up - up down up`,
  * a dash for no click.
  */
 export function formatMetronomeClicks(clicks) {
-    return clicks.map(click => (click ? `${click.strong ? 'strong-' : ''}${click.sound}` : '-')).join(' ');
+    return clicks.map(click => (click ? [...clickMarks(click), click.sound].join('-') : '-')).join(' ');
+}
+
+/** The words for what marks a click out: "high" for the first stroke, "strong" for a loud one. */
+function clickMarks(click) {
+    return [...(click.first ? ['high'] : []), ...(click.strong ? ['strong'] : [])];
 }
 
 /**
- * The clicks in words, for reading beside the pattern list: "Clicks on 1 strong down, 2 down,
- * 2 and up, 3 and up, 4 down, 4 and up." A position between beats is named with its beat, since a
- * bare "and" cannot say which beat it follows when the beat itself has no click.
+ * The clicks in words, for reading beside the pattern list: "Clicks on 1 high strong down,
+ * 2 down, 2 and up, 3 and up, 4 down, 4 and up." A position between beats is named with its beat,
+ * since a bare "and" cannot say which beat it follows when the beat itself has no click.
  */
 export function describeMetronomeClicks(clicks, slotsPerBeat) {
     const between = { 1: [], 2: ['and'], 4: ['e', 'and', 'a'] }[slotsPerBeat] ?? [];
@@ -103,7 +115,7 @@ export function describeMetronomeClicks(clicks, slotsPerBeat) {
         const beat = Math.floor(index / slotsPerBeat) + 1;
         const within = index % slotsPerBeat;
         const position = within === 0 ? String(beat) : `${beat} ${between[within - 1] ?? ''}`.trim();
-        return [`${position} ${click.strong ? 'strong ' : ''}${click.sound}`];
+        return [[position, ...clickMarks(click), click.sound].join(' ')];
     });
     return words.length ? `Clicks on ${words.join(', ')}.` : 'No clicks: the pattern strikes nothing.';
 }

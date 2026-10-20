@@ -529,7 +529,7 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   plain. A pattern with accents of its own makes its accents strong, so Three-Three-Two is heard
   in threes and twos; one without makes its first stroke strong, beat 1 in most patterns and the
   and of 1 in Reggae Offbeat, which has nothing on beat 1.
-  `describeMetronomeClicks` says it in words beside the list: "Clicks on 1 strong down, 2 down,
+  `describeMetronomeClicks` says it in words beside the list: "Clicks on 1 high strong down, 2 down,
   2 and up...". An off-beat is named with its beat ("2 and"), since a bare "and" cannot say which
   beat it follows when that beat has no click. Also the tempo and volume bounds, the gains, and
   the timing arithmetic below. Checked by `scripts/metronome/check-metronome.mjs`.
@@ -554,14 +554,28 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   raised from 2400 to 3200 Hz, with no attack. A pattern without accents of its own makes its first
   stroke strong rather than slot 1, so Reggae Offbeat's measure starts on a strong up. A strong
   mute is only louder.
+- **Beat 1 marked by pitch, apart from the accents** (the same day, a third round). The hard
+  attack alone left beat 1 too like the other downs, while the strong up's higher pitch stood out,
+  so Joel asked for the same on a down. He also found beat 1 of Three-Three-Two hard to find, since
+  its accents were all alike. So a click now carries two marks: `first`, the first stroke of the
+  measure, which raises its pitch by half (a down to 1200 Hz, an up to 3200 Hz, a down keeping its
+  hard attack); and `strong`, the accents, or the first stroke where a pattern has none, which is
+  louder, with the hard attack on a down. Beat 1 of Three-Three-Two is as loud as its other
+  accents and higher than both. In a pattern accented elsewhere, beat 1 is higher but not louder.
+- **Default tempo 60** (the same day). Joel asked for 60 wherever a tempo is not given: the
+  metronome, the Chord Practice dialog, a progression made without one, the pattern preview, and a
+  song file that states none. It had been 80, 90 or 120 depending on the place. It is
+  `DEFAULT_TEMPO` in `src/shared/tempo.mjs`. alphaTab reports 120 for a file with no tempo marking,
+  so `fileTempo` reads the marking on the first measure instead, and the song summary no longer
+  gives a tempo the file does not state.
 - **Volume.** Levels 1 to 5 set the gain of a strong down click: 0.08, 0.13, 0.21, 0.34, 0.55, each
   about 1.6 times the last, some 4 decibels, so the steps sound even. Level 1 is a little under the
   beat click that plays with chord practice (0.096); level 5 leaves headroom before clipping when
   other sound plays too. Chosen for first testing, to be set by ear. Volume is a gain node in front
   of every click, so a change is heard at once, even on clicks already laid out.
-- **Tempo** is 30 to 240, as in chord practice, starting at 80, with Faster and Slower stepping 5,
+- **Tempo** is 30 to 240, as in chord practice, starting at 60, with Faster and Slower stepping 5,
   as f and s do in chord practice and audio tracks.
-- **Default Tempo** goes back to the tempo last typed into the Tempo field, or 80 before anything
+- **Default Tempo** goes back to the tempo last typed into the Tempo field, or 60 before anything
   is typed; Faster and Slower leave it alone. "Originally configured" was read as what the player
   set in the field, not whatever the tempo was when Start was pressed.
 - **Scheduling.** The pattern preview lays out a whole round two seconds ahead at a fixed tempo,
