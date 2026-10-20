@@ -104,3 +104,11 @@ portable build in `release/`, and `npm run build:web` makes
 `release/Unstrung-web-<version>.tar.gz`, the web version that
 eyesunstrung.vip serves at `/unstrung/app/`. Attach all three. See
 `docs/eyesunstrung-site-and-web-app.md`.
+
+After every release is published on GitHub, update eyesunstrung.vip
+unless Joel says not to for that release. Publishing a release does not
+do it by itself. Run the site workflow on main:
+`gh workflow run site.yml --ref main -R joeldodson/eyesunstrung`. It
+fetches the latest release and deploys the site. Wait for the run to
+finish, then check that https://eyesunstrung.vip/unstrung/app/ serves
+the new version. Joel tests the release on his phone from the site.
