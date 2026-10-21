@@ -123,7 +123,11 @@ Where the tempo, time signature or key signature changes later in the song, the 
 
 ### Tracks
 
-The next heading is Tracks, with the number of tracks.
+unstrung lists only the guitar and bass tracks of a song, since those are the only instruments it has recordings of.
+Voice, keyboards, drums and other parts are left out, and the summary says how many.
+The words of a vocal part are still read, and shown with every listed track's measures.
+
+The next heading is Tracks, with the number of tracks listed.
 Each track has a level 3 heading with its number and name, and a list of its instrument, tuning and capo.
 The tuning is spelled out note by note, with its name when the file gives one.
 

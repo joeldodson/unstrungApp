@@ -1,6 +1,6 @@
 // Checks on scoreMetadata for things no file in this repository contains.
 //
-// Sections and percussion tracks are both absent from musicfiles/ -- Ripple has neither -- and the
+// Sections and other instruments are both absent from musicfiles/ -- Ripple has neither -- and the
 // files that do carry them are licensed to one person and cannot be committed. scoreMetadata.mjs
 // takes plain objects and imports no alphaTab, which was done so it could run standalone; this is
 // that. The shapes below mirror what alphaTab hands it, drawn from real files.
@@ -29,7 +29,9 @@ const bar = beats => ({ voices: [{ beats }] });
 // alphaTab numbers strings from the lowest pitch, so string 1 is the low E and prints as tab
 // string 6. Fret 3 of it is G2, MIDI 43.
 
-console.log('=== A percussion track is named by drum, not by pitch ===');
+// Only guitar and bass tracks are listed now, so a drum track and a vocal track are checked for
+// being left out. How they used to be described is still in scoreMetadata.mjs, unreached.
+console.log('=== A percussion track is not listed ===');
 {
     // Articulation lists come straight off the track, indexed by note.percussionArticulation.
     // These entries are the ones a real Songsterr kit uses; note that Guitar Pro's own name
@@ -60,16 +62,25 @@ console.log('=== A percussion track is named by drum, not by pitch ===');
         }]
     };
 
-    const track = extractScoreMetadata(score).tracks[0];
-    check('kick and closed hi-hat together', track.measures[0].beats[0], 'quarter note, bass drum; closed hi-hat');
-    check('snare', track.measures[0].beats[1], 'quarter note, acoustic snare');
-    check('open hi-hat is not confused with the closed one', track.measures[0].beats[2], 'quarter note, open hi-hat');
-    check('crash with kick', track.measures[0].beats[3], 'quarter note, crash cymbal 1; bass drum');
-    check('side stick is not just called a snare', track.measures[1].beats[0], 'quarter note, side stick');
-    check('an articulation outside the map falls back to the file\'s own name',
-        track.measures[1].beats[1], 'quarter note, nonexistent gadget');
-    check('a drum track lists no chords', track.chords.length, 0);
-    check('and is not reported as stringed', track.isStringed, false);
+    const meta = extractScoreMetadata(score);
+    check('a drum track is not listed', meta.tracks.length, 0);
+    check('and is counted among the others', meta.otherTrackCount, 1);
+}
+
+console.log('\n=== Guitars and basses are listed, by their place in the file ===');
+{
+    const note = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
+    const track = (name, program) => ({
+        name, isPercussion: false, playbackInfo: { program },
+        staves: [{ isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '', bars: [bar([beat([note])])] }]
+    });
+    const meta = extractScoreMetadata({
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar()],
+        tracks: [track('Piano', 0), track('Guitar', 24), track('Organ', 16), track('Bass', 39), track('Guitar Harmonics', 31)]
+    });
+    check('the guitar and bass programs, 24 to 39, are listed', meta.tracks.map(t => t.name).join(', '), 'Guitar, Bass, Guitar Harmonics');
+    check('each keeps its place in the file', meta.tracks.map(t => t.index).join(', '), '1, 3, 4');
+    check('the others are counted', meta.otherTrackCount, 2);
 }
 
 console.log('\n=== A section name reaches the measure it starts on ===');
@@ -131,7 +142,7 @@ console.log('\n=== Lyrics reach every track, labelled per singer ===');
     check('one singer needs no label', solo.tracks[0].measures[0].lyrics[0], 'Words: silver rain');
     check('a measure with no words gets none', solo.tracks[0].measures[1].lyrics.length, 0);
     check('the guitar track gets the words too', solo.tracks[0].measures[0].lyrics.length, 1);
-    check('and so does the singer', solo.tracks[1].measures[0].lyrics[0], 'Words: silver rain');
+    check('the singer is not listed', solo.tracks.length, 1);
 
     // Two singers, differing in the first part of the name.
     const duet = extractScoreMetadata({
@@ -162,7 +173,7 @@ console.log('\n=== Lyrics reach every track, labelled per singer ===');
         'Words, Lead Vocals: high / Words, Backing Vocals: low');
 }
 
-console.log('\n=== A sung note is a pitch, and carries its syllable ===');
+console.log('\n=== A vocal track is not listed ===');
 {
     const sungNote = { isStringed: true, string: 2, fret: 3, realValue: 62, isDead: false };
     const score = {
@@ -179,10 +190,7 @@ console.log('\n=== A sung note is a pitch, and carries its syllable ===');
             }]
         }]
     };
-    const beats = extractScoreMetadata(score).tracks[0].measures[0].beats;
-    check('a sung note is given as a pitch, not a fret', beats[0], 'quarter note, D4, "sil-"');
-    check('the next syllable lands on the next note', beats[1], 'quarter note, D4, "ver"');
-    check('a sung note with no syllable is still a pitch', beats[2], 'quarter note, D4');
+    check('a vocal track alone lists nothing', extractScoreMetadata(score).tracks.length, 0);
 }
 
 console.log('\n=== Tuplets change the duration, so they are named ===');

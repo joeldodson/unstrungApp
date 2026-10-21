@@ -173,12 +173,22 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
             ? meta.keySignature + (meta.keySignatureVaries ? ' (first bar; changes later in the song)' : '')
             : 'Unknown'
     );
-    addSummaryRow(ul, 'Tracks', String(meta.tracks.length));
+    // Only guitar and bass tracks are listed, those being the only samples unstrung has. Where the
+    // file has others, the summary says how many were left out, so a missing part is explained.
+    addSummaryRow(ul, 'Tracks', String(meta.tracks.length) + (meta.otherTrackCount
+        ? ` guitar and bass; ${meta.otherTrackCount} other${meta.otherTrackCount === 1 ? ' is' : 's are'} not listed`
+        : ''));
     container.append(ul);
 
     const tracksHeading = document.createElement('h2');
     tracksHeading.textContent = `Tracks - ${meta.tracks.length}`;
     container.append(tracksHeading);
+
+    if (meta.tracks.length === 0) {
+        const p = document.createElement('p');
+        p.textContent = 'This file has no guitar or bass tracks.';
+        container.append(p);
+    }
 
     meta.tracks.forEach((track, index) => {
         const trackHeading = document.createElement('h3');
@@ -261,7 +271,8 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
         // Last in the track, after the measures: playing the track is something to do rather than
         // something to read, so it does not interrupt the track's content. Collapsed, it is one
         // line, like the two regions above it.
-        if (audioTrackDisclosureFor) container.append(audioTrackDisclosureFor(index, track.name));
+        // By the track's place in the file, which is how the score reaches it.
+        if (audioTrackDisclosureFor) container.append(audioTrackDisclosureFor(track.index, track.name));
     });
 
     return container;
@@ -480,7 +491,7 @@ function handleFileOpened({ fileName, data }) {
         score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
         const meta = buildSongMetadata(score);
         contentEl = buildSummaryPanel(meta, { audioTrackDisclosureFor });
-        setStatus(`Opened "${fileName}". Found ${meta.tracks.length} track${meta.tracks.length === 1 ? '' : 's'}.`);
+        setStatus(`Opened "${fileName}". Found ${meta.tracks.length} guitar and bass track${meta.tracks.length === 1 ? '' : 's'}.`);
     } catch (error) {
         isError = true;
         const message = `Could not read "${fileName}": ${error && error.message ? error.message : 'unrecognized file format.'}`;

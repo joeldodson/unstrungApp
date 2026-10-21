@@ -934,11 +934,24 @@ function describeTuning(staff) {
     return { summary, strings, isStandard: comparable && altered.length === 0, label: staff.tuningName || null };
 }
 
-function describeTrack(track, terse, masterBars, songLyrics, promotedSections) {
+/**
+ * Whether unstrung lists the track: the guitars and the basses, General MIDI 24 to 39, which are
+ * the only instruments it has samples for. Voice, keyboards, drums and the rest are left out,
+ * though the words of a vocal part are still read and hung on every listed track's measures.
+ */
+function isGuitarOrBass(track) {
+    const program = track.playbackInfo ? track.playbackInfo.program : -1;
+    return track.isPercussion !== true && program >= 24 && program <= 39;
+}
+
+function describeTrack(track, index, terse, masterBars, songLyrics, promotedSections) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
 
     return {
+        // Where the track sits in the file, which is how the score itself is reached, for
+        // building its audio track. The tracks listed are numbered by their place in the list.
+        index,
         name: track.name || '(untitled track)',
         instrument: isPercussion ? 'Percussion' : instrumentName(track.playbackInfo ? track.playbackInfo.program : 0),
         staffCount: track.staves ? track.staves.length : 0,
@@ -1008,7 +1021,10 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         timeSignatureVaries,
         keySignature: firstBar ? keySignatureName(firstBar.keySignature) : null,
         keySignatureVaries,
-        tracks: (score.tracks || []).map(track =>
-            describeTrack(track, terseBeats, masterBars, songLyrics, promotedSections))
+        tracks: (score.tracks || [])
+            .map((track, index) => ({ track, index }))
+            .filter(({ track }) => isGuitarOrBass(track))
+            .map(({ track, index }) => describeTrack(track, index, terseBeats, masterBars, songLyrics, promotedSections)),
+        otherTrackCount: (score.tracks || []).filter(track => !isGuitarOrBass(track)).length
     };
 }

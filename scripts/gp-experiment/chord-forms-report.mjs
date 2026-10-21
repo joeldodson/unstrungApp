@@ -134,7 +134,7 @@ for (const file of files(dir)) {
         }
         if (result.anomalies.length > 8) console.log(`      ... ${result.anomalies.length - 8} more anomalies`);
 
-        const before = (metadata.tracks[index]?.chords ?? []).slice(0, 8).map(c => `${c.name} ${c.beats}`).join(', ');
+        const before = (metadata.tracks.find(t => t.index === index)?.chords ?? []).slice(0, 8).map(c => `${c.name} ${c.beats}`).join(', ');
         const after = result.chords.slice(0, 8).map(c => `${c.name} ${c.beats}${c.fingering ? ` [${c.fingering}]` : ' (unheld)'}`).join(', ');
         console.log(`    Chords Used now:   ${before || 'none'}`);
         console.log(`    Chords Used forms: ${after || 'none'}`);
