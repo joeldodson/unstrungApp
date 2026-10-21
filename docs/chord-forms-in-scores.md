@@ -88,6 +88,29 @@ A note on a string the form does not use yet is off the form too, where the form
 chord and the note would give it another root or none: the C on string 5 that starts Into Dust's
 C chord is the next chord arriving, not part of the D.
 
+### A one-finger change for a beat
+
+Sister Golden Hair goes from E to Esus4 and back within a beat, one finger on string 3, and the
+file prints E, Esus4 and E. American Pie turns a C into Cmaj7 for a beat, string 2 coming off fret
+1, and prints nothing there. Decided 2026-10-20:
+
+- Where the file does not print it, a change of one string for a beat or less, with the same root,
+  between two of the same form, is an exception of that form: "holds C, one exception".
+- Where the file prints it, it stays a form of its own, and the form around it carries on
+  afterwards with what the hand was holding. That makes three forms in the measure, so its heading
+  names none: the printed E, Esus4 and E say it.
+
+The second also applies where the change would otherwise have been taken as an exception and its
+printed chord flagged as an anomaly, as four of Sister Golden Hair's sus chords were. A power chord
+being filled out to the printed chord is not a change: Mother prints G where a G5 becomes a full G.
+
+Making every chord printed on a note off the form start a new form was tried first and went too
+far: Wish You Were Here's Em7 is one finger moved off a G and held there, and cut off from the G
+its notes spell no chord, so those measures held nothing.
+
+Across the guitar tracks 15 short changes like this were found. The 5 not printed are now
+exceptions; the 10 printed, with 4 more that had been exceptions, are forms of their own.
+
 ### Choosing between two forms
 
 Where one string is played at two frets in a span, either could be the form and the other the
@@ -130,15 +153,44 @@ chords from a major or minor one with the same root.
 
 ## What a measure says
 
+### Which measures name a form
+
+The point is a measure picked inside one chord, as Ripple's first two are, saying "holds G, one
+exception" rather than naming fragments of the G. It is not to list every chord a measure passes
+through. A measure with a chord on every beat says nothing about forms; its beats, and the chord
+symbols the file prints, say the rest. Decided 2026-10-20. A measure names forms when it has:
+
+- one form, through the whole measure or part of it;
+- two forms, with one change at a beat ("holds G, holds C at beat 3") or on the "and" of a beat
+  ("holds G, holds C during beat 4"), and no beat or more holding nothing besides.
+
+Measured on the guitar tracks: 1,531 of 2,542 sounding measures hold one form throughout, 163 one
+form for part of the measure, 242 change at a beat, and 233 on the "and" of a beat, 85 of them the
+last beat with the new form carried into the next measure. That is 2,169, or 85%. 183 hold no form.
+The other 190 or so are spread over three or more forms, a change with a stretch holding nothing,
+and the printed one-finger changes, none of them 2%, and name no forms. The forms are still found
+for them: they count in Chords Used, and their printed chords are still weighed against them.
+
 - Where a form is established: "Measure 1, holds G".
 - Where it carries in from the measure before: "Measure 2, continues G".
 - With exceptions: "holds G, one exception", "continues G, two exceptions". Where they fall is left
   to the beats. This was chosen over "exception at beat 4" to keep the heading short, and so that
   it does not matter whether a position counts notes or beats.
-- A change partway through: "continues G for 2 beats, one exception, holds C at beat 3". Each form
-  has its own count of exceptions straight after it.
+- A change partway through: "continues G, one exception, holds C at beat 3". Each form has its own
+  count of exceptions straight after it. This was first "continues G for 2 beats, ..."; the length
+  was dropped on 2026-10-20, since the next form's "at beat" or "during beat" already says where
+  the first ends. Half of the headings with a position between beats were a change on the "and"
+  of the last beat, as in "holds C#m, holds A during beat 4", and the length was the most words.
 - A form that ends with no new one after it: "continues G for 2 beats", or "holds G for 2 beats"
-  where it was established in that measure.
+  where it was established in that measure. Only a beat or more of notes holding nothing gives a
+  form a length. Under a beat of them, such as a pickup into the next chord, does not end the hold,
+  and those notes are still described beat by beat: Fade Into You's "holds A for 5.5 beats" is
+  "holds A". Decided 2026-10-20; it took the guitar headings with a length between beats from 216
+  to 89.
+- A length is said in words: "for 2 and a half beats", "for half a beat", "for three quarters of a
+  beat", rather than "for 2.5 beats", which a synthesizer reads as two point five. Thirds are there
+  for triplets, and a length between these parts goes to the nearest. Decided 2026-10-20. Across the
+  guitar tracks every length said falls on a half or a quarter.
 
 Positions and lengths are beats of the time signature, as chord symbols already are: "at beat 3",
 or "during beat 3" for a change between beats.
@@ -207,8 +259,8 @@ above, on the 35 guitar tracks (General MIDI programs 24 to 31):
 - 2,359 of 2,542 sounding measures hold a form.
 - No held form is wider than 3 frets, and none was rejected for width, so a reach of 4 does not
   bind.
-- Of 1,456 printed symbols, 915 agree, 433 partly agree (the form covers only part of the
-  symbol's stretch, up to the next printed chord), 30 are harmony and 69 are anomalies. 6 are names
+- Of 1,456 printed symbols, 919 agree, 437 partly agree (the form covers only part of the
+  symbol's stretch, up to the next printed chord), 30 are harmony and 61 are anomalies. 6 are names
   the parser cannot read and 3 sit over stretches that sound nothing. Weighing a printed chord up to
   the next one moved about a hundred from agree to partly agree, since a longer stretch more often
   has a beat or two holding nothing; partly agreeing still gives the file's name to the beats that
@@ -226,9 +278,10 @@ too and find nonsense such as a vocal line holding Esus4. Forms are meant for gu
 
 ## Left to settle
 
-- **Positions between beats.** 631 guitar headings have one, such as "holds A for 5.5 beats", and
-  439 measures are part held and part not: mostly a short stretch at the end of a measure that
-  holds nothing, or a change that comes in just before the bar line.
+- **Which tracks unstrung shows.** Decided 2026-10-20: guitar and bass tracks only (General MIDI 24
+  to 39), since those are the only samples unstrung has. Proposed with it, not yet confirmed: lyrics
+  still read from the vocal tracks, which are no longer listed; chord forms on guitar tracks only,
+  since a root and fifth on a bass reads as "holds C5". Not built yet.
 - **Which tracks get forms.** Guitars only, by General MIDI program, would leave out Ripple's
   mandolin.
 - `user-docs/features.md`, for the new wording and the Anomalies region, when it is built into the

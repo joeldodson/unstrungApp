@@ -114,12 +114,14 @@ for (const file of files(dir)) {
             }
         }
 
-        const halfBeats = sounding.filter(m => /\d\.\d| during /.test(m.heading)).length;
+        const halfBeats = sounding.filter(m => / during /.test(m.heading)).length;
+        const halfLengths = sounding.filter(m => /for (\d+ and |half|a quarter|a third|two thirds|three quarters)/.test(m.heading)).length;
         const gaps = sounding.filter(m => m.runs.some(run => run.span === null) && m.runs.some(run => run.span !== null)).length;
         totals.halfBeats = (totals.halfBeats ?? 0) + halfBeats;
+        totals.halfLengths = (totals.halfLengths ?? 0) + halfLengths;
         totals.gaps = (totals.gaps ?? 0) + gaps;
         console.log(`  track ${index + 1}, ${track.name} (program ${track.playbackInfo?.program}): ${measures.length} measures, ${sounding.length} sounding`);
-        console.log(`    headings with a position or length between beats: ${halfBeats}; measures part held, part not: ${gaps}`);
+        console.log(`    headings with a position between beats: ${halfBeats}; with a length between beats: ${halfLengths}; measures part held, part not: ${gaps}`);
         console.log(`    held in ${held.length} (${fully.length} throughout), carried into ${carried.length}; ${sounding.length - held.length} hold nothing`);
         console.log(`    spans: ${show(reasons)}; single power-chord fragments held: ${fragments}`);
         console.log(`    exceptions ${exceptions} (${slurGroups} slurred runs); aligned to the bar line ${result.aligned}`);
@@ -151,7 +153,7 @@ for (const file of files(dir)) {
 console.log('\n=== All files');
 console.log(`  settings: ${JSON.stringify(settings)} (defaults otherwise)`);
 console.log(`  ${totals.tracks} tracks, ${totals.sounding} sounding measures: held in ${totals.held} (${totals.fully} throughout), carried into ${totals.carried}`);
-console.log(`  headings with a position or length between beats: ${totals.halfBeats ?? 0}; measures part held, part not: ${totals.gaps ?? 0}`);
+console.log(`  headings with a position between beats: ${totals.halfBeats ?? 0}; with a length between beats: ${totals.halfLengths ?? 0}; measures part held, part not: ${totals.gaps ?? 0}`);
 console.log(`  spans: ${show(totalReasons)}`);
 console.log(`  exceptions ${totals.exceptions} (${totals.slurGroups} slurred runs); aligned ${totals.aligned}`);
 console.log(`  two possible forms, decided by: ${show(totalDecided)}`);

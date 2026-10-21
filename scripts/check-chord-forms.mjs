@@ -10,7 +10,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { findChordForms } from '../src/shared/chordForms.mjs';
+import { findChordForms, beatsText } from '../src/shared/chordForms.mjs';
 
 const root = path.join(import.meta.dirname, '..');
 const library = JSON.parse(fs.readFileSync(path.join(root, 'src', 'assets', 'chords', 'chord-library.json'), 'utf8'));
@@ -52,7 +52,7 @@ const cases = [
     {
         name: 'a change of form partway through a measure',
         measures: [measure([...strummed(G, [1, 2]), ...strummed(C, [3, 4])]), measure(strummed(C))],
-        headings: ['holds G for 2 beats, holds C at beat 3', 'continues C']
+        headings: ['holds G, holds C at beat 3', 'continues C']
     },
     {
         name: 'two open strings after a G are part of the G, not a G5',
@@ -64,6 +64,11 @@ const cases = [
         name: 'a form ending with notes after it that hold nothing',
         measures: [measure([...strummed(G, [1, 2]), [3, 0.5, 's1:1'], [3.5, 0.5, 's1:4'], [4, 0.5, 's1:6'], [4.5, 0.5, 's1:8']])],
         headings: ['holds G for 2 beats']
+    },
+    {
+        name: 'under a beat of notes holding nothing does not end a hold',
+        measures: [measure([...strummed(G, [1, 2, 3]), [4, 0.5, G], [4.5, 0.5, 's1:1']])],
+        headings: ['holds G']
     },
     {
         name: 'string 4 at two frets in a C, decided by the C the track holds elsewhere',
@@ -135,6 +140,36 @@ const cases = [
         name: 'a lone note repeated through the pattern is part of the form',
         measures: [measure([[1, 1, Gx], [2, 1, 's5:0'], [3, 1, Gx], [4, 1, 's5:0']])],
         headings: ['holds Gadd9']
+    },
+    {
+        name: 'a one-finger change for a beat inside a form, not printed, is an exception',
+        measures: [measure([...strummed(C, [1, 2]), [3, 1, 's5:3 s4:2 s3:0 s2:0 s1:0'], [4, 1, C]])],
+        headings: ['holds C, one exception'],
+        noChord: 'Cmaj7'
+    },
+    {
+        // Three forms in the measure, so its heading names none; the forms are still found, and
+        // each agrees with its printed chord.
+        name: 'the same change printed by the file stays a form of its own',
+        measures: [measure([...strummed(C, [1, 2]), [3, 1, 's5:3 s4:2 s3:0 s2:0 s1:0'], [4, 1, C]], [['C', 1], ['Cmaj7', 3], ['C', 4]])],
+        headings: [''],
+        kinds: ['agree', 'agree', 'agree'],
+        forms: [['C', 'Cmaj7', 'C']]
+    },
+    {
+        name: 'a change on the and of a beat other than the last reads during that beat',
+        measures: [measure([...strummed(G, [1, 2]), [2.5, 0.5, C], [3, 1, C], [4, 1, C]])],
+        headings: ['holds G, holds C during beat 2']
+    },
+    {
+        name: 'a measure with a chord on every beat names no forms',
+        measures: [measure([[1, 1, G], [2, 1, C], [3, 1, 's4:0 s3:2 s2:3 s1:2'], [4, 1, 's5:0 s4:2 s3:2 s2:1 s1:0']])],
+        headings: ['']
+    },
+    {
+        name: 'two forms with a beat holding nothing between them names no forms',
+        measures: [measure([[1, 1, G], [2, 0.5, 's1:1'], [2.5, 0.5, 's1:4'], [3, 1, C], [4, 1, C]])],
+        headings: ['']
     },
     {
         name: 'a hammer-on and pull-off off the form count as one exception',
@@ -214,6 +249,10 @@ for (const testCase of cases) {
         const kinds = result.measures.flatMap(m => m.symbols.map(s => s.kind));
         if (JSON.stringify(kinds) !== JSON.stringify(testCase.kinds)) problems.push(`symbol kinds ${JSON.stringify(kinds)}, expected ${JSON.stringify(testCase.kinds)}`);
     }
+    if (testCase.forms) {
+        const forms = result.measures.map(m => m.runs.filter(run => run.span !== null).map(run => run.name));
+        if (JSON.stringify(forms) !== JSON.stringify(testCase.forms)) problems.push(`forms ${JSON.stringify(forms)}, expected ${JSON.stringify(testCase.forms)}`);
+    }
     if (testCase.anomalies !== undefined && result.anomalies.length !== testCase.anomalies) {
         problems.push(`${result.anomalies.length} anomalies, expected ${testCase.anomalies}`);
     }
@@ -231,5 +270,18 @@ for (const testCase of cases) {
         console.log(`ok   ${testCase.name}`);
     }
 }
-console.log(`\n${cases.length - failed} of ${cases.length} cases pass.`);
+// Lengths as they are said.
+const lengths = [
+    [1, '1 beat'], [2, '2 beats'], [0.5, 'half a beat'], [2.5, '2 and a half beats'], [0.25, 'a quarter of a beat'],
+    [1.75, '1 and three quarters beats'], [1 / 3, 'a third of a beat'], [2 + 2 / 3, '2 and two thirds beats'],
+    [0.98, '1 beat'], [3.1, '3 beats']
+];
+let lengthsFailed = 0;
+for (const [n, expected] of lengths) {
+    const said = beatsText(n);
+    if (said !== expected) { lengthsFailed++; console.log(`FAIL length ${n} said "${said}", expected "${expected}"`); }
+}
+
+console.log(`\n${cases.length - failed} of ${cases.length} cases pass; ${lengths.length - lengthsFailed} of ${lengths.length} lengths are said as expected.`);
+failed += lengthsFailed;
 process.exitCode = failed > 0 ? 1 : 0;

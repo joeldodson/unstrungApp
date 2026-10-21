@@ -161,13 +161,48 @@ function gatherSpans(events, settings) {
         let last = index;
         while (last + 1 < events.length && !fits(current.frets, events[last + 1], settings) && slurred(events[last], events[last + 1])) last++;
         if (returns(current.frets, events, index, last, settings)) {
+            // A one-finger change for a beat or less that the file prints as a chord of its own,
+            // such as Sister Golden Hair's Asus2 inside an A, is kept as its own form, and the form
+            // around it carries on afterwards with what the hand was holding.
+            if (printedChange(current.frets, events, index, last, settings)) {
+                spans.push({ members: range(index, last), frets: new Map(events.slice(index, last + 1).flatMap(e => e.notes.map(note => [note.string, note.fret]))) });
+                current = { members: [], frets: new Map(current.frets) };
+                spans.push(current);
+                index = last;
+                continue;
+            }
             for (let member = index; member <= last; member++) current.members.push(member);
             index = last;
             continue;
         }
         begin(index);
     }
-    return spans;
+    // A form carried on after a printed change can end before any beat joins it.
+    return spans.filter(span => span.members.length > 0);
+}
+
+const range = (first, last) => Array.from({ length: last - first + 1 }, (_, i) => first + i);
+
+/**
+ * Whether the events from `first` to `last`, off the form and about to come back to it, are a
+ * change the file prints as a chord of its own: a chord printed where they start, other than the
+ * form's chord but with its root, one string off the form, the hand back within a beat.
+ */
+function printedChange(frets, events, first, last, settings) {
+    const name = events[first].printedName;
+    if (!name) return false;
+    const printed = parseChordSymbol(name);
+    const held = chordOf(frets, settings.openMidi);
+    if (!printed || !held || printed.pc !== PITCH_CLASSES[held.root]) return false;
+    // A power chord being filled out to the printed chord is no change: Mother prints G where the
+    // hand fills a G5 out to a full G. A full chord is a change, as C to a printed Cmaj7 is.
+    const heldPcs = new Set([...frets].map(([string, fret]) => pitchClass(settings.openMidi.get(string) + fret)));
+    if (heldPcs.size < 3 && [...heldPcs].every(pc => printed.pcs.has(pc))) return false;
+    const strings = new Set();
+    for (let k = first; k <= last; k++) for (const note of conflicts(frets, events[k], settings)) strings.add(note.string);
+    if (strings.size !== 1) return false;
+    const back = events[last + 1];
+    return !!back && back.position - events[first].position <= 1 + EPSILON;
 }
 
 /**
@@ -391,7 +426,26 @@ function chooseForm(candidates, heldElsewhere, library) {
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 const countWord = n => NUMBER_WORDS[n] ?? String(n);
-const beatsText = n => `${Number(n.toFixed(3))} beat${Math.abs(n - 1) < EPSILON ? '' : 's'}`;
+// Parts of a beat a length is said in, nearest first: halves, quarters and the thirds of a triplet.
+const BEAT_FRACTIONS = [
+    [0, null, null], [1 / 4, 'a quarter', 'a quarter of a beat'], [1 / 3, 'a third', 'a third of a beat'],
+    [1 / 2, 'a half', 'half a beat'], [2 / 3, 'two thirds', 'two thirds of a beat'],
+    [3 / 4, 'three quarters', 'three quarters of a beat'], [1, null, null]
+];
+
+/**
+ * A length in beats as it is said: "2 beats", "1 beat", "2 and a half beats", "half a beat".
+ * Words rather than "2.5 beats", which a synthesizer reads as two point five. A length that falls
+ * between these parts goes to the nearest.
+ */
+export function beatsText(n) {
+    let whole = Math.floor(n + EPSILON);
+    const [fraction, joined, alone] = BEAT_FRACTIONS.reduce((best, entry) =>
+        (Math.abs(n - whole - entry[0]) < Math.abs(n - whole - best[0]) ? entry : best));
+    if (fraction === 1) whole++;
+    if (!joined) return `${whole} beat${whole === 1 ? '' : 's'}`;
+    return whole === 0 ? alone : `${whole} and ${joined} beats`;
+}
 const positionText = beat => Number.isInteger(Number(beat.toFixed(6)))
     ? `at beat ${Math.round(beat)}`
     : `during beat ${Math.floor(beat + EPSILON)}`;
@@ -442,8 +496,21 @@ function fitsHarmony(regionEvents, symbol, first, settings) {
  * - `chords`: Chords Used as the forms count it, with the fingering the track plays most.
  */
 export function findChordForms(measures, { library = null, ...options } = {}) {
+    // Each event also carries its position in beats from the start of the track, and the chord
+    // the file prints on it, if any.
     const events = [];
-    measures.forEach((measure, index) => measure.events.forEach(event => events.push({ ...event, measure: index })));
+    let measureStartBeat = 0;
+    measures.forEach((measure, index) => {
+        for (const event of measure.events) {
+            events.push({
+                ...event,
+                measure: index,
+                position: measureStartBeat + event.beat - 1,
+                printedName: measure.symbols.find(symbol => Math.abs(symbol.beat - event.beat) < EPSILON)?.name ?? null
+            });
+        }
+        measureStartBeat += measure.beatsPerBar;
+    });
     const openMidi = new Map();
     for (const event of events) for (const note of event.notes) if (!openMidi.has(note.string)) openMidi.set(note.string, note.midi - note.fret);
     const settings = { ...FORM_DEFAULTS, ...options, openMidi };
@@ -488,6 +555,35 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         Object.assign(before, { members: kept, form: newBefore });
         Object.assign(after, { members: joined, form: newAfter });
         aligned++;
+    }
+
+    // A one-finger change for a beat or less between two of the same form is an exception of that
+    // form, unless the file prints it: American Pie's C turns to Cmaj7 for a beat as string 2 comes
+    // off fret 1, and nothing is printed there, so the C holds with one exception. Sister Golden
+    // Hair prints its Esus4 for a beat inside an E, and that stays a form of its own.
+    let folded = 0;
+    for (let i = 1; i + 1 < spans.length; i++) {
+        const [a, b, c] = [spans[i - 1], spans[i], spans[i + 1]];
+        if (!a.form || !b.form || !c.form) continue;
+        const adjacent = (x, y) => x.members[x.members.length - 1] + 1 === y.members[0];
+        if (!adjacent(a, b) || !adjacent(b, c)) continue;
+        if (identityOf(a.form.chord) !== identityOf(c.form.chord)) continue;
+        if (PITCH_CLASSES[a.form.chord.root] !== PITCH_CLASSES[b.form.chord.root]) continue;
+        const differ = [...b.form.frets].filter(([string, fret]) => a.form.frets.has(string) && a.form.frets.get(string) !== fret);
+        if (differ.length !== 1) continue;
+        if ([...c.form.frets].some(([string, fret]) => a.form.frets.has(string) && a.form.frets.get(string) !== fret)) continue;
+        const first = events[b.members[0]];
+        if (events[c.members[0]].position - first.position > 1 + EPSILON || first.printedName) continue;
+        const frets = new Map(a.form.frets);
+        for (const [string, fret] of c.form.frets) if (!frets.has(string)) frets.set(string, fret);
+        const members = [...a.members, ...b.members, ...c.members];
+        const passing = new Set([...a.form.passing, ...c.form.passing]);
+        const form = judge(frets, members, events, openMidi, settings, passing);
+        if (form.reason) continue;
+        Object.assign(a, { members, form });
+        spans.splice(i, 2);
+        folded++;
+        i--;
     }
 
     const owner = new Array(events.length).fill(null);
@@ -601,12 +697,29 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         const symbols = symbolsByMeasure[m];
         for (const run of runs) run.name = run.span === null ? null : (run.fileChord?.name ?? spans[run.span].form.chord.name);
 
+        // Forms are named in the heading only where the measure is simple enough to say quickly:
+        // one form, whole or for part of the measure, or two with one change, at a beat or during
+        // one, and no beat or more holding nothing besides. That covers about 85% of the sounding
+        // measures on the guitar tracks tested. A measure with more, such as a chord on every
+        // beat, says nothing about forms; its beats and the file's own chord symbols say the rest.
+        const heldRuns = runs.filter(run => run.span !== null);
+        const unheldTime = runs.filter(run => run.span === null).reduce((sum, run) => sum + run.end - run.start, 0);
+        const named = heldRuns.length === 1 || (heldRuns.length === 2 && unheldTime < 1 - EPSILON);
+
         // The heading: each run of a form in order, with the symbols that override it.
         const pieces = runs.map((run, r) => {
-            if (run.span === null) return { start: run.start, text: null, run };
+            if (run.span === null || !named) return { start: run.start, text: null, run };
             let text = `${run.carried ? 'continues' : 'holds'} ${run.name}`;
             if (!run.carried && (r > 0 || run.start > 1 + EPSILON)) text += ` ${positionText(run.start)}`;
-            if (run.end < end - EPSILON) text += ` for ${beatsText(run.end - run.start)}`;
+            // A length only where a beat or more holding nothing follows. Where another form comes
+            // next, its own "at beat" or "during beat" already says where this one ends; under a
+            // beat of notes holding nothing, such as a pickup into the next chord, does not end
+            // the hold. Those notes are still described beat by beat.
+            const nextHeld = runs.slice(r + 1).find(other => other.span !== null);
+            const gapEnd = nextHeld ? nextHeld.start : end;
+            const gap = runs.slice(r + 1).filter(other => other.span === null && other.start < gapEnd - EPSILON)
+                .reduce((sum, other) => sum + Math.min(other.end, gapEnd) - other.start, 0);
+            if (run.end < end - EPSILON && gap >= 1 - EPSILON) text += ` for ${beatsText(run.end - run.start)}`;
             if (run.exceptions > 0) text += `, ${countWord(run.exceptions)} exception${run.exceptions === 1 ? '' : 's'}`;
             return { start: run.start, text, run };
         });
@@ -623,7 +736,7 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         }
         pieces.sort((a, b) => a.start - b.start);
         const heading = pieces.filter(piece => piece.text).map(piece => piece.text).join(', ');
-        return { number: m + 1, runs, symbols, heading };
+        return { number: m + 1, runs, symbols, heading, named };
     });
 
     const anomalies = described.flatMap(measure => measure.symbols
@@ -673,5 +786,5 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         fingerings: Object.fromEntries(entry.fingerings)
     })).sort((a, b) => b.beats - a.beats);
 
-    return { spans, measures: described, anomalies, chords: chordList, aligned, events };
+    return { spans, measures: described, anomalies, chords: chordList, aligned, folded, events };
 }
