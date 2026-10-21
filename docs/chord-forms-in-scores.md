@@ -197,10 +197,18 @@ or "during beat 3" for a change between beats.
 
 ### Beats inside a form
 
-Beats keep their strings and frets. A partial beat no longer names a piece of the form, so open
-strings 3 and 4 read "strings 3 and 4, open" rather than "G5/D". A beat sounding the full chord
-still names it. An exception beat reads as it always has: the heading has already said there is
-one.
+This is the one change to the list of beats; everything else about forms is in the heading.
+
+In a measure whose heading names its form, a partial beat no longer names a piece of that form.
+The name was never in the file: unstrung worked it out from the beat's own notes. The beat is
+listed string by string, as a beat unstrung does not name already is, so open strings 3 and 4
+read "eighth note, string 3, open; string 4, open" rather than "eighth note, G5/D, strings 3 and
+4". The strings and frets are the file's and are unchanged. A beat sounding the full chord still
+names it, and an exception beat reads as it always has: the heading has already said there is one.
+
+In a measure whose heading names no form, about 15% of them, the beats stay as they are now,
+G5/D and its strings included, since there is no named form for them to belong to. Decided
+2026-10-21.
 
 ## Printed chord symbols
 
@@ -231,6 +239,14 @@ the note on beat 1, if there is one, is a chord tone. Time rather than a count o
 run between two held chord tones does not outweigh them; beat 1 on its own because a clash is
 heard most there. A suspension held over the symbol would fail it, so the threshold is to be run
 over every printed symbol in the corpus, and the measures it flags read, before it is relied on.
+
+### The chord symbol phrase
+
+Measure headings already carry a phrase for the chords the file prints: "chord symbol G at beat
+1". Where the heading names a form, the form already gives the file's name, or "(harmony)" or
+"(anomaly)" does, so the phrase would say the chord twice and is dropped: "Measure 102, holds G".
+It stays for a printed name unstrung cannot read, which nothing else says, and in measures that
+name no form, where it is the only place the file's chords are given. Decided 2026-10-21.
 
 ### Anomalies
 
@@ -279,9 +295,10 @@ too and find nonsense such as a vocal line holding Esus4. Forms are meant for gu
 ## Left to settle
 
 - **Which tracks unstrung shows.** Decided 2026-10-20: guitar and bass tracks only (General MIDI 24
-  to 39), since those are the only samples unstrung has. Proposed with it, not yet confirmed: lyrics
-  still read from the vocal tracks, which are no longer listed; chord forms on guitar tracks only,
-  since a root and fifth on a bass reads as "holds C5". Not built yet.
+  to 39), since those are the only samples unstrung has. Chord forms in the measure heading are
+  for guitar tracks only, not bass, since a root and fifth on a bass reads as "holds C5"; decided
+  2026-10-21. Lyrics are still read from the vocal tracks, which are no longer listed, and hung on
+  the measures as now; also decided 2026-10-21. Not built yet.
 - **Which tracks get forms.** Guitars only, by General MIDI program, would leave out Ripple's
   mandolin.
 - `user-docs/features.md`, for the new wording and the Anomalies region, when it is built into the
