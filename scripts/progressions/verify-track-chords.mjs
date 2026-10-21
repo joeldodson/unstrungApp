@@ -88,35 +88,37 @@ check('the row carries chord information', after.firstRowFacts.length > 1);
 check('the row says how much of the track it covers',
     after.firstRowFacts.some(t => /Sounds on \d+ beats? of this track/.test(t)));
 
-console.log('\n=== Chord symbols ride on the measure heading ===');
+// On a guitar track the chord a measure holds now heads it as a form, with the file's name where
+// it prints one, and the chord symbol phrase only where the measure names no form. On the bass
+// the phrase is as it was. See docs/chord-forms-in-scores.md.
+console.log('\n=== Printed chords ride on the measure heading ===');
 const headings = await page.evaluate(async () => {
     const regions = [...document.querySelectorAll('details')].filter(x =>
         /^Measures - /.test(x.querySelector('summary')?.textContent ?? ''));
-    // The capo track: bar 2 carries a C, bar 44 a G that arrives mid-measure.
-    const measures = regions[1];
-    measures.open = true;
-    await new Promise(r => setTimeout(r, 500));
-    const h4s = [...measures.querySelectorAll('h4')];
-    return {
-        withSymbol: h4s.filter(h => /chord symbol/.test(h.textContent)).map(h => h.textContent),
-        plain: h4s.filter(h => !/chord symbol/.test(h.textContent)).length,
-        beatsMentioningSymbol: [...measures.querySelectorAll('li')]
-            .filter(li => /chord symbol/.test(li.textContent)).length
+    const read = async measures => {
+        measures.open = true;
+        await new Promise(r => setTimeout(r, 500));
+        return {
+            headings: [...measures.querySelectorAll('h4')].map(h => h.textContent),
+            beatsMentioningSymbol: [...measures.querySelectorAll('li')].filter(li => /chord symbol/.test(li.textContent)).length
+        };
     };
+    // The capo track: bar 2 holds the C it prints, bar 44 changes to a G partway through. The bass
+    // prints the same chords and names no forms.
+    return { capo: await read(regions[1]), bass: await read(regions[2]) };
 });
-console.log(`  headings carrying a symbol: ${headings.withSymbol.length}`);
-console.log(`  first four: ${headings.withSymbol.slice(0, 4).join(' | ')}`);
-check('a symbol reaches the measure heading',
-    headings.withSymbol.some(h => /^Measure \d+ - chord symbol [A-G]/.test(h)), headings.withSymbol[0]);
-check('every symbol is placed by beat, including the ones on beat 1',
-    headings.withSymbol.every(h => / (at|during) beat \d/.test(h)),
-    headings.withSymbol.find(h => !/ (at|during) beat \d/.test(h)) ?? 'all placed');
-check('a mid-measure change reports the beat it starts on',
-    headings.withSymbol.some(h => / at beat [2-9]/.test(h)),
-    headings.withSymbol.find(h => / at beat [2-9]/.test(h)) ?? 'none found');
-check('measures without a symbol keep a bare heading', headings.plain > 0, `${headings.plain} plain headings`);
+const capoHeadings = headings.capo.headings;
+console.log(`  capo, bars 2 and 44: ${capoHeadings[1]} | ${capoHeadings[43]}`);
+check('a printed chord reaches the heading as the form held', /^Measure 2 - (holds|continues) C\b/.test(capoHeadings[1]), capoHeadings[1]);
+check('a mid-measure change reports the beat it starts on', capoHeadings.some(h => / at beat [2-9]/.test(h)),
+    capoHeadings.find(h => / at beat [2-9]/.test(h)) ?? 'none found');
+check('no heading gives both a form and a chord symbol', !capoHeadings.some(h => /(holds|continues) /.test(h) && /chord symbol/.test(h)));
+// Every printed chord in this file now sits in a measure that names its form, so none of its
+// headings uses the chord symbol phrase; scripts/songs/verify-chord-forms-in-app.mjs, run on a
+// file that has such measures, checks them against the metadata.
+check('measures with nothing printed or held keep a bare heading', headings.bass.headings.some(h => /^Measure \d+$/.test(h)));
 check('no beat line mentions a chord symbol any more',
-    headings.beatsMentioningSymbol === 0, `${headings.beatsMentioningSymbol} beats still do`);
+    headings.capo.beatsMentioningSymbol + headings.bass.beatsMentioningSymbol === 0);
 
 console.log('\n=== A part with no chords says so ===');
 const bass = await page.evaluate(async () => {

@@ -131,15 +131,40 @@ The next heading is Tracks, with the number of tracks listed.
 Each track has a level 3 heading with its number and name, and a list of its instrument, tuning and capo.
 The tuning is spelled out note by note, with its name when the file gives one.
 
-Each track then has three collapsed sections:
+Each track then has these collapsed sections:
 
 - **Chords Used,** with the number of chords.
   Each chord the track plays is listed, collapsed, with how many beats it sounds on, its fingering and its notes.
+  On a guitar track, the chord's fingering as the track plays it comes first, then the chord library's.
   A part played one note at a time names no chords, and the section says so.
+- **Anomalies,** on a guitar track where the chords the file prints do not match the notes played.
+  Each is a measure, the chord the file prints, and the chord the notes hold.
+  A track with none has no Anomalies section.
 - **Measures,** with the number of measures.
   Each measure is a level 4 heading with its number, the section it starts if any, its repeat marks and its chord names.
   Under the heading are the lyrics sung over the measure, then a description of each beat: the strings and frets played, how the strings are struck, and techniques such as slides, bends, vibrato, harmonics and let ring.
 - **Audio Track** and the track's name, where the track is played.
+
+### Chord Forms in Measure Headings
+
+On a guitar track, a measure heading says which chord shape the left hand holds, where the measure is simple enough to say it quickly.
+This is the same idea as sheet music showing a chord only where it changes.
+
+- "holds G" where a G shape is first held, and "continues G" where it carries over from the measure before.
+- "holds G, one exception" where a note or two leave the shape and come back, such as a finger reaching for a bass note.
+- "holds G, holds C at beat 3" for a change at a beat, and "holds G, holds C during beat 4" for a change between beats.
+- "holds G for 2 and a half beats" where the shape is let go of and nothing else is held after it.
+
+The shape is worked out from the notes the measure picks or strums, so a part picked one string at a time still holds a G.
+Where the file prints a chord name and it matches the shape, the heading uses the file's name.
+Where the notes hold a different chord from the one the file prints, the heading gives the file's chord followed by "(anomaly)", and the track's Anomalies section lists it.
+Where a melody is played over a chord the file prints, the heading gives the chord followed by "(harmony)".
+A measure that changes chord more than once, such as a chord on every beat, says nothing about shapes, and its heading gives the chord names the file prints, as before.
+
+Inside a measure that names a shape, a beat playing only part of it is listed string by string rather than named: open strings 3 and 4 inside a G are not called G5.
+A beat sounding the whole chord still names it.
+
+Bass tracks do not show chord shapes.
 
 The measures are collapsed because a song can run to hundreds of lines.
 Expand them when you want the detail.

@@ -26,20 +26,25 @@ for (const file of fs.readdirSync(dir).filter(f => /\.(gp|gp5|gpx)$/i.test(f)).s
 console.log(`${total} beat descriptions produced, no undefined/NaN`);
 
 // No file we have puts two chord symbols in one measure, but nothing in these formats stops one,
-// and a measure heading is where that would show. So one is made: the Ripple capo track's bar 2
-// already carries a C on its first beat, and a G is attached to the beat three quarters in.
+// and a measure heading is where that would show. So one is made, on Ripple's bass, which prints
+// no symbols of its own: a C on the first beat of bar 2 and a G on the beat halfway in. The bass,
+// having no chord forms, is where the chord symbol phrase still heads every measure that has one;
+// on a guitar track a measure that names its form gives the chord there instead.
 {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(
         new Uint8Array(fs.readFileSync(path.join(dir, 'Grateful Dead-Ripple-12-20-2025.gp'))));
-    const staff = score.tracks[1].staves[0];
+    const staff = score.tracks[2].staves[0];
     const beats = staff.bars[1].voices[0].beats;
-    const target = beats.find(beat => beat.playbackStart === 960 * 2);
-    if (!target) throw new Error('no beat two quarter notes into bar 2 to hang a second symbol on');
-    // Beat.chord is derived from chordId against the staff's chord map, so the chord goes in there.
+    const first = beats.find(beat => !beat.isRest && beat.playbackStart === 0);
+    const target = beats.find(beat => !beat.isRest && beat.playbackStart === 960 * 2);
+    if (!first || !target) throw new Error('no beats at the start and halfway into bar 2 of the bass to hang symbols on');
+    // Beat.chord is derived from chordId against the staff's chord map, so the chords go in there.
+    staff.addChord('synthetic-first-symbol', { name: 'C', strings: [] });
     staff.addChord('synthetic-second-symbol', { name: 'G', strings: [] });
+    first.chordId = 'synthetic-first-symbol';
     target.chordId = 'synthetic-second-symbol';
 
-    const heading = extractScoreMetadata(score, { terseBeats: true }).tracks[1].measures[1].chordSymbols;
+    const heading = extractScoreMetadata(score, { terseBeats: true }).tracks.find(t => t.index === 2).measures[1].chordSymbols;
     console.log(`\nsynthetic measure carrying two symbols:\n  Measure 2 - ${heading}`);
     if (heading !== 'chord symbols C at beat 1, G at beat 3') {
         throw new Error(`unexpected heading for two symbols: ${heading}`);

@@ -36,7 +36,8 @@ const EPSILON = 1e-6;
  * A staff as measures of events, in the frame the rest of this file works in.
  *
  * Each measure is { beatsPerBar, events, symbols }. An event is one beat that sounds:
- * { beat, length, notes }, with `beat` counted from 1 in beats of the time signature, as chord
+ * { beat, length, notes, beatIndex }, `beatIndex` being its place among the bar's beats, rests
+ * included, and `beat` its start counted from 1 in beats of the time signature, as chord
  * symbols are placed, and each note { string, fret, midi, slurIn, slurOut } in tab numbering.
  * `midi` has the capo taken off, so names come out as fingered, as describeChordedBeat's do.
  *
@@ -51,7 +52,7 @@ export function trackEvents(staff, masterBars = []) {
         const ticksPerBeat = TICKS_PER_QUARTER * 4 / (masterBar?.timeSignatureDenominator || 4);
         const events = [];
         const symbols = [];
-        for (const beat of bar.voices[0] ? bar.voices[0].beats : []) {
+        for (const [beatIndex, beat] of (bar.voices[0] ? bar.voices[0].beats : []).entries()) {
             const start = (beat.playbackStart || 0) / ticksPerBeat + 1;
             if (beat.isRest) continue;
             if (beat.hasChord && beat.chord?.name) symbols.push({ name: beat.chord.name, beat: start });
@@ -65,7 +66,7 @@ export function trackEvents(staff, masterBars = []) {
                     slurIn: !!note.isHammerPullDestination,
                     slurOut: !!note.isHammerPullOrigin
                 }));
-            if (notes.length > 0) events.push({ beat: start, length: (beat.playbackDuration || 0) / ticksPerBeat, notes });
+            if (notes.length > 0) events.push({ beat: start, length: (beat.playbackDuration || 0) / ticksPerBeat, notes, beatIndex });
         }
         return { beatsPerBar: masterBar?.timeSignatureNumerator || 4, events, symbols };
     });
@@ -754,13 +755,14 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
     const fileNames = new Map();
     const count = (chord, frets, held) => {
         const key = identityOf(chord);
-        if (!chords.has(key)) chords.set(key, { name: chord.name, root: chord.root, suffix: chord.suffix, beats: 0, held: 0, fingerings: new Map() });
+        if (!chords.has(key)) chords.set(key, { name: chord.name, root: chord.root, suffix: chord.suffix, beats: 0, held: 0, fingerings: new Map(), fretMaps: new Map() });
         const entry = chords.get(key);
         entry.beats++;
         if (held) {
             entry.held++;
             const fingering = fretsKey(frets, Math.max(6, ...openMidi.keys()));
             entry.fingerings.set(fingering, (entry.fingerings.get(fingering) ?? 0) + 1);
+            entry.fretMaps.set(fingering, frets);
         }
     };
     for (const measure of described) {
@@ -779,12 +781,14 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
             }
         }
     }
-    const chordList = [...chords].map(([key, entry]) => ({
-        ...entry,
-        name: fileNames.get(key) ?? entry.name,
-        fingering: [...entry.fingerings].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
-        fingerings: Object.fromEntries(entry.fingerings)
-    })).sort((a, b) => b.beats - a.beats);
+    // `played` is the fingering the track holds the chord with most, as { string, fret } from the
+    // lowest string, for showing ahead of the library's shapes.
+    const chordList = [...chords].map(([key, { fretMaps, ...entry }]) => {
+        const fingering = [...entry.fingerings].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+        const played = fingering === null ? null
+            : [...fretMaps.get(fingering)].map(([string, fret]) => ({ string, fret })).sort((a, b) => b.string - a.string);
+        return { ...entry, name: fileNames.get(key) ?? entry.name, fingering, played, fingerings: Object.fromEntries(entry.fingerings) };
+    }).sort((a, b) => b.beats - a.beats);
 
     return { spans, measures: described, anomalies, chords: chordList, aligned, folded, events };
 }

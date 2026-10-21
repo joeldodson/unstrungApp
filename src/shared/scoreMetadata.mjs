@@ -4,7 +4,7 @@
 
 import { PITCH_CLASSES, STANDARD_TUNING_MIDI, identifyChordFromNotes, midiToPitchName } from './musicTheory.mjs';
 import { fileTempo } from './tempo.mjs';
-import { RECOGNIZED_STRUM_SUFFIXES } from './chordForms.mjs';
+import { RECOGNIZED_STRUM_SUFFIXES, trackEvents, findChordForms } from './chordForms.mjs';
 
 const KEY_SIGNATURE_NAMES = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
 
@@ -353,7 +353,7 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
  * measure rather than to the beat it happens to be anchored to -- see `describeChordSymbols`. So
  * nothing about it appears here: this describes what the beat plays, and only that.
  */
-function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing, textPromoted) {
+function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing, textPromoted, partOfForm = false) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
@@ -361,8 +361,13 @@ function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing,
         // Only a beat that names a chord can be shortened. A beat listed string by string has no
         // name to fall back on, so terse descriptions leave it exactly as it was. A sung beat is
         // never named as a chord: two notes of a vocal harmony are a harmony, not a power chord.
-        pitchText = (sung ? null : describeChordedBeat(beat, stringCount, terse, capo)?.text)
+        // Nor is part of a form the measure heading names; see `partialBeats`.
+        pitchText = (sung || partOfForm ? null : describeChordedBeat(beat, stringCount, terse, capo)?.text)
             ?? beat.notes.map(note => describeNotePitch(note, stringCount, percussion, sung)).join('; ');
+        // A stroke the file states is said with a named chord; listed string by string inside a
+        // form, the beat still says it, since nothing else does.
+        const stroke = partOfForm ? statedStroke(beat) : null;
+        if (stroke) pitchText += `, ${stroke.text}`;
 
         // The syllable this note carries. The measure's words are assembled above the beats, so
         // this is not the way to read the lyric; it is what says which note each syllable lands
@@ -442,11 +447,12 @@ const staffCapo = staff => (staff.capo > 0 ? staff.capo : 0);
  * in -- is placed by the beat it falls inside, "during beat 1" rather than "at beat 1", so it is
  * not confused with one squarely on the beat.
  */
-function describeChordSymbols(bar, masterBar) {
+function describeChordSymbols(bar, masterBar, only = null) {
     const beats = bar.voices[0] ? bar.voices[0].beats : [];
     const found = [];
     for (const beat of beats) {
         if (beat.isRest || !beat.hasChord || !beat.chord || !beat.chord.name) continue;
+        if (only && !only.has(beat.chord.name)) continue;
         found.push({ name: beat.chord.name, start: beat.playbackStart || 0 });
     }
     if (found.length === 0) return null;
@@ -778,9 +784,48 @@ function sectionBeatPosition(beat, masterBar) {
         : ` during beat ${Math.floor(beatNumber)}`;
 }
 
+/**
+ * The chord forms of a guitar track, or null for any other track. See src/shared/chordForms.mjs
+ * and docs/chord-forms-in-scores.md. Bass tracks get none: a root and fifth on a bass reads as a
+ * power chord held, which tells a bass player nothing.
+ */
+function trackForms(track, masterBars) {
+    const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
+    const program = track.playbackInfo ? track.playbackInfo.program : -1;
+    if (!staff || !staff.isStringed || track.isPercussion || !(program >= 24 && program <= 31)) return null;
+    return findChordForms(trackEvents(staff, masterBars));
+}
+
+/** Same chord by pitch class and quality, whatever the spelling: { root, suffix } either side. */
+const sameChord = (a, b) => !!a && !!b && PITCH_CLASSES[a.root] === PITCH_CLASSES[b.root] && a.suffix === b.suffix;
+
+/**
+ * The beats of one measure that drop the chord name worked out from their own notes: those inside
+ * a form the measure's heading names, other than its exceptions, whose notes are only part of it.
+ * Open strings 3 and 4 inside a held G are listed string by string rather than as G5/D, a name the
+ * file never gave them. A beat sounding the form's whole chord keeps the name.
+ */
+function partialBeats(forms, measureIndex, beats, stringCount, capo) {
+    const measure = forms.measures[measureIndex];
+    const partial = new Set();
+    if (!measure.named) return partial;
+    const exceptions = new Set(forms.spans.flatMap(span => (span.form ? span.form.exceptions.flat() : [])));
+    for (const run of measure.runs) {
+        if (run.span === null) continue;
+        const form = forms.spans[run.span].form;
+        for (const member of run.members) {
+            if (exceptions.has(member)) continue;
+            const beatIndex = forms.events[member].beatIndex;
+            const reading = describeChordedBeat(beats[beatIndex], stringCount, false, capo);
+            if (reading && !sameChord(reading, form.chord) && !sameChord(reading, run.fileChord)) partial.add(beatIndex);
+        }
+    }
+    return partial;
+}
+
 // Only the primary voice is described; secondary voices (used for genuinely
 // polyphonic parts, e.g. independent piano hands) are not yet covered.
-function extractMeasures(track, terse, masterBars, songLyrics, promotedSections) {
+function extractMeasures(track, terse, masterBars, songLyrics, promotedSections, forms) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
     const stringCount = staff.tuning ? staff.tuning.length : 0;
@@ -798,16 +843,25 @@ function extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
         const beats = barBeats[index];
         const offset = seen;
         seen += beats.length;
+
+        // Where the heading names the measure's form, it gives the file's chord names already, so
+        // the chord symbol phrase is kept only for a printed name unstrung cannot read.
+        const formMeasure = forms ? forms.measures[index] : null;
+        const named = !!formMeasure && formMeasure.named && formMeasure.runs.some(run => run.span !== null);
+        const unread = named ? new Set(formMeasure.symbols.filter(s => s.kind === 'unknown').map(s => s.name)) : null;
+        const partial = named ? partialBeats(forms, index, beats, stringCount, capo) : new Set();
+
         return {
             // A marker the file actually placed always wins; a name lifted out of beat text only
             // fills a bar that has none. See `extractPromotedSections`.
             section: describeSection(masterBars[index]) ?? promotedSections.byMeasure[index] ?? null,
             repeat: describeRepeat(masterBars[index]),
-            chordSymbols: describeChordSymbols(bar, masterBars[index]),
+            forms: named ? formMeasure.heading || null : null,
+            chordSymbols: describeChordSymbols(bar, masterBars[index], unread),
             lyrics: songLyrics[index] ?? [],
             beats: beats.map((beat, i) =>
                 describeBeat(beat, stringCount, terse, capo, percussion, sung, marks[offset + i],
-                    promotedSections.beats.has(beat)))
+                    promotedSections.beats.has(beat), partial.has(i)))
         };
     });
 }
@@ -895,6 +949,37 @@ function extractTrackChords(track) {
 }
 
 /**
+ * Chords Used for a guitar track, from its chord forms: every beat in a form counts towards the
+ * form's chord, under the file's name where a printed chord agreed with it, so the open strings
+ * of a held G count towards G rather than G5. A beat in no form counts as before, where its own
+ * notes spell an everyday chord. `played` is the fingering the track holds the chord with most,
+ * shown ahead of the library's.
+ *
+ * A printed chord the forms never reach, such as one over a melody, is still listed, counted by
+ * the beats it is printed on, as the symbols always were.
+ */
+function formsTrackChords(track, forms) {
+    const chords = new Map();
+    for (const chord of forms.chords) {
+        chords.set(chordIdentity(chord.name), {
+            name: chord.name, root: chord.root, suffix: chord.suffix, beats: chord.beats,
+            fromSymbol: false, played: chord.held > 0 ? chord.played : null
+        });
+    }
+    for (const bar of track.staves[0].bars || []) {
+        for (const beat of (bar.voices[0] ? bar.voices[0].beats : [])) {
+            if (beat.isRest || !beat.hasChord || !beat.chord || !beat.chord.name) continue;
+            const key = chordIdentity(beat.chord.name);
+            const existing = chords.get(key);
+            if (existing && !existing.printedOnly) { existing.fromSymbol = true; continue; }
+            if (existing) { existing.beats++; continue; }
+            chords.set(key, { name: beat.chord.name, root: null, suffix: null, beats: 1, fromSymbol: true, played: null, printedOnly: true });
+        }
+    }
+    return [...chords.values()].map(({ printedOnly, ...chord }) => chord).sort((a, b) => b.beats - a.beats);
+}
+
+/**
  * What each string is actually tuned to, worked out from the pitches rather than trusting the
  * file's label.
  *
@@ -947,6 +1032,7 @@ function isGuitarOrBass(track) {
 function describeTrack(track, index, terse, masterBars, songLyrics, promotedSections) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
+    const forms = trackForms(track, masterBars);
 
     return {
         // Where the track sits in the file, which is how the score itself is reached, for
@@ -959,8 +1045,11 @@ function describeTrack(track, index, terse, masterBars, songLyrics, promotedSect
         tuningName: staff && staff.isStringed ? staff.tuningName : null,
         tuning: describeTuning(staff),
         capo: staff && staff.capo > 0 ? staff.capo : null,
-        chords: extractTrackChords(track),
-        measures: extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
+        chords: forms ? formsTrackChords(track, forms) : extractTrackChords(track),
+        // Printed chords the notes contradict, { measure, symbol, held }: held is the chord the
+        // hand holds there, or null where a melody under the printed chord clashes with it.
+        anomalies: forms ? forms.anomalies.map(({ measure, symbol, held }) => ({ measure, symbol, held })) : [],
+        measures: extractMeasures(track, terse, masterBars, songLyrics, promotedSections, forms)
     };
 }
 

@@ -1,9 +1,13 @@
 # Chord forms held through a score
 
 Written 2026-10-20, from a discussion of the lead track of Grateful Dead's Ripple in the Songsterr
-corpus. Not in the app yet. The rules are in `src/shared/chordForms.mjs`, checked on hand-written
-tracks by `scripts/check-chord-forms.mjs` and measured on real files by
-`scripts/gp-experiment/chord-forms-report.mjs`.
+corpus. The rules are in `src/shared/chordForms.mjs`, checked on hand-written tracks by
+`scripts/check-chord-forms.mjs` and measured on real files by
+`scripts/gp-experiment/chord-forms-report.mjs`. Built into the app 2026-10-21:
+`src/shared/scoreMetadata.mjs` gives each guitar track's measures their form wording, beats and
+anomalies, and `scripts/songs/verify-chord-forms-in-app.mjs` checks what the app shows. The
+library is not consulted there, so the fourth rule for choosing between two forms never decides;
+it decided 1 span of 302 in the report.
 
 ## What Joel noticed
 
@@ -203,8 +207,10 @@ In a measure whose heading names its form, a partial beat no longer names a piec
 The name was never in the file: unstrung worked it out from the beat's own notes. The beat is
 listed string by string, as a beat unstrung does not name already is, so open strings 3 and 4
 read "eighth note, string 3, open; string 4, open" rather than "eighth note, G5/D, strings 3 and
-4". The strings and frets are the file's and are unchanged. A beat sounding the full chord still
-names it, and an exception beat reads as it always has: the heading has already said there is one.
+4". The strings and frets are the file's and are unchanged. A stroke the file states is still
+said, after the strings, as it was after the name: "quarter note, string 3, open; string 4, open,
+down stroke". A beat sounding the full chord still names it, and an exception beat reads as it
+always has: the heading has already said there is one.
 
 In a measure whose heading names no form, about 15% of them, the beats stay as they are now,
 G5/D and its strings included, since there is no named form for them to belong to. Decided
@@ -292,14 +298,15 @@ above, on the 35 guitar tracks (General MIDI programs 24 to 31):
 Vocals, keyboards and bass are written on string staves in these files, so the rules run on them
 too and find nonsense such as a vocal line holding Esus4. Forms are meant for guitar tracks only.
 
-## Left to settle
+## Which tracks
 
-- **Which tracks unstrung shows.** Decided 2026-10-20: guitar and bass tracks only (General MIDI 24
-  to 39), since those are the only samples unstrung has. Chord forms in the measure heading are
-  for guitar tracks only, not bass, since a root and fifth on a bass reads as "holds C5"; decided
-  2026-10-21. Lyrics are still read from the vocal tracks, which are no longer listed, and hung on
-  the measures as now; also decided 2026-10-21. Not built yet.
-- **Which tracks get forms.** Guitars only, by General MIDI program, would leave out Ripple's
-  mandolin.
-- `user-docs/features.md`, for the new wording and the Anomalies region, when it is built into the
-  app.
+unstrung lists only guitar and bass tracks, General MIDI 24 to 39, since those are the only samples
+it has; decided 2026-10-20. The Tracks row of the summary says how many others the file has. Chord
+forms in the measure heading are for guitar tracks only, 24 to 31, not bass, since a root and fifth
+on a bass reads as "holds C5"; decided 2026-10-21. Lyrics are still read from the vocal tracks,
+which are no longer listed, and hung on every listed track's measures as before; also decided
+2026-10-21. Ripple's mandolin, General MIDI 107, is one of the tracks left out.
+
+Each listed track keeps its place in the file, which is how its audio track reaches the score: in
+American Pie the first guitar listed is the file's fifth track. `scripts/songs/verify-guitar-bass-tracks.mjs`
+checks the list and that the first listed track plays.

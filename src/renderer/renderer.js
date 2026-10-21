@@ -209,6 +209,7 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
         container.append(trackList);
 
         container.append(buildTrackChordsRegion(track));
+        if (track.anomalies?.length) container.append(buildAnomaliesRegion(track));
 
         // The measures are almost all of a song's content: hundreds of short text lines per
         // track. They sit behind a collapsed disclosure, and are only built when it is first
@@ -242,6 +243,9 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
                     // straight through, which is not how a song with repeats is played, so a
                     // repeat mark is as much a part of finding your way as the section is.
                     measure.repeat,
+                    // The chord form the hand holds, on a guitar track where the measure is simple
+                    // enough to say it: "holds G, one exception". See docs/chord-forms-in-scores.md.
+                    measure.forms,
                     measure.chordSymbols
                 ].filter(Boolean).join(' - ');
                 measuresDetails.append(measureHeading);
@@ -4013,10 +4017,21 @@ function buildTrackChordRow(chord) {
 
     if (resolved) {
         const item = buildChordPracticeRow(resolved);
+        // The summary is the file's spelling, which the library's own name may not be.
+        const summary = item.querySelector('summary');
+        if (summary) summary.textContent = chord.name;
+        const list = item.querySelector('ul');
+        if (list && chord.played) {
+            // The file comes first: how this track holds the chord, after the chord's name and
+            // quality and ahead of the library's shapes.
+            const played = document.createElement('li');
+            played.textContent = `Played in this track: ${describePlayedFrets(chord.played)}`;
+            const first = list.firstElementChild;
+            if (first) first.after(played); else list.append(played);
+        }
         // How much of the track this chord accounts for. The list is ordered by it, and without it
         // there is nothing to separate the chords the part is built from and a one-beat fragment
         // of a strum that happens to spell something nameable.
-        const list = item.querySelector('ul');
         if (list) {
             const beats = document.createElement('li');
             beats.textContent = `Sounds on ${chord.beats} beat${chord.beats === 1 ? '' : 's'} of this track`;
@@ -4040,6 +4055,27 @@ function buildTrackChordRow(chord) {
     details.append(summary, list);
     item.append(details);
     return item;
+}
+
+/** Frets as the beats give them, from the lowest string: "string 6, fret 3; string 5, fret 2; ...". */
+function describePlayedFrets(frets) {
+    return frets.map(({ string, fret }) => `string ${string}, ${fret === 0 ? 'open' : `fret ${fret}`}`).join('; ');
+}
+
+/**
+ * The printed chords a guitar track's notes contradict, collapsed, after Chords Used and before the
+ * measures. Only built for a track that has some, so it adds no stop to the rest.
+ */
+function buildAnomaliesRegion(track) {
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = `Anomalies - ${track.anomalies.length}`;
+    const list = document.createElement('ul');
+    appendTextItems(list, track.anomalies.map(({ measure, symbol, held }) => held
+        ? `Measure ${measure}: the file prints ${symbol}, the notes hold ${held}`
+        : `Measure ${measure}: the file prints ${symbol}, and the notes played do not fit it`));
+    details.append(summary, list);
+    return details;
 }
 
 /**
