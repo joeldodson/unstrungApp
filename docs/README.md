@@ -31,6 +31,9 @@ eyesunstrung.vip.
 - `speak-the-notes.md` -- speaking each note or chord just before it sounds, so a song can be
   learned by ear, and why pitching the speech needs platform code. Built on a branch, measured and
   set aside; the branch was deleted 2026-10-19.
+- `chord-forms-in-scores.md` -- describing a score by the chord form the left hand holds, carried
+  across bar lines, with exceptions, instead of naming each beat from its own notes; how printed
+  chord symbols are weighed against it, and anomalies. Not built.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
