@@ -4,6 +4,7 @@
 
 import { PITCH_CLASSES, STANDARD_TUNING_MIDI, identifyChordFromNotes, midiToPitchName } from './musicTheory.mjs';
 import { fileTempo } from './tempo.mjs';
+import { RECOGNIZED_STRUM_SUFFIXES } from './chordForms.mjs';
 
 const KEY_SIGNATURE_NAMES = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
 
@@ -207,13 +208,6 @@ function describeNotePitch(note, stringCount, percussion, sung) {
     return pitchName(note.realValue);
 }
 
-// Chord qualities a player reading a strum would recognise. Identification can technically name
-// any set of notes, but calling six open strings "G69" tells a guitarist less than listing the
-// strings does, so only the everyday qualities stand in for a string-by-string reading.
-const RECOGNIZED_STRUM_SUFFIXES = new Set([
-    'major', 'minor', '5', 'sus2', 'sus4', '7', 'maj7', 'm7', 'm7b5',
-    'dim', 'dim7', 'aug', '6', 'm6', 'add9', 'madd9', '9', 'm9', 'maj9', 'mmaj7'
-]);
 
 // alphaTab's BrushType and PickStroke: the only places a Guitar Pro file actually states which
 // way the pick travelled. Guitar Pro's "down" sounds the lowest-pitched string first, which is

@@ -1,7 +1,9 @@
 # Chord forms held through a score
 
 Written 2026-10-20, from a discussion of the lead track of Grateful Dead's Ripple in the Songsterr
-corpus. Not built yet.
+corpus. Not in the app yet. The rules are in `src/shared/chordForms.mjs`, checked on hand-written
+tracks by `scripts/check-chord-forms.mjs` and measured on real files by
+`scripts/gp-experiment/chord-forms-report.mjs`.
 
 ## What Joel noticed
 
@@ -58,15 +60,33 @@ G5, which is the mistake this replaces.
 
 ### Exceptions
 
-A note off the form, on a string the form already uses, is an exception when the next sounding beat
-fits the form again. The form is interrupted, not contradicted, since the two frets on that string
-cannot sound together. Joel's own example: holding G, the finger on string 6 fret 3 moves to string
-5 fret 3 for one note and goes back.
+A note off the form, on a string the form already uses, can be an exception: the form is
+interrupted, not contradicted, since the two frets on that string cannot sound together. Joel's own
+example: holding G, the finger on string 6 fret 3 moves to string 5 fret 3 for one note and goes
+back.
 
 A hammer-on and pull-off that leave the form and return to it are one exception, not two.
 
-The form ends instead where the beats after an off-form note fit a different form, or where off-form
-notes follow one another and the form does not come back.
+What makes it an exception rather than a change was first put as "the next sounding beat fits the
+form again". The corpus showed that is too loose for fingerpicking. Into Dust's guitar keeps string
+2 fret 3 down under D, C and G while the other strings change, and an open or common note after
+every change fitted the old form, so the whole song read as one form with 196 exceptions. Three
+replacements were tried with the report; the one kept has two tests:
+
+1. **The hand comes back.** The first fretted note of the form after the off note, or the string
+   that left played at the form's fret, by the end of the next measure, with nothing else off the
+   form first. Open strings in between are passed over, since they fit whatever the hand is doing.
+   Requiring the string that left to be played again was too strict: in Joel's G nothing is played
+   on string 5 again until the next measure.
+2. **A new form does not explain it better.** From the off note to the end of the next measure, the
+   notes are played against the old form and against a new form starting at the off note. The new
+   form wins only where it spells an everyday chord within reach and leaves fewer notes off it.
+   Joel's C on string 5 starts nothing that spells a chord; Into Dust's move from D to C leaves two
+   or more notes off the D every measure and almost none off the C.
+
+A note on a string the form does not use yet is off the form too, where the form already spells a
+chord and the note would give it another root or none: the C on string 5 that starts Into Dust's
+C chord is the next chord arriving, not part of the D.
 
 ### Choosing between two forms
 
@@ -74,13 +94,39 @@ Where one string is played at two frets in a span, either could be the form and 
 exception. A measure of C with string 4 played open twice and at fret 2 once could be C (x32010)
 with two exceptions or Cadd9 (x30010) with one. Joel would hold the C. In order:
 
-1. The form the track holds in other measures, or, if both are, the one it holds in more.
-2. The form with the fewest exceptions.
-3. The form matching a voicing in the library.
-4. The simpler chord.
+1. The fret struck together with the form's other strings, over one only ever picked alone.
+2. The form the track holds in other measures, or, if both are, the one it holds in more.
+3. The form with the fewest exceptions.
+4. The form matching a voicing in the library.
+5. The simpler chord.
 
-The first needs two passes over a track: measures with only one possible form, then the ambiguous
+The second needs two passes over a track: measures with only one possible form, then the ambiguous
 ones decided from them. Counting time alone would have chosen the Cadd9.
+
+The first was added after the report, for a bass note walking past the form. The Wish You Were
+Here 12-string part strums a G with string 5 at fret 2, then picks string 5 open and back to fret
+2. Gsus2 is held elsewhere in that track, so the second rule chose it, and the measure read as
+Gsus2. A fret struck in the chord is part of the shape; one only picked alone may be passing
+through. It decides 26 spans across the guitar tracks.
+
+### Passing notes
+
+A note on a string the form otherwise leaves alone, picked on its own, can turn the chord into
+another: an open A walking up to B under a G makes it Gadd9. Decided 2026-10-20:
+
+- A note like that heard once in a measure is a passing note: an exception, and not part of the
+  form. The G stays G, with one exception.
+- One heard more than once in a measure, as part of the picking pattern, is part of the form. Sister
+  Golden Hair picks the open high E seven times through a G, and that is G6.
+- A note that ever sounds together with the rest of the shape is part of the form however often
+  it is heard.
+
+It covers a note that turns a major or minor chord into an add9, a 6 or a seventh. Sevenths were
+first left out, since a seventh picked alone is as often a finger held down, but most of the 12 the
+report then found were bass walks: a C sharp on string 5 under Ripple's D making Dmaj7, an open E
+on string 6 under an F making Fmaj7, a C on string 5 under a D making D7. Sevenths were added the
+same day. Of the lone notes heard once that joined a form, 2 are left, neither making one of these
+chords from a major or minor one with the same root.
 
 ## What a measure says
 
@@ -109,13 +155,24 @@ one.
 The file's symbol is weighed against the form the notes hold:
 
 - **They agree.** Our wording, with the file's spelling: "holds G#m" rather than "holds Abm", since
-  the file follows the key signature.
+  the file follows the key signature. A form agrees when it is the printed chord, part of it, or
+  all of it with notes added: a D picked without its third under a printed D is "holds D", and a
+  Cadd9 shape under a printed C is "holds C". A printed chord holds until the next one, as on sheet
+  music, and is weighed over all of that stretch, not only the measure it is printed in. The file's
+  name goes with every beat of a form that agrees with it there, so the D's next measure is
+  "continues D". Into Dust prints F over a measure of D, F and A, which alone is Dm; the C that makes
+  it an F comes in the measure after, before the next printed chord, so both measures hold F. Decided 2026-10-20, after the report found 99 of
+  the 185 differences on guitar tracks were of these two kinds. Passing notes the measure plays
+  (below) are weighed with the form: they are not part of the shape, but they are heard, and a
+  printed chord says what is heard. Without them, an F shape over open string 4 with a C heard once
+  under a printed F in Into Dust read as Dm, a different chord.
 - **The symbol is G, but the notes hold G for only part of the measure.** Our wording, saying what
   the notes do.
 - **The notes hold no form, but fit the symbol.** A melody over the harmony, as on a lead track. The
   chord is given without "holds": "Measure 40, G (harmony)".
-- **The notes hold another form, or hold none and clash with the symbol.** The file's chord with
-  "(anomaly)": "Measure 12, G (anomaly)".
+- **The notes hold a different chord, or hold none and clash with the symbol.** The file's chord
+  with "(anomaly)": "Measure 12, G (anomaly)". A sus chord under the plain chord, such as Csus2
+  under a printed C, is a different chord: the second or fourth replaces the third.
 
 The notes fit the symbol when its chord tones fill at least half of the measure's sounding time and
 the note on beat 1, if there is one, is a chord tone. Time rather than a count of notes, so a quick
@@ -132,19 +189,47 @@ notes hold Em". A track with none has no region, so it does not add a stop to ev
 ## Chords Used
 
 Beats in a form count towards its chord, not towards the fragments they would spell alone, so G5
-and C5 leave Ripple's lead track.
+and C5 leave Ripple's lead track. Where the form agreed with a printed chord they count towards that
+chord under the file's name, so Into Dust's D picked without its third is listed as D, not D5.
 
 The file is the first source of truth for fingerings: a chord's row shows the form as the track
 plays it, labelled so, and the library's shapes after it where they differ. The library is used
 where the file gives no form or an ambiguous one. Ripple's G is 320003 in the file, which is the
 library's first G.
 
-## Left to settle when building
+## Measured across Joel's Guitar folder
 
-- What a hand's reach is, in frets.
-- How the anomaly and harmony tests come out across the corpus, and whether the half-time threshold
-  holds.
-- Checking every rule against all the corpus files and the other files in Joel's Guitar folder, not
-  Ripple alone. `scripts/gp-experiment/` has the scripts that read them; the corpus stays outside
-  the repository.
-- `user-docs/features.md`, for the new wording and the Anomalies region.
+The report was run on 2026-10-20 over the 22 Guitar Pro files in Joel's Guitar folder: the Songsterr
+corpus and the totallyGuitars files. Two are byte-for-byte copies of others and were skipped. Its
+output names songs and measures, so it is read on Joel's machine and not kept here. With the rules
+above, on the 35 guitar tracks (General MIDI programs 24 to 31):
+
+- 2,359 of 2,542 sounding measures hold a form.
+- No held form is wider than 3 frets, and none was rejected for width, so a reach of 4 does not
+  bind.
+- Of 1,456 printed symbols, 915 agree, 433 partly agree (the form covers only part of the
+  symbol's stretch, up to the next printed chord), 30 are harmony and 69 are anomalies. 6 are names
+  the parser cannot read and 3 sit over stretches that sound nothing. Weighing a printed chord up to
+  the next one moved about a hundred from agree to partly agree, since a longer stretch more often
+  has a beat or two holding nothing; partly agreeing still gives the file's name to the beats that
+  agree. It ended one anomaly, in Into Dust, and made one: Vincent prints G over a measure that
+  holds nothing, and the measures after it, before the next printed chord, hold Dsus4.
+- Two possible forms came up in 302 spans: 231 had only one that held, 26 were settled by the fret
+  struck with the shape, 28 by the form held elsewhere in the track, 16 by fewest exceptions and 1
+  by the library.
+- Strummed rhythm parts come out cleanly: the American Pie chart holds a form in all 267 measures
+  with no anomaly. Ripple's lead reads "Measure 1, holds G at beat 2, one exception", then
+  "continues G"; its Chords Used becomes G, C, D and Am.
+
+Vocals, keyboards and bass are written on string staves in these files, so the rules run on them
+too and find nonsense such as a vocal line holding Esus4. Forms are meant for guitar tracks only.
+
+## Left to settle
+
+- **Positions between beats.** 631 guitar headings have one, such as "holds A for 5.5 beats", and
+  439 measures are part held and part not: mostly a short stretch at the end of a measure that
+  holds nothing, or a change that comes in just before the bar line.
+- **Which tracks get forms.** Guitars only, by General MIDI program, would leave out Ripple's
+  mandolin.
+- `user-docs/features.md`, for the new wording and the Anomalies region, when it is built into the
+  app.

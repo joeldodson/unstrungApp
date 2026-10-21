@@ -33,7 +33,8 @@ eyesunstrung.vip.
   set aside; the branch was deleted 2026-10-19.
 - `chord-forms-in-scores.md` -- describing a score by the chord form the left hand holds, carried
   across bar lines, with exceptions, instead of naming each beat from its own notes; how printed
-  chord symbols are weighed against it, and anomalies. Not built.
+  chord symbols are weighed against it, and anomalies. The rules are built and measured across
+  Joel's Guitar folder; not in the app yet.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
