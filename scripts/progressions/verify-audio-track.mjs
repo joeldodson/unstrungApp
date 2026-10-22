@@ -77,6 +77,12 @@ for (let i = 0; i < 60; i++) {
     await page.waitForTimeout(1000);
 }
 console.log(`  status after creating: ${state.status.slice(0, 120)}`);
+// 0.9.0 said "NaN BPM" here, the file's tempo having become the function that reads it.
+const tempoLine = await page.evaluate(selector =>
+    [...document.querySelector(selector).querySelectorAll('li, p')].map(el => el.textContent).find(t => /^Tempo - /.test(t)) ?? '', TRACK);
+console.log(`  ${tempoLine}`);
+check('the track gives its tempo as a number', /^Tempo - \d+ BPM \(the tempo written in the file\)$/.test(tempoLine), tempoLine);
+check('so does the status line', /\d+ BPM, /.test(state.status) && !/NaN/.test(state.status), state.status.slice(0, 120));
 check('the track was created and can be played', state.playDisabled === false,
     `play disabled: ${state.playDisabled}`);
 

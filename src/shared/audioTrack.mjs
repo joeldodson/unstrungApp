@@ -237,7 +237,7 @@ function buildTempoMap(score, targetTempo) {
         });
         seconds += durationTicks * secondsPerTick;
     }
-    return { segments, totalSeconds: seconds, scale, scoreTempo };
+    return { segments, totalSeconds: seconds, scale, scoreTempo: fromScore };
 }
 
 /**
