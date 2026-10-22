@@ -35,6 +35,9 @@ eyesunstrung.vip.
   across bar lines, with exceptions, instead of naming each beat from its own notes; how printed
   chord symbols are weighed against it, and anomalies. Measured across Joel's Guitar folder and
   built into the app, along with listing only guitar and bass tracks.
+- `chord-forms-workflow.md` -- how to check a new song's chord forms, change the rules, and make
+  sure no song already checked gets worse: the scripts, the record of every song, and the songs
+  so far.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.

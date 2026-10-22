@@ -49,6 +49,16 @@ repository as a backup, so anything worth keeping belongs there rather
 than only in memory or on this machine. `docs/screen-reader-findings.md`
 in particular records how NVDA reads this app.
 
+# Chord forms
+
+Guitar measure headings name the chord shape the hand holds ("holds G,
+one exception"), worked out by `src/shared/chordForms.mjs`. Joel brings
+new songs to check, and the rules keep changing with them. Before
+touching any of it, read `docs/chord-forms-workflow.md`, which says how
+to check a song and how to compare every change against the record of
+every song already checked, and `docs/chord-forms-in-scores.md`, which
+says what was decided and why.
+
 # User documentation
 
 `user-docs/` holds documentation for people using unstrung, as opposed to
