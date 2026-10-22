@@ -92,6 +92,63 @@ A note on a string the form does not use yet is off the form too, where the form
 chord and the note would give it another root or none: the C on string 5 that starts Into Dust's
 C chord is the next chord arriving, not part of the D.
 
+Added 2026-10-21, after Joel heard Ripple's lead in the app:
+
+- **An exception is one finger:** notes off the form on one string. A strum off it on several, such
+  as a D between two strums of C, is a change, however soon the C comes back.
+- **A change to the same root is not a change.** Ripple's C alternates string 4 between open and
+  fret 2 in measures 7 and 8, and from the open D the notes spell Csus2 with fewer off it than
+  the C. That split the C in two; it is the same hand with a note moved.
+
+### Each measure on its own first
+
+Also from Joel, 2026-10-21. Read across bar lines, Ripple's lead measure 4 came out as G for a
+beat and a half, two notes holding nothing, then C from the "and" of beat 3, so its heading named
+nothing and measure 5 said "continues C" of a C never named. The two open G strings that open
+the measure fit the G before it as well as the C, and the reading gave them to the G. Read alone,
+the measure is a C with one exception, the open string 4 that comes straight back to fret 2.
+
+So each measure is first read on its own: does one form hold the whole of it, with notes off it
+that are exceptions? The forms tried are those found in, just before and just after the measure,
+and the measure's own notes taken together. Of those that hold it, the one whose frets are struck
+with the shape, then one agreeing with the chord the file prints, then the one held in the
+measure before, then the one the track holds elsewhere, then fewest exceptions, then the simpler
+chord. The measure before matters for a measure of a fragment: two open strings after a G fit G
+and G5 alike, and are G. A measure no one form holds is read across the bar lines as before.
+
+For a whole measure, notes off the form are exceptions only where:
+
+- they are on one string, and the string is heard at the form's fret somewhere in the measure, so
+  the finger has a place in the shape to come back to. Into Dust's string 3 at fret 2 all through a
+  measure is where the hand is, not a note off a G whose string 3 is open;
+- the next note fits the form again: the next in the measure, or, after the last, the first of the
+  next measure. A C on the "and" of beat 4 that carries on is a change, not a note off the G. The
+  one allowance is a lone open string at the end of the measure, the hand lifting on its way to the
+  next chord, as the open D before a G at the end of a measure of C;
+- no chord is printed on them other than the form's own, or a power chord being filled out to it.
+
+### Holds or continues
+
+"Continues C" means the heading before ended on C, since that is what the listener has; anything
+else is "holds", even where the hand has been on the form since before the bar line. A measure
+naming no form, or ending on "(anomaly)" or "(harmony)", leaves the next to say "holds". It was
+first worked out from where the hand's form began, and 191 headings said "continues" of a chord
+the heading before had not named. A printed chord's name goes with the whole form it agreed
+with, so Sister Golden Hair's "holds E, holds G#m during beat 4" is followed by "continues G#m",
+not Abm then G#m.
+
+A measure that fits two forms equally, such as four beats of open string 3 between a C and a G,
+continues the form before it: "continues C", then "holds G" in the measure that needs the G.
+Looking ahead would announce the change a measure before anything in the notes shows it, and a
+chord holds until something changes it, on the guitar and on the chart. A G printed over that
+measure would make it "holds G". Decided 2026-10-21.
+
+Measured on the guitar tracks with these changes: 2,214 of 2,542 sounding measures name a form,
+87%; no "holds" or "continues" disagrees with the heading before; anomalies went from 61 to 44.
+Ripple's lead measures 1 to 12: holds G at beat 2 with one exception, continues G, continues G
+with one exception, holds C with one exception, continues C with one exception three times, holds
+G with two exceptions, continues G three times, holds C with one exception.
+
 ### A one-finger change for a beat
 
 Sister Golden Hair goes from E to Esus4 and back within a beat, one finger on string 3, and the

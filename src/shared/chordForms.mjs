@@ -231,6 +231,9 @@ function returns(frets, events, first, last, settings) {
 
     const left = new Set();
     for (let k = first; k <= last; k++) for (const note of conflicts(frets, events[k], settings)) left.add(note.string);
+    // An exception is one finger: notes off the form on one string. A strum off it on several,
+    // such as a D between two strums of C, is a change, however soon the C comes back.
+    if (rule === 'compare' && left.size > 1) return false;
     const limit = events[first].measure + 1;
     let back = false;
     for (let k = next; k < events.length && events[k].measure <= limit; k++) {
@@ -274,7 +277,12 @@ function keepsForm(frets, events, first, settings) {
     const change = playAgainst(new Map(), events, first, settings);
     if (stay.off <= change.off) return true;
     const chord = chordOf(change.frets, settings.openMidi);
-    return !chord || reachOf(change.frets) > settings.reach;
+    if (!chord || reachOf(change.frets) > settings.reach) return true;
+    // A "new form" with the held chord's root is the same hand with a note moved, not a change:
+    // Ripple's C alternates string 4 between open and fret 2, and from the open D the notes spell
+    // Csus2 with fewer off it than the C, which is still the C.
+    const held = chordOf(frets, settings.openMidi);
+    return !!held && PITCH_CLASSES[held.root] === PITCH_CLASSES[chord.root];
 }
 
 const noteKey = note => `${note.string}:${note.fret}`;
@@ -421,6 +429,228 @@ function chooseForm(candidates, heldElsewhere, library) {
         }
     }
     return { form: remaining[0], decidedBy: 'no rule decided' };
+}
+
+// --- Whole measures ----------------------------------------------------------------------
+
+/**
+ * Whether a chord printed on a note off a form is no change from it: the form's own chord, or a
+ * power chord being filled out to it, as Mother prints G where a G5 becomes a full G. Anything else
+ * printed there is a change the file states, as a Cmaj7 printed for a beat inside a C is.
+ */
+function printedAgrees(name, frets, openMidi) {
+    const printed = parseChordSymbol(name);
+    const chord = chordOf(frets, openMidi);
+    if (!printed || !chord) return true;
+    if (`${printed.pc}|${printed.suffix}` === identityOf(chord)) return true;
+    const held = new Set([...frets].map(([string, fret]) => pitchClass(openMidi.get(string) + fret)));
+    return held.size < 3 && [...held].every(pc => printed.pcs.has(pc));
+}
+
+/**
+ * How one form plays over a measure's events: the form grown by the strings the measure adds,
+ * the notes off it, grouped as exceptions, and the passing notes. Null where it does not hold the
+ * measure: where it spells no everyday chord, is too wide, has notes off it that do not come
+ * straight back, or has more of the measure off it than `maxExceptionShare`.
+ *
+ * Coming back means the event after the notes off the form fits it: the next one in the measure,
+ * or, after the measure's last, the first of the next measure. A C on the "and" of beat 4 that
+ * carries on into the next measure is a change, not a note off the G.
+ */
+function playMeasure(start, members, events, openMidi, settings) {
+    let frets = new Map(start);
+    for (const member of members) {
+        if (conflicts(frets, events[member], settings).length > 0) continue;
+        for (const note of events[member].notes) if (!frets.has(note.string)) frets.set(note.string, note.fret);
+    }
+    const { passing, frets: held } = passingNotes({ members, frets }, events, openMidi);
+    frets = held;
+    const chord = chordOf(frets, openMidi);
+    if (!chord || reachOf(frets) > settings.reach) return null;
+
+    const isOff = member => conflicts(frets, events[member], settings).length > 0
+        || events[member].notes.some(note => passing.has(noteKey(note)));
+    const groups = [];
+    for (let k = 0; k < members.length; k++) {
+        if (!isOff(members[k])) continue;
+        const group = [members[k]];
+        while (k + 1 < members.length && isOff(members[k + 1]) && slurred(events[members[k]], events[members[k + 1]])) group.push(members[++k]);
+        // A chord the file prints on a note off the form is a change the file states.
+        if (group.some(member => events[member].printedName && !printedAgrees(events[member].printedName, frets, openMidi))) return null;
+        // An exception is one finger, notes off the form on one string; more is another chord.
+        const offStrings = new Set(group.flatMap(member => [
+            ...conflicts(frets, events[member], settings),
+            ...events[member].notes.filter(note => passing.has(noteKey(note)))
+        ].map(note => note.string)));
+        if (offStrings.size > 1) return null;
+        // And the finger has a place in the shape to come back to: the string is heard at the
+        // form's fret somewhere in the measure. Into Dust's string 3 at fret 2 all through a
+        // measure is where the hand is, not a note off a G whose string 3 is open.
+        for (const string of offStrings) {
+            if (!frets.has(string)) continue;
+            if (!members.some(member => events[member].notes.some(note => note.string === string && note.fret === frets.get(string)))) return null;
+        }
+        const next = group[group.length - 1] + 1;
+        if (k + 1 < members.length) {
+            if (isOff(members[k + 1])) return null;
+        } else if (next >= events.length || conflicts(frets, events[next], settings).length > 0) {
+            // Not coming back at the bar line is a change, except for a lone open string at the
+            // end of the measure, which is the hand lifting off on its way to the next chord: the
+            // open D before Ripple's G, at the end of a measure of C.
+            const lift = group.length === 1 && events[group[0]].notes.every(note => note.fret === 0);
+            if (!lift) return null;
+        }
+        groups.push(group);
+    }
+    const time = members.reduce((sum, member) => sum + events[member].length, 0);
+    const offTime = groups.flat().reduce((sum, member) => sum + events[member].length, 0);
+    if (time > 0 && offTime / time > settings.maxExceptionShare + EPSILON) return null;
+    return { frets, chord, exceptions: groups, passing, reach: reachOf(frets), reason: null };
+}
+
+/**
+ * Each measure on its own, before the reading across bar lines has its say: where one form holds
+ * the whole measure, the measure holds that form. Ripple's lead measure 4 picks two open G strings,
+ * which fit the G before it as well as the C, and then a C with one note off it; read across the
+ * bar line the G kept the open strings and the C began on the "and" of beat 3, read alone the
+ * measure is a C with one exception.
+ *
+ * The forms tried are those the reading found in, just before and just after the measure, and the
+ * measure's own notes taken together. Of those that hold it: the one whose frets are struck with
+ * the shape, then one agreeing with the chord the file prints, then the one held in the measure
+ * before, then the one the track holds elsewhere, then the fewest exceptions, then the simpler
+ * chord. So a measure of two open strings after a G is G.
+ *
+ * Measures no one form holds keep the reading across bar lines. The spans are rebuilt so that a
+ * measure held whole is a span of its own, or joins the one before where that holds the same chord.
+ * Returns how many measures were held whole.
+ */
+function readWholeMeasures(spans, measures, events, openMidi, settings, heldElsewhere) {
+    const spanOf = new Array(events.length).fill(-1);
+    spans.forEach((span, s) => { for (const member of span.members) spanOf[member] = s; });
+    const byMeasure = measures.map(() => []);
+    events.forEach((event, index) => byMeasure[event.measure].push(index));
+
+    // The last chord printed at or before the first beat of each measure, read as a chord.
+    let inEffect = null;
+    const printedAtStart = measures.map(measure => {
+        const atStart = measure.symbols.filter(symbol => symbol.beat <= 1 + EPSILON).pop();
+        if (atStart) inEffect = parseChordSymbol(atStart.name);
+        const current = inEffect;
+        const later = measure.symbols.filter(symbol => symbol.beat > 1 + EPSILON).pop();
+        if (later) inEffect = parseChordSymbol(later.name);
+        return current;
+    });
+    const printedBy = m => printedAtStart[m];
+
+    const whole = [];
+    let previousIdentity = null;
+    for (let m = 0; m < measures.length; m++) {
+        const members = byMeasure[m];
+        whole.push(null);
+        if (members.length === 0) continue;
+
+        const tried = new Map();
+        const tryForm = (frets, rank) => {
+            const key = fretsKey(frets, 12);
+            if (frets.size === 0 || tried.has(key)) return;
+            tried.set(key, { result: playMeasure(frets, members, events, openMidi, settings), rank });
+        };
+        const nearby = new Set([...members.map(member => spanOf[member]), spanOf[members[0] - 1], spanOf[members[members.length - 1] + 1]]);
+        for (const s of nearby) if (s >= 0 && spans[s]?.form) tryForm(spans[s].form.frets, 0);
+        // The measure's own notes: each string at the first fret it is played at, and where a string
+        // is played at two, each of them.
+        const played = new Map();
+        for (const member of members) {
+            for (const note of events[member].notes) {
+                if (!played.has(note.string)) played.set(note.string, []);
+                if (!played.get(note.string).includes(note.fret)) played.get(note.string).push(note.fret);
+            }
+        }
+        let maps = [new Map([...played].map(([string, frets]) => [string, frets[0]]))];
+        for (const [string, frets] of played) {
+            if (frets.length < 2) continue;
+            maps = maps.flatMap(map => frets.map(fret => new Map(map).set(string, fret)));
+            if (maps.length > 16) { maps = maps.slice(0, 16); break; }
+        }
+        for (const map of maps) tryForm(map, 1);
+
+        const holding = [...tried.values()].filter(entry => entry.result);
+        if (holding.length === 0) { previousIdentity = null; continue; }
+        // Strings the measure plays at more than one fret, and whether a form's fret on each sounds
+        // together with other strings: a fret struck in the chord is part of the shape.
+        const varied = [...played].filter(([, frets]) => frets.length > 1).map(([string]) => string);
+        const strummed = frets => varied.filter(string => members.some(member =>
+            events[member].notes.length > 1 && events[member].notes.some(note => note.string === string && note.fret === frets.get(string)))).length;
+        // The chord the file has printed by the time the measure starts, if any: the file is the
+        // first source of truth, so a form agreeing with it comes first.
+        const printed = printedBy(m);
+        const agrees = frets => {
+            if (!printed) return 0;
+            const pcs = new Set([...frets].map(([string, fret]) => pitchClass(openMidi.get(string) + fret)));
+            return [...pcs].every(pc => printed.pcs.has(pc)) || [...printed.pcs].every(pc => pcs.has(pc)) ? 0 : 1;
+        };
+        const rules = [
+            ['strummed with the shape', entry => -strummed(entry.result.frets)],
+            ['the chord the file prints', entry => agrees(entry.result.frets)],
+            ['held in the measure before', entry => (identityOf(entry.result.chord) === previousIdentity ? 0 : 1)],
+            ['held elsewhere in the track', entry => -(heldElsewhere.get(identityOf(entry.result.chord))?.size ?? 0)],
+            ['fewest exceptions', entry => entry.result.exceptions.length],
+            ['simpler chord', entry => entry.result.chord.notes * 100 + IDENTIFY_SUFFIXES.indexOf(entry.result.chord.suffix)],
+            ['found by the reading', entry => entry.rank]
+        ];
+        const compare = (a, b) => { for (const [, score] of rules) { const d = score(a) - score(b); if (d !== 0) return d; } return 0; };
+        holding.sort(compare);
+        const [best, second] = holding;
+        best.result.decidedBy = second
+            ? (rules.find(([, score]) => score(best) !== score(second))?.[0] ?? 'no rule decided')
+            : null;
+        whole[m] = best.result;
+        previousIdentity = identityOf(best.result.chord);
+    }
+
+    // Rebuild the spans: a measure held whole is its own span, or joins the span before where that
+    // ends just before it, holds the same chord and does not contradict it; every other measure
+    // keeps its pieces of the spans it had.
+    const rebuilt = [];
+    const compatible = (a, b) => [...b].every(([string, fret]) => !a.has(string) || a.get(string) === fret);
+    for (let m = 0; m < measures.length; m++) {
+        const members = byMeasure[m];
+        if (members.length === 0) continue;
+        const last = rebuilt[rebuilt.length - 1];
+        const adjoining = last && last.members[last.members.length - 1] === members[0] - 1 ? last : null;
+        if (whole[m]) {
+            const form = whole[m];
+            if (adjoining?.form && identityOf(adjoining.form.chord) === identityOf(form.chord) && compatible(adjoining.form.frets, form.frets)) {
+                for (const [string, fret] of form.frets) if (!adjoining.form.frets.has(string)) adjoining.form.frets.set(string, fret);
+                adjoining.members.push(...members);
+                adjoining.form.exceptions.push(...form.exceptions);
+                for (const key of form.passing) adjoining.form.passing.add(key);
+                adjoining.whole = true;
+            } else {
+                rebuilt.push({ members: [...members], form: { ...form, frets: new Map(form.frets), passing: new Set(form.passing), exceptions: [...form.exceptions] }, candidates: [form], decidedBy: form.decidedBy, whole: true });
+            }
+            continue;
+        }
+        for (const member of members) {
+            const s = spanOf[member];
+            const tail = rebuilt[rebuilt.length - 1];
+            if (tail && tail.origin === s && tail.members[tail.members.length - 1] === member - 1) { tail.members.push(member); continue; }
+            const origin = spans[s];
+            rebuilt.push({
+                origin: s, members: [member], candidates: origin.candidates, decidedBy: origin.decidedBy,
+                form: origin.form ? { ...origin.form, frets: new Map(origin.form.frets) } : null
+            });
+        }
+    }
+    // A piece of a span keeps only the exceptions among its own beats.
+    for (const span of rebuilt) {
+        if (span.origin === undefined || !span.form) continue;
+        const own = new Set(span.members);
+        span.form.exceptions = span.form.exceptions.map(group => group.filter(member => own.has(member))).filter(group => group.length > 0);
+    }
+    spans.splice(0, spans.length, ...rebuilt);
+    return whole.filter(Boolean).length;
 }
 
 // --- Measures ----------------------------------------------------------------------------
@@ -587,6 +817,8 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         i--;
     }
 
+    const wholeMeasures = readWholeMeasures(spans, measures, events, openMidi, settings, heldElsewhere);
+
     const owner = new Array(events.length).fill(null);
     spans.forEach((span, index) => { if (span.form) for (const member of span.members) owner[member] = index; });
     const exceptionStarts = new Set(spans.flatMap(span => (span.form ? span.form.exceptions.map(group => group[0]) : [])));
@@ -692,6 +924,17 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         result.kind = fitsHarmony(regionEvents, chord, first, settings) ? 'harmony' : 'clash';
     });
 
+    // A printed chord's name goes with the whole form it agreed with, not only the beats under it:
+    // Sister Golden Hair's G#m is printed from the measure after the form starts, on the "and" of
+    // beat 4, and the form is G#m from there too, not Abm. A run under a printed chord it does not
+    // agree with keeps its own name.
+    const spanName = new Map();
+    for (const runs of allRuns) for (const run of runs) if (run.fileChord && !spanName.has(run.span)) spanName.set(run.span, run.fileChord);
+    for (const runs of allRuns) for (const run of runs) if (!run.fileChord && run.span !== null && spanName.has(run.span)) run.fileChord = spanName.get(run.span);
+
+    // "Continues" is said against what the heading before said, since that is what the listener
+    // has: the chord the previous measure's heading ended on, or null where it named none.
+    let lastSaid = null;
     const described = measures.map((measure, m) => {
         const end = measure.beatsPerBar + 1;
         const runs = allRuns[m];
@@ -710,8 +953,15 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         // The heading: each run of a form in order, with the symbols that override it.
         const pieces = runs.map((run, r) => {
             if (run.span === null || !named) return { start: run.start, text: null, run };
-            let text = `${run.carried ? 'continues' : 'holds'} ${run.name}`;
-            if (!run.carried && (r > 0 || run.start > 1 + EPSILON)) text += ` ${positionText(run.start)}`;
+            // "Continues C" where the heading before ended on C, in that heading's spelling;
+            // otherwise "holds", even where the hand has been on the form since before the bar
+            // line, since the listener has not been told so.
+            const identity = identityOf(run.fileChord ?? spans[run.span].form.chord);
+            const continues = r === 0 && lastSaid?.identity === identity;
+            // The file's spelling where it has one, otherwise the spelling the listener just heard.
+            if (continues && !run.fileChord) run.name = lastSaid.name;
+            let text = `${continues ? 'continues' : 'holds'} ${run.name}`;
+            if (!continues && (r > 0 || run.start > 1 + EPSILON)) text += ` ${positionText(run.start)}`;
             // A length only where a beat or more holding nothing follows. Where another form comes
             // next, its own "at beat" or "during beat" already says where this one ends; under a
             // beat of notes holding nothing, such as a pickup into the next chord, does not end
@@ -722,7 +972,7 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
                 .reduce((sum, other) => sum + Math.min(other.end, gapEnd) - other.start, 0);
             if (run.end < end - EPSILON && gap >= 1 - EPSILON) text += ` for ${beatsText(run.end - run.start)}`;
             if (run.exceptions > 0) text += `, ${countWord(run.exceptions)} exception${run.exceptions === 1 ? '' : 's'}`;
-            return { start: run.start, text, run };
+            return { start: run.start, text, run, said: { identity, name: run.name } };
         });
         for (const symbol of symbols) {
             if (!['differ', 'clash', 'harmony'].includes(symbol.kind)) continue;
@@ -737,6 +987,10 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         }
         pieces.sort((a, b) => a.start - b.start);
         const heading = pieces.filter(piece => piece.text).map(piece => piece.text).join(', ');
+        // What the next heading continues from: the last form this one names, if the heading ends
+        // on it. An anomaly or harmony label after it, or a measure naming no form, leaves nothing.
+        const lastPiece = pieces.filter(piece => piece.text).pop();
+        lastSaid = lastPiece?.said ?? null;
         return { number: m + 1, runs, symbols, heading, named };
     });
 
@@ -790,5 +1044,5 @@ export function findChordForms(measures, { library = null, ...options } = {}) {
         return { ...entry, name: fileNames.get(key) ?? entry.name, fingering, played, fingerings: Object.fromEntries(entry.fingerings) };
     }).sort((a, b) => b.beats - a.beats);
 
-    return { spans, measures: described, anomalies, chords: chordList, aligned, folded, events };
+    return { spans, measures: described, anomalies, chords: chordList, aligned, folded, wholeMeasures, events };
 }

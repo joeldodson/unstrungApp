@@ -99,8 +99,9 @@ const cases = [
             measure([[1, 1, 's6:3 s5:2 s4:0'], [2, 0.5, 's5:0'], [2.5, 0.5, 's5:2'], [3, 1, 's3:0 s2:3 s1:3'], [4, 1, 's4:0 s3:0']]),
             measure([[1, 1, 's3:0 s2:3 s1:3'], [2, 1, 's4:0 s3:0'], [3, 1, 's3:0 s2:3 s1:3'], [4, 1, 's4:0']])
         ],
-        headings: ['holds Gsus2', 'holds C', 'holds G, one exception', 'continues G'],
-        decidedBy: 'strummed with the shape'
+        // Read measure by measure, the Gsus2 has too much of the measure off it to hold it at all,
+        // so the strummed fret is not what decides; the result is the same.
+        headings: ['holds Gsus2', 'holds C', 'holds G, one exception', 'continues G']
     },
     {
         name: 'a lone note heard once in a measure is a passing note, not part of the form',
@@ -185,6 +186,35 @@ const cases = [
         name: 'a change written at beat 1 found at beat 1, though its first note fits both forms',
         measures: [measure(strummed(G)), measure([[1, 1, 's3:0'], ...strummed(C, [2, 3, 4])])],
         headings: ['holds G', 'holds C']
+    },
+    {
+        name: 'a measure read alone: open strings shared with the G before, then a C with one exception',
+        measures: [
+            measure(strummed(G)),
+            measure([[1, 1, 's3:0'], [2, 0.5, 's3:0'], [2.5, 0.5, 's5:3'], [3, 0.5, 's4:0'], [3.5, 0.5, 's4:2'], [4, 1, 's3:0 s2:1 s1:0']]),
+            measure(strummed(C))
+        ],
+        headings: ['holds G', 'holds C, one exception', 'continues C']
+    },
+    {
+        // An open string fits both chords, so the measure before decides: the heading does not
+        // announce the G a measure before the notes need it. A G printed there would win.
+        name: 'a measure of an open string between C and G continues the C',
+        measures: [measure(strummed(C)), measure(strummed('s3:0')), measure(strummed(G))],
+        headings: ['holds C', 'continues C', 'holds G']
+    },
+    {
+        name: 'the same measure under a printed G holds the G',
+        measures: [measure(strummed(C)), measure(strummed('s3:0'), [['G', 1]]), measure(strummed(G))],
+        headings: ['holds C', 'holds G', 'continues G']
+    },
+    {
+        name: 'a form after a measure that names none holds, though the hand was on it already',
+        measures: [
+            measure([[1, 1, G], [2, 1, C], [3, 1, 's4:0 s3:2 s2:3 s1:2'], [4, 1, C]]),
+            measure(strummed(C))
+        ],
+        headings: ['', 'holds C']
     },
     {
         name: 'a printed symbol that agrees gives its own spelling',
