@@ -103,15 +103,16 @@ const headings = await page.evaluate(async () => {
             beatsMentioningSymbol: [...measures.querySelectorAll('li')].filter(li => /chord symbol/.test(li.textContent)).length
         };
     };
-    // The capo track: bar 2 holds the C it prints, bar 44 changes to a G partway through. The bass
-    // prints the same chords and names no forms.
+    // The capo track: bar 2 holds the C it prints. The bass names no forms.
     return { capo: await read(regions[1]), bass: await read(regions[2]) };
 });
 const capoHeadings = headings.capo.headings;
 console.log(`  capo, bars 2 and 44: ${capoHeadings[1]} | ${capoHeadings[43]}`);
 check('a printed chord reaches the heading as the form held', /^Measure 2 - (holds|continues) C\b/.test(capoHeadings[1]), capoHeadings[1]);
-check('a mid-measure change reports the beat it starts on', capoHeadings.some(h => / at beat [2-9]/.test(h)),
-    capoHeadings.find(h => / at beat [2-9]/.test(h)) ?? 'none found');
+// This track once had one change partway through a measure, a single B on string 5 read as D
+// minor at beat 4 of measure 36. That B is now a finger moving in the C, so it has none; the
+// wording for a change at a beat is checked in scripts/check-chord-forms.mjs, and against the
+// metadata by scripts/songs/verify-chord-forms-in-app.mjs on songs that have such changes.
 check('no heading gives both a form and a chord symbol', !capoHeadings.some(h => /(holds|continues) /.test(h) && /chord symbol/.test(h)));
 // Every printed chord in this file now sits in a measure that names its form, so none of its
 // headings uses the chord symbol phrase; scripts/songs/verify-chord-forms-in-app.mjs, run on a

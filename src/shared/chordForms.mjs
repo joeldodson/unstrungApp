@@ -457,7 +457,7 @@ function printedAgrees(name, frets, openMidi) {
  * or, after the measure's last, the first of the next measure. A C on the "and" of beat 4 that
  * carries on into the next measure is a change, not a note off the G.
  */
-function playMeasure(start, members, events, openMidi, settings) {
+function playMeasure(start, members, events, openMidi, settings, { movingFinger = false, nearby = [] } = {}) {
     let frets = new Map(start);
     for (const member of members) {
         if (conflicts(frets, events[member], settings).length > 0) continue;
@@ -467,6 +467,7 @@ function playMeasure(start, members, events, openMidi, settings) {
     frets = held;
     const chord = chordOf(frets, openMidi);
     if (!chord || reachOf(frets) > settings.reach) return null;
+    if (movingFinger) return playMovingFinger(frets, chord, members, nearby, events, openMidi, settings);
 
     const isOff = member => conflicts(frets, events[member], settings).length > 0
         || events[member].notes.some(note => passing.has(noteKey(note)));
@@ -506,6 +507,121 @@ function playMeasure(start, members, events, openMidi, settings) {
     const offTime = groups.flat().reduce((sum, member) => sum + events[member].length, 0);
     if (time > 0 && offTime / time > settings.maxExceptionShare + EPSILON) return null;
     return { frets, chord, exceptions: groups, passing, reach: reachOf(frets), reason: null };
+}
+
+const isPlain = chord => !!chord && (chord.suffix === 'major' || chord.suffix === 'minor');
+
+/**
+ * The moves of one finger on a string: each stretch of the string's notes at one fret other than
+ * the form's, lasting until the string is played at another fret. Notes on other strings in
+ * between do not end a move. Each move is one exception, its events grouped.
+ */
+function movesOn(frets, members, string, events) {
+    const moves = [];
+    let current = null;
+    for (const member of members) {
+        const note = events[member].notes.find(n => n.string === string);
+        if (!note) continue;
+        if (note.fret === frets.get(string)) { current = null; continue; }
+        const last = current?.members[current.members.length - 1];
+        // The same fret again, or a hammer-on or pull-off straight on from the move, is the same move.
+        if (current && (current.fret === note.fret || (last === member - 1 && slurred(events[last], events[member])))) {
+            current.members.push(member);
+            current.fret = note.fret;
+            continue;
+        }
+        current = { fret: note.fret, members: [member] };
+        moves.push(current);
+    }
+    return moves.map(move => move.members);
+}
+
+/**
+ * A measure as the plain chord with one finger moving through chords of its root, where no form
+ * holds it otherwise: Cmaj7 and Cadd9 inside a C, strummed for half the measure each, with no
+ * limit on how much of the measure the moves take. Null unless the chord is plain, every note off
+ * it is on one string, each position of that string makes a chord with the plain chord's root and
+ * not a second plain chord (E and Em are a change, though one finger makes it), the plain fret is
+ * heard in the measure or the ones beside it (`nearby`), and no chord is printed on a move.
+ */
+function playMovingFinger(frets, chord, members, nearby, events, openMidi, settings) {
+    if (!isPlain(chord)) return null;
+    const off = members.flatMap(member => conflicts(frets, events[member], settings).map(note => ({ member, note })));
+    const strings = new Set(off.map(({ note }) => note.string));
+    if (strings.size !== 1) return null;
+    const [string] = strings;
+    if (![...members, ...nearby].some(member => events[member].notes.some(note => note.string === string && note.fret === frets.get(string)))) return null;
+    for (const { member, note } of off) {
+        const other = chordOf(new Map(frets).set(string, note.fret), openMidi);
+        if (!other || isPlain(other) || PITCH_CLASSES[other.root] !== PITCH_CLASSES[chord.root]) return null;
+        if (events[member].printedName && !printedAgrees(events[member].printedName, frets, openMidi)) return null;
+    }
+    return { frets, chord, exceptions: movesOn(frets, members, string, events), passing: new Set(), reach: reachOf(frets), reason: null };
+}
+
+/**
+ * One finger moving through chords with the same root keeps the plain chord's name, the moves
+ * counted as exceptions. Dust in the Wind holds a C shape while string 2 goes between fret 1, open
+ * and fret 3, C, Cmaj7 and Cadd9, and each measure plays only two of the three; read measure by
+ * measure the name followed whichever two, C in one measure and Cmaj7 in the next. A guitarist
+ * calls it C throughout, with the finger moving.
+ *
+ * Works on consecutive measures held whole whose forms share a root and differ on one string at
+ * most. The moving string is that one, or the string their exceptions are on. Where one of the
+ * frets heard on it across those measures makes the plain major or minor chord, every measure in
+ * the run takes that form, and its notes on the moving string at another fret are its exceptions.
+ * The share of a measure an exception may take does not apply: the moving finger is most of what
+ * the measure plays. A run where the plain chord's fret is never heard is left as it is, since
+ * naming it would name a note the track never plays.
+ */
+function keepPlainChord(whole, byMeasure, events, openMidi) {
+    const rootOf = form => PITCH_CLASSES[form.chord.root];
+    for (let first = 0; first < whole.length; first++) {
+        if (!whole[first]) continue;
+        let last = first;
+        while (last + 1 < whole.length && whole[last + 1] && rootOf(whole[last + 1]) === rootOf(whole[first])) last++;
+        const run = [];
+        for (let m = first; m <= last; m++) run.push(m);
+        first = last;
+
+        // The moving string: where the forms differ, or else where their exceptions fall.
+        const differing = new Set();
+        for (const m of run) {
+            for (const [string, fret] of whole[m].frets) {
+                if (run.some(other => whole[other].frets.has(string) && whole[other].frets.get(string) !== fret)) differing.add(string);
+            }
+        }
+        const excepted = new Set(run.flatMap(m => whole[m].exceptions.flat().flatMap(member =>
+            events[member].notes.filter(note => whole[m].frets.has(note.string) && whole[m].frets.get(note.string) !== note.fret).map(note => note.string))));
+        const strings = differing.size > 0 ? differing : excepted;
+        if (strings.size !== 1) continue;
+        const [moving] = strings;
+
+        const heard = new Set(run.flatMap(m => byMeasure[m].flatMap(member =>
+            events[member].notes.filter(note => note.string === moving).map(note => note.fret))));
+        const base = whole[run[0]].frets;
+        const plain = [...heard].map(fret => ({ fret, chord: chordOf(new Map(base).set(moving, fret), openMidi) }))
+            .find(({ chord }) => chord && (chord.suffix === 'major' || chord.suffix === 'minor') && PITCH_CLASSES[chord.root] === rootOf(whole[run[0]]));
+        if (!plain) continue;
+
+        for (const m of run) {
+            const already = whole[m].frets.get(moving) === plain.fret;
+            const frets = new Map(whole[m].frets).set(moving, plain.fret);
+            // Notes off the shape on any other string would be a second finger; leave such a measure.
+            const elsewhere = byMeasure[m].some(member => events[member].notes.some(note =>
+                note.string !== moving && frets.has(note.string) && frets.get(note.string) !== note.fret));
+            if (elsewhere) continue;
+            // A measure whose own strings, with the plain fret, make some other chord is left too.
+            const chord = chordOf(frets, openMidi);
+            if (!isPlain(chord) || PITCH_CLASSES[chord.root] !== rootOf(whole[m])) continue;
+            // Each move of the finger is one exception, however many notes it plays, in a measure
+            // that already held the plain chord as in one that is brought to it.
+            whole[m] = {
+                ...whole[m], frets, chord, exceptions: movesOn(frets, byMeasure[m], moving, events),
+                decidedBy: already ? whole[m].decidedBy : 'the plain chord through a moving finger'
+            };
+        }
+    }
 }
 
 /**
@@ -554,7 +670,10 @@ function readWholeMeasures(spans, measures, events, openMidi, settings, heldElse
         const tryForm = (frets, rank) => {
             const key = fretsKey(frets, 12);
             if (frets.size === 0 || tried.has(key)) return;
-            tried.set(key, { result: playMeasure(frets, members, events, openMidi, settings), rank });
+            tried.set(key, {
+                frets, rank,
+                result: playMeasure(frets, members, events, openMidi, settings)
+            });
         };
         const nearby = new Set([...members.map(member => spanOf[member]), spanOf[members[0] - 1], spanOf[members[members.length - 1] + 1]]);
         for (const s of nearby) if (s >= 0 && spans[s]?.form) tryForm(spans[s].form.frets, 0);
@@ -575,7 +694,29 @@ function readWholeMeasures(spans, measures, events, openMidi, settings, heldElse
         }
         for (const map of maps) tryForm(map, 1);
 
-        const holding = [...tried.values()].filter(entry => entry.result);
+        let holding = [...tried.values()].filter(entry => entry.result);
+        // No form holds the measure: try each as the plain chord with one finger moving through it,
+        // which may take as much of the measure as it likes.
+        if (holding.length === 0) {
+            const nearby = [...(byMeasure[m - 1] ?? []), ...(byMeasure[m + 1] ?? [])];
+            holding = [...tried.values()]
+                .map(entry => ({ ...entry, result: playMeasure(entry.frets, members, events, openMidi, settings, { movingFinger: true, nearby }) }))
+                .filter(entry => entry.result);
+            // A measure whose own notes never sound the plain chord is tried as it too, its moving
+            // string set to each fret heard on it beside the measure.
+            if (holding.length === 0) {
+                for (const entry of tried.values()) {
+                    for (const [string] of entry.frets) {
+                        for (const member of nearby) {
+                            const note = events[member].notes.find(n => n.string === string && n.fret !== entry.frets.get(string));
+                            if (!note) continue;
+                            const result = playMeasure(new Map(entry.frets).set(string, note.fret), members, events, openMidi, settings, { movingFinger: true, nearby });
+                            if (result) holding.push({ ...entry, result });
+                        }
+                    }
+                }
+            }
+        }
         if (holding.length === 0) { previousIdentity = null; continue; }
         // Strings the measure plays at more than one fret, and whether a form's fret on each sounds
         // together with other strings: a fret struck in the chord is part of the shape.
@@ -608,6 +749,8 @@ function readWholeMeasures(spans, measures, events, openMidi, settings, heldElse
         whole[m] = best.result;
         previousIdentity = identityOf(best.result.chord);
     }
+
+    keepPlainChord(whole, byMeasure, events, openMidi);
 
     // Rebuild the spans: a measure held whole is its own span, or joins the span before where that
     // ends just before it, holds the same chord and does not contradict it; every other measure

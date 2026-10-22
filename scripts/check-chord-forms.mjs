@@ -67,7 +67,8 @@ const cases = [
     },
     {
         name: 'under a beat of notes holding nothing does not end a hold',
-        measures: [measure([...strummed(G, [1, 2, 3]), [4, 0.5, G], [4.5, 0.5, 's1:1']])],
+        // A G sharp, which makes no chord with the G; an F would be G7, one finger moving.
+        measures: [measure([...strummed(G, [1, 2, 3]), [4, 0.5, G], [4.5, 0.5, 's1:4']])],
         headings: ['holds G']
     },
     {
@@ -77,18 +78,36 @@ const cases = [
             measure([[1, 1, 's5:3'], [2, 1, 's3:0 s2:1 s1:0'], [3, 0.5, 's4:0'], [3.5, 0.5, 's4:2'], [4, 0.5, 's3:0'], [4.5, 0.5, 's4:0']]),
             measure(strummed(G))
         ],
-        headings: ['holds C', 'holds G', 'holds C, two exceptions', 'holds G'],
-        decidedBy: 'held elsewhere in the track'
+        headings: ['holds C', 'holds G', 'holds C, two exceptions', 'holds G']
     },
     {
-        name: 'the same measure with no C elsewhere, decided by fewest exceptions',
+        // Once the fewest exceptions made this Cadd9. String 4 is one finger moving, and its fret
+        // 2 is heard, so the plain chord keeps the name, decided 2026-10-21.
+        name: 'the same measure with no C elsewhere: the plain chord through a moving finger',
         measures: [
             measure(strummed(G)),
             measure([[1, 1, 's5:3'], [2, 1, 's3:0 s2:1 s1:0'], [3, 0.5, 's4:0'], [3.5, 0.5, 's4:2'], [4, 0.5, 's3:0'], [4.5, 0.5, 's4:0']]),
             measure(strummed(G))
         ],
-        headings: ['holds G', 'holds Cadd9, one exception', 'holds G'],
-        decidedBy: 'fewest exceptions'
+        headings: ['holds G', 'holds C, two exceptions', 'holds G'],
+        decidedBy: 'the plain chord through a moving finger'
+    },
+    {
+        name: 'one finger moving through C, Cmaj7 and Cadd9 keeps the name C',
+        measures: [
+            measure([[1, 1, 's5:3 s4:2 s3:0 s2:1'], [2, 1, 's2:1'], [3, 1, 's5:3 s4:2 s3:0 s2:0'], [4, 1, 's2:0']]),
+            measure([[1, 1, 's5:3 s4:2 s3:0 s2:0'], [2, 1, 's2:0'], [3, 1, 's5:3 s4:2 s3:0 s2:3'], [4, 1, 's2:3']])
+        ],
+        // Each move of the finger is one exception: to open in the first measure; to open, then
+        // to fret 3, in the second.
+        headings: ['holds C, one exception', 'continues C, two exceptions']
+    },
+    {
+        name: 'a moving finger whose plain chord is never heard keeps its own name',
+        measures: [
+            measure([[1, 1, 's5:0 s4:2 s3:2 s2:0'], [2, 1, 's2:0'], [3, 1, 's5:0 s4:2 s3:2 s2:3'], [4, 1, 's2:0']])
+        ],
+        headings: ['holds Asus2, one exception']
     },
     {
         name: 'the fret strummed with the shape is the form, ahead of a form held elsewhere',

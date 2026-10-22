@@ -127,6 +127,30 @@ For a whole measure, notes off the form are exceptions only where:
   next chord, as the open D before a G at the end of a measure of C;
 - no chord is printed on them other than the form's own, or a power chord being filled out to it.
 
+### One finger moving through chords of one root
+
+Dust in the Wind holds a C shape while one finger moves on string 2 between fret 1, open and fret
+3: C, Cmaj7 and Cadd9. Over A minor the same finger gives Am, Asus2 and Asus4. Each measure plays
+only two of the three, so read measure by measure the name followed whichever two it played: C,
+then Cmaj7; Asus2, then Am. Decided 2026-10-21: where one finger moves through chords with the
+same root, the plain chord's name is kept across the measures and the moves are counted as
+exceptions.
+
+- Consecutive measures held whole whose forms share a root and differ on one string at most take
+  the plain major or minor chord, where its fret on that string is heard among them. A run where
+  it never is keeps its own name, since naming it would name a note the track never plays.
+- A measure no form holds, because the moves take more of it than an exception may, is tried as
+  the plain chord with the finger moving. Every position of the finger must make a chord with the
+  plain chord's root and not a second plain chord: E to Em is a change of chord, though one finger
+  makes it. A melody on one string is not a finger moving through chords. The plain fret may be
+  heard in the measure or the ones beside it, and no chord may be printed on a move.
+- A move is counted once: it lasts until the finger goes to another fret, with notes on other
+  strings in between, and a hammer-on or pull-off straight on from it is the same move.
+
+Dust in the Wind's intro reads "holds C, one exception", "continues C, one exception", "holds Am,
+two exceptions", and so on. Ripple's capo part, measure 36, walks string 5 down to a B before the
+D minor: once "holds Dm at beat 4" of that B, it is now "continues C, one exception".
+
 ### Holds or continues
 
 "Continues C" means the heading before ended on C, since that is what the listener has; anything
