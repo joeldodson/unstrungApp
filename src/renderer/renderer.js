@@ -22,6 +22,7 @@ import {
     checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
+import { attackSeconds, attackAlignedStart } from '../shared/sampleAttack.mjs';
 import { DEFAULT_TEMPO, scoreTempo } from '../shared/tempo.mjs';
 import {
     METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, METRONOME_DEFAULT_TEMPO, METRONOME_TEMPO_STEP,
@@ -1640,6 +1641,30 @@ let chordActiveSources = [];
 let chordPlaybackToken = 0;
 const sampleBufferCache = new Map();
 
+// Each note recording's attack, measured once per decoded buffer. See src/shared/sampleAttack.mjs.
+const sampleAttacks = new WeakMap();
+
+function noteAttackSeconds(buffer) {
+    if (!sampleAttacks.has(buffer)) {
+        sampleAttacks.set(buffer, attackSeconds(buffer.getChannelData(0), buffer.sampleRate));
+    }
+    return sampleAttacks.get(buffer);
+}
+
+/**
+ * Starts a note recording so its attack, not its first sample, sounds at `at`: early, by the pick
+ * noise before the attack, so the note lands with the metronome's click rather than behind it.
+ * `into` enters a note that was already ringing, that far past its attack.
+ *
+ * Returns when the recording actually begins, for the note's gain envelope to start from.
+ */
+function startNoteOnAttack(source, at, into = 0) {
+    const { begin, offset } = attackAlignedStart(
+        noteAttackSeconds(source.buffer), at, into, source.context.currentTime);
+    source.start(begin, offset);
+    return begin;
+}
+
 function getSharedAudioContext() {
     if (sharedAudioContext && !anythingPlaying()) {
         checkSharedAudioClock();
@@ -1822,14 +1847,13 @@ async function playChordSelection(voicings, label, spokenNames = []) {
 
         // A note either gets cut off as its string is re-struck, or rings out to the end of
         // the recording. Either way it fades rather than stopping on a non-zero sample.
-        const ends = at + (note.ringSeconds ?? buffer.duration);
+        const ends = at + (note.ringSeconds ?? buffer.duration - noteAttackSeconds(buffer));
         const fade = note.ringSeconds === null ? CHORD_DECAY_FADE_SECONDS : CHORD_RESTRIKE_FADE_SECONDS;
-        gain.gain.setValueAtTime(CHORD_NOTE_GAIN, at);
+        source.connect(gain).connect(masterGain);
+        const begin = startNoteOnAttack(source, at);
+        gain.gain.setValueAtTime(CHORD_NOTE_GAIN, begin);
         gain.gain.setValueAtTime(CHORD_NOTE_GAIN, Math.max(at, ends - fade));
         gain.gain.linearRampToValueAtTime(0, ends);
-
-        source.connect(gain).connect(masterGain);
-        source.start(at);
         source.stop(ends + 0.01);
         chordActiveSources.push(source);
     }
@@ -2851,7 +2875,9 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
         if (!buffer) continue;
 
         const ring = hasNextPass ? note.ringLoop : note.ringFinal;
-        const ringSeconds = Math.min(ring ?? buffer.duration, buffer.duration);
+        // The recording starts early by its attack, so that much less of it is left after the beat.
+        const recordingLeft = buffer.duration - noteAttackSeconds(buffer);
+        const ringSeconds = Math.min(ring ?? recordingLeft, recordingLeft);
         const noteEnd = note.startSeconds + ringSeconds;
         if (noteEnd <= fromSeconds) continue; // finished before this window's starting point
 
@@ -2867,12 +2893,11 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
         const fade = ring === null
             ? AUDIO_TRACK_DECAY_FADE_SECONDS
             : AUDIO_TRACK_RESTRIKE_FADE_SECONDS;
-        gain.gain.setValueAtTime(AUDIO_TRACK_NOTE_GAIN, when);
+        source.connect(gain).connect(audioTrackMasterGain);
+        const begin = startNoteOnAttack(source, when, intoNote);
+        gain.gain.setValueAtTime(AUDIO_TRACK_NOTE_GAIN, begin);
         gain.gain.setValueAtTime(AUDIO_TRACK_NOTE_GAIN, Math.max(when, ends - fade));
         gain.gain.linearRampToValueAtTime(0, ends);
-
-        source.connect(gain).connect(audioTrackMasterGain);
-        source.start(when, intoNote);
         source.stop(ends + 0.01);
         audioTrackSources.push({ source, endsAt: ends + 0.01 });
     }
@@ -4353,7 +4378,8 @@ function scheduleChordPracticeStrum(state, midi, stroke, at, skipSeconds = 0, ou
         if (!buffer) continue;
 
         const spread = stringIndex * CHORD_PRACTICE_STRUM_DELAY_SECONDS;
-        const ring = Math.min(strokeRing, buffer.duration);
+        // The recording starts early by its attack, so that much less of it is left after the beat.
+        const ring = Math.min(strokeRing, buffer.duration - noteAttackSeconds(buffer));
         // Each string of a strum begins a little later, so a resumed strum is that much less far
         // into its own sample -- and a string the sweep had not yet reached starts from the top.
         const into = Math.max(0, skipSeconds - spread);
@@ -4366,11 +4392,11 @@ function scheduleChordPracticeStrum(state, midi, stroke, at, skipSeconds = 0, ou
         const gain = context.createGain();
         // The fade is shortened for a short ring, so it cannot start before the note does.
         const fade = Math.min(0.15, remaining / 2);
-        gain.gain.setValueAtTime(level, start);
+        source.connect(gain).connect(output?.destination ?? chordPracticeMasterGain);
+        const begin = startNoteOnAttack(source, start, into);
+        gain.gain.setValueAtTime(level, begin);
         gain.gain.setValueAtTime(level, start + remaining - fade);
         gain.gain.linearRampToValueAtTime(0, start + remaining);
-        source.connect(gain).connect(output?.destination ?? chordPracticeMasterGain);
-        source.start(start, into);
         source.stop(start + remaining + 0.01);
         (output?.sources ?? chordPracticeSources).push({ source, endsAt: start + remaining + 0.01 });
     }

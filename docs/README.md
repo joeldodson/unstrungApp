@@ -39,5 +39,9 @@ eyesunstrung.vip.
   sure no song already checked gets worse: the scripts, the record of every song, and the songs
   so far.
 
+- `note-timing.md` -- why notes sounded behind the metronome's clicks (the pick noise at the start
+  of every recording), measured for every recording, and starting each note early by its attack.
+  Built 2026-10-22.
+
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.

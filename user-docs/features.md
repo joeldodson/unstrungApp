@@ -219,6 +219,7 @@ To collapse it again, go to that heading and then up one line.
 - **Measures Selected,** a collapsed section saying which measures will play.
   Inside it are the first and last measure, how many times to play them (up to 50, or 0 to repeat until you stop), and whether to count in before every repeat or only the first time.
 - **Metronome,** which also counts in one measure of clicks the first time through.
+  Each note is timed so that its attack sounds with the click, and the pick noise recorded before it comes just ahead.
 
 ### Playing
 
@@ -284,6 +285,7 @@ The Chord Practice dialog asks for:
   Unchecked, a chord is sometimes held for two measures, as in most real progressions.
 - **Times to play the progression,** up to 50, or 0 to repeat until you stop, and whether to count in before every repeat.
 - **Metronome.**
+  Each strum is timed so that its attack sounds with the click, and the pick noise recorded before it comes just ahead.
 - **Speak the name of the next chord on the last beat of each measure,** checked to begin with.
   The voice and its volume are set in Settings.
 
