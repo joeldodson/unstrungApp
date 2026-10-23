@@ -10,6 +10,39 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.9.1 - Notes on the click
+
+Published 2026-10-22.
+
+0.9.1 puts notes and chords on the metronome's click, names the chord shape the left hand holds in guitar measure headings, lists only the guitar and bass tracks of a song, and fixes an audio track's tempo reading NaN.
+
+### Notes on the click
+
+Notes and chords sounded slightly after the metronome's click: about 22 milliseconds on guitar and 27 on bass. Every recording unstrung plays opens with the pick or finger meeting the string, a quiet noise before the note itself, and each note was started on the beat from that noise. Now each note starts early by that much, so its attack sounds with the click and the pick noise comes just before it, where a player's pick would be.
+
+This applies to chord practice, an audio track and chords played from the chord library, in the app and on the web. Listen to Guitar Samples still plays each recording from its start.
+
+### Chord forms in measure headings
+
+On a guitar track, a measure heading now says which chord shape the left hand holds, where the measure is simple enough to say it quickly, the way sheet music shows a chord only where it changes.
+
+- "holds G" where a G shape is first held, and "continues G" where it carries over from the measure before.
+- "holds G, one exception" where a note or two leave the shape and come back, such as a finger reaching for a bass note.
+- "holds G, holds C at beat 3" for a change at a beat, and "holds G, holds C during beat 4" for a change between beats.
+- "holds G for 2 and a half beats" where the shape is let go of and nothing else is held after it.
+
+The shape is worked out from the notes the measure plays, so a part picked one string at a time still holds a G. Where the file prints a chord name that matches, the heading uses it. Where the notes hold a different chord from the one printed, the heading gives the printed chord followed by "(anomaly)", and a new Anomalies section on the track lists each one. Where a melody is played over a printed chord, the heading gives the chord followed by "(harmony)". A measure that changes chord more than once gives the printed chord names, as before.
+
+Inside a measure that names a shape, a beat playing only part of it is listed string by string rather than named, so open strings 3 and 4 inside a G are no longer called G5. Under Chords Used, a guitar track's chords give the fingering as the track plays it first, then the chord library's.
+
+### Only guitar and bass tracks
+
+A song now lists only its guitar and bass tracks, since those are the only instruments unstrung has recordings of. Voice, keyboards, drums and other parts are left out, and the summary says how many. The words of a vocal part are still read, and shown with every listed track's measures.
+
+### Fixed
+
+Since 0.9.0, an audio track's Tempo line, and the message on creating a track, read "NaN BPM" instead of the file's tempo. Playback was not affected.
+
 ## unstrung 0.9.0 - Metronome
 
 Published 2026-10-19.
