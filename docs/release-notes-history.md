@@ -10,6 +10,28 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.9.2 - Printed chords first
+
+Published 2026-10-24.
+
+0.9.2 reads a guitar measure as the chord the file prints over it first, keeps chords printed over rests, and opens songs with strummed guitar parts much faster.
+
+### Printed chords first
+
+On a guitar track, a measure the file prints one chord over is now read as that chord first, with the notes off it as exceptions, unless the notes clearly hold something else. Across the songs checked so far, 14 of 45 anomalies are gone.
+
+A shape held without the chord's third, such as C with a D in place of the E measure after measure, is that sus chord and not the printed one, so it is still an anomaly.
+
+A chord picked across several measures, none of which plays all of it, is now named where the measures beside it complete it, as in the first three measures of a G picked string by string.
+
+### Chords printed over rests
+
+A chord the file prints over a rest now changes the chord from there, as it does on sheet music. It used to be dropped with the rest, leaving the chord before it in effect.
+
+### Faster opening
+
+Songs whose guitar parts strum a chord and then the open strings while changing to the next could take a long time to open. Mazzy Star's Fade Into You took about 25 seconds, nearly all of it reading its two strummed guitar parts; each now takes under half a second. No measure heading changes.
+
 ## unstrung 0.9.1 - Notes on the click
 
 Published 2026-10-22.
