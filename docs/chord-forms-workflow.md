@@ -37,6 +37,20 @@ rules aim at, and he decides each one. He wants decisions put to him one questio
 - The record: `C:\Users\joeld\OneDrive\Guitar\unstrung-chord-forms-record.json`, what the app says
   about every song, measure by measure, as last accepted. It is what a change is compared against.
 
+### Whether a rule is worth adding
+
+Joel, 2026-10-24: the rules are a house of cards, and building them one at a time, knowing what
+each one does, is the work. If a card needs one support card and the house is still stable, add
+both. If adding it makes a mess, so the house falls or is too unstable to build on, leave it out
+and accept a small error. Be careful of dependencies, immediate and longer term.
+
+In practice: when a fix breaks something, look for one supporting rule. Keep the pair where the
+comparison against the record shows nothing else moving and the cases pass. Where the support
+needs support of its own, or the fixes start chasing each other, stop, leave the error, and say
+so. Measure 108 of Into Dust is the example: a lone open E counted as an exception broke Sister
+Golden Hair's F#m11, one support rule (only where it is the one such note in the measure) mended
+it, and nothing else moved.
+
 ## The scripts
 
 All take paths as arguments and print to the console. Those that print a song's measures are for
@@ -57,6 +71,10 @@ reading here only.
   stretch: each measure's heading, every beat's strings and frets with printed chords, and the
   spans the form finder made, with what decided them and where the exceptions are. This is where
   to look when a measure reads wrong.
+- `node scripts/gp-experiment/chord-forms-anomalies.mjs <dir> [--file "<part of a name>"] [--trust | --diff]`
+  - every anomaly on the guitar tracks with the beats under its printed chord's stretch, the
+  forms found there and how much is in the chord's tones. `--trust` lists them with the
+  `trustPrinted` experiment on; `--diff` lists every heading the experiment changes.
 - `node scripts/songs/verify-chord-forms-in-app.mjs [file]` - opens the song in the app and checks
   every heading and Anomalies region against the metadata; on Ripple, also beats and Chords Used.
   Needs `npm run build:renderer` first.
@@ -81,7 +99,9 @@ In the order `findChordForms` does it. Each step's comment in the code says why 
    one-finger change for a beat between two of the same form is folded into it.
 5. `readWholeMeasures`: each measure read on its own. Where one form holds the whole measure
    (`playMeasure`), with exceptions that are one finger and come back, the measure holds it;
-   failing that, the plain chord with one finger moving (`playMovingFinger`). `keepPlainChord`
+   failing that, the plain chord with one finger moving (`playMovingFinger`); failing that, for a
+   measure whose notes spell no chord, the form before and the measure joined with its
+   neighbours' strings. `keepPlainChord`
    keeps the plain chord's name through a run of a moving finger. The spans are rebuilt from this.
 6. Each measure's runs of beats by span; each printed chord weighed over its stretch, up to the
    next printed chord, as agree, partial, differ, harmony or clash.
@@ -133,6 +153,9 @@ third of a span's time, a melody fitting a printed chord at half its time in cho
 - A track's number in the file is not its number in the app, which lists only guitar and bass.
 - Synthetic cases must use the rules as they stand: a case built on an exception can stop being
   one when an earlier rule changes, and the case needs rewriting, not the rule.
+- Being in the record is not being checked. The totallyGuitars files were recorded on 2026-10-22
+  without their headings being read, and the chord solo's first three measures were wrong. Read
+  every guitar track of a song with `--preview` before calling it checked.
 - Don't say the screen reader experience is verified. Joel checks that with NVDA.
 
 ## The songs so far, and what each tests
@@ -155,7 +178,40 @@ third of a span's time, a melody fitting a printed chord at half its time in cho
 - Kansas, Dust in the Wind, two versions: one finger moving through C, Cmaj7 and Cadd9, and Am,
   Asus2 and Asus4, which keeps the plain chord's name.
 - Don McLean, Vincent: an anomaly that comes from a printed chord's stretch, not its measure.
-- Glen Hansard, John Mellencamp and the totallyGuitars files: strummed parts, mostly clean.
+- Grateful Dead, Ripple Chord Solo (totallyGuitars, .gpx and .gp5, the same part): a G picked
+  over its first three measures, no one of which spells it alone, which is why a measure no form
+  holds is tried with the form before and with its neighbours' strings.
+- Glen Hansard, John Mellencamp and the other totallyGuitars files: strummed parts, mostly clean.
+
+## Where we left off, 2026-10-24
+
+The session of 2026-10-23 and 24, all committed, with every decision in
+`chord-forms-in-scores.md`:
+
+- The Ripple Chord Solo's first three measures: a form no measure spells alone.
+- `keepPlainChord` no longer hides exceptions on a string the shape leaves out.
+- Chords printed on rests are read as printed.
+- `trustPrinted`: a measure under one printed chord is tried as that chord first. Joel asked for
+  it after the chord solo's printed G proved right, and read every change it makes, a group at a
+  time, adding rules where a reading was wrong.
+- The anomaly review, `anomaly-review.md` in the Guitar folder, beside the record, since it
+  describes the songs measure by measure. Its questions 1 to 3 are answered.
+- The record was written again once Joel accepted everything. It now includes the three Willie
+  Nelson files, which have not been read: being in the record does not make them checked.
+
+Next, in no settled order:
+
+- Fade Into You is slow to open: `findChordForms` takes about 13 seconds on each of its two
+  acoustic guitar tracks, the same with the code as it was before 2026-10-24.
+  `verify-chord-forms-in-app.mjs` times out on it after 15 seconds.
+- Read every guitar track of the totallyGuitars files measure by measure, since they were
+  recorded without being read, then the three Willie Nelson files.
+- Wish You Were Here's measure 20 says "holds A7sus4, holds A7sus4 at beat 2", the same chord
+  twice.
+- Three finder bugs from the anomaly review that trying the printed chord works around: 7sus4
+  not recognised, `keepPlainChord` joining G and G minor, a whole measure read as one form across
+  a chord printed in its middle.
+- Lead lines under a printed chord, question 4 of the review.
 
 ## Not settled yet
 

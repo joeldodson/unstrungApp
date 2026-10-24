@@ -451,7 +451,8 @@ function describeChordSymbols(bar, masterBar, only = null) {
     const beats = bar.voices[0] ? bar.voices[0].beats : [];
     const found = [];
     for (const beat of beats) {
-        if (beat.isRest || !beat.hasChord || !beat.chord || !beat.chord.name) continue;
+        // A chord printed over a rest is still printed, as trackEvents reads it.
+        if (!beat.hasChord || !beat.chord || !beat.chord.name) continue;
         if (only && !only.has(beat.chord.name)) continue;
         found.push({ name: beat.chord.name, start: beat.playbackStart || 0 });
     }
@@ -968,7 +969,8 @@ function formsTrackChords(track, forms) {
     }
     for (const bar of track.staves[0].bars || []) {
         for (const beat of (bar.voices[0] ? bar.voices[0].beats : [])) {
-            if (beat.isRest || !beat.hasChord || !beat.chord || !beat.chord.name) continue;
+            // A chord printed over a rest is still printed, as trackEvents reads it.
+            if (!beat.hasChord || !beat.chord || !beat.chord.name) continue;
             const key = chordIdentity(beat.chord.name);
             const existing = chords.get(key);
             if (existing && !existing.printedOnly) { existing.fromSymbol = true; continue; }

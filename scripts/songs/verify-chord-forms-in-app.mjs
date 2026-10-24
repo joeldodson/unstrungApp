@@ -16,6 +16,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { launchApp, openSongFile, APP_DIR, VISIBLE_PANEL } from '../lib/app-ui.mjs';
 import { extractScoreMetadata } from '../../src/shared/scoreMetadata.mjs';
+import { parseChordSymbol } from '../../src/shared/chordForms.mjs';
 
 const ripple = path.join(APP_DIR, 'musicfiles', 'Grateful Dead-Ripple-12-20-2025.gp');
 const song = process.argv[2] ?? ripple;
@@ -73,7 +74,10 @@ meta.tracks.forEach((expected, t) => {
     console.log(`  ${shown.name}: ${headings.length} measures, ${named} naming a form, ${expected.anomalies.length} anomalies`);
     check(`  every heading matches`, mismatch === -1 && headings.length === wanted.length,
         mismatch === -1 ? '' : `measure ${mismatch + 1}: "${headings[mismatch]}", expected "${wanted[mismatch]}"`);
-    check(`  no heading names a form and a chord symbol both`, !headings.some(h => /(holds|continues) /.test(h) && /chord symbol/.test(h)));
+    // Except for a printed name unstrung cannot read, which only the phrase gives.
+    const readable = h => (/chord symbols? (.*)$/.exec(h)?.[1] ?? '').split(', ')
+        .some(part => parseChordSymbol(part.replace(/ (at|during) beat \d+$/, '')));
+    check(`  no heading names a form and a readable chord symbol both`, !headings.some(h => /(holds|continues) /.test(h) && /chord symbol/.test(h) && readable(h)));
     const anomalies = region(shown, /^Anomalies/);
     if (expected.anomalies.length === 0) {
         check('  no Anomalies region, having none', !anomalies);

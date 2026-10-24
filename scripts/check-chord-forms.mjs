@@ -236,6 +236,63 @@ const cases = [
         headings: ['', 'holds C']
     },
     {
+        // Added 2026-10-24. Strings 5 and 4 of the G, then 6, 2 and 1, then 6, 3 and 2: no measure
+        // spells a G on its own. Read across bar lines, string 5 at fret 3 late in the first
+        // measure joins string 6 in the next as a Gsus4.
+        name: 'a form spread over measures that never spell it alone',
+        measures: [
+            measure(picked(['s5:2', 's4:0', 's5:2', 's4:0', 's5:2', 's4:0', 's5:3', 's4:0'])),
+            measure(picked(['s6:3', 's2:0', 's1:3', 's2:0', 's6:3', 's2:0', 's1:3', 's2:0'])),
+            measure(picked(['s6:3', 's3:0', 's2:0', 's3:2', 's6:3', 's3:0', 's2:0', 's3:0']))
+        ],
+        headings: ['holds G, one exception', 'continues G', 'continues G, one exception']
+    },
+    {
+        name: 'a melody on one string takes no strings from the measure before',
+        measures: [measure(strummed(G)), measure(picked(['s1:5', 's1:7', 's1:5', 's1:8', 's1:5', 's1:7', 's1:5', 's1:8']))],
+        headings: ['holds G', '']
+    },
+    {
+        // Added 2026-10-24, when the printed chord came to be tried first.
+        name: 'a full strum of the printed chord is that chord, not the one before with a note off it',
+        measures: [measure(strummed(G)), measure(strummed('s6:3 s5:2 s4:0 s3:0 s2:0 s1:1'), [['G7', 1]])],
+        headings: ['holds G', 'holds G7'],
+        anomalies: 0
+    },
+    {
+        // Joel, 2026-10-24: a sus chord held measure after measure under the plain chord is an
+        // anomaly, not the printed chord with a note added.
+        name: 'a sus chord held under the printed plain chord stays an anomaly',
+        measures: [measure(picked(['s5:3', 's2:3', 's3:0', 's2:3', 's5:3', 's2:3', 's3:0', 's2:3']), [['C', 1]])],
+        headings: ['C (anomaly)'],
+        anomalies: 1
+    },
+    {
+        // Joel, 2026-10-24: E, G and B under a printed C, with no C, are Em, not C.
+        name: 'notes that spell a chord of another root under the printed chord stay an anomaly',
+        measures: [measure(picked(['s4:2', 's3:0', 's1:0', 's2:0', 's4:2', 's3:0', 's1:0', 's2:0']), [['C', 1]])],
+        headings: ['C (anomaly)'],
+        anomalies: 1
+    },
+    {
+        name: 'the same note off the printed chord picked twice running is one exception',
+        measures: [measure(picked(['s5:3', 's4:2', 's2:3', 's2:3', 's2:1', 's3:0', 's2:1', 's1:0']), [['C', 1]])],
+        headings: ['holds C, one exception']
+    },
+    {
+        name: 'one added note picked once under the printed chord is an exception',
+        measures: [measure(picked(['s4:0', 's3:0', 's4:0', 's1:0', 's4:0', 's3:0', 's4:0', 's2:0']), [['G', 1]])],
+        headings: ['holds G, one exception']
+    },
+    {
+        // Two added notes picked once each are not both exceptions, as one would be: the one heard
+        // longer stays in the shape, and the other is its exception. Joel, 2026-10-24: a minor
+        // chord with both a seventh and an eleventh added is too loose to call the minor chord.
+        name: 'of two added notes, the one heard longer stays and the other is an exception',
+        measures: [measure([[1, 0.5, 's5:0'], [1.5, 0.5, 's4:2'], [2, 0.5, 's3:5'], [2.5, 1, 's2:3'], [3.5, 0.5, 's1:3'], [4, 0.5, 's3:5'], [4.5, 0.5, 's4:2']], [['Am', 1]])],
+        headings: ['holds Am, one exception']
+    },
+    {
         name: 'a printed symbol that agrees gives its own spelling',
         measures: [measure(strummed(Abm), [['G#m', 1]])],
         headings: ['holds G#m'],

@@ -127,6 +127,35 @@ For a whole measure, notes off the form are exceptions only where:
   next chord, as the open D before a G at the end of a measure of C;
 - no chord is printed on them other than the form's own, or a power chord being filled out to it.
 
+### A form no measure spells alone
+
+From the totallyGuitars Ripple Chord Solo, 2026-10-24. Its first three measures are a G, 320003,
+picked across them: measure 1 plays string 5 at fret 2 and open string 4, with string 5 at fret 3
+once near the end; measures 2 and 3 play strings 6, 3, 2 and 1, and measure 3 has string 3 at
+fret 2 once. No measure spells a G on its own, B and D in the first, G and B in the others, and
+read across bar lines the fret 3 joined string 6 of the next measure as a Gsus4. The headings were
+"holds Gsus4 at beat 4", "G (anomaly)" under the file's printed G, and nothing. Joel: holds G
+with one exception, continues G, continues G with one exception.
+
+So a measure no form holds, whose own notes spell no chord, is tried with the form the measure
+before was held with, and with its own notes joined by the strings the measure before or after
+plays and it does not. A neighbour lends its strings only where it plays none of the measure's
+strings at another fret. It is the last thing tried, after the moving finger, and these forms are
+not tried with one.
+
+It is kept that narrow because the corpus showed what wider does. Tried for every measure, the
+form before beat the measure's own chord: Falling Slowly's Fsus2 measures after a C became
+"continues C". Tried before the moving finger, it gave Into Dust's lone D under a printed D the
+F before it and an anomaly. Joined with a neighbour that contradicts it, Sister Golden Hair's
+measure 42 became a Gmaj7 from strings of the G before it. And a measure of one note, or of notes
+on one string, is not a piece of a chord: American Pie's lead had a lone E holding Em, and slide
+and pedal steel melodies borrowed a string to hold power chords.
+
+The chord solo now reads "holds G at beat 2, one exception" (beat 1 is a rest), "continues G",
+"continues G, one exception", in both its files. Elsewhere it gave Pink Houses' measures 52 to 54,
+which held nothing between measures of G, "continues G", and Sister Golden Hair's measure 13,
+which held nothing, "holds G6, one exception".
+
 ### One finger moving through chords of one root
 
 Dust in the Wind holds a C shape while one finger moves on string 2 between fret 1, open and fret
@@ -146,6 +175,13 @@ exceptions.
   heard in the measure or the ones beside it, and no chord may be printed on a move.
 - A move is counted once: it lasts until the finger goes to another fret, with notes on other
   strings in between, and a hammer-on or pull-off straight on from it is the same move.
+- A measure with an exception on another string, one the shape leaves out, keeps its own reading.
+  Until 2026-10-24 the moves replaced its exceptions and that note went uncounted: Dust in the
+  Wind's lead measure 72, an Am with string 2 at fret 3 picked twice, said "continues Am" with
+  none. It now says "continues Am, two exceptions". Six measures that said one exception now say
+  two: Sister Golden Hair 16, 32 and 70, where the open string 1 at the end of a G is counted as
+  it already was in measure 12, and Dust in the Wind's lead 8 and 51 and fingerstyle 34, each with
+  an open B or a G on a string the shape leaves out.
 
 Dust in the Wind's intro reads "holds C, one exception", "continues C, one exception", "holds Am,
 two exceptions", and so on. Ripple's capo part, measure 36, walks string 5 down to a B before the
@@ -340,6 +376,113 @@ name no form, where it is the only place the file's chords are given. Decided 20
 A track with anomalies gets a collapsed region after Chords Used and before the measures, summarised
 "Anomalies - 3" as Chords Used is, with one item per measure: "Measure 12: the file prints G, the
 notes hold Em". A track with none has no region, so it does not add a stop to every track.
+
+### Chords printed on rests
+
+Fixed 2026-10-24. `trackEvents`, `describeChordSymbols` and Chords Used all skipped a chord the
+file prints on a rest, which files do before a strum: Sister Golden Hair's second rhythm guitar
+prints A on the rest before it. The chord before stayed in effect, so the printed F#m seemed to
+run over measures of E, and a measure naming no form said nothing of the chord. A chord printed
+on a rest is now read as printed. It changes 7 of Vincent's headings, and gives Vincent two
+anomalies: a C printed on a rest over E, G and B.
+
+### Trusting the printed chord
+
+Joel's question, 2026-10-24, after the Ripple Chord Solo printed a G over measure 2 that the app
+called an anomaly: what if the file's chord is trusted? Every anomaly on the guitar tracks was read
+beat by beat. The detail names songs measure by measure, so it is in `anomaly-review.md` beside the
+record in the Guitar folder, not here.
+
+Of the 45 anomalies, none is the file plainly wrong. In 19 the printed chord is right and the form
+finder misread the notes, for these reasons:
+
+- A bass note counted as an exception, because adding it changes the chord's root: Into Dust's F
+  under its Fsus2, the F#m11 shape in Sister Golden Hair, the E under Wish You Were Here's Em7.
+- A quality the finder does not recognise: 7sus4 is not in `RECOGNIZED_STRUM_SUFFIXES`, so Wish
+  You Were Here's A7sus4 shape is never a candidate and the Em7 shape is held instead.
+- `keepPlainChord` treats G to G minor, one finger on string 5, as one chord with a finger
+  moving, though `playMovingFinger` already says a change from E to Em is a change of chord.
+- A quick hammer from B flat to B taken as the form's fret, making a G minor.
+- A whole measure read as one form across a chord printed in the middle of it.
+- Lead playing: a fragment held for half a beat named, where the line is mostly in the printed
+  chord's tones.
+
+25 are a matter of naming: Into Dust's C, 23 measures of C, G and the drone D with no E, which the
+rule of 2026-10-20 makes Csus2 and an anomaly; and Vincent's two measures of E, G and B under a C.
+One is a lick of C, B and G under an Am, fair by the notes.
+
+`trustPrinted` in `FORM_DEFAULTS`, on in the app from 2026-10-24, Joel's decision after reading
+the review: where one printed chord covers a whole measure, the measure is first tried as that
+chord (`playPrinted`). Each string takes the
+fret that sounds one of the chord's tones; a string with none keeps its fret as an added tone,
+unless that is a semitone from a chord tone. It holds where at least two of the chord's tones are
+held, there are no more added tones than chord tones, the shape does not spell a chord of another
+root, and the notes off it pass the tests of any whole measure. Beyond the measure where the chord
+is printed, it is tried only where the measure's notes spell no chord of their own.
+
+A shape that leaves out the printed chord's third and holds its second or fourth is the sus
+chord, not the printed chord with a note added, and keeps the rule of 2026-10-20. Into Dust's
+23 measures of C, G and the drone D stay "C (anomaly)". Joel, 2026-10-24: the Csus2 is clear and
+persistent across many measures, beyond a single flourish. A second or fourth heard for a moment
+is an exception of the printed chord, as before.
+
+With it on, 16 of the 45 anomalies end, none are made, and 67 headings change in 9 tracks.
+`chord-forms-anomalies.mjs --diff` lists every change. Joel is going through them a group at a
+time; each decision goes here.
+
+- Into Dust's other seven, accepted 2026-10-24: "holds Fsus2" in measures 45 and 95, where the F
+  bass had been a note off a G5; "holds Gm" and "continues Gm" in 71 and 72; "holds Em7" in 46
+  and 96, where the E bass had been two exceptions.
+- Measure 108 of Into Dust is "continues G, one exception": the open high E picked once is an
+  exception, not a note added to the G, as Joel hears it. A note added to the printed chord that
+  is picked once in the measure, on its own, is an exception, as `passingNotes` already says for
+  forms found from the notes. That alone lost Sister Golden Hair's three F#m measures, whose
+  F#m11 shape picks its open B and E once each, so it applies only where one string in the
+  measure is like that: several are an arpeggio ringing through the shape. With both, nothing
+  else changed. Decided 2026-10-24, with the principle in `chord-forms-workflow.md`.
+- Sister Golden Hair's F#m, measures 24, 40 and 78 of the second rhythm guitar, "holds F#m, one
+  exception", 2026-10-24. The shape is 2x2200, an E and a B added to F#m. Taking both into the
+  shape made "holds F#m", and Joel: a seventh and an eleventh added is getting loose to call it
+  F#m. Taking both as exceptions does not hold at all, since they are half the measure and two
+  come together. So the printed chord keeps at most one added note, the one heard longest, and
+  any other is off the form. Nothing else in the corpus changed.
+- Vincent's measures 6 and 32 stay "C (anomaly)", 2026-10-24. The file prints C on a rest and
+  the notes are E, G and B, no C; Joel: they spell Em, not C. The printed chord is not taken where
+  the measure's notes, those off the form included, spell a chord with another root. A first
+  version used the first reading of the notes and rejected more than it should, since G, B, D and
+  E read as Em7 before G6, and A, E and B as Esus4 before Asus2; so it rejects only where no
+  reading has the printed root. With that, nothing else changed.
+- Vincent's measure 4, "holds Am during beat 1, two exceptions", accepted 2026-10-24. The Am is
+  picked with an open B twice and no C, a sus2 for one measure, and the C comes in the next.
+  Unlike Into Dust's Csus2, which holds for many measures, it is the Am with the B as
+  exceptions. The B is a semitone from the C, so it is off the form, and the rule for a held sus
+  chord does not see it. Measure 5 after it, "continues Am, three exceptions", and measure 15,
+  "holds Am, two exceptions", one for each time the finger leaves the C for the open B, accepted
+  too.
+- Ripple's capo part, measure 40, "holds G7", accepted 2026-10-24: a full G7 strummed under a
+  printed G7, which had been the G before it with the F as an exception.
+- The same note off the printed chord picked again straight after is one exception, the finger
+  staying where it went, as a move counts once in `movesOn`. Found 2026-10-24 in the Wish You
+  Were Here Chord Solo's measure 18, where a D on string 2 picked twice at the end of the measure
+  had become two exceptions. It also changed Vincent's measure 11, from "continues Am, holds Am
+  during beat 3, one exception" to "continues Am, two exceptions", an open B picked and picked
+  again into a hammer-on counting once; and the chord solo's measure 5, from "holds G, holds Gsus2
+  during beat 2" to "holds G, two exceptions". Nothing else moved.
+- The totallyGuitars Wish You Were Here files, accepted 2026-10-24: the chord solo's measures 2,
+  3 and 5, "holds Em7, four exceptions", "holds G, two exceptions" and "holds G, two exceptions";
+  the .gpx's measures 2 and 4, "holds Em7", and 13, "holds G, one exception", where a quick hammer
+  from B flat to B had made it G minor.
+
+Every change trying the printed chord makes has been read and accepted. With it and the rules
+above, 65 headings change in 9 tracks against it off, and 14 of the 45 anomalies end, none made.
+The 31 left: Into Dust's 23 Csus2 measures and Vincent's 2 Em measures, decided to be anomalies;
+and 6 the printed chord cannot hold: four lead lines in the Wish You Were Here Chord Solo,
+Vincent's measure 22, a melody on string 2 taking more than a third of the measure, and its
+measure 19, with a chord printed in its middle.
+- Wish You Were Here on Songsterr, three tracks, accepted 2026-10-24: the Em7 measures say
+  "holds Em7", where the E bass had been exceptions of a G shape; the A7sus4 measures say "holds
+  A7sus4", with the walk into the Em7 as its exceptions, where they had been anomalies or named
+  nothing.
 
 ## Chords Used
 

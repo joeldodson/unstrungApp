@@ -157,6 +157,8 @@ This is the same idea as sheet music showing a chord only where it changes.
 
 The shape is worked out from the notes the measure picks or strums, so a part picked one string at a time still holds a G.
 Where the file prints a chord name and it matches the shape, the heading uses the file's name.
+Where the file prints a chord over a whole measure, the measure is read as that chord first, with the notes off it as exceptions, unless the notes clearly hold something else.
+A shape held without the chord's third, such as C with a D in place of the E measure after measure, is that sus chord and not the printed one.
 Where the notes hold a different chord from the one the file prints, the heading gives the file's chord followed by "(anomaly)", and the track's Anomalies section lists it.
 Where a melody is played over a chord the file prints, the heading gives the chord followed by "(harmony)".
 A measure that changes chord more than once, such as a chord on every beat, says nothing about shapes, and its heading gives the chord names the file prints, as before.

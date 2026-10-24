@@ -26,7 +26,11 @@ export const FORM_DEFAULTS = {
     harmonyShare: 0.5,
     // How a note off the form is known to be an exception rather than a change; see `returns`.
     // 'compare' is what the corpus supports; the others are kept for the report to compare.
-    returnRule: 'compare'
+    returnRule: 'compare',
+    // Whether a measure under one printed chord holds that chord first, where its notes allow;
+    // see `playPrinted`. On from 2026-10-24, Joel's call; `chord-forms-anomalies.mjs --diff`
+    // lists what it changes against it off.
+    trustPrinted: true
 };
 
 const TICKS_PER_QUARTER = 960;
@@ -54,8 +58,11 @@ export function trackEvents(staff, masterBars = []) {
         const symbols = [];
         for (const [beatIndex, beat] of (bar.voices[0] ? bar.voices[0].beats : []).entries()) {
             const start = (beat.playbackStart || 0) / ticksPerBeat + 1;
-            if (beat.isRest) continue;
+            // A chord printed over a rest still changes the chord, as Sister Golden Hair's A printed
+            // on a rest before the strum; it used to be dropped with the rest, leaving the chord
+            // before it in effect.
             if (beat.hasChord && beat.chord?.name) symbols.push({ name: beat.chord.name, beat: start });
+            if (beat.isRest) continue;
             if (beat.graceType) continue;
             const notes = beat.notes
                 .filter(note => note.isStringed && !note.isDead && !note.isTieDestination && typeof note.realValue === 'number')
@@ -434,6 +441,130 @@ function chooseForm(candidates, heldElsewhere, library) {
 // --- Whole measures ----------------------------------------------------------------------
 
 /**
+ * `trustPrinted`: a measure as the chord the file prints over it, where its notes do not say
+ * otherwise. Each string the measure plays takes the fret that sounds a tone of the printed chord,
+ * the one heard longest; a string with none takes its longest fret as an added tone, unless that
+ * is a semitone from one of the chord's tones, which is a clash, and then its notes are off the
+ * form. Into Dust prints C over C, G and a D held on string 2 throughout: the form is the C with
+ * the D added. Null unless at least two of the chord's tones are held, the chord's tones fill
+ * `harmonyShare` of the measure, and the notes off the form are one finger at a time and no more
+ * than `maxExceptionShare` of it.
+ */
+function playPrinted(printed, members, events, openMidi, settings) {
+    const heard = new Map();
+    for (const member of members) {
+        for (const note of events[member].notes) {
+            if (!heard.has(note.string)) heard.set(note.string, new Map());
+            const byFret = heard.get(note.string);
+            byFret.set(note.fret, (byFret.get(note.fret) ?? 0) + events[member].length);
+        }
+    }
+    const pcOf = (string, fret) => pitchClass(openMidi.get(string) + fret);
+    const clashes = pc => [...printed.pcs].some(tone => (pc - tone + 12) % 12 === 1 || (tone - pc + 12) % 12 === 1);
+    const frets = new Map();
+    const left = new Set();
+    // An added note picked once in the measure, on its own, is passing through, as `passingNotes`
+    // says: the open high E picked once in a measure of Into Dust's G is an exception, Joel,
+    // 2026-10-24. Only where it is the one such string in the measure: Sister Golden Hair's F#m11
+    // shape picks its open B and open E once each, an arpeggio ringing through the shape.
+    const once = string => {
+        const on = members.filter(member => events[member].notes.some(note => note.string === string));
+        return on.length === 1 && events[on[0]].notes.length === 1;
+    };
+    const added = [];
+    for (const [string, byFret] of heard) {
+        const ranked = [...byFret].sort((a, b) => b[1] - a[1]);
+        const tone = ranked.find(([fret]) => printed.pcs.has(pcOf(string, fret)));
+        if (tone) frets.set(string, tone[0]);
+        else if (!clashes(pcOf(string, ranked[0][0]))) { frets.set(string, ranked[0][0]); added.push(string); }
+        else left.add(string);
+    }
+    const lone = added.filter(once);
+    if (lone.length === 1) { frets.delete(lone[0]); left.add(lone[0]); }
+    // At most one note added to the printed chord, the one heard longest; the strings of any
+    // other are off the form. Sister Golden Hair's F#m11 shape, an E and a B over F#m, is F#m
+    // with the E and one exception, the B: with both added it is too loose to call F#m, Joel,
+    // 2026-10-24.
+    const addedTime = new Map();
+    for (const string of added) {
+        if (!frets.has(string)) continue;
+        const pc = pcOf(string, frets.get(string));
+        addedTime.set(pc, (addedTime.get(pc) ?? 0) + heard.get(string).get(frets.get(string)));
+    }
+    const [kept] = [...addedTime].sort((a, b) => b[1] - a[1])[0] ?? [];
+    for (const string of added) {
+        if (frets.has(string) && pcOf(string, frets.get(string)) !== kept) { frets.delete(string); left.add(string); }
+    }
+    const held = new Set([...frets].map(([string, fret]) => pcOf(string, fret)));
+    const tones = [...held].filter(pc => printed.pcs.has(pc));
+    // At least two of the chord's tones, and no more added tones than tones of the chord.
+    if (tones.length < 2 || held.size - tones.length > tones.length || reachOf(frets) > settings.reach) return null;
+    // A form that spells an everyday chord of another root is that chord, not the printed one; so
+    // is a measure whose notes do, the ones off the form included. Vincent prints C on a rest over
+    // E, G and B, no C: Em, not C, Joel, 2026-10-24.
+    const own = chordOf(frets, openMidi);
+    if (own && PITCH_CLASSES[own.root] !== printed.pc) return null;
+    // Only where no reading of them has the printed root: G, B, D and E are G6 as well as Em7,
+    // and A, E and B are Asus2 as well as Esus4.
+    const all = new Map(frets);
+    for (const string of left) all.set(string, [...heard.get(string)].sort((a, b) => b[1] - a[1])[0][0]);
+    const readings = identifyChordFromNotes([...all].map(([string, fret]) => openMidi.get(string) + fret))
+        .filter(reading => RECOGNIZED_STRUM_SUFFIXES.has(reading.suffix));
+    if (readings.length > 0 && !readings.some(reading => PITCH_CLASSES[reading.root] === printed.pc)) return null;
+    // Nor is a shape that leaves out the printed chord's third and holds its second or fourth:
+    // that is the sus chord, held, not the printed chord with a note added. Into Dust prints C
+    // over C, G and the D held on string 2, measure after measure; Joel, 2026-10-24: the Csus2
+    // is clear and persistent, beyond a flourish, so it stays an anomaly. A second or fourth
+    // heard for a moment is an exception, off the form, and never reaches this.
+    const third = [3, 4].map(step => (printed.pc + step) % 12).find(pc => printed.pcs.has(pc));
+    if (third !== undefined && !held.has(third) && [2, 5].some(step => held.has((printed.pc + step) % 12))) return null;
+
+    // Notes off the form are exceptions as in `playMeasure`: one finger, straight back to the form,
+    // the next measure's first note fitting it after the last, except a lone open string lifting
+    // off. A change pushed onto the "and" of beat 4 is a change, not an exception of this chord.
+    const offNotes = member => events[member].notes.filter(note => left.has(note.string) || (frets.has(note.string) && frets.get(note.string) !== note.fret));
+    const fitsForm = event => event.notes.every(note => !left.has(note.string) && (!frets.has(note.string) || frets.get(note.string) === note.fret));
+    // A walk into the next chord at the end of the measure, two or more single notes off the form
+    // lasting under a beat in all, is its exceptions however many strings it crosses: Wish You
+    // Were Here's A7sus4 ends on B and D on the way to the E of the Em7. One note is not a walk:
+    // the chord solo's A barre ends on string 2 at fret 3, the D arriving early.
+    let walk = members.length;
+    while (walk > 0 && events[members[walk - 1]].notes.length === 1 && offNotes(members[walk - 1]).length > 0) walk--;
+    if (members.length - walk < 2 || members.slice(walk).reduce((sum, member) => sum + events[member].length, 0) >= 1 - EPSILON) walk = members.length;
+    const groups = [];
+    for (let k = 0; k < members.length; k++) {
+        if (offNotes(members[k]).length === 0) continue;
+        // A slurred run is one exception, and so is the same note off the form picked again
+        // straight after, the finger staying where it went, as a move counts once in `movesOn`.
+        const offKeys = member => offNotes(member).map(noteKey).sort().join();
+        if (k >= walk) {
+            const last = groups[groups.length - 1];
+            if (last && last[last.length - 1] === members[k - 1] && offKeys(members[k - 1]) === offKeys(members[k])) last.push(members[k]);
+            else groups.push([members[k]]);
+            continue;
+        }
+        const group = [members[k]];
+        while (k + 1 < members.length && offNotes(members[k + 1]).length > 0
+            && (slurred(events[members[k]], events[members[k + 1]]) || offKeys(members[k + 1]) === offKeys(members[k]))) group.push(members[++k]);
+        if (new Set(group.flatMap(member => offNotes(member).map(note => note.string))).size > 1) return null;
+        const next = group[group.length - 1] + 1;
+        if (k + 1 >= walk && walk < members.length) { groups.push(group); continue; }
+        if (k + 1 < members.length) {
+            if (offNotes(members[k + 1]).length > 0) return null;
+        } else if (next >= events.length || !fitsForm(events[next])) {
+            const lift = group.length === 1 && events[group[0]].notes.every(note => note.fret === 0);
+            if (!lift) return null;
+        }
+        groups.push(group);
+    }
+    const time = members.reduce((sum, member) => sum + events[member].length, 0);
+    const offTime = groups.flat().reduce((sum, member) => sum + events[member].length, 0);
+    if (time > 0 && offTime / time > settings.maxExceptionShare + EPSILON) return null;
+    const chord = { root: printed.root, suffix: printed.suffix, name: printed.name, notes: printed.pcs.size };
+    return { frets, chord, exceptions: groups, passing: new Set(), reach: reachOf(frets), reason: null, printed: true };
+}
+
+/**
  * Whether a chord printed on a note off a form is no change from it: the form's own chord, or a
  * power chord being filled out to it, as Mother prints G where a G5 becomes a full G. Anything else
  * printed there is a change the file states, as a Cmaj7 printed for a beat inside a C is.
@@ -576,10 +707,11 @@ function playMovingFinger(frets, chord, members, nearby, events, openMidi, setti
  */
 function keepPlainChord(whole, byMeasure, events, openMidi) {
     const rootOf = form => PITCH_CLASSES[form.chord.root];
+    // A measure held as the chord the file prints keeps it.
     for (let first = 0; first < whole.length; first++) {
-        if (!whole[first]) continue;
+        if (!whole[first] || whole[first].printed) continue;
         let last = first;
-        while (last + 1 < whole.length && whole[last + 1] && rootOf(whole[last + 1]) === rootOf(whole[first])) last++;
+        while (last + 1 < whole.length && whole[last + 1] && !whole[last + 1].printed && rootOf(whole[last + 1]) === rootOf(whole[first])) last++;
         const run = [];
         for (let m = first; m <= last; m++) run.push(m);
         first = last;
@@ -608,8 +740,12 @@ function keepPlainChord(whole, byMeasure, events, openMidi) {
             const already = whole[m].frets.get(moving) === plain.fret;
             const frets = new Map(whole[m].frets).set(moving, plain.fret);
             // Notes off the shape on any other string would be a second finger; leave such a measure.
+            // So would an exception the measure already has on another string the shape leaves out,
+            // such as a D on string 2 over an Am whose string 2 is silent.
             const elsewhere = byMeasure[m].some(member => events[member].notes.some(note =>
-                note.string !== moving && frets.has(note.string) && frets.get(note.string) !== note.fret));
+                note.string !== moving && frets.has(note.string) && frets.get(note.string) !== note.fret))
+                || whole[m].exceptions.flat().some(member => events[member].notes.some(note =>
+                    note.string !== moving && !frets.has(note.string)));
             if (elsewhere) continue;
             // A measure whose own strings, with the plain fret, make some other chord is left too.
             const chord = chordOf(frets, openMidi);
@@ -648,13 +784,17 @@ function readWholeMeasures(spans, measures, events, openMidi, settings, heldElse
     events.forEach((event, index) => byMeasure[event.measure].push(index));
 
     // The last chord printed at or before the first beat of each measure, read as a chord.
+    const read = symbol => {
+        const chord = parseChordSymbol(symbol.name);
+        return chord ? { ...chord, name: symbol.name.split('/')[0].trim() } : null;
+    };
     let inEffect = null;
     const printedAtStart = measures.map(measure => {
         const atStart = measure.symbols.filter(symbol => symbol.beat <= 1 + EPSILON).pop();
-        if (atStart) inEffect = parseChordSymbol(atStart.name);
+        if (atStart) inEffect = read(atStart);
         const current = inEffect;
         const later = measure.symbols.filter(symbol => symbol.beat > 1 + EPSILON).pop();
-        if (later) inEffect = parseChordSymbol(later.name);
+        if (later) inEffect = read(later);
         return current;
     });
     const printedBy = m => printedAtStart[m];
@@ -665,6 +805,22 @@ function readWholeMeasures(spans, measures, events, openMidi, settings, heldElse
         const members = byMeasure[m];
         whole.push(null);
         if (members.length === 0) continue;
+
+        // `trustPrinted`, an experiment of 2026-10-24: where one printed chord covers the whole
+        // measure and the notes do not contradict it, the measure holds that chord, before any
+        // form the notes alone suggest is tried. See `playPrinted`.
+        // Further into the printed chord's stretch, only a measure whose notes spell no chord of
+        // their own: American Pie strums an A7 nothing prints, under the Em printed before it.
+        const printedHere = () => measures[m].symbols.some(symbol => symbol.beat <= 1 + EPSILON);
+        const ownChord = () => chordOf(new Map(members.flatMap(member => events[member].notes.map(note => [note.string, note.fret]))), openMidi);
+        if (settings.trustPrinted && printedBy(m) && !measures[m].symbols.some(symbol => symbol.beat > 1 + EPSILON) && (printedHere() || !ownChord())) {
+            const held = playPrinted(printedBy(m), members, events, openMidi, settings);
+            if (held) {
+                whole[m] = { ...held, decidedBy: 'the chord the file prints' };
+                previousIdentity = identityOf(held.chord);
+                continue;
+            }
+        }
 
         const tried = new Map();
         const tryForm = (frets, rank) => {
@@ -717,6 +873,38 @@ function readWholeMeasures(spans, measures, events, openMidi, settings, heldElse
                 }
             }
         }
+        // Still nothing, and the measure's own notes spell no chord: a fragment of a form the
+        // measures beside it complete. Ripple's chord solo opens with strings 5 and 4 of a G, and
+        // string 6 and the top three come in the next measure, so neither measure alone spells a G;
+        // measure 3 plays strings 6, 3, 2 and 1 of it and never 5 or 4. Tried are the form the
+        // measure before was held with, and the measure's notes with the strings the measure before
+        // or after plays and it does not, where that measure plays none of its strings at another
+        // fret. A measure that spells a chord of its own, such as an Fsus2 after a C, is that chord,
+        // and these forms are not tried with a moving finger. A measure of one note, though it
+        // sounds on two strings, is a note and not a piece of a chord, and one of notes on one
+        // string, as a slide part plays, is a melody.
+        const notesHeard = new Set(members.flatMap(member => events[member].notes.map(note => pitchClass(note.midi))));
+        if (holding.length === 0 && notesHeard.size >= 2 && played.size >= 2 && maps.every(map => !chordOf(map, openMidi))) {
+            if (whole[m - 1]) tryForm(whole[m - 1].frets, 2);
+            for (const neighbour of [byMeasure[m - 1], byMeasure[m + 1]]) {
+                if (!neighbour?.length) continue;
+                const notes = neighbour.flatMap(member => events[member].notes);
+                if (notes.some(note => played.has(note.string) && !played.get(note.string).includes(note.fret))) continue;
+                const added = new Map();
+                for (const note of notes) {
+                    if (played.has(note.string)) continue;
+                    if (!added.has(note.string)) added.set(note.string, []);
+                    if (!added.get(note.string).includes(note.fret)) added.get(note.string).push(note.fret);
+                }
+                if (added.size === 0) continue;
+                let joined = maps;
+                for (const [string, frets] of added) {
+                    joined = joined.flatMap(map => frets.map(fret => new Map(map).set(string, fret)));
+                    if (joined.length > 16) { joined = joined.slice(0, 16); break; }
+                }
+                for (const map of joined) tryForm(map, 2);
+            }
+            holding = [...tried.values()].filter(entry => entry.result);        }
         if (holding.length === 0) { previousIdentity = null; continue; }
         // Strings the measure plays at more than one fret, and whether a form's fret on each sounds
         // together with other strings: a fret struck in the chord is part of the shape.
