@@ -198,12 +198,20 @@ The session of 2026-10-23 and 24, all committed, with every decision in
   describes the songs measure by measure. Its questions 1 to 3 are answered.
 - The record was written again once Joel accepted everything. It now includes the three Willie
   Nelson files, which have not been read: being in the record does not make them checked.
+- Fade Into You was slow to open, about 16 seconds a track in `findChordForms`, on the Martin
+  acoustic and the Epiphone Casino rhythm part. Both strum a chord on eighths and strum the open
+  strings on the last eighth while the hand changes chord. That open strum lifts three or four
+  strings off the shape at once, more than one finger, so no form holds the measure, and 99 of
+  127 measures went on to `readWholeMeasures`'s last tries: each form, with each string set to
+  each fret heard in the measures either side, once per beat there. About 14 forms, 6 strings and
+  20 strummed beats either side, every one the same chord, made about 900 `playMeasure` calls a
+  measure, 93,000 a track, each naming chords from scratch. Ripple's lead, picked more than
+  strummed, sends 10 measures there and makes 798 calls in all. `chordOf` now remembers its
+  readings and each fret is tried once per form. Now about 0.4 seconds a track, and the whole
+  Guitar folder 2 seconds rather than 66, with every track's output identical to before.
 
 Next, in no settled order:
 
-- Fade Into You is slow to open: `findChordForms` takes about 13 seconds on each of its two
-  acoustic guitar tracks, the same with the code as it was before 2026-10-24.
-  `verify-chord-forms-in-app.mjs` times out on it after 15 seconds.
 - Read every guitar track of the totallyGuitars files measure by measure, since they were
   recorded without being read, then the three Willie Nelson files.
 - Wish You Were Here's measure 20 says "holds A7sus4, holds A7sus4 at beat 2", the same chord

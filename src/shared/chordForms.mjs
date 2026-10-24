@@ -121,12 +121,28 @@ function fits(frets, event, settings) {
 /** A hammer-on or pull-off runs from one event into the next. */
 const slurred = (from, to) => from.notes.some(note => note.slurOut) && to.notes.some(note => note.slurIn);
 
+// Readings by the notes' pitch classes and the bass's, all `identifyChordFromNotes` looks at.
+// Fade Into You's measures beside a measure no form holds made it name the same notes hundreds
+// of thousands of times, about 13 seconds a track.
+const chordReadings = new Map();
+
 /** The everyday chord a fret map spells, or null. Needs at least two different notes. */
 function chordOf(frets, openMidi) {
     const midis = [...frets].map(([string, fret]) => openMidi.get(string) + fret);
-    if (new Set(midis.map(pitchClass)).size < 2) return null;
-    const reading = identifyChordFromNotes(midis).find(candidate => RECOGNIZED_STRUM_SUFFIXES.has(candidate.suffix));
-    return reading ? { root: reading.root, suffix: reading.suffix, name: reading.name, notes: reading.complexity } : null;
+    if (midis.length === 0) return null;
+    let pcs = 0;
+    for (const midi of midis) pcs |= 1 << pitchClass(midi);
+    const key = pcs * 12 + pitchClass(Math.min(...midis));
+    if (!chordReadings.has(key)) {
+        let chord = null;
+        if (new Set(midis.map(pitchClass)).size >= 2) {
+            const reading = identifyChordFromNotes(midis).find(candidate => RECOGNIZED_STRUM_SUFFIXES.has(candidate.suffix));
+            if (reading) chord = { root: reading.root, suffix: reading.suffix, name: reading.name, notes: reading.complexity };
+        }
+        chordReadings.set(key, chord);
+    }
+    const chord = chordReadings.get(key);
+    return chord ? { ...chord } : null;
 }
 
 /** The form as a fingering, from the lowest string to the highest, x for a string it leaves out. */
@@ -862,11 +878,17 @@ function readWholeMeasures(spans, measures, events, openMidi, settings, heldElse
             // string set to each fret heard on it beside the measure.
             if (holding.length === 0) {
                 for (const entry of tried.values()) {
+                    // Each fret is played once: every beat beside the measure with the same fret on
+                    // the string tries the same form. Fade Into You's picking made that thousands
+                    // of tries a measure.
+                    const moved = new Map();
                     for (const [string] of entry.frets) {
                         for (const member of nearby) {
                             const note = events[member].notes.find(n => n.string === string && n.fret !== entry.frets.get(string));
                             if (!note) continue;
-                            const result = playMeasure(new Map(entry.frets).set(string, note.fret), members, events, openMidi, settings, { movingFinger: true, nearby });
+                            const key = `${string}:${note.fret}`;
+                            if (!moved.has(key)) moved.set(key, playMeasure(new Map(entry.frets).set(string, note.fret), members, events, openMidi, settings, { movingFinger: true, nearby }));
+                            const result = moved.get(key);
                             if (result) holding.push({ ...entry, result });
                         }
                     }
