@@ -39,6 +39,9 @@ eyesunstrung.vip.
 - `chord-forms-workflow.md` -- retired 2026-10-26 with chord forms: how songs were checked
   against the record of every song while the rules were changing.
 
+- `measure-practice.md` -- one region per track for the measures and playback, with Play and Add
+  buttons on each measure, so a song can be learned a measure at a time; and the Chord Symbols in
+  the track's details. Decided 2026-10-27, not built.
 - `note-timing.md` -- why notes sounded behind the metronome's clicks (the pick noise at the start
   of every recording), measured for every recording, and starting each note early by its attack.
   Built 2026-10-22.
