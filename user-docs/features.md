@@ -150,8 +150,14 @@ A measure heading gives the chords the file prints over it, as sheet music does.
 - "continues C" where the measure prints no chord and the last one printed was C.
 - "continues C, chord G at beat 3" where a G is printed partway through, and "during beat 4" for one printed between beats.
 
+A chord continues only to the end of its section.
+A new section names no chord until the file prints one in it.
+
 A printed chord gives the harmony, and the notes of the measure need not spell it: a melody can stray from it.
 unstrung does not work chords out from the notes, so a heading names no chord where the file prints none.
+The chords come from the file only.
+If a file prints the wrong chords, or stops printing them partway through a song, unstrung cannot correct it.
+Look for a better transcription of the song.
 
 A beat is named as a chord when it sounds three different notes or more, such as "G/B, strings 1 through 5".
 A beat with fewer is listed string by string, so open strings 3 and 4 are not called G5.

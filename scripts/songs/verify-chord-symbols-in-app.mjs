@@ -109,6 +109,12 @@ for (const m of capoMeasures.slice(0, 4)) console.log(`  ${m.text}`);
 check('the lead prints no chord over its first measure, so names none', leadMeasures[0].text === 'Measure 1 - Intro', leadMeasures[0].text);
 check('a printed chord at beat 1 is "chord C"', capoMeasures[1].text === 'Measure 2 - chord C', capoMeasures[1].text);
 check('a measure printing none continues it', capoMeasures[2].text === 'Measure 3 - continues C', capoMeasures[2].text);
+// Measure 85 prints F and the Outro prints nothing until C at 102.
+for (const m of capoMeasures.slice(84, 88)) console.log(`  ${m.text}`);
+check('a chord stops at a section', capoMeasures[85].text === 'Measure 86 - Outro', capoMeasures[85].text);
+check('and the section names none until it prints one',
+    capoMeasures.slice(86, 101).every(m => !/chord|continues/.test(m.text)) && capoMeasures[101].text === 'Measure 102 - chord C',
+    capoMeasures[101].text);
 
 console.log('\n=== Beats ===');
 const second = leadMeasures[1].beats;

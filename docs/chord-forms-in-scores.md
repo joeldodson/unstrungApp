@@ -36,9 +36,10 @@ The heading gives the chords the track prints over the measure:
 - "chord C" for one printed at beat 1, which is not said.
 - "chord G at beat 3", or "during beat 2" for one between beats.
 - "continues C" for a measure printing none after one that did. A printed chord stays in force
-  until the next, as on sheet music.
+  until the next, as on sheet music, or until the next section.
 - "continues C, chord G at beat 3" for a measure whose first printed chord is after beat 1.
-- Nothing, before the first printed chord or on a track that prints none.
+- Nothing, before the first printed chord, on a track that prints none, or in a section from its
+  start until it prints a chord.
 
 "Holds" is not used, since it has its own meaning in music. Capitalization follows the rest of the
 heading: "Measure 3 - continues C". The wording was Joel's, 2026-10-26.
@@ -47,7 +48,37 @@ Of the 4,568 guitar measures, 1,360 print a chord, 445 more continue one, and 2,
 of them on tracks that print no chords. 24 of the 50 guitar tracks print chords. 8 print none
 though another track of the same song does, such as Ripple's mandolin part. Those are left without:
 a capo track prints its shapes, not the chords that sound, so borrowing another track's names can
-be wrong.
+be wrong. Those counts are from before a chord stopped at a section.
+
+### Where a file stops printing chords
+
+Joel asked on 2026-10-27 what happens when a file prints a chord early and never another: every
+later measure would say "continues C". No file among his songs does that, but five carry a chord
+through whole sections that print none, where it is plainly wrong:
+
+- Wish You Were Here.gpx: chords stop at measure 10 of 20, and the Lead section read "continues G"
+  for 9 measures.
+- Songsterr's Wish You Were Here, both 12-string tracks: "continues A7sus4" through both verses and
+  the chorus.
+- Songsterr's American Pie: "continues Em" for the 17 measures of the slow last verse.
+- Songsterr's Ripple, capo track: "continues F" for the 16 measures of the Outro.
+- Songsterr's Mother, Gilmour's track: "continues G" for 22 measures of the Solo and the Verse after.
+
+Each began at a section. Two fixes were weighed and set aside: deciding from the file whether its
+chords are broken, which is a guess about the file, and working out what the missing chords should
+be, which is the guessing just dropped. What was chosen is a rule with no guess in it: a printed
+chord stops carrying at the next section, whether a marker or a name written as beat text, and a
+section that prints no chord of its own names none until it does. Sheet music reprints the chord at
+a new section anyway.
+
+Across every track printing chords in the folder, counting the duplicate copies, 483 measures read
+"continues" before and 338 after. The 145 that lost it include all five stretches above, and about
+a dozen single measures where the chord likely did carry into a new section, such as the first
+measure of Mother's two Choruses. Those now say nothing rather than something right, which is the
+side to err on.
+
+The user documentation says that chords come from the file only, so a wrong or missing chord means
+the file needs fixing or a better source.
 
 ### Naming a beat
 

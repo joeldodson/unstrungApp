@@ -447,7 +447,12 @@ const staffCapo = staff => (staff.capo > 0 ? staff.capo : 0);
  * Where a file prints no chord, the heading names none: nothing is better than a wrong chord.
  *
  * A printed chord stays in force until the next one, as on sheet music, so a measure printing
- * none continues the last. One printed at beat 1 is said without its beat.
+ * none continues the last. It stops at a section, though, and a section printing no chord of its
+ * own names none until one is printed. Files stop printing chords partway through a song:
+ * Songsterr's Wish You Were Here goes on with "continues A7sus4" through both verses, its Ripple
+ * with "continues F" through the Outro. Every such stretch in Joel's songs began at a section,
+ * and sheet music reprints the chord at a new section anyway. Decided 2026-10-27; the caller
+ * passes `held` as null at a section. One printed at beat 1 is said without its beat.
  *
  * A chord symbol is a property of the measure, not of the note it is attached to. Guitar Pro
  * anchors it to a beat because it has to anchor it to something, but what it means is "the
@@ -821,20 +826,22 @@ function extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
     const barBeats = staff.bars.map(bar => (bar.voices[0] ? bar.voices[0].beats : []));
     const marks = letRingMarks(barBeats.flat());
     let seen = 0;
-    // The chord printed last, which a measure printing none continues.
+    // The chord printed last, which a measure printing none continues until the next section.
     let held = null;
 
     return staff.bars.map((bar, index) => {
         const beats = barBeats[index];
         const offset = seen;
         seen += beats.length;
+        // A marker the file actually placed always wins; a name lifted out of beat text only
+        // fills a bar that has none. See `extractPromotedSections`.
+        const section = describeSection(masterBars[index]) ?? promotedSections.byMeasure[index] ?? null;
+        if (section) held = null;
         const chords = describeMeasureChords(bar, masterBars[index], held);
         held = chords.held;
 
         return {
-            // A marker the file actually placed always wins; a name lifted out of beat text only
-            // fills a bar that has none. See `extractPromotedSections`.
-            section: describeSection(masterBars[index]) ?? promotedSections.byMeasure[index] ?? null,
+            section,
             repeat: describeRepeat(masterBars[index]),
             chords: chords.text,
             lyrics: songLyrics[index] ?? [],
