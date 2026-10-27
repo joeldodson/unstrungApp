@@ -10,6 +10,34 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.9.3 - Printed chords only
+
+Published 2026-10-27.
+
+0.9.3 names only the chords a file prints. Guitar measure headings no longer work a chord out from the notes, the Anomalies section is gone, and Chords Used is now Chord Symbols.
+
+### Printed chords only
+
+A chord printed over a measure gives the harmony, and the notes of the measure need not spell it: a melody can stray from the harmony on purpose. Working the chord out from the notes gave wrong names too often, and nothing is better than a wrong chord. So a measure heading now names only the chords the file prints:
+
+- "chord C" where the file prints a C at the start of the measure.
+- "continues C" where the measure prints no chord and the last one printed was C.
+- "continues C, chord G at beat 3" where a G is printed partway through, and "during beat 4" for one printed between beats.
+
+A measure before the first printed chord, or on a track that prints none, names no chord. "holds", "(anomaly)" and "(harmony)" are no longer used, and the Anomalies section is gone.
+
+### A chord stops at a section
+
+A printed chord continues only to the end of its section. A new section names no chord until the file prints one in it. Some files stop printing chords partway through a song, and the last chord used to be carried through whole verses where it was plainly wrong.
+
+### Naming a beat
+
+A beat is named as a chord when it sounds three different notes or more, and listed string by string otherwise. Open strings 3 and 4 are no longer called G5, and no beat is named as a power chord. A stroke direction is given only where the file states one.
+
+### Chord Symbols
+
+Each guitar and bass track's Chords Used is now Chord Symbols: the chords the track prints, in the order they first appear, with how many times each is printed. A chord shows the fingering of the diagram the file gives with it, and the chord library's shapes where the file gives none. A track that prints no chords says so.
+
 ## unstrung 0.9.2 - Printed chords first
 
 Published 2026-10-24.
