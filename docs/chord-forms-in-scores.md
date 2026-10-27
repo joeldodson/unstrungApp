@@ -1,4 +1,108 @@
-# Chord forms held through a score
+# Chords in scores
+
+Measure headings name the chords the file prints and nothing else. A beat is named as a chord only
+when it sounds three different notes or more. Each track lists its Chord Symbols with the file's own
+diagrams where it gives them. All three were decided 2026-10-26. From 2026-10-20 to then, headings
+named a chord form instead: the shape the left hand holds, worked out from the notes. That is
+recorded below, with why it was dropped.
+
+## Printed chords only
+
+### Why chord forms were dropped
+
+Chord forms started with Ripple. Its lead part holds a G for its first measures, and unstrung
+called open strings 3 and 4 "G5/D" and listed G5 among the track's chords. Over a week the rules
+grew to choose between sus, add9 and 7th chords, with exceptions, and the Dire Straits songs
+brought dozens of anomalies. Each rule that fixed one song's guess moved another's.
+
+Joel asked a musician, whose advice was not to guess chords. A chord printed over a measure gives
+the harmony, and the notes of the measure need not spell it: a melody can stray from the harmony on
+purpose, and can have no note in common with it. If the file prints a chord, use it. If not,
+nothing is better than being wrong.
+
+Two measurements came before the decision, on 2026-10-26, across the 4,568 measures of guitar
+tracks in Joel's Guitar folder:
+
+- Naming forms by their root and major or minor only changed 640 headings and cut anomalies from 58
+  to 35. The Brothers In Arms Solo kept all 25 of its anomalies, because they come from a lead line
+  under the printed chords, which simpler names do not help.
+- Not naming two-note beats removed every power-chord name from the beats. Power chords stayed in
+  Chords Used and in 295 headings, because they came from forms.
+
+### Measure headings
+
+The heading gives the chords the track prints over the measure:
+
+- "chord C" for one printed at beat 1, which is not said.
+- "chord G at beat 3", or "during beat 2" for one between beats.
+- "continues C" for a measure printing none after one that did. A printed chord stays in force
+  until the next, as on sheet music.
+- "continues C, chord G at beat 3" for a measure whose first printed chord is after beat 1.
+- Nothing, before the first printed chord or on a track that prints none.
+
+"Holds" is not used, since it has its own meaning in music. Capitalization follows the rest of the
+heading: "Measure 3 - continues C". The wording was Joel's, 2026-10-26.
+
+Of the 4,568 guitar measures, 1,360 print a chord, 445 more continue one, and 2,763 name none, most
+of them on tracks that print no chords. 24 of the 50 guitar tracks print chords. 8 print none
+though another track of the same song does, such as Ripple's mandolin part. Those are left without:
+a capo track prints its shapes, not the chords that sound, so borrowing another track's names can
+be wrong.
+
+### Naming a beat
+
+A beat is named as a chord when it sounds three different notes or more, and listed string by
+string otherwise. Decided by Joel, 2026-10-26.
+
+- Every power-chord name goes: 2,125 beats in the folder, including Ripple's open strings 3 and 4.
+- Triads keep their names: 699 three-string beats are named, 569 of them plain major chords.
+- Counting strings instead was considered, naming a beat on four strings or more. That would bring
+  back 720 two-note beats as power chords, and 716 of them are a G chord with its B left out on
+  that beat: xx0033 (240 beats), 3x0033 (58), and x00035 in the open G tuning of the 2009 Pink
+  Houses file (418). A guitarist calls those G, not G5. The real power chords in these songs are on
+  two or three strings.
+
+A stroke direction is said only where the file states one, as before. It is now said on a beat
+listed string by string as well as on a named one. The audio track plays a downstroke wherever the
+file states none.
+
+### Chord Symbols
+
+The list that was Chords Used is Chord Symbols: the chords the track prints, each once, in the order
+they first appear, with how many times each is printed. A track printing none says so. Named by
+Joel, 2026-10-26; "harmony" was considered and left, since it also means a second sung or played
+part.
+
+Each chord shows the fingering of the diagram the file gives with it, in place of the chord
+library's shapes, and the library's shapes where the file gives none. A diagram counts only where
+the file shows it and it sounds three different notes or more, the same as a beat:
+
+- Songsterr files carry a placeholder shape, never shown, under every chord they print.
+- Of 222 chord definitions in the folder, 78 are shown diagrams with frets. Full fingerings are in
+  the American Pie chart, Ripple.gp5 and Wish You Were Here. The Brothers In Arms Solo and the Wish
+  You Were Here chord solo mark one or two melody notes as a chord's diagram.
+
+A printed name is matched against the library as written, then without its bass, so D/F# is found
+as D where the library has no slash chord.
+
+### MusicXML
+
+alphaTab reads a MusicXML `harmony` into the same place as a Guitar Pro chord symbol, and its
+`frame` as the diagram, so both formats give headings and Chord Symbols the same way. A MusicXML
+part written as notes rather than tab has no tuning, so its diagrams are read as standard tuning.
+alphaTab does not read a harmony's `bass`, so a MusicXML C/G arrives as C. Checked with a
+hand-written file, 2026-10-26; there is no MusicXML file among Joel's songs.
+
+### What was removed
+
+`src/shared/chordForms.mjs`, its checks and measuring scripts, the Anomalies region, and the
+form wording are gone. They are in the history up to commit 5441c24, Release 0.9.2.
+`docs/chord-forms-workflow.md` and the record of every song in Joel's Guitar folder are no longer
+kept up. `scripts/songs/verify-chord-symbols-in-app.mjs` checks what the app shows now.
+
+## Chord forms, 2026-10-20 to 2026-10-26
+
+What follows is the record of chord forms as they stood when dropped.
 
 Written 2026-10-20, from a discussion of the lead track of Grateful Dead's Ripple in the Songsterr
 corpus. The rules are in `src/shared/chordForms.mjs`, checked on hand-written tracks by
@@ -9,7 +113,7 @@ anomalies, and `scripts/songs/verify-chord-forms-in-app.mjs` checks what the app
 library is not consulted there, so the fourth rule for choosing between two forms never decides;
 it decided 1 span of 302 in the report.
 
-## What Joel noticed
+### What Joel noticed
 
 Ripple's lead part picks through open chord shapes. Its first measures can nearly all be played
 with the left hand holding a G, with one note off it. unstrung described them otherwise:
@@ -24,18 +128,18 @@ its own notes and nothing around it. G and D alone spell G5, so that is what the
 `extractTrackChords` counts every beat it can name, so G5 was the third chord of the track, at 32
 beats.
 
-## Why not add G5/D to the library
+### Why not add G5/D to the library
 
 The library is keyed by root and suffix, and Chords Used already drops the bass, so G and G/B are
 one chord to learn. An open G5 voicing would be a fair addition on its own, since the library has no
 open-string power chords, but the beat would still be named as a chord apart from the G the hand is
 already holding. That is the problem, and a library entry does not touch it.
 
-## Held forms
+### Held forms
 
 The question to answer is whether the left hand moves, not which chord a beat's notes could spell.
 
-### Finding the form
+#### Finding the form
 
 A form is the shape the hand would have to hold for a span of beats: every string and fret those
 beats play, taken together. No single beat has to sound the whole chord, so a part that only picks
@@ -51,7 +155,7 @@ The frets taken together are a form when:
 A span that fails, such as a scale run or a moving melody, is described beat by beat as now. Nothing
 is guessed.
 
-### How long a form lasts
+#### How long a form lasts
 
 A form carries across bar lines for as long as the beats keep fitting it, and grows as new strings
 appear: a G whose low strings sound in one measure and high strings in the next is one G. Joel's
@@ -62,7 +166,7 @@ Carrying a form means a measure's heading depends on the measures before it. A m
 strings can say "continues G" because the G was established earlier. Worked out alone it would say
 G5, which is the mistake this replaces.
 
-### Exceptions
+#### Exceptions
 
 A note off the form, on a string the form already uses, can be an exception: the form is
 interrupted, not contradicted, since the two frets on that string cannot sound together. Joel's own
@@ -100,7 +204,7 @@ Added 2026-10-21, after Joel heard Ripple's lead in the app:
   fret 2 in measures 7 and 8, and from the open D the notes spell Csus2 with fewer off it than
   the C. That split the C in two; it is the same hand with a note moved.
 
-### Each measure on its own first
+#### Each measure on its own first
 
 Also from Joel, 2026-10-21. Read across bar lines, Ripple's lead measure 4 came out as G for a
 beat and a half, two notes holding nothing, then C from the "and" of beat 3, so its heading named
@@ -127,7 +231,7 @@ For a whole measure, notes off the form are exceptions only where:
   next chord, as the open D before a G at the end of a measure of C;
 - no chord is printed on them other than the form's own, or a power chord being filled out to it.
 
-### A form no measure spells alone
+#### A form no measure spells alone
 
 From the totallyGuitars Ripple Chord Solo, 2026-10-24. Its first three measures are a G, 320003,
 picked across them: measure 1 plays string 5 at fret 2 and open string 4, with string 5 at fret 3
@@ -156,7 +260,7 @@ The chord solo now reads "holds G at beat 2, one exception" (beat 1 is a rest), 
 which held nothing between measures of G, "continues G", and Sister Golden Hair's measure 13,
 which held nothing, "holds G6, one exception".
 
-### One finger moving through chords of one root
+#### One finger moving through chords of one root
 
 Dust in the Wind holds a C shape while one finger moves on string 2 between fret 1, open and fret
 3: C, Cmaj7 and Cadd9. Over A minor the same finger gives Am, Asus2 and Asus4. Each measure plays
@@ -187,7 +291,7 @@ Dust in the Wind's intro reads "holds C, one exception", "continues C, one excep
 two exceptions", and so on. Ripple's capo part, measure 36, walks string 5 down to a B before the
 D minor: once "holds Dm at beat 4" of that B, it is now "continues C, one exception".
 
-### Holds or continues
+#### Holds or continues
 
 "Continues C" means the heading before ended on C, since that is what the listener has; anything
 else is "holds", even where the hand has been on the form since before the bar line. A measure
@@ -209,7 +313,7 @@ Ripple's lead measures 1 to 12: holds G at beat 2 with one exception, continues 
 with one exception, holds C with one exception, continues C with one exception three times, holds
 G with two exceptions, continues G three times, holds C with one exception.
 
-### A one-finger change for a beat
+#### A one-finger change for a beat
 
 Sister Golden Hair goes from E to Esus4 and back within a beat, one finger on string 3, and the
 file prints E, Esus4 and E. American Pie turns a C into Cmaj7 for a beat, string 2 coming off fret
@@ -232,7 +336,7 @@ its notes spell no chord, so those measures held nothing.
 Across the guitar tracks 15 short changes like this were found. The 5 not printed are now
 exceptions; the 10 printed, with 4 more that had been exceptions, are forms of their own.
 
-### Choosing between two forms
+#### Choosing between two forms
 
 Where one string is played at two frets in a span, either could be the form and the other the
 exception. A measure of C with string 4 played open twice and at fret 2 once could be C (x32010)
@@ -253,7 +357,7 @@ Here 12-string part strums a G with string 5 at fret 2, then picks string 5 open
 Gsus2. A fret struck in the chord is part of the shape; one only picked alone may be passing
 through. It decides 26 spans across the guitar tracks.
 
-### Passing notes
+#### Passing notes
 
 A note on a string the form otherwise leaves alone, picked on its own, can turn the chord into
 another: an open A walking up to B under a G makes it Gadd9. Decided 2026-10-20:
@@ -272,9 +376,9 @@ on string 6 under an F making Fmaj7, a C on string 5 under a D making D7. Sevent
 same day. Of the lone notes heard once that joined a form, 2 are left, neither making one of these
 chords from a major or minor one with the same root.
 
-## What a measure says
+### What a measure says
 
-### Which measures name a form
+#### Which measures name a form
 
 The point is a measure picked inside one chord, as Ripple's first two are, saying "holds G, one
 exception" rather than naming fragments of the G. It is not to list every chord a measure passes
@@ -316,7 +420,7 @@ for them: they count in Chords Used, and their printed chords are still weighed 
 Positions and lengths are beats of the time signature, as chord symbols already are: "at beat 3",
 or "during beat 3" for a change between beats.
 
-### Beats inside a form
+#### Beats inside a form
 
 This is the one change to the list of beats; everything else about forms is in the heading.
 
@@ -333,7 +437,7 @@ In a measure whose heading names no form, about 15% of them, the beats stay as t
 G5/D and its strings included, since there is no named form for them to belong to. Decided
 2026-10-21.
 
-## Printed chord symbols
+### Printed chord symbols
 
 The file's symbol is weighed against the form the notes hold:
 
@@ -363,7 +467,7 @@ run between two held chord tones does not outweigh them; beat 1 on its own becau
 heard most there. A suspension held over the symbol would fail it, so the threshold is to be run
 over every printed symbol in the corpus, and the measures it flags read, before it is relied on.
 
-### The chord symbol phrase
+#### The chord symbol phrase
 
 Measure headings already carry a phrase for the chords the file prints: "chord symbol G at beat
 1". Where the heading names a form, the form already gives the file's name, or "(harmony)" or
@@ -371,13 +475,13 @@ Measure headings already carry a phrase for the chords the file prints: "chord s
 It stays for a printed name unstrung cannot read, which nothing else says, and in measures that
 name no form, where it is the only place the file's chords are given. Decided 2026-10-21.
 
-### Anomalies
+#### Anomalies
 
 A track with anomalies gets a collapsed region after Chords Used and before the measures, summarised
 "Anomalies - 3" as Chords Used is, with one item per measure: "Measure 12: the file prints G, the
 notes hold Em". A track with none has no region, so it does not add a stop to every track.
 
-### Chords printed on rests
+#### Chords printed on rests
 
 Fixed 2026-10-24. `trackEvents`, `describeChordSymbols` and Chords Used all skipped a chord the
 file prints on a rest, which files do before a strum: Sister Golden Hair's second rhythm guitar
@@ -386,7 +490,7 @@ run over measures of E, and a measure naming no form said nothing of the chord. 
 on a rest is now read as printed. It changes 7 of Vincent's headings, and gives Vincent two
 anomalies: a C printed on a rest over E, G and B.
 
-### Trusting the printed chord
+#### Trusting the printed chord
 
 Joel's question, 2026-10-24, after the Ripple Chord Solo printed a G over measure 2 that the app
 called an anomaly: what if the file's chord is trusted? Every anomaly on the guitar tracks was read
@@ -484,7 +588,7 @@ measure 19, with a chord printed in its middle.
   A7sus4", with the walk into the Em7 as its exceptions, where they had been anomalies or named
   nothing.
 
-## Chords Used
+### Chords Used
 
 Beats in a form count towards its chord, not towards the fragments they would spell alone, so G5
 and C5 leave Ripple's lead track. Where the form agreed with a printed chord they count towards that
@@ -495,7 +599,7 @@ plays it, labelled so, and the library's shapes after it where they differ. The 
 where the file gives no form or an ambiguous one. Ripple's G is 320003 in the file, which is the
 library's first G.
 
-## Measured across Joel's Guitar folder
+### Measured across Joel's Guitar folder
 
 The report was run on 2026-10-20 over the 22 Guitar Pro files in Joel's Guitar folder: the Songsterr
 corpus and the totallyGuitars files. Two are byte-for-byte copies of others and were skipped. Its
@@ -522,7 +626,7 @@ above, on the 35 guitar tracks (General MIDI programs 24 to 31):
 Vocals, keyboards and bass are written on string staves in these files, so the rules run on them
 too and find nonsense such as a vocal line holding Esus4. Forms are meant for guitar tracks only.
 
-## Which tracks
+### Which tracks
 
 unstrung lists only guitar and bass tracks, General MIDI 24 to 39, since those are the only samples
 it has; decided 2026-10-20. The Tracks row of the summary says how many others the file has. Chord

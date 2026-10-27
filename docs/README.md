@@ -31,13 +31,13 @@ eyesunstrung.vip.
 - `speak-the-notes.md` -- speaking each note or chord just before it sounds, so a song can be
   learned by ear, and why pitching the speech needs platform code. Built on a branch, measured and
   set aside; the branch was deleted 2026-10-19.
-- `chord-forms-in-scores.md` -- describing a score by the chord form the left hand holds, carried
-  across bar lines, with exceptions, instead of naming each beat from its own notes; how printed
-  chord symbols are weighed against it, and anomalies. Measured across Joel's Guitar folder and
-  built into the app, along with listing only guitar and bass tracks.
-- `chord-forms-workflow.md` -- how to check a new song's chord forms, change the rules, and make
-  sure no song already checked gets worse: the scripts, the record of every song, and the songs
-  so far.
+- `chord-forms-in-scores.md` -- chords in measure headings. Since 2026-10-26 only the chords the
+  file prints, a beat named as a chord only at three different notes or more, and a Chord Symbols
+  list with the file's own diagrams. Before that, from 2026-10-20: chord forms, the shape the left
+  hand holds, worked out from the notes with exceptions and anomalies, and why it was dropped.
+  Also listing only guitar and bass tracks.
+- `chord-forms-workflow.md` -- retired 2026-10-26 with chord forms: how songs were checked
+  against the record of every song while the rules were changing.
 
 - `note-timing.md` -- why notes sounded behind the metronome's clicks (the pick noise at the start
   of every recording), measured for every recording, and starting each note early by its attack.

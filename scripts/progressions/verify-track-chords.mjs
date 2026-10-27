@@ -1,7 +1,7 @@
 // Checks the layout of a track section on the parsed-file page.
 //
-// Order within a track: the track's data list, then the Chords Used region, then Measures, then
-// the Create Audio Track button. Chords Used must be collapsed until opened, must build its rows
+// Order within a track: the track's data list, then the Chord Symbols region, then Measures, then
+// the Create Audio Track button. Chord Symbols must be collapsed until opened, must build its rows
 // on first open, and each row must be a list item whose summary is the chord name alone.
 
 const APP_DIR = `${import.meta.dirname}/../..`.split('\\').join('/');
@@ -42,25 +42,25 @@ const order = await page.evaluate(() => {
 const firstTrack = order.slice(0, 4);
 console.log(`  ${firstTrack.join('\n  ')}`);
 check('the first track leads with its heading', /^TRACK: Track 1/.test(firstTrack[0] ?? ''), firstTrack[0]);
-check('Chords Used comes first of the regions', /^REGION: Chords Used/.test(firstTrack[1] ?? ''), firstTrack[1]);
+check('Chord Symbols comes first of the regions', /^REGION: Chord Symbols/.test(firstTrack[1] ?? ''), firstTrack[1]);
 check('Measures follows it', /^REGION: Measures/.test(firstTrack[2] ?? ''), firstTrack[2]);
 // The Create Audio Track button became an Audio Track disclosure that builds the track in place.
 check('the Audio Track disclosure is last', /^REGION: Audio Track - /.test(firstTrack[3] ?? ''), firstTrack[3]);
 
-console.log('\n=== Chords Used starts collapsed and empty ===');
+console.log('\n=== Chord Symbols starts collapsed and empty ===');
 const before = await page.evaluate(() => {
     const d = [...document.querySelectorAll('details')].find(x =>
-        /Chords Used/.test(x.querySelector('summary')?.textContent ?? ''));
+        /Chord Symbols/.test(x.querySelector('summary')?.textContent ?? ''));
     return { open: d.open, summary: d.querySelector('summary').textContent, items: d.querySelectorAll('li').length };
 });
 check('collapsed on arrival', before.open === false);
 check('nothing built yet', before.items === 0, `${before.items} list items`);
-check('the count is on the summary', /Chords Used - \d+/.test(before.summary), before.summary);
+check('the count is on the summary', /Chord Symbols - \d+/.test(before.summary), before.summary);
 
 console.log('\n=== Opening it builds the chords ===');
 const after = await page.evaluate(async () => {
     const d = [...document.querySelectorAll('details')].find(x =>
-        /Chords Used/.test(x.querySelector('summary')?.textContent ?? ''));
+        /Chord Symbols/.test(x.querySelector('summary')?.textContent ?? ''));
     d.open = true;
     // The rows wait on the chord library, which is fetched over IPC on first open.
     for (let i = 0; i < 50 && d.querySelectorAll(':scope > ul > li').length === 0; i++) {
@@ -85,12 +85,11 @@ check('summaries are chord names only, no extra text',
     after.summaries.every(s => /^[A-G][#b]?[^,;-]*$/.test(s)), after.summaries.join(' | '));
 console.log(`  first chord's facts:\n    ${after.firstRowFacts.join('\n    ')}`);
 check('the row carries chord information', after.firstRowFacts.length > 1);
-check('the row says how much of the track it covers',
-    after.firstRowFacts.some(t => /Sounds on \d+ beats? of this track/.test(t)));
+check('the row says how often the file prints it',
+    after.firstRowFacts.some(t => /Printed \d+ times? in this track/.test(t)));
 
-// On a guitar track the chord a measure holds now heads it as a form, with the file's name where
-// it prints one, and the chord symbol phrase only where the measure names no form. On the bass
-// the phrase is as it was. See docs/chord-forms-in-scores.md.
+// The chords the file prints head the measures, and nothing else does. See
+// docs/chord-forms-in-scores.md.
 console.log('\n=== Printed chords ride on the measure heading ===');
 const headings = await page.evaluate(async () => {
     const regions = [...document.querySelectorAll('details')].filter(x =>
@@ -103,35 +102,28 @@ const headings = await page.evaluate(async () => {
             beatsMentioningSymbol: [...measures.querySelectorAll('li')].filter(li => /chord symbol/.test(li.textContent)).length
         };
     };
-    // The capo track: bar 2 holds the C it prints. The bass names no forms.
+    // The capo track prints C over bar 2. The bass prints nothing.
     return { capo: await read(regions[1]), bass: await read(regions[2]) };
 });
 const capoHeadings = headings.capo.headings;
-console.log(`  capo, bars 2 and 44: ${capoHeadings[1]} | ${capoHeadings[43]}`);
-check('a printed chord reaches the heading as the form held', /^Measure 2 - (holds|continues) C\b/.test(capoHeadings[1]), capoHeadings[1]);
-// This track once had one change partway through a measure, a single B on string 5 read as D
-// minor at beat 4 of measure 36. That B is now a finger moving in the C, so it has none; the
-// wording for a change at a beat is checked in scripts/check-chord-forms.mjs, and against the
-// metadata by scripts/songs/verify-chord-forms-in-app.mjs on songs that have such changes.
-check('no heading gives both a form and a chord symbol', !capoHeadings.some(h => /(holds|continues) /.test(h) && /chord symbol/.test(h)));
-// Every printed chord in this file now sits in a measure that names its form, so none of its
-// headings uses the chord symbol phrase; scripts/songs/verify-chord-forms-in-app.mjs, run on a
-// file that has such measures, checks them against the metadata.
-check('measures with nothing printed or held keep a bare heading', headings.bass.headings.some(h => /^Measure \d+$/.test(h)));
+console.log(`  capo, bars 2 and 3: ${capoHeadings[1]} | ${capoHeadings[2]}`);
+check('a printed chord reaches the heading', capoHeadings[1] === 'Measure 2 - chord C', capoHeadings[1]);
+check('the next measure continues it', capoHeadings[2] === 'Measure 3 - continues C', capoHeadings[2]);
+check('measures with nothing printed keep a bare heading', headings.bass.headings.some(h => /^Measure \d+$/.test(h)));
 check('no beat line mentions a chord symbol any more',
     headings.capo.beatsMentioningSymbol + headings.bass.beatsMentioningSymbol === 0);
 
 console.log('\n=== A part with no chords says so ===');
 const bass = await page.evaluate(async () => {
     const regions = [...document.querySelectorAll('details')].filter(x =>
-        /Chords Used/.test(x.querySelector('summary')?.textContent ?? ''));
-    const empty = regions.find(x => /Chords Used - 0/.test(x.querySelector('summary').textContent));
+        /Chord Symbols/.test(x.querySelector('summary')?.textContent ?? ''));
+    const empty = regions.find(x => /Chord Symbols - 0/.test(x.querySelector('summary').textContent));
     if (!empty) return null;
     empty.open = true;
     await new Promise(r => setTimeout(r, 300));
     return empty.querySelector('p')?.textContent ?? '(nothing)';
 });
-check('the empty region explains itself', bass !== null && /No chords/.test(bass), bass ?? 'no empty region found');
+check('the empty region explains itself', bass !== null && /prints no chord symbols/.test(bass), bass ?? 'no empty region found');
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 await close();

@@ -133,40 +133,29 @@ The tuning is spelled out note by note, with its name when the file gives one.
 
 Each track then has these collapsed sections:
 
-- **Chords Used,** with the number of chords.
-  Each chord the track plays is listed, collapsed, with how many beats it sounds on, its fingering and its notes.
-  On a guitar track, the chord's fingering as the track plays it comes first, then the chord library's.
-  A part played one note at a time names no chords, and the section says so.
-- **Anomalies,** on a guitar track where the chords the file prints do not match the notes played.
-  Each is a measure, the chord the file prints, and the chord the notes hold.
-  A track with none has no Anomalies section.
+- **Chord Symbols,** with the number of chords.
+  Each chord the file prints over the track is listed once, collapsed, in the order it first appears, with how many times it is printed.
+  Where the file gives a chord diagram, its fingering is shown; otherwise the fingering comes from the chord library.
+  A track the file prints no chords over says so.
 - **Measures,** with the number of measures.
   Each measure is a level 4 heading with its number, the section it starts if any, its repeat marks and its chord names.
   Under the heading are the lyrics sung over the measure, then a description of each beat: the strings and frets played, how the strings are struck, and techniques such as slides, bends, vibrato, harmonics and let ring.
 - **Audio Track** and the track's name, where the track is played.
 
-### Chord Forms in Measure Headings
+### Chords in Measure Headings
 
-On a guitar track, a measure heading says which chord shape the left hand holds, where the measure is simple enough to say it quickly.
-This is the same idea as sheet music showing a chord only where it changes.
+A measure heading gives the chords the file prints over it, as sheet music does.
 
-- "holds G" where a G shape is first held, and "continues G" where it carries over from the measure before.
-- "holds G, one exception" where a note or two leave the shape and come back, such as a finger reaching for a bass note.
-- "holds G, holds C at beat 3" for a change at a beat, and "holds G, holds C during beat 4" for a change between beats.
-- "holds G for 2 and a half beats" where the shape is let go of and nothing else is held after it.
+- "chord C" where the file prints a C at the start of the measure.
+- "continues C" where the measure prints no chord and the last one printed was C.
+- "continues C, chord G at beat 3" where a G is printed partway through, and "during beat 4" for one printed between beats.
 
-The shape is worked out from the notes the measure picks or strums, so a part picked one string at a time still holds a G.
-Where the file prints a chord name and it matches the shape, the heading uses the file's name.
-Where the file prints a chord over a whole measure, the measure is read as that chord first, with the notes off it as exceptions, unless the notes clearly hold something else.
-A shape held without the chord's third, such as C with a D in place of the E measure after measure, is that sus chord and not the printed one.
-Where the notes hold a different chord from the one the file prints, the heading gives the file's chord followed by "(anomaly)", and the track's Anomalies section lists it.
-Where a melody is played over a chord the file prints, the heading gives the chord followed by "(harmony)".
-A measure that changes chord more than once, such as a chord on every beat, says nothing about shapes, and its heading gives the chord names the file prints, as before.
+A printed chord gives the harmony, and the notes of the measure need not spell it: a melody can stray from it.
+unstrung does not work chords out from the notes, so a heading names no chord where the file prints none.
 
-Inside a measure that names a shape, a beat playing only part of it is listed string by string rather than named: open strings 3 and 4 inside a G are not called G5.
-A beat sounding the whole chord still names it.
-
-Bass tracks do not show chord shapes.
+A beat is named as a chord when it sounds three different notes or more, such as "G/B, strings 1 through 5".
+A beat with fewer is listed string by string, so open strings 3 and 4 are not called G5.
+A stroke direction is given only where the file states one.
 
 The measures are collapsed because a song can run to hundreds of lines.
 Expand them when you want the detail.

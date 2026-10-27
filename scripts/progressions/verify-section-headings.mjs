@@ -101,10 +101,9 @@ for (const track of read) {
     for (const [bar, measure] of Object.entries(track.measures)) {
         if (['1', '18', '86'].includes(bar)) continue;
         const rest = measure.heading.replace(/^Measure \d+ ?-? ?/, '').trim();
-        // Repeats, chord symbols and chord forms legitimately head a measure; a bare section word
-        // would not. A form's wording starts "holds" or "continues", or is a printed chord marked
-        // "(harmony)" or "(anomaly)".
-        if (rest !== '' && !/repeat|ending|chord symbol|^(holds|continues) |\((harmony|anomaly)\)/i.test(rest)) {
+        // Repeats and printed chords legitimately head a measure; a bare section word would not.
+        // A printed chord's wording starts "chord" or "continues".
+        if (rest !== '' && !/repeat|ending|^(chord|continues) /i.test(rest)) {
             stray.push(`${track.name} bar ${bar}: ${rest}`);
         }
     }

@@ -49,15 +49,16 @@ repository as a backup, so anything worth keeping belongs there rather
 than only in memory or on this machine. `docs/screen-reader-findings.md`
 in particular records how NVDA reads this app.
 
-# Chord forms
+# Chords in scores
 
-Guitar measure headings name the chord shape the hand holds ("holds G,
-one exception"), worked out by `src/shared/chordForms.mjs`. Joel brings
-new songs to check, and the rules keep changing with them. Before
-touching any of it, read `docs/chord-forms-workflow.md`, which says how
-to check a song and how to compare every change against the record of
-every song already checked, and `docs/chord-forms-in-scores.md`, which
-says what was decided and why.
+Measure headings name only the chords the file prints ("chord C",
+"continues C, chord G at beat 3"), and a track's Chord Symbols list only
+those, with the file's own diagram where it gives one. A beat is named as
+a chord only when it sounds three different notes or more. Chords are
+never worked out from a measure's notes: that was tried as "chord forms"
+and dropped on 2026-10-26, because the printed chord is the harmony and
+the notes need not spell it. Read `docs/chord-forms-in-scores.md` before
+reopening any of it.
 
 # User documentation
 

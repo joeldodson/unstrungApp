@@ -210,7 +210,6 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
         container.append(trackList);
 
         container.append(buildTrackChordsRegion(track));
-        if (track.anomalies?.length) container.append(buildAnomaliesRegion(track));
 
         // The measures are almost all of a song's content: hundreds of short text lines per
         // track. They sit behind a collapsed disclosure, and are only built when it is first
@@ -244,10 +243,9 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
                     // straight through, which is not how a song with repeats is played, so a
                     // repeat mark is as much a part of finding your way as the section is.
                     measure.repeat,
-                    // The chord form the hand holds, on a guitar track where the measure is simple
-                    // enough to say it: "holds G, one exception". See docs/chord-forms-in-scores.md.
-                    measure.forms,
-                    measure.chordSymbols
+                    // The chords the file prints: "chord C", "continues C, chord G at beat 3".
+                    // See docs/chord-forms-in-scores.md.
+                    measure.chords
                 ].filter(Boolean).join(' - ');
                 measuresDetails.append(measureHeading);
 
@@ -4028,83 +4026,58 @@ function libraryChordByName(name) {
 }
 
 /**
- * One chord of a track, as the same collapsed region chord practice uses.
+ * One chord symbol of a track, as the same collapsed region chord practice uses.
  *
  * Reusing buildChordPracticeRow is the point: a chord should read the same everywhere in the app,
  * so what a player learns to listen for in the practice tool is what they get here. It needs a
- * root and suffix, which come from the parser's reading of the notes where it had one, and
- * otherwise from matching the printed symbol against the library.
+ * root and suffix, which come from matching the printed name against the library, or the name
+ * without its bass where the library has no slash chord: D/F# is found as D.
+ *
+ * Where the file gives a diagram for the chord, its fingering takes the place of the library's.
  */
 function buildTrackChordRow(chord) {
-    const resolved = chord.root
-        ? { root: chord.root, suffix: chord.suffix }
-        : libraryChordByName(chord.name);
+    const resolved = libraryChordByName(chord.name) ?? libraryChordByName(chord.name.split('/')[0]);
+    const printed = `Printed ${chord.printed} time${chord.printed === 1 ? '' : 's'} in this track`;
+    const fingerings = (chord.fingerings ?? []).map((frets, i, all) =>
+        `Fingering in the file${all.length > 1 ? ` ${i + 1}` : ''}: ${describePlayedFrets(frets)}`);
 
-    if (resolved) {
+    if (resolved && fingerings.length === 0) {
         const item = buildChordPracticeRow(resolved);
         // The summary is the file's spelling, which the library's own name may not be.
         const summary = item.querySelector('summary');
         if (summary) summary.textContent = chord.name;
-        const list = item.querySelector('ul');
-        if (list && chord.played) {
-            // The file comes first: how this track holds the chord, after the chord's name and
-            // quality and ahead of the library's shapes.
-            const played = document.createElement('li');
-            played.textContent = `Played in this track: ${describePlayedFrets(chord.played)}`;
-            const first = list.firstElementChild;
-            if (first) first.after(played); else list.append(played);
-        }
-        // How much of the track this chord accounts for. The list is ordered by it, and without it
-        // there is nothing to separate the chords the part is built from and a one-beat fragment
-        // of a strum that happens to spell something nameable.
-        if (list) {
-            const beats = document.createElement('li');
-            beats.textContent = `Sounds on ${chord.beats} beat${chord.beats === 1 ? '' : 's'} of this track`;
-            list.append(beats);
-        }
+        item.querySelector('ul')?.append(Object.assign(document.createElement('li'), { textContent: printed }));
         return item;
     }
 
-    // A symbol the file printed that the library does not carry. Named anyway: the score says the
-    // harmony here is this, and that is worth knowing even where we cannot show a fingering.
+    // The file's own fingering, or a symbol the library does not carry. Named anyway: the score
+    // says the harmony here is this, and that is worth knowing even where we cannot show a
+    // fingering.
     const item = document.createElement('li');
     const details = document.createElement('details');
     const summary = document.createElement('summary');
     summary.textContent = chord.name;
     const list = document.createElement('ul');
+    const entry = resolved ? chordPracticeLibraryEntry(resolved) : null;
     appendTextItems(list, [
-        `Printed in the file as ${chord.name}`,
-        'There is no chord in the unstrung database matching that name, so no notes or fingering',
-        `Sounds on ${chord.beats} beat${chord.beats === 1 ? '' : 's'} of this track`
+        entry ? `${entry.name} - ${baseQualityLabel(entry)}` : `Printed in the file as ${chord.name}`,
+        ...fingerings,
+        ...(entry?.notes?.length ? [`Notes: ${entry.notes.join(', ')}`] : []),
+        ...(fingerings.length || entry ? [] : ['There is no chord in the unstrung database matching that name, so no notes or fingering']),
+        printed
     ]);
     details.append(summary, list);
     item.append(details);
     return item;
 }
 
-/** Frets as the beats give them, from the lowest string: "string 6, fret 3; string 5, fret 2; ...". */
+/** Frets from the lowest string: "string 6, fret 3; string 5, fret 2; ...". */
 function describePlayedFrets(frets) {
     return frets.map(({ string, fret }) => `string ${string}, ${fret === 0 ? 'open' : `fret ${fret}`}`).join('; ');
 }
 
 /**
- * The printed chords a guitar track's notes contradict, collapsed, after Chords Used and before the
- * measures. Only built for a track that has some, so it adds no stop to the rest.
- */
-function buildAnomaliesRegion(track) {
-    const details = document.createElement('details');
-    const summary = document.createElement('summary');
-    summary.textContent = `Anomalies - ${track.anomalies.length}`;
-    const list = document.createElement('ul');
-    appendTextItems(list, track.anomalies.map(({ measure, symbol, held }) => held
-        ? `Measure ${measure}: the file prints ${symbol}, the notes hold ${held}`
-        : `Measure ${measure}: the file prints ${symbol}, and the notes played do not fit it`));
-    details.append(summary, list);
-    return details;
-}
-
-/**
- * The chords a track uses, collapsed.
+ * The chord symbols a track prints, collapsed.
  *
  * Built on first open, like the measures, and for the same reason: collapsed content stays out of
  * the accessibility tree, so a song with several tracks does not pay for chord regions nobody
@@ -4115,7 +4088,7 @@ function buildTrackChordsRegion(track) {
     const details = document.createElement('details');
     const summary = document.createElement('summary');
     const chords = track.chords ?? [];
-    summary.textContent = `Chords Used - ${chords.length}`;
+    summary.textContent = `Chord Symbols - ${chords.length}`;
     details.append(summary);
 
     let built = false;
@@ -4125,11 +4098,7 @@ function buildTrackChordsRegion(track) {
 
         if (chords.length === 0) {
             const p = document.createElement('p');
-            // Says which of the two it is. A bass line names no chords because it sounds one note
-            // at a time, which is different from a part whose chords we failed to work out.
-            p.textContent = track.isStringed
-                ? 'No chords. This part sounds one note at a time, and the file prints no chord symbols over it.'
-                : 'No chords. This part is not written for a stringed instrument.';
+            p.textContent = 'None. The file prints no chord symbols over this part.';
             details.append(p);
             return;
         }

@@ -27,9 +27,7 @@ console.log(`${total} beat descriptions produced, no undefined/NaN`);
 
 // No file we have puts two chord symbols in one measure, but nothing in these formats stops one,
 // and a measure heading is where that would show. So one is made, on Ripple's bass, which prints
-// no symbols of its own: a C on the first beat of bar 2 and a G on the beat halfway in. The bass,
-// having no chord forms, is where the chord symbol phrase still heads every measure that has one;
-// on a guitar track a measure that names its form gives the chord there instead.
+// no symbols of its own: a C on the first beat of bar 2 and a G on the beat halfway in.
 {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(
         new Uint8Array(fs.readFileSync(path.join(dir, 'Grateful Dead-Ripple-12-20-2025.gp'))));
@@ -44,12 +42,12 @@ console.log(`${total} beat descriptions produced, no undefined/NaN`);
     first.chordId = 'synthetic-first-symbol';
     target.chordId = 'synthetic-second-symbol';
 
-    const heading = extractScoreMetadata(score, { terseBeats: true }).tracks.find(t => t.index === 2).measures[1].chordSymbols;
+    const heading = extractScoreMetadata(score, { terseBeats: true }).tracks.find(t => t.index === 2).measures[1].chords;
     console.log(`\nsynthetic measure carrying two symbols:\n  Measure 2 - ${heading}`);
-    if (heading !== 'chord symbols C at beat 1, G at beat 3') {
+    if (heading !== 'chord C, chord G at beat 3') {
         throw new Error(`unexpected heading for two symbols: ${heading}`);
     }
-    console.log('  both are named, each with the beat it starts on');
+    console.log('  both are named, the second with the beat it starts on');
 }
 console.log(`\nbeats that report a stroke direction (${withStroke.length / 2} distinct, each listed full + terse):`);
 for (const line of withStroke) console.log('  ' + line);

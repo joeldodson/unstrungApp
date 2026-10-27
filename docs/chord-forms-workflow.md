@@ -1,5 +1,9 @@
 # Working on chord forms
 
+Retired 2026-10-26. Chord forms were dropped for the chords the file prints, and the scripts this
+note names were removed with them; see `chord-forms-in-scores.md`. Kept as the record of how the
+work was done.
+
 Written 2026-10-22, for picking the chord form work up in a later session: Joel downloads a song,
 asks for its chord forms to be checked, and the rules are changed where the song shows something
 they get wrong, without making any song already checked worse. This will go on for a long time.
