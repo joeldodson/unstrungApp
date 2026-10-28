@@ -166,9 +166,10 @@ the old order of Chord Symbols, Measures and Audio Track, was removed, the new s
 - **Chord Symbols is a collapsed region again,** inside the last row of the track's details, so the
   row reads "Chord Symbols - 5" and the chords are passed over until it is expanded. A track with
   none still says so in the row itself, with nothing to expand.
-- **The tempo buttons are in Playback Controls,** after the measure moves, not after the Tempo
-  field. On a phone, moving around a track and changing the tempo happen together, so the buttons
-  belong in one place.
+- **The tempo buttons are in Playback Controls,** not after the Tempo field. On a phone, moving
+  around a track and changing the tempo happen together, so the buttons belong in one place. The
+  rows are Play and Where Am I; then Slower, Faster and Default Tempo; then Restart Selection,
+  Previous Measure, Next Measure and Start of Measure.
 - **No Keyboard Commands button.** Playback Controls starts with a line, "Type ? for keyboard
   commands." A screen reader user knows the keys need focus mode, so the dialog no longer explains
   it either; it is said once in Features.

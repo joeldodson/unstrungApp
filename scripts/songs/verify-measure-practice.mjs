@@ -124,6 +124,8 @@ const region = () => page.evaluate(() => {
         status: r.querySelector('p[role="status"]').textContent,
         error: r.querySelector('p[role="alert"]').textContent,
         controls: [...r.querySelectorAll('.audio-track .button-row button')].map(b => b.textContent),
+        controlRows: [...r.querySelectorAll('.audio-track .button-row')]
+            .map(row => [...row.querySelectorAll('button')].map(b => b.textContent).join(', ')),
         tempoRowAfterTempo: r.querySelector('.audio-track p:has(input[type="number"]) + .button-row') !== null
     };
 });
@@ -152,9 +154,9 @@ check('measure headings are h4 and read as before', h4s[0].startsWith('H4 Measur
 check('Playback Controls starts by saying how to reach the keys', r.keysNote === 'Type ? for keyboard commands.', r.keysNote);
 check('each measure has Play and Add buttons naming it', r.measureButtonCount === barCount * 2 &&
     r.firstButtons.join(' | ') === 'Play measure 1 | Add measure 1 to selection', r.firstButtons.join(' | '));
-check('Playback Controls: Play; the moves; then the tempo',
-    r.controls.join(', ') === 'Play, Restart Selection, Previous Measure, Next Measure, Start of Measure, Where Am I, ' +
-    'Slower, Faster, Default Tempo', r.controls.join(', '));
+check('Playback Controls: Play and Where Am I; the tempo; then the moves',
+    r.controlRows.join(' / ') === 'Play, Where Am I / Slower, Faster, Default Tempo / ' +
+    'Restart Selection, Previous Measure, Next Measure, Start of Measure', r.controlRows.join(' / '));
 check('no tempo buttons after the Tempo field', !r.tempoRowAfterTempo);
 check('no Create Track button, no printed key list', !r.controls.includes('Create Track') &&
     !r.headings.some(h => /Keyboard Control/.test(h)));

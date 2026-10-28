@@ -3799,14 +3799,16 @@ function buildAudioTrackPanel(state) {
     keysNote.textContent = 'Type ? for keyboard commands.';
     container.append(keysNote);
 
-    // Play first and alone in its row, being what is pressed most.
-    const playRow = createButtonRow();
+    // Play first, being what is pressed most, with Where Am I beside it.
+    const playRow = buildActionRow(state, [
+        ['Where Am I', state2 => announceCurrentMeasure(state2)]
+    ]);
     const playButton = document.createElement('button');
     playButton.type = 'button';
     playButton.textContent = 'Play';
     playButton.setAttribute('aria-pressed', 'false');
     playButton.addEventListener('click', () => toggleAudioTrackPlayback(state));
-    playRow.append(playButton);
+    playRow.prepend(playButton);
     container.append(playRow);
 
     // When a selection cannot be played, the reason lands straight after Play.
@@ -3814,19 +3816,18 @@ function buildAudioTrackPanel(state) {
     error.setAttribute('role', 'alert');
     container.append(error);
 
-    // The moves and the tempo as buttons, for a phone, where there are no keys. Trying and adding
+    // The tempo and the moves as buttons, for a phone, where there are no keys. Trying and adding
     // the next measure are left to the buttons under each measure.
-    container.append(buildActionRow(state, [
-        ['Restart Selection', state2 => restartAudioTrackSelection(state2)],
-        ['Previous Measure', state2 => seekAudioTrackByMeasure(state2, -1)],
-        ['Next Measure', state2 => seekAudioTrackByMeasure(state2, 1)],
-        ['Start of Measure', state2 => seekToStartOfCurrentMeasure(state2)],
-        ['Where Am I', state2 => announceCurrentMeasure(state2)]
-    ]));
     container.append(buildActionRow(state, [
         ['Slower', state2 => stepAudioTrackTempo(state2, -AUDIO_TRACK_TEMPO_STEP_BPM)],
         ['Faster', state2 => stepAudioTrackTempo(state2, AUDIO_TRACK_TEMPO_STEP_BPM)],
         ['Default Tempo', state2 => defaultAudioTrackTempo(state2)]
+    ]));
+    container.append(buildActionRow(state, [
+        ['Restart Selection', state2 => restartAudioTrackSelection(state2)],
+        ['Previous Measure', state2 => seekAudioTrackByMeasure(state2, -1)],
+        ['Next Measure', state2 => seekAudioTrackByMeasure(state2, 1)],
+        ['Start of Measure', state2 => seekToStartOfCurrentMeasure(state2)]
     ]));
 
     // Moving around stays silent so the music is not talked over. This is where the keys and

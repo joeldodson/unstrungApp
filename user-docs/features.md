@@ -235,10 +235,10 @@ The heading is followed by a reminder that ? lists the keys.
 
 - **Play,** which becomes Pause while playing.
   The first time you play a track, unstrung loads its guitar samples first, says so, and then plays.
-- **Restart Selection, Previous Measure, Next Measure, Start of Measure and Where Am I.**
-  Restart Selection goes back to the start of the selection.
-  Where Am I says which measure is playing.
+- **Where Am I,** which says which measure is playing.
 - **Slower, Faster and Default Tempo,** which change the tempo by 5 beats per minute, or put it back.
+- **Restart Selection, Previous Measure, Next Measure and Start of Measure.**
+  Restart Selection goes back to the start of the selection.
 
 Below the buttons, unstrung says what it has done when you ask, and a collapsed section, About the Audio Track, gives how many notes the track has, how long it is, and its tempo.
 
