@@ -215,6 +215,18 @@ the track, possibly part way through, which was easy to do by mistake.
 The setting keys, l, m and the tempo keys, act on whatever is playing, the measure included. That
 is intended and was left alone.
 
+After trying it, Joel settled the rest:
+
+- **The Stop name is not heard, and that is right.** NVDA does not speak the button's new name
+  after it is pressed. Joel wants to hear the measure at that moment, not the screen reader, so
+  nothing is to be added to make it heard.
+- **spaceBar stays the play and pause key**, rather than p. It is the easiest key to find and what
+  other players use, and the current arrangement is the least confusing of those considered.
+- **Enter in focus mode presses the measure's button.** Expected, and now said in Features.
+- **Add does not play.** It says what the track now is, "Audio track is now measures 3 through
+  5.", and stops anything playing. A measure is added once it is learned; the track is played when
+  the player is ready, with Play.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.

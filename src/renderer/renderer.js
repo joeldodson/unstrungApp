@@ -3277,8 +3277,7 @@ function measureSpanText(first, last) {
 
 /**
  * Sets which measures are selected, lets go of any measure played on its own, and moves to the
- * start of them. Does not start playing: the fields and the Section dropdown leave that to Play,
- * the Add buttons go on to play.
+ * start of them. Does not start playing: that is left to Play.
  */
 function setAudioTrackSelection(state, first, last) {
     haltAudioTrack(state);
@@ -3356,14 +3355,19 @@ function sayBackToTrack(state) {
 }
 
 /**
- * Add measure 5 to selection: the selection stretches to take it in, and plays from its start. It
- * is always one run of measures, so adding 5 to 1 to 2 gives 1 to 5.
+ * Add measure 5 to selection: the selection stretches to take it in. It is always one run of
+ * measures, so adding 5 to 1 to 2 gives 1 to 5.
+ *
+ * It says what the track now is and does not play it: a measure is added once it is learned, and
+ * the track played when the player is ready. Anything playing stops, the selection having changed.
  */
 function addMeasureToSelection(state, measure) {
     const first = nothingSelected(state) ? measure : Math.min(state.firstMeasure, measure);
     const last = nothingSelected(state) ? measure : Math.max(state.lastMeasure, measure);
     setAudioTrackSelection(state, first, last);
-    playAudioTrackFromStart(state);
+    announceAudioTrack(state, first === last
+        ? `Audio track is now measure ${first}.`
+        : `Audio track is now measures ${first} through ${last}.`);
 }
 
 // How much one press of the tempo keys moves the tempo.

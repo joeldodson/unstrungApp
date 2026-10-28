@@ -253,24 +253,35 @@ check('n and a do nothing now', r.summary === 'Measures to Play - Entire Song', 
 console.log('\n=== Adding measures ===');
 await clickInRegion('Add measure 3 to selection');
 r = await region();
-check('Add measure 3 with the whole song selected selects it alone', r.summary === 'Measures to Play - 3' &&
-    r.first === '3' && r.last === '3' && r.play.pressed === 'true', `${r.summary}, fields ${r.first}-${r.last}`);
+check('Add measure 3 with the whole song selected selects it alone, stops, and does not play',
+    r.summary === 'Measures to Play - 3' && r.first === '3' && r.last === '3' && r.play.pressed === 'false',
+    `${r.summary}, fields ${r.first}-${r.last}, pressed ${r.play.pressed}`);
+check('and says what the track is', r.announce === 'Audio track is now measure 3.', r.announce);
 if (r.section) check('the dropdown shows the measure itself', r.section.text === 'Measures 3', r.section.text);
 await clickInRegion('Add measure 5 to selection');
 r = await region();
-check('Add measure 5 fills in measure 4: 3 to 5', r.summary === 'Measures to Play - 3 to 5', r.summary);
+check('Add measure 5 fills in measure 4: 3 to 5, and says so', r.summary === 'Measures to Play - 3 to 5' &&
+    r.announce === 'Audio track is now measures 3 through 5.', `${r.summary} "${r.announce}"`);
 await clickInRegion('Play measure 8');
+await waitPlaying();
 r = await region();
 check('Play measure 8 leaves 3 to 5 selected', r.summary === 'Measures to Play - 3 to 5', r.summary);
+await clickInRegion('Stop measure 8');
 await clickInRegion('Add measure 8 to selection');
 r = await region();
-check('Add measure 8 stretches it: 3 to 8', r.summary === 'Measures to Play - 3 to 8' && r.play.pressed === 'true', r.summary);
+check('Add measure 8 stretches it: 3 to 8, without playing', r.summary === 'Measures to Play - 3 to 8' &&
+    r.play.pressed === 'false' && r.announce === 'Audio track is now measures 3 through 8.', `${r.summary} "${r.announce}"`);
+await clickInRegion('Play');
+await waitPlaying();
 await clickInRegion('Add measure 1 to selection');
 r = await region();
-check('Add measure 1 stretches it back: 1 to 8', r.summary === 'Measures to Play - 1 to 8', r.summary);
+check('Add measure 1 while the track plays stretches it back to 1 to 8, and stops it', r.summary === 'Measures to Play - 1 to 8' &&
+    r.play.pressed === 'false' && r.announce === 'Audio track is now measures 1 through 8.', `${r.summary} ${r.play.pressed}`);
+await clickInRegion('Play');
+await waitPlaying();
 await press('b');
 r = await region();
-check('b says where it is against the selection', /^Measure \d+ of measures 1 through 8, play \d+$/.test(r.announce), r.announce);
+check('Play then plays it; b says where it is against the selection', /^Measure \d+ of measures 1 through 8, play \d+$/.test(r.announce), r.announce);
 
 console.log('\n=== Tempo ===');
 const songTempo = Number(r.tempo);

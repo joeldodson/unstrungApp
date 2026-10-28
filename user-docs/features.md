@@ -256,9 +256,14 @@ Each measure has two buttons under its heading:
   It leaves the selection as it is, and remembers where the track had got to.
   While the measure plays, the button is named Stop measure 5, and pressing it stops the measure.
   Press Play measure 5 again to hear the measure from its start.
-- **Add measure 5 to selection** stretches the selection to include it and plays the selection from its start.
+- **Add measure 5 to selection** stretches the selection to include it and says what the track now is, for example "Audio track is now measures 1 through 5."
+  It does not play the track; press Play when you are ready.
+  Anything playing stops.
   The selection is always one run of measures, so adding measure 5 to measures 1 to 2 gives 1 to 5.
   While the whole song is selected, as it is to begin with, Add selects the measure alone.
+
+In focus mode, enter presses the measure button you are on, as it does in browse mode.
+spaceBar does not: it is the track's play and pause key.
 
 Two things can play here: the track, which is the selected measures, and a measure on its own.
 Play, the playback keys and media keys belong to the track.
@@ -273,9 +278,9 @@ Where Am I says "Measure 5 on its own" while a measure plays on its own.
 
 For example, with Repeat checked, press Play measure 1 and listen until you have it, then Add measure 1 to selection.
 Read measure 2, press Play measure 2, and when you have that, Add measure 2 to selection.
-Measures 1 and 2 then play together.
+Press Play to hear measures 1 and 2 together.
 
-Each of these starts again from the beginning of what it plays, counting in if Count in is checked.
+Play measure starts from the beginning of its measure, and Play after Add starts from the beginning of the selection, each counting in if Count in is checked.
 The tempo stays as you set it.
 
 ### Keys
