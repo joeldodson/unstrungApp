@@ -176,6 +176,20 @@ the old order of Chord Symbols, Measures and Audio Track, was removed, the new s
 - **No Try Next Measure or Add Next Measure buttons.** The Play and Add buttons under each measure do
   it on a phone; n and a do it from the keyboard. Restart Selection stays, in the row of moves.
 
+Later the same day, from how Joel means to practise: read a measure, listen to it several times,
+try playing it, and only then add it.
+
+- **Play measure 5 is independent of the track,** as first decided. It plays that measure on its
+  own, following Repeat, and leaves the selection, the fields and the Measures to Play summary as
+  they were. Where the track had got to is kept, by measure and how far into it so that a tempo
+  change in between does not lose it. Play, and the moves (the arrows, Restart Selection, Previous
+  and Next Measure, Start of Measure), go back to the track from there; a move made while the
+  measure is playing carries on playing in the track. The worry that made Play select the measure,
+  that Add would then have nothing to build from, is answered by Add itself: with the whole song
+  selected, Add selects the measure alone. A measure played once to the end says "End of measure 5."
+- **No n or a keys.** Measures are added from where they are read, with the Add button under each.
+  Add fills in what lies between: with 1 to 2 selected, Add measure 5 gives 1 to 5.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.

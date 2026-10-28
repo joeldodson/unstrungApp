@@ -248,27 +248,24 @@ Showing another open item collapses the section, and so stops playback, unless y
 
 ### Practising Measure by Measure
 
-This is for learning a song a measure at a time: play a measure until you have it, try the next one on its own, then play the two together, and so on.
+This is for learning a song a measure at a time: read a measure, listen to it until you have it, then add it to the measures you are learning, and so on.
 
 Each measure has two buttons under its heading:
 
-- **Play measure 5** selects that measure alone and plays it.
+- **Play measure 5** plays that measure on its own, once, or until stopped if Repeat is checked.
+  It leaves the selection as it is, and remembers where the track had got to.
+  Press it again to hear the measure again.
 - **Add measure 5 to selection** stretches the selection to include it and plays the selection from its start.
   The selection is always one run of measures, so adding measure 5 to measures 1 to 2 gives 1 to 5.
   While the whole song is selected, as it is to begin with, Add selects the measure alone.
 
-The same can be done with keys, without going to the measure:
+After listening to a measure on its own, Play goes back to the track, from where it was.
+So do Restart Selection, Previous Measure, Next Measure, Start of Measure and their keys.
+Where Am I says "Measure 5 on its own" while a measure plays on its own.
 
-- n plays the measure after the selection on its own, leaving the selection as it is.
-  Press it again for the one after that.
-- a adds the measure being tried, or if none, the one after the selection, and plays the selection.
-- upArrow, or Restart Selection, goes back to the start of the selection.
-  After trying a measure on its own, it goes back to the selection without adding it.
-
-For example, press Play measure 1, with Repeat checked.
-Then n plays measure 2 on its own.
-a then plays measures 1 and 2 together.
-n again plays measure 3 on its own, and so on.
+For example, with Repeat checked, press Play measure 1 and listen until you have it, then Add measure 1 to selection.
+Read measure 2, press Play measure 2, and when you have that, Add measure 2 to selection.
+Measures 1 and 2 then play together.
 
 Each of these starts again from the beginning of what it plays, counting in if Count in is checked.
 The tempo stays as you set it.
@@ -284,10 +281,6 @@ The dialog has a link to this document, which closes the dialog and opens this d
 - rightArrow: forward one measure.
 - downArrow: back to the start of the current measure.
 - upArrow: back to the start of the selection, counting in again.
-  After trying a measure on its own, back to the selection without adding it.
-- n: try the measure after the selection on its own.
-  Press it again for the one after that.
-- a: add the measure being tried to the selection, or the one after the selection, and play the selection.
 - l: repeat on or off.
 - b: say which measure is playing, and which repeat.
 - m: metronome on or off.

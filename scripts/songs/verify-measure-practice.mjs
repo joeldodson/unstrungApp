@@ -175,29 +175,64 @@ r = await region();
 check('l turns repeat on, shows Count in before every repeat, says so',
     r.repeat && !r.eachPassHidden && r.announce === 'Repeat on', `${r.repeat} ${r.eachPassHidden} "${r.announce}"`);
 
-console.log('\n=== Practising ===');
+console.log('\n=== A measure on its own leaves the track alone ===');
+// Paused, then back to the top, so the place is exact.
+await press(' ');
+await clickInRegion('Restart Selection');
+for (let i = 0; i < 4; i++) await press('ArrowRight');
+await press('b');
+r = await region();
+check('the track is paused at measure 5', r.play.pressed === 'false' && r.announce.startsWith(`Measure 5 of ${barCount}`), r.announce);
 await clickInRegion('Play measure 3');
-check('Play measure 3 selects it alone', (await waitPlaying()) && (r = await region()).summary === 'Measures to Play - 3' &&
-    r.first === '3' && r.last === '3', `${r.summary}, fields ${r.first}-${r.last}`);
-if (r.section) check('the dropdown shows the measure itself', r.section.text === 'Measures 3', r.section.text);
-await press('n');
+check('Play measure 3 plays', await waitPlaying());
+await press('b');
 r = await region();
-check('n tries measure 4 alone, leaving the selection', r.summary === 'Measures to Play - 3; trying measure 4 on its own' &&
-    r.announce === 'Measure 4 on its own' && r.first === '3' && r.last === '3', `${r.summary} "${r.announce}"`);
-await press('n');
+check('it plays on its own, and says so', r.announce.startsWith('Measure 3 on its own'), r.announce);
+check('the selection is untouched', r.summary === 'Measures to Play - Entire Song' && r.first === '1' && r.last === String(barCount),
+    `${r.summary}, fields ${r.first}-${r.last}`);
+await clickInRegion('Play measure 7');
+await press('b');
 r = await region();
-check('n again tries measure 5', r.summary.endsWith('trying measure 5 on its own'), r.summary);
+check('another measure takes its place', r.announce.startsWith('Measure 7 on its own'), r.announce);
+await press(' ');
+r = await region();
+check('spaceBar pauses the measure', r.play.pressed === 'false');
+await press(' ');
+await waitPlaying();
+await press('b');
+r = await region();
+check('Play then goes back to the track, where it was', r.announce.startsWith(`Measure 5 of ${barCount}`), r.announce);
+await clickInRegion('Play measure 3');
+await waitPlaying();
+await press('ArrowRight');
+await press('b');
+r = await region();
+check('rightArrow from a measure goes back to the track, a measure on, still playing',
+    r.play.pressed === 'true' && r.announce.startsWith(`Measure 6 of ${barCount}`), `${r.play.pressed} "${r.announce}"`);
+await clickInRegion('Play measure 9');
+await waitPlaying();
 await press('ArrowUp');
+await press('b');
 r = await region();
-check('upArrow goes back to the selection without adding', r.summary === 'Measures to Play - 3', r.summary);
+check('upArrow from a measure restarts the selection', r.play.pressed === 'true' && r.announce.startsWith(`Measure 1 of ${barCount}`),
+    r.announce);
 await press('n');
 await press('a');
 r = await region();
-check('n then a adds measure 4: 3 to 4', r.summary === 'Measures to Play - 3 to 4' && r.announce === 'Measures 3 to 4' &&
-    r.last === '4', `${r.summary} "${r.announce}"`);
-await press('a');
+check('n and a do nothing now', r.summary === 'Measures to Play - Entire Song', r.summary);
+
+console.log('\n=== Adding measures ===');
+await clickInRegion('Add measure 3 to selection');
 r = await region();
-check('a with nothing tried adds the measure after: 3 to 5', r.summary === 'Measures to Play - 3 to 5', r.summary);
+check('Add measure 3 with the whole song selected selects it alone', r.summary === 'Measures to Play - 3' &&
+    r.first === '3' && r.last === '3' && r.play.pressed === 'true', `${r.summary}, fields ${r.first}-${r.last}`);
+if (r.section) check('the dropdown shows the measure itself', r.section.text === 'Measures 3', r.section.text);
+await clickInRegion('Add measure 5 to selection');
+r = await region();
+check('Add measure 5 fills in measure 4: 3 to 5', r.summary === 'Measures to Play - 3 to 5', r.summary);
+await clickInRegion('Play measure 8');
+r = await region();
+check('Play measure 8 leaves 3 to 5 selected', r.summary === 'Measures to Play - 3 to 5', r.summary);
 await clickInRegion('Add measure 8 to selection');
 r = await region();
 check('Add measure 8 stretches it: 3 to 8', r.summary === 'Measures to Play - 3 to 8' && r.play.pressed === 'true', r.summary);
@@ -258,15 +293,22 @@ if (r.section) {
 }
 
 console.log('\n=== From the whole song ===');
-await press('a');
+await page.evaluate(barCount => {
+    const control = start => document.getElementById([...window.__region.querySelectorAll('label')]
+        .find(l => l.textContent.startsWith(start)).htmlFor);
+    control('First measure').value = '1';
+    control('First measure').dispatchEvent(new Event('change'));
+    control('Last measure').value = String(barCount);
+    control('Last measure').dispatchEvent(new Event('change'));
+}, barCount);
+await clickInRegion('Add measure 4 to selection');
+await clickInRegion('Play measure 6');
 r = await region();
-check('a with nothing selected selects measure 1', r.summary === 'Measures to Play - 1' && r.announce === 'Measure 1', `${r.summary} "${r.announce}"`);
-await press('n');
-r = await region();
-check('n tries measure 2', r.summary.endsWith('trying measure 2 on its own'), r.summary);
+check('Add measure 4 selects it, and Play measure 6 leaves it', r.summary === 'Measures to Play - 4', r.summary);
 await clickInRegion('Restart Selection');
+await press('b');
 r = await region();
-check('Restart Selection goes back to measure 1', r.summary === 'Measures to Play - 1', r.summary);
+check('Restart Selection goes back to measure 4', r.summary === 'Measures to Play - 4' && r.announce.startsWith('Measure 4,'), r.announce);
 
 console.log('\n=== Shorter beat descriptions rebuild the song ===');
 // The song's panel is built again, and the region is carried across with its measures redone, so a
@@ -292,8 +334,8 @@ check('the region is the same one, still open and playing', rebuilt.same && rebu
     `${rebuilt.same} ${rebuilt.open} ${r.play.pressed}`);
 check('its measures were redone, buttons and all', rebuilt.measures === barCount && rebuilt.buttons === barCount * 2 &&
     rebuilt.lastBeat !== beforeBeats, `"${beforeBeats}" -> "${rebuilt.lastBeat}"`);
-await clickInRegion('Play measure 2');
-check('the new measure buttons work', (await region()).summary === 'Measures to Play - 2');
+await clickInRegion('Add measure 2 to selection');
+check('the new measure buttons work', (await region()).summary === 'Measures to Play - 2 to 4');
 await page.evaluate(() => {
     const box = document.getElementById('settings-terse-beats-checkbox');
     box.checked = !box.checked;
@@ -309,7 +351,7 @@ const dialog = await page.evaluate(() => {
     return { open: d.open, items: d.querySelectorAll('li').length, first: d.querySelector('li')?.textContent,
         link: d.querySelector('a')?.textContent, title: document.title };
 });
-check('? opens it, listing the keys', dialog.open && dialog.items === 14 && dialog.first === 'spaceBar: play and pause.',
+check('? opens it, listing the keys', dialog.open && dialog.items === 12 && dialog.first === 'spaceBar: play and pause.',
     `${dialog.open} ${dialog.items} "${dialog.first}"`);
 check('the window title names it', dialog.title.endsWith('Playback Keys dialog'), dialog.title);
 await page.keyboard.press('Escape');

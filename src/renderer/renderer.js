@@ -2642,15 +2642,12 @@ function announceAudioTrack(state, message) {
 }
 
 /**
- * The measures that play, counting from 1: the one being tried on its own, if there is one,
- * otherwise the selection.
- *
- * Trying a measure (N, or Try Next Measure) plays it alone without changing the selection, so
- * upArrow can go back to the selection as it was. Anything that sets the selection ends the try.
+ * The measures that play, counting from 1: a measure played on its own from its Play button, if
+ * there is one, otherwise the selection. See playMeasureAlone.
  */
 function playingMeasures(state) {
-    return state.tryingMeasure
-        ? { first: state.tryingMeasure, last: state.tryingMeasure }
+    return state.measureAlone
+        ? { first: state.measureAlone, last: state.measureAlone }
         : { first: state.firstMeasure, last: state.lastMeasure };
 }
 
@@ -2973,7 +2970,7 @@ function audioTrackTopUp(state, myToken) {
                 // A finished run starts over from the top next time: a first play again.
                 state.countInArmed = true;
                 setAudioTrackPlayingState(state, false);
-                announceAudioTrack(state, 'End of track.');
+                announceAudioTrack(state, state.measureAlone ? `End of measure ${state.measureAlone}.` : 'End of track.');
             }, remainingMs);
         },
         prune: now => { audioTrackSources = audioTrackSources.filter(entry => entry.endsAt > now); },
@@ -3037,6 +3034,8 @@ function toggleAudioTrackPlayback(state) {
         pauseAudioTrackPlayback(state);
         return;
     }
+    // Play is the track's, so after a measure played on its own it goes back to where the track was.
+    returnToTrack(state);
     // Only a start that was armed by a first play, finishing a run, restarting, or changing the
     // selection counts in; resuming after a pause carries straight on.
     playAudioTrackWhenReady(state, () =>
@@ -3080,34 +3079,37 @@ function seekAudioTrack(state, toSeconds) {
     }
 }
 
+// The moves are the track's. From a measure played on its own they go back to the track first, and
+// carry on playing there if the measure was playing.
+
 function seekAudioTrackByMeasure(state, delta) {
+    const resume = returnToTrack(state);
     const range = audioTrackRange(state);
     const current = measureIndexAt(state, audioTrackPosition(state));
     const target = Math.max(range.firstIndex, Math.min(range.lastIndex, current + delta));
     seekAudioTrack(state, state.audioTrack.barStartSeconds[target]);
+    if (resume) startAudioTrackPlayback(state, state.anchorSeconds);
 }
 
 function seekToStartOfCurrentMeasure(state) {
+    const resume = returnToTrack(state);
     const starts = state.audioTrack.barStartSeconds;
     seekAudioTrack(state, starts[measureIndexAt(state, audioTrackPosition(state))]);
+    if (resume) startAudioTrackPlayback(state, state.anchorSeconds);
 }
 
 /**
  * Back to the start of the selection, counting in again, without losing our place in the
  * repeats: restarting during the third of five plays replays the third, then the remaining two.
- *
- * A measure being tried on its own is let go of, which is how to go back to the selection without
- * adding it. That is a fresh start, so the repeats start over too.
  */
 function restartAudioTrackSelection(state) {
-    const pass = state.tryingMeasure ? 1 : state.playing ? currentPassAt(state) : state.anchorPass;
-    state.tryingMeasure = null;
+    const resume = returnToTrack(state) || state.playing;
+    const pass = state.playing ? currentPassAt(state) : state.anchorPass;
     state.rangeCache = null;
     state.anchorPass = pass;
-    showAudioTrackSelection(state);
     const range = audioTrackRange(state);
 
-    if (state.playing) {
+    if (resume) {
         startAudioTrackPlayback(state, range.startSeconds, { countIn: state.countIn });
     } else {
         state.anchorSeconds = range.startSeconds;
@@ -3130,7 +3132,7 @@ function stepAudioTrackTempo(state, deltaBpm) {
 function announceCurrentMeasure(state) {
     const measure = measureIndexAt(state, audioTrackPosition(state)) + 1;
     let text;
-    if (state.tryingMeasure) {
+    if (state.measureAlone) {
         text = `Measure ${measure} on its own`;
     } else {
         const range = audioTrackRange(state);
@@ -3215,9 +3217,10 @@ function activeAudioTrackState() {
 }
 
 // --- Practising measure by measure ----------------------------------------------------------
-// See docs/measure-practice.md. Play a measure on its own, try the next one, add it, and so on
-// through the song. Each of these is a fresh start: playback stops, the measures that play start
-// from their first, the repeats start over, and it counts in if Count In is checked.
+// See docs/measure-practice.md. Listen to a measure on its own as often as needed, then add it to
+// the selection, and so on through the song. Each of these is a fresh start: playback stops, the
+// measures that play start from their first, the repeats start over, and it counts in if Count In
+// is checked.
 
 /** Stops playback without keeping a position, ahead of changing what plays. */
 function haltAudioTrack(state) {
@@ -3248,12 +3251,14 @@ function measureSpanText(first, last) {
 }
 
 /**
- * Sets which measures are selected, ends any try, and moves to the start of them. Does not start
- * playing: the fields and the Section dropdown leave that to Play, the buttons go on to play.
+ * Sets which measures are selected, lets go of any measure played on its own, and moves to the
+ * start of them. Does not start playing: the fields and the Section dropdown leave that to Play,
+ * the Add buttons go on to play.
  */
 function setAudioTrackSelection(state, first, last) {
     haltAudioTrack(state);
-    state.tryingMeasure = null;
+    state.measureAlone = null;
+    state.trackPlace = null;
     state.firstMeasure = first;
     state.lastMeasure = last;
     armAudioTrackFromStart(state);
@@ -3262,58 +3267,68 @@ function setAudioTrackSelection(state, first, last) {
 
 /**
  * Whether no selection has been made: the whole song, as a track starts. Practising starts from
- * here, so the measure after the selection is measure 1, and adding a measure selects it alone
- * rather than stretching the whole song to take in what it already has.
+ * here, so adding a measure selects it alone rather than stretching the whole song to take in what
+ * it already has.
  */
 function nothingSelected(state) {
     return state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount;
 }
 
-/** Play measure 5: the selection becomes that measure alone, and plays. */
+/**
+ * Play measure 5: that measure on its own, once or until stopped as Repeat says, independent of the
+ * track. The selection is left as it is, and where the track had got to is kept, so Play, the moves
+ * and Restart Selection go back to it. Pressed again, or for another measure, it starts that
+ * measure from the top, and the track's place is still the one from before the first.
+ *
+ * The place is kept by measure and how far into it, not by seconds, so a tempo changed while
+ * listening to the measure still finds it.
+ */
 function playMeasureAlone(state, measure) {
-    setAudioTrackSelection(state, measure, measure);
+    if (!state.measureAlone) {
+        if (state.playing) pauseAudioTrackPlayback(state);
+        const index = measureIndexAt(state, state.anchorSeconds);
+        const bar = state.audioTrack.bars[index];
+        state.trackPlace = {
+            index,
+            fraction: (state.anchorSeconds - bar.startSeconds) / (bar.endSeconds - bar.startSeconds),
+            pass: state.anchorPass,
+            countInArmed: state.countInArmed
+        };
+    }
+    haltAudioTrack(state);
+    state.measureAlone = measure;
     playAudioTrackFromStart(state);
+}
+
+/**
+ * Lets go of a measure played on its own and puts the track back where it was, paused. Returns
+ * whether the measure was playing, for the moves, which carry on playing in the track.
+ */
+function returnToTrack(state) {
+    if (!state.measureAlone) return false;
+    const wasPlaying = state.playing;
+    haltAudioTrack(state);
+    const place = state.trackPlace;
+    state.measureAlone = null;
+    state.trackPlace = null;
+    state.rangeCache = null;
+    const bar = state.audioTrack.bars[place.index];
+    state.anchorSeconds = bar.startSeconds + place.fraction * (bar.endSeconds - bar.startSeconds);
+    state.anchorContextTime = null;
+    state.anchorPass = place.pass;
+    state.countInArmed = place.countInArmed;
+    return wasPlaying;
 }
 
 /**
  * Add measure 5 to selection: the selection stretches to take it in, and plays from its start. It
  * is always one run of measures, so adding 5 to 1 to 2 gives 1 to 5.
  */
-function addMeasureToSelection(state, measure, { announce = false } = {}) {
+function addMeasureToSelection(state, measure) {
     const first = nothingSelected(state) ? measure : Math.min(state.firstMeasure, measure);
     const last = nothingSelected(state) ? measure : Math.max(state.lastMeasure, measure);
     setAudioTrackSelection(state, first, last);
-    if (announce) announceAudioTrack(state, first === last ? `Measure ${first}` : `Measures ${first} to ${last}`);
     playAudioTrackFromStart(state);
-}
-
-/**
- * n: plays the measure after the selection on its own, leaving the selection as it is. Pressed
- * again, the measure after that one.
- */
-function tryNextMeasure(state) {
-    const next = state.tryingMeasure ? state.tryingMeasure + 1
-        : nothingSelected(state) ? 1 : state.lastMeasure + 1;
-    if (next > state.audioTrack.barCount) {
-        announceAudioTrack(state, `Measure ${state.audioTrack.barCount} is the last measure.`);
-        return;
-    }
-    haltAudioTrack(state);
-    state.tryingMeasure = next;
-    showAudioTrackSelection(state);
-    announceAudioTrack(state, `Measure ${next} on its own`);
-    playAudioTrackFromStart(state);
-}
-
-/** a: adds the measure being tried, or else the one after the selection, and plays the selection. */
-function addNextMeasure(state) {
-    const measure = state.tryingMeasure ?? (nothingSelected(state) ? 1 : state.lastMeasure + 1);
-    if (measure > state.audioTrack.barCount) {
-        announceAudioTrack(state,
-            `The selection already runs to the last measure, ${state.audioTrack.barCount}.`);
-        return;
-    }
-    addMeasureToSelection(state, measure, { announce: true });
 }
 
 // How much one press of the tempo keys moves the tempo.
@@ -3322,9 +3337,9 @@ const AUDIO_TRACK_TEMPO_STEP_BPM = 5;
 // Playback shortcuts. These only reach the app while the screen reader is passing keys straight
 // through, which is focus mode in NVDA. No modifier variants are offered: which combinations a
 // screen reader lets through is not consistent between them, so a Ctrl alternative would work in
-// some and not others. Playing, the moves and the tempo have buttons as well, for a phone, where
-// there are no keys at all; trying and adding the next measure are done there with the buttons under
-// each measure.
+// some and not others. Each has a button as well, for a phone, where there are no keys at all.
+// Playing a measure and adding it to the selection are done with the buttons under each measure,
+// which is where you are when you decide to.
 //
 // The first Play loads the track's samples, so none of these waits for that; the moves only shift
 // the position until then.
@@ -3335,8 +3350,6 @@ const AUDIO_TRACK_SHORTCUTS = {
     ArrowDown: state => seekToStartOfCurrentMeasure(state),
     // Back to the top of the selection, counting in again, keeping the repeat count.
     ArrowUp: state => restartAudioTrackSelection(state),
-    n: state => tryNextMeasure(state),
-    a: state => addNextMeasure(state),
     l: state => setAudioTrackRepeat(state, state.repeatCount !== 0, { announce: true }),
     b: state => announceCurrentMeasure(state),
     m: state => setAudioTrackMetronome(state, !state.metronome),
@@ -3354,11 +3367,7 @@ const AUDIO_TRACK_KEY_DESCRIPTIONS = [
     'leftArrow: back one measure.',
     'rightArrow: forward one measure.',
     'downArrow: back to the start of the current measure.',
-    'upArrow: back to the start of the selection, counting in again. After trying a measure on its' +
-        ' own, back to the selection without adding it.',
-    'n: try the measure after the selection on its own. Press it again for the one after that.',
-    'a: add the measure being tried to the selection, or the one after the selection, and play the' +
-        ' selection.',
+    'upArrow: back to the start of the selection, counting in again.',
     'l: repeat on or off.',
     'b: say which measure is playing, and which repeat.',
     'm: metronome on or off.',
@@ -3613,9 +3622,7 @@ function showAudioTrackSelection(state) {
     const { firstInput, lastInput, measuresSummary, sectionSelect } = state.ui;
     firstInput.value = String(state.firstMeasure);
     lastInput.value = String(state.lastMeasure);
-    let summaryText = `Measures to Play - ${audioTrackSelectionText(state)}`;
-    if (state.tryingMeasure) summaryText += `; trying measure ${state.tryingMeasure} on its own`;
-    measuresSummary.textContent = summaryText;
+    measuresSummary.textContent = `Measures to Play - ${audioTrackSelectionText(state)}`;
 
     if (!sectionSelect) return;
     const whole = state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount;
@@ -4048,10 +4055,12 @@ function buildAudioTrackContent(score, track, songItemId, details) {
         // a loop being used to drill a phrase, which is the usual reason for looping at all.
         countInEachPass: false,
         // Which measures play, whether they repeat (0 for until stopped, 1 for once), and which
-        // play-through we are on. A measure tried on its own plays in place of the selection.
+        // play-through we are on. A measure played on its own plays in place of the selection, and
+        // trackPlace holds where the track was meanwhile.
         firstMeasure: 1,
         lastMeasure: 1,
-        tryingMeasure: null,
+        measureAlone: null,
+        trackPlace: null,
         repeatCount: 1,
         anchorPass: 1,
         sections: trackSections(track),
