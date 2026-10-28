@@ -256,11 +256,14 @@ Each measure has two buttons under its heading:
   It leaves the selection as it is, and remembers where the track had got to.
   While the measure plays, the button is named Stop measure 5, and pressing it stops the measure.
   Press Play measure 5 again to hear the measure from its start.
-- **Add measure 5 to selection** stretches the selection to include it and says what the track now is, for example "Audio track is now measures 1 through 5."
-  It does not play the track; press Play when you are ready.
-  Anything playing stops.
+- **Add measure 5 to selection** changes the selection and says what the track now is, for example "Audio track is now measures 1 through 5."
+  If measure 5 is outside the selection, the selection stretches to include it.
   The selection is always one run of measures, so adding measure 5 to measures 1 to 2 gives 1 to 5.
-  While the whole song is selected, as it is to begin with, Add selects the measure alone.
+  If measure 5 is already in the selection, the selection becomes measure 5 alone.
+  That is how to start over from one measure, including from the whole song, as it is to begin with.
+  Adding the old first and last measures back undoes it.
+  Add does not play the track; press Play when you are ready.
+  Anything playing stops.
 
 In focus mode, enter presses the measure button you are on, as it does in browse mode.
 spaceBar does not: it is the track's play and pause key.

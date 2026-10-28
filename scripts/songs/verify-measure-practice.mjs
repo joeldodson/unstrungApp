@@ -277,6 +277,19 @@ await clickInRegion('Add measure 1 to selection');
 r = await region();
 check('Add measure 1 while the track plays stretches it back to 1 to 8, and stops it', r.summary === 'Measures to Play - 1 to 8' &&
     r.play.pressed === 'false' && r.announce === 'Audio track is now measures 1 through 8.', `${r.summary} ${r.play.pressed}`);
+await clickInRegion('Add measure 5 to selection');
+r = await region();
+check('Add measure 5, already inside 1 to 8, makes measure 5 the whole track, and says so',
+    r.summary === 'Measures to Play - 5' && r.first === '5' && r.last === '5' && r.announce === 'Audio track is now measure 5.',
+    `${r.summary} "${r.announce}"`);
+await clickInRegion('Add measure 1 to selection');
+await clickInRegion('Add measure 8 to selection');
+r = await region();
+check('adding the old ends back gives 1 to 8 again', r.summary === 'Measures to Play - 1 to 8', r.summary);
+await clickInRegion('Add measure 1 to selection');
+r = await region();
+check('Add on the first measure resets to it too', r.summary === 'Measures to Play - 1', r.summary);
+await clickInRegion('Add measure 8 to selection');
 await clickInRegion('Play');
 await waitPlaying();
 await press('b');

@@ -3290,15 +3290,6 @@ function setAudioTrackSelection(state, first, last) {
 }
 
 /**
- * Whether no selection has been made: the whole song, as a track starts. Practising starts from
- * here, so adding a measure selects it alone rather than stretching the whole song to take in what
- * it already has.
- */
-function nothingSelected(state) {
-    return state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount;
-}
-
-/**
  * Play measure 5: that measure on its own, once or until stopped as Repeat says, independent of the
  * track. The selection is left as it is, and where the track had got to is kept, so Play, the moves
  * and Restart Selection go back to it. Pressed again, or for another measure, it starts that
@@ -3355,15 +3346,19 @@ function sayBackToTrack(state) {
 }
 
 /**
- * Add measure 5 to selection: the selection stretches to take it in. It is always one run of
- * measures, so adding 5 to 1 to 2 gives 1 to 5.
+ * Add measure 5 to selection. A measure outside the selection stretches it to take the measure in;
+ * it is always one run of measures, so adding 5 to 1 to 2 gives 1 to 5. A measure already inside
+ * it becomes the whole selection, which is how practising starts over from one measure, the whole
+ * song included. Not asked first: the announcement says what happened, and adding the old ends
+ * back undoes it.
  *
  * It says what the track now is and does not play it: a measure is added once it is learned, and
  * the track played when the player is ready. Anything playing stops, the selection having changed.
  */
 function addMeasureToSelection(state, measure) {
-    const first = nothingSelected(state) ? measure : Math.min(state.firstMeasure, measure);
-    const last = nothingSelected(state) ? measure : Math.max(state.lastMeasure, measure);
+    const inside = measure >= state.firstMeasure && measure <= state.lastMeasure;
+    const first = inside ? measure : Math.min(state.firstMeasure, measure);
+    const last = inside ? measure : Math.max(state.lastMeasure, measure);
     setAudioTrackSelection(state, first, last);
     announceAudioTrack(state, first === last
         ? `Audio track is now measure ${first}.`

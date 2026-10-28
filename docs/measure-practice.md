@@ -227,6 +227,27 @@ After trying it, Joel settled the rest:
   5.", and stops anything playing. A measure is added once it is learned; the track is played when
   the player is ready, with Play.
 
+### Starting over from one measure, 2026-10-28
+
+With the Intro, measures 1 to 17, selected, Joel pressed Add measure 1 to start again from measure 1
+alone, and heard "Audio track is now measures 1 through 17": adding a measure already in the
+selection did nothing. He proposed asking, in a dialog with Yes, No and "do not ask again", whether to
+reset the track, with a General setting under a "Managing Audio Tracks" heading to ask again.
+
+Settled instead, without the dialog: **Add on a measure inside the selection makes that measure the
+whole selection**; Add on a measure outside it stretches the selection, as before. No dialog or
+setting, because:
+
+- A reset by mistake is undone with one or two presses: adding the old first and last measures
+  back.
+- The announcement, "Audio track is now measure 1.", says every time what happened.
+- It replaces a special case. Add from the whole song used to select the measure alone; the whole
+  song holds every measure, so the one rule covers it.
+- A dialog would put something to tab through in the middle of practising, and a setting to find
+  later.
+
+If the reset turns out to happen by mistake often, the dialog can be added on top.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.
