@@ -2,8 +2,8 @@
 // shows them. See docs/measure-practice.md.
 //
 // Drives the Electron app with musicfiles/Grateful Dead-Ripple-12-20-2025.gp, or the song given:
-// Chord Symbols in the track's details, the region's headings and buttons, the settings, the
-// measure buttons, the n, a, l and ? keys, the Section dropdown, and the Playback Keys dialog's
+// the song's headings, Chord Symbols in the track's details, the region's headings and buttons, the
+// settings, the measure buttons, the n, a, l and ? keys, the Section dropdown, and the Playback Keys dialog's
 // link to Features. Judged from the DOM, ARIA state and the announcement lines, never pixels.
 //
 // Run: node scripts/songs/verify-measure-practice.mjs [song file]
@@ -29,23 +29,34 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const { app, page, close } = await launchApp();
 await openSongFile(app, path.basename(song), bytes);
-await page.waitForSelector(`${VISIBLE_PANEL} h3`, { timeout: 15000 });
+await page.waitForSelector(`${VISIBLE_PANEL} h2`, { timeout: 15000 });
 await pause(500); // the chord library arrives after the panel
 
 console.log(`=== ${path.basename(song)}: track details ===`);
+const songHeadings = await page.evaluate(panelSelector =>
+    [...document.querySelector(panelSelector).querySelectorAll('h1, h2, h3, h4, h5, h6')]
+        .map(h => `${h.tagName} ${h.textContent}`), VISIBLE_PANEL);
+check('Song Summary, then each track, all h2; no Tracks heading',
+    JSON.stringify(songHeadings) === JSON.stringify(['H2 Song Summary', ...meta.tracks.map((t, i) => `H2 Track ${i + 1} - ${t.name}`)]),
+    songHeadings.join(' | '));
+
 const trackShapes = await page.evaluate(panelSelector => {
     const panel = document.querySelector(panelSelector);
-    return [...panel.querySelectorAll('h3')].map(h3 => {
-        const list = h3.nextElementSibling;
+    const rowText = li => li.querySelector(':scope > details > summary')?.textContent ?? li.textContent;
+    return [...panel.querySelectorAll('h2')].filter(h => h.textContent.startsWith('Track ')).map(h2 => {
+        const list = h2.nextElementSibling;
         const rows = [...list.querySelectorAll(':scope > li')];
-        const chordRow = rows.find(li => li.firstChild?.textContent.startsWith('Chord Symbols'));
+        const chordRow = rows.find(li => rowText(li).startsWith('Chord Symbols'));
+        const chordRegion = chordRow?.querySelector(':scope > details');
         const region = list.nextElementSibling;
         return {
-            name: h3.textContent,
-            rows: rows.map(li => li.firstChild.textContent),
-            chords: [...(chordRow?.querySelectorAll(':scope > ul > li summary') ?? [])].map(s => s.textContent),
+            name: h2.textContent,
+            rows: rows.map(rowText),
+            chordRegion: chordRegion ? { open: chordRegion.open, onlyChild: chordRow.childNodes.length === 1 } : null,
+            chords: [...(chordRegion?.querySelectorAll(':scope > ul > li summary') ?? [])].map(s => s.textContent),
             regionSummary: region?.tagName === 'DETAILS' ? region.querySelector(':scope > summary').textContent : null,
             otherRegions: [...panel.querySelectorAll('details:not(details details)')]
+                .filter(d => !d.closest('li'))
                 .map(d => d.querySelector(':scope > summary').textContent)
                 .filter(text => /^(Chord Symbols|Measures -|Audio Track)/.test(text))
         };
@@ -59,6 +70,10 @@ meta.tracks.forEach((expected, t) => {
         ? 'Chord Symbols - none; the file prints no chord symbols over this part'
         : `Chord Symbols - ${expected.chords.length}`;
     check('  Chord Symbols is the last row of the details', shown.rows.at(-1) === wantedRow, shown.rows.at(-1));
+    if (expected.chords.length > 0) {
+        check('  Chord Symbols is a region of its own, collapsed', shown.chordRegion?.onlyChild && shown.chordRegion.open === false,
+            JSON.stringify(shown.chordRegion));
+    }
     check('  it lists the printed chords in order',
         shown.chords.join(' ') === expected.chords.map(c => c.name).join(' '), shown.chords.join(' '));
     const n = expected.measures.length;
@@ -90,8 +105,9 @@ const region = () => page.evaluate(() => {
     const control = start => document.getElementById(byLabel(start)?.htmlFor);
     const section = control('Section');
     return {
-        headings: [...r.querySelectorAll('h4, h5')].map(h => `${h.tagName} ${h.textContent}`),
-        firstButtons: [...(r.querySelector('h5')?.nextElementSibling?.querySelectorAll('button') ?? [])].map(b => b.textContent),
+        headings: [...r.querySelectorAll('h1, h2, h3, h4, h5, h6')].map(h => `${h.tagName} ${h.textContent}`),
+        keysNote: [...r.querySelectorAll('h3')].find(h => h.textContent === 'Playback Controls')?.nextElementSibling?.textContent ?? null,
+        firstButtons: [...(r.querySelector('h4')?.nextElementSibling?.querySelectorAll('button') ?? [])].map(b => b.textContent),
         measureButtonCount: r.querySelectorAll('button[data-measure]').length,
         play: { text: r.querySelector('.audio-track button[aria-pressed]').textContent,
             pressed: r.querySelector('.audio-track button[aria-pressed]').getAttribute('aria-pressed') },
@@ -107,7 +123,8 @@ const region = () => page.evaluate(() => {
         announce: r.querySelector('p[aria-live="polite"]:not([role])').textContent,
         status: r.querySelector('p[role="status"]').textContent,
         error: r.querySelector('p[role="alert"]').textContent,
-        controls: [...r.querySelectorAll('.audio-track .button-row button')].map(b => b.textContent)
+        controls: [...r.querySelectorAll('.audio-track .button-row button')].map(b => b.textContent),
+        tempoRowAfterTempo: r.querySelector('.audio-track p:has(input[type="number"]) + .button-row') !== null
     };
 });
 const clickInRegion = name => page.evaluate(name => {
@@ -126,16 +143,19 @@ const waitPlaying = async () => {
 };
 
 let r = await region();
-const h5s = r.headings.filter(h => h.startsWith('H5'));
-check('headings: Playback Settings, Playback Controls, Measures, then the measures',
-    r.headings[0] === 'H4 Playback Settings' && r.headings[1] === 'H4 Playback Controls' &&
-    r.headings[2] === `H4 Measures - ${barCount}` && h5s.length === barCount, r.headings.slice(0, 4).join(' | '));
-check('measure headings are h5 and read as before', h5s[0] === 'H5 Measure 1' + (track.measures[0].section ? ` - ${track.measures[0].section}` : '') + (track.measures[0].chords ? ` - ${track.measures[0].chords}` : '') || h5s[0].startsWith('H5 Measure 1'), h5s[0]);
+const h4s = r.headings.filter(h => h.startsWith('H4'));
+check('headings: Playback Settings, Playback Controls, Measures, all h3, then the measures, h4',
+    r.headings[0] === 'H3 Playback Settings' && r.headings[1] === 'H3 Playback Controls' &&
+    r.headings[2] === `H3 Measures - ${barCount}` && h4s.length === barCount && r.headings.length === barCount + 3,
+    r.headings.slice(0, 4).join(' | '));
+check('measure headings are h4 and read as before', h4s[0].startsWith('H4 Measure 1'), h4s[0]);
+check('Playback Controls starts by saying how to reach the keys', r.keysNote === 'Type ? for keyboard commands.', r.keysNote);
 check('each measure has Play and Add buttons naming it', r.measureButtonCount === barCount * 2 &&
     r.firstButtons.join(' | ') === 'Play measure 1 | Add measure 1 to selection', r.firstButtons.join(' | '));
-check('a button for every key', ['Slower', 'Faster', 'Default Tempo', 'Play', 'Keyboard Commands',
-    'Try Next Measure', 'Add Next Measure', 'Restart Selection', 'Previous Measure', 'Next Measure',
-    'Start of Measure', 'Where Am I'].every(b => r.controls.includes(b)), r.controls.join(', '));
+check('Playback Controls: Play; the moves; then the tempo',
+    r.controls.join(', ') === 'Play, Restart Selection, Previous Measure, Next Measure, Start of Measure, Where Am I, ' +
+    'Slower, Faster, Default Tempo', r.controls.join(', '));
+check('no tempo buttons after the Tempo field', !r.tempoRowAfterTempo);
 check('no Create Track button, no printed key list', !r.controls.includes('Create Track') &&
     !r.headings.some(h => /Keyboard Control/.test(h)));
 check('starts: whole song, count in on, repeat off', r.summary === 'Measures to Play - Entire Song' &&
@@ -236,12 +256,12 @@ if (r.section) {
 }
 
 console.log('\n=== From the whole song ===');
-await clickInRegion('Add Next Measure');
+await press('a');
 r = await region();
-check('Add Next Measure with nothing selected selects measure 1', r.summary === 'Measures to Play - 1' && r.announce === 'Measure 1', `${r.summary} "${r.announce}"`);
-await clickInRegion('Try Next Measure');
+check('a with nothing selected selects measure 1', r.summary === 'Measures to Play - 1' && r.announce === 'Measure 1', `${r.summary} "${r.announce}"`);
+await press('n');
 r = await region();
-check('Try Next Measure tries measure 2', r.summary.endsWith('trying measure 2 on its own'), r.summary);
+check('n tries measure 2', r.summary.endsWith('trying measure 2 on its own'), r.summary);
 await clickInRegion('Restart Selection');
 r = await region();
 check('Restart Selection goes back to measure 1', r.summary === 'Measures to Play - 1', r.summary);
@@ -251,7 +271,7 @@ console.log('\n=== Shorter beat descriptions rebuild the song ===');
 // track being played keeps playing.
 await clickInRegion('Play measure 4');
 await waitPlaying();
-const beforeBeats = await page.evaluate(() => [...window.__region.querySelectorAll('h5 + .button-row + ul')].map(ul => ul.textContent).join('|').length);
+const beforeBeats = await page.evaluate(() => [...window.__region.querySelectorAll('h4 + .button-row + ul')].map(ul => ul.textContent).join('|').length);
 await page.evaluate(() => {
     const box = document.getElementById('settings-terse-beats-checkbox');
     box.checked = !box.checked;
@@ -261,9 +281,9 @@ await pause(800);
 const rebuilt = await page.evaluate(() => ({
     same: document.contains(window.__region),
     open: window.__region.open,
-    measures: window.__region.querySelectorAll('h5').length,
+    measures: window.__region.querySelectorAll('h4').length,
     buttons: window.__region.querySelectorAll('button[data-measure]').length,
-    lastBeat: [...window.__region.querySelectorAll('h5 + .button-row + ul')].map(ul => ul.textContent).join('|').length
+    lastBeat: [...window.__region.querySelectorAll('h4 + .button-row + ul')].map(ul => ul.textContent).join('|').length
 }));
 r = await region();
 check('the region is the same one, still open and playing', rebuilt.same && rebuilt.open && r.play.pressed === 'true',
@@ -294,7 +314,7 @@ await page.keyboard.press('Escape');
 await pause(150);
 check('escape closes it and focus goes back', await page.evaluate(() =>
     !document.getElementById('playback-keys-dialog').open && document.activeElement?.textContent === 'Play measure 2'));
-await clickInRegion('Keyboard Commands');
+await press('Shift+Slash');
 await page.evaluate(() => document.querySelector('#playback-keys-dialog a').click());
 await pause(500);
 check('the Features link closes it and opens Features', await page.evaluate(() =>

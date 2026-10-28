@@ -157,6 +157,24 @@ Checked by `scripts/songs/verify-measure-practice.mjs` against Ripple. The older
 the Audio Track disclosure were moved to the new region; `verify-track-chords.mjs`, which checked
 the old order of Chord Symbols, Measures and Audio Track, was removed, the new script covering it.
 
+## Changed after Joel tried it, 2026-10-28
+
+- **No Tracks heading.** The number of tracks is the Song Summary's last row, so the heading only
+  repeated it. Each track is now an h2 beside Song Summary, which frees a level inside the track:
+  Playback Settings, Playback Controls and Measures are h3, and each measure is h4. shift+3 from a
+  measure goes back up through them.
+- **Chord Symbols is a collapsed region again,** inside the last row of the track's details, so the
+  row reads "Chord Symbols - 5" and the chords are passed over until it is expanded. A track with
+  none still says so in the row itself, with nothing to expand.
+- **The tempo buttons are in Playback Controls,** after the measure moves, not after the Tempo
+  field. On a phone, moving around a track and changing the tempo happen together, so the buttons
+  belong in one place.
+- **No Keyboard Commands button.** Playback Controls starts with a line, "Type ? for keyboard
+  commands." A screen reader user knows the keys need focus mode, so the dialog no longer explains
+  it either; it is said once in Features.
+- **No Try Next Measure or Add Next Measure buttons.** The Play and Add buttons under each measure do
+  it on a phone; n and a do it from the keyboard. Restart Selection stays, in the row of moves.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.

@@ -37,7 +37,7 @@ const opened = await page.evaluate(() => {
         details.open = true;
         details.dispatchEvent(new Event('toggle'));
         let heading = details.previousElementSibling;
-        while (heading && heading.tagName !== 'H3') heading = heading.previousElementSibling;
+        while (heading && heading.tagName !== 'H2') heading = heading.previousElementSibling;
         names.push(heading ? heading.textContent.trim() : '(unnamed)');
     }
     return names;
@@ -52,12 +52,14 @@ const read = await page.evaluate(() => {
         const summary = details.querySelector('summary')?.textContent ?? '';
         if (!/^Measures/.test(summary.trim())) continue;
         let heading = details.previousElementSibling;
-        while (heading && heading.tagName !== 'H3') heading = heading.previousElementSibling;
+        while (heading && heading.tagName !== 'H2') heading = heading.previousElementSibling;
         const measures = {};
         for (const h4 of details.querySelectorAll('h4')) {
             const match = h4.textContent.match(/^Measure (\d+)/);
             if (!match) continue;
-            const list = h4.nextElementSibling;
+            // The Play and Add buttons come between the heading and its list.
+            let list = h4.nextElementSibling;
+            if (list?.classList.contains('button-row')) list = list.nextElementSibling;
             measures[match[1]] = {
                 heading: h4.textContent,
                 items: list ? [...list.querySelectorAll('li')].map(li => li.textContent) : []

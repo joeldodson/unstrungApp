@@ -700,17 +700,11 @@
         <button type="button" id="directory-error-ok-button">OK</button>
     </dialog>
 
-    <!-- The keys that play a song's tracks, opened by ? and by Keyboard Commands in a track's
-         Playback Controls. The list is filled from AUDIO_TRACK_KEY_DESCRIPTIONS in renderer.js. -->
+    <!-- The keys that play a song's tracks, opened by ?. The list is filled from
+         AUDIO_TRACK_KEY_DESCRIPTIONS in renderer.js. -->
     <dialog id="playback-keys-dialog" aria-labelledby="playback-keys-heading-name" tabindex="-1">
         <h1 id="playback-keys-heading"><span id="playback-keys-heading-name">Playback Keys</span> Dialog Box</h1>
-        <p>
-            These keys play the track whose Measures and Playback region is open.
-            They work only while your screen reader passes keys straight through to unstrung, which is focus mode in NVDA.
-            nvdaKey+spaceBar turns focus mode on and off, and unstrung cannot do it for you.
-            Turn it off before you move somewhere else, or the keys you press there go to unstrung instead of moving you around.
-            Every key has a button in Playback Settings or Playback Controls as well.
-        </p>
+        <p>These keys play the track whose Measures and Playback region is open.</p>
         <ul id="playback-keys-list"></ul>
         <p>
             <a href="https://eyesunstrung.vip/unstrung/docs/features/">Features</a> describes playing a track in full, under Playing a Track.

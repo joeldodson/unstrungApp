@@ -181,18 +181,16 @@ function buildSummaryPanel(meta, { trackRegionFor } = {}) {
         : ''));
     container.append(ul);
 
-    const tracksHeading = document.createElement('h2');
-    tracksHeading.textContent = `Tracks - ${meta.tracks.length}`;
-    container.append(tracksHeading);
-
     if (meta.tracks.length === 0) {
         const p = document.createElement('p');
         p.textContent = 'This file has no guitar or bass tracks.';
         container.append(p);
     }
 
+    // Each track is an h2 beside Song Summary. The number of tracks is the summary's last row, so
+    // a Tracks heading would only repeat it, and would push everything inside a track a level down.
     meta.tracks.forEach((track, index) => {
-        const trackHeading = document.createElement('h3');
+        const trackHeading = document.createElement('h2');
         trackHeading.textContent = `Track ${index + 1} - ${track.name}`;
         container.append(trackHeading);
 
@@ -3324,8 +3322,9 @@ const AUDIO_TRACK_TEMPO_STEP_BPM = 5;
 // Playback shortcuts. These only reach the app while the screen reader is passing keys straight
 // through, which is focus mode in NVDA. No modifier variants are offered: which combinations a
 // screen reader lets through is not consistent between them, so a Ctrl alternative would work in
-// some and not others. Every one of them has a button as well, for when you are not in focus mode
-// and for a phone, where there are no keys at all.
+// some and not others. Playing, the moves and the tempo have buttons as well, for a phone, where
+// there are no keys at all; trying and adding the next measure are done there with the buttons under
+// each measure.
 //
 // The first Play loads the track's samples, so none of these waits for that; the moves only shift
 // the position until then.
@@ -3421,7 +3420,7 @@ document.addEventListener('keydown', event => {
 
 // --- Playback Keys dialog -----------------------------------------------------------------------
 // The keys are listed here rather than in every track, where the list came before the measures and
-// had to be passed every time. Opened by ? and by the Keyboard Commands button.
+// had to be passed every time. Opened by ?, which a line under Playback Controls mentions.
 
 const playbackKeysDialog = document.getElementById('playback-keys-dialog');
 const playbackKeysList = document.getElementById('playback-keys-list');
@@ -3723,15 +3722,15 @@ function buildActionRow(state, actions) {
 /**
  * The top of a track's Measures and Playback region: Playback Settings, then Playback Controls.
  *
- * Both are h4, as is the Measures heading after them, and each measure is an h5. So shift+4 from
- * any measure reaches the Measures heading, then Playback Controls, then Playback Settings, while 5
- * still steps through the measures.
+ * Both are h3, under the track's h2, as is the Measures heading after them, and each measure is an
+ * h4. So shift+3 from any measure reaches the Measures heading, then Playback Controls, then
+ * Playback Settings, while 4 still steps through the measures.
  */
 function buildAudioTrackPanel(state) {
     const container = document.createElement('div');
     container.className = 'audio-track';
 
-    const settingsHeading = document.createElement('h4');
+    const settingsHeading = document.createElement('h3');
     settingsHeading.textContent = 'Playback Settings';
     container.append(settingsHeading);
 
@@ -3739,12 +3738,6 @@ function buildAudioTrackPanel(state) {
         `Tempo in beats per minute, ${AUDIO_TRACK_MIN_BPM} to ${AUDIO_TRACK_MAX_BPM}`,
         { min: AUDIO_TRACK_MIN_BPM, max: AUDIO_TRACK_MAX_BPM, value: state.targetTempo });
     container.append(tempo.paragraph);
-    // The tempo keys as buttons, for a phone. Straight after the field they change.
-    container.append(buildActionRow(state, [
-        ['Slower', state2 => stepAudioTrackTempo(state2, -AUDIO_TRACK_TEMPO_STEP_BPM)],
-        ['Faster', state2 => stepAudioTrackTempo(state2, AUDIO_TRACK_TEMPO_STEP_BPM)],
-        ['Default Tempo', state2 => defaultAudioTrackTempo(state2)]
-    ]));
 
     const metronome = buildCheckboxParagraph('audio-track-metronome-checkbox',
         'Metronome', state.metronome);
@@ -3797,9 +3790,14 @@ function buildAudioTrackPanel(state) {
     measuresDetails.append(first.paragraph, last.paragraph);
     container.append(measuresDetails);
 
-    const controlsHeading = document.createElement('h4');
+    const controlsHeading = document.createElement('h3');
     controlsHeading.textContent = 'Playback Controls';
     container.append(controlsHeading);
+
+    // The keys are listed in a dialog rather than here; this only says how to reach it.
+    const keysNote = document.createElement('p');
+    keysNote.textContent = 'Type ? for keyboard commands.';
+    container.append(keysNote);
 
     // Play first and alone in its row, being what is pressed most.
     const playRow = createButtonRow();
@@ -3808,11 +3806,7 @@ function buildAudioTrackPanel(state) {
     playButton.textContent = 'Play';
     playButton.setAttribute('aria-pressed', 'false');
     playButton.addEventListener('click', () => toggleAudioTrackPlayback(state));
-    const keysButton = document.createElement('button');
-    keysButton.type = 'button';
-    keysButton.textContent = 'Keyboard Commands';
-    keysButton.addEventListener('click', () => openPlaybackKeysDialog());
-    playRow.append(playButton, keysButton);
+    playRow.append(playButton);
     container.append(playRow);
 
     // When a selection cannot be played, the reason lands straight after Play.
@@ -3820,17 +3814,19 @@ function buildAudioTrackPanel(state) {
     error.setAttribute('role', 'alert');
     container.append(error);
 
-    // Every key has a button, for when you are not in focus mode and for a phone.
+    // The moves and the tempo as buttons, for a phone, where there are no keys. Trying and adding
+    // the next measure are left to the buttons under each measure.
     container.append(buildActionRow(state, [
-        ['Try Next Measure', state2 => tryNextMeasure(state2)],
-        ['Add Next Measure', state2 => addNextMeasure(state2)],
-        ['Restart Selection', state2 => restartAudioTrackSelection(state2)]
-    ]));
-    container.append(buildActionRow(state, [
+        ['Restart Selection', state2 => restartAudioTrackSelection(state2)],
         ['Previous Measure', state2 => seekAudioTrackByMeasure(state2, -1)],
         ['Next Measure', state2 => seekAudioTrackByMeasure(state2, 1)],
         ['Start of Measure', state2 => seekToStartOfCurrentMeasure(state2)],
         ['Where Am I', state2 => announceCurrentMeasure(state2)]
+    ]));
+    container.append(buildActionRow(state, [
+        ['Slower', state2 => stepAudioTrackTempo(state2, -AUDIO_TRACK_TEMPO_STEP_BPM)],
+        ['Faster', state2 => stepAudioTrackTempo(state2, AUDIO_TRACK_TEMPO_STEP_BPM)],
+        ['Default Tempo', state2 => defaultAudioTrackTempo(state2)]
     ]));
 
     // Moving around stays silent so the music is not talked over. This is where the keys and
@@ -3912,7 +3908,7 @@ function measureHeadingText(measure, measureIndex) {
 }
 
 /**
- * The measures of a track, under an h4, each an h5 followed by its Play and Add buttons and then
+ * The measures of a track, under an h3, each an h4 followed by its Play and Add buttons and then
  * its lyrics and beats. `state` is null for a track with nothing to play, which gets no buttons.
  *
  * The buttons come after the heading rather than inside it, where they would be read at every
@@ -3921,12 +3917,12 @@ function measureHeadingText(measure, measureIndex) {
  */
 function fillTrackMeasures(container, track, state) {
     container.replaceChildren();
-    const heading = document.createElement('h4');
+    const heading = document.createElement('h3');
     heading.textContent = `Measures - ${track.measures.length}`;
     container.append(heading);
 
     track.measures.forEach((measure, measureIndex) => {
-        const measureHeading = document.createElement('h5');
+        const measureHeading = document.createElement('h4');
         measureHeading.textContent = measureHeadingText(measure, measureIndex);
         container.append(measureHeading);
 
@@ -4314,9 +4310,9 @@ function describePlayedFrets(frets) {
 }
 
 /**
- * The chord symbols a track prints, as the last row of the track's details: "Chord Symbols - 5",
- * with the chords listed inside it, each collapsed. So the names are heard reading the track,
- * without opening anything. See docs/measure-practice.md.
+ * The chord symbols a track prints, as the last row of the track's details: a collapsed region,
+ * "Chord Symbols - 5", with the chords listed inside it, each collapsed too. See
+ * docs/measure-practice.md.
  *
  * The chords are matched against the chord library, which may not be loaded yet. The panel is built
  * the moment a file is parsed and waiting on the library then would delay every file, so the row
@@ -4325,14 +4321,18 @@ function describePlayedFrets(frets) {
 function appendTrackChordSymbols(trackList, track) {
     const chords = track.chords ?? [];
     const item = document.createElement('li');
-    item.textContent = chords.length === 0
-        ? 'Chord Symbols - none; the file prints no chord symbols over this part'
-        : `Chord Symbols - ${chords.length}`;
     trackList.append(item);
-    if (chords.length === 0) return;
+    if (chords.length === 0) {
+        item.textContent = 'Chord Symbols - none; the file prints no chord symbols over this part';
+        return;
+    }
 
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = `Chord Symbols - ${chords.length}`;
     const list = document.createElement('ul');
-    item.append(list);
+    details.append(summary, list);
+    item.append(details);
     const fill = () => {
         for (const chord of chords) list.append(buildTrackChordRow(chord));
     };

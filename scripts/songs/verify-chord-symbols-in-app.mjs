@@ -31,33 +31,36 @@ const check = (label, condition, detail = '') => {
 
 const { app, page, close } = await launchApp();
 await openSongFile(app, path.basename(song), bytes);
-await page.waitForSelector(`${VISIBLE_PANEL} h3`, { timeout: 15000 });
+await page.waitForSelector(`${VISIBLE_PANEL} h2`, { timeout: 15000 });
 await new Promise(r => setTimeout(r, 1000)); // the chord library arrives after the panel
 
-// Each track's Chord Symbols, the last row of its details, and the measures of its Measures and
-// Playback region once opened. See docs/measure-practice.md. Each measure is an h5, followed by
-// its Play and Add buttons and then its lyrics and beats.
+// Each track's Chord Symbols, the last row of its details and a collapsed region of its own, and
+// the measures of its Measures and Playback region once opened. See docs/measure-practice.md. Each
+// track is an h2 and each measure an h4, followed by its Play and Add buttons and then its lyrics and
+// beats.
 const tracks = await page.evaluate(async panelSelector => {
     const panel = document.querySelector(panelSelector);
     const result = [];
-    for (const h3 of panel.querySelectorAll('h3')) {
-        const list = h3.nextElementSibling;
+    // A row's own words: the summary, where the row is a collapsed region.
+    const rowText = li => li.querySelector(':scope > details > summary')?.textContent ?? li.textContent;
+    for (const h2 of [...panel.querySelectorAll('h2')].filter(h => h.textContent.startsWith('Track '))) {
+        const list = h2.nextElementSibling;
         const chordItem = [...list.querySelectorAll(':scope > li')]
-            .find(li => li.firstChild.textContent.startsWith('Chord Symbols'));
+            .find(li => rowText(li).startsWith('Chord Symbols'));
         const region = list.nextElementSibling;
         region.open = true;
-        for (let i = 0; i < 50 && !region.querySelector('h5'); i++) await new Promise(r => setTimeout(r, 100));
+        for (let i = 0; i < 50 && !region.querySelector('h4'); i++) await new Promise(r => setTimeout(r, 100));
         const beatsAfter = heading => {
             let next = heading.nextElementSibling;
             if (next?.classList.contains('button-row')) next = next.nextElementSibling;
             return [...(next?.querySelectorAll('li') ?? [])].map(li => li.textContent);
         };
-        result.push({ name: h3.textContent, rowsOfDetails: [...list.querySelectorAll(':scope > li')].map(li => li.firstChild.textContent), regions: [
+        result.push({ name: h2.textContent, rowsOfDetails: [...list.querySelectorAll(':scope > li')].map(rowText), regions: [
             {
-                summary: chordItem.firstChild.textContent,
-                text: chordItem.firstChild.textContent,
+                summary: rowText(chordItem),
+                text: rowText(chordItem),
                 headings: [],
-                rows: [...chordItem.querySelectorAll(':scope > ul > li')].map(li => ({
+                rows: [...chordItem.querySelectorAll(':scope > details > ul > li')].map(li => ({
                     summary: li.querySelector('summary')?.textContent ?? li.textContent,
                     facts: [...li.querySelectorAll('details > ul > li')].map(x => x.textContent)
                 }))
@@ -65,7 +68,7 @@ const tracks = await page.evaluate(async panelSelector => {
             {
                 summary: 'Measures',
                 text: null,
-                headings: [...region.querySelectorAll('h5')].map(h => ({ text: h.textContent, beats: beatsAfter(h) })),
+                headings: [...region.querySelectorAll('h4')].map(h => ({ text: h.textContent, beats: beatsAfter(h) })),
                 rows: []
             }
         ] });
