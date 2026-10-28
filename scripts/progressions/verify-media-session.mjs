@@ -391,9 +391,9 @@ await page.waitForTimeout(3000);
 
 const trackState = () => page.evaluate(() => {
     const panel = [...document.querySelectorAll('section[id^="item-panel-"]')].find(p => !p.hidden);
-    const details = panel?.querySelector('details.audio-track-disclosure');
+    const details = panel?.querySelector('details.track-region');
     const play = details && [...details.querySelectorAll('button')]
-        .find(b => /^(Play Track|Pause)$/.test(b.textContent));
+        .find(b => /^(Play|Pause)$/.test(b.textContent));
     return {
         summary: details?.querySelector('summary')?.textContent ?? null,
         playLabel: play?.textContent ?? null,
@@ -411,32 +411,36 @@ const trackMeasureNow = async () => {
 
 await page.evaluate(() => {
     const panel = [...document.querySelectorAll('section[id^="item-panel-"]')].find(p => !p.hidden);
-    panel.querySelector('details.audio-track-disclosure').open = true;
+    panel.querySelector('details.track-region').open = true;
 });
 await page.waitForTimeout(500);
-await page.evaluate(() => {
+// The first Play loads the samples; it is paused again once playing, so the check below starts
+// from a loaded track as it did when there was a Create Track button.
+const clickInTrack = label => page.evaluate(label => {
     const panel = [...document.querySelectorAll('section[id^="item-panel-"]')].find(p => !p.hidden);
-    const details = panel.querySelector('details.audio-track-disclosure');
-    [...details.querySelectorAll('button')].find(b => b.textContent === 'Create Track')?.click();
-});
+    [...panel.querySelector('details.track-region').querySelectorAll('button')].find(b => b.textContent === label)?.click();
+}, label);
+await clickInTrack('Play');
 let track = await trackState();
-for (let i = 0; i < 60 && track.playDisabled !== false; i++) {
+for (let i = 0; i < 60 && track.playLabel !== 'Pause'; i++) {
     await page.waitForTimeout(1000);
     track = await trackState();
 }
-check('the track was created', track.playDisabled === false, `${track.summary}, ${track.playLabel}`);
+check('the first Play loads the track and plays', track.playLabel === 'Pause', `${track.summary}, ${track.playLabel}`);
+await clickInTrack('Pause');
+await page.waitForTimeout(500);
 
 await page.evaluate(() => {
     const panel = [...document.querySelectorAll('section[id^="item-panel-"]')].find(p => !p.hidden);
-    [...panel.querySelector('details.audio-track-disclosure').querySelectorAll('button')]
-        .find(b => b.textContent === 'Play Track').focus();
+    [...panel.querySelector('details.track-region').querySelectorAll('button')]
+        .find(b => b.textContent === 'Play').focus();
 });
 await page.keyboard.press(' ');
 await page.waitForTimeout(1500);
 track = await trackState();
 check('spaceBar plays the track', track.playLabel === 'Pause', track.playLabel);
 check('the title is the song and the track',
-    / - /.test(track.title ?? '') && track.title.endsWith(track.summary.replace(/^Audio Track - /, '')),
+    / - /.test(track.title ?? '') && track.title.endsWith(' - Acoustic Lead'),
     track.title);
 session = windowsSession();
 check('Windows lists the track as playing, and sends the keys to it',
@@ -449,7 +453,7 @@ await page.waitForTimeout(1000);
 windowsSession('PlayPause');
 await page.waitForTimeout(800);
 track = await trackState();
-check('play/pause from Windows pauses the track', track.playLabel === 'Play Track', track.playLabel);
+check('play/pause from Windows pauses the track', track.playLabel === 'Play', track.playLabel);
 check('playbackState is paused', track.playbackState === 'paused', track.playbackState);
 let trackMeasure = await trackMeasureNow();
 windowsSession('Next');
@@ -469,7 +473,7 @@ await page.waitForTimeout(500);
 await interrupt();
 await page.waitForTimeout(500);
 track = await trackState();
-check('an interruption pauses the track', track.playLabel === 'Play Track', track.playLabel);
+check('an interruption pauses the track', track.playLabel === 'Play', track.playLabel);
 await endInterruption();
 await page.waitForTimeout(800);
 track = await trackState();

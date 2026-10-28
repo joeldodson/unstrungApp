@@ -141,7 +141,7 @@ function addSummaryRow(ul, label, value) {
     ul.append(li);
 }
 
-function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
+function buildSummaryPanel(meta, { trackRegionFor } = {}) {
     const container = document.createElement('div');
 
     const summaryHeading = document.createElement('h2');
@@ -207,75 +207,13 @@ function buildSummaryPanel(meta, { audioTrackDisclosureFor } = {}) {
             : 'Not applicable';
         addSummaryRow(trackList, 'Tuning', tuningText);
         addSummaryRow(trackList, 'Capo', track.capo ? `Fret ${track.capo}` : 'None');
+        appendTrackChordSymbols(trackList, track);
         container.append(trackList);
 
-        container.append(buildTrackChordsRegion(track));
-
-        // The measures are almost all of a song's content: hundreds of short text lines per
-        // track. They sit behind a collapsed disclosure, and are only built when it is first
-        // opened, for more than tidiness. A screen reader's browse buffer pays a per-text-line
-        // cost walking newly exposed content, so a panel that exposes every beat of every
-        // measure took seconds to enter each time the tab was visited. Collapsed content stays
-        // out of the accessibility tree entirely, so entering the document is immediate and the
-        // cost is only paid if and when the measures are opened.
-        const measuresDetails = document.createElement('details');
-        const measuresSummary = document.createElement('summary');
-        measuresSummary.textContent = `Measures - ${track.measures.length}`;
-        measuresDetails.append(measuresSummary);
-
-        let measuresBuilt = false;
-        measuresDetails.addEventListener('toggle', () => {
-            if (!measuresDetails.open || measuresBuilt) return;
-            measuresBuilt = true;
-
-            track.measures.forEach((measure, measureIndex) => {
-                // h4: the next level under the track's h3, now that the old "Measures" h4
-                // has become the disclosure's summary rather than a heading.
-                const measureHeading = document.createElement('h4');
-                // Both of these govern the measure rather than any one note in it, and navigating
-                // by heading is how a long track gets read, so they ride here: it puts the song's
-                // structure and its chord changes on the path already being taken. The section
-                // comes first, being the larger unit and only present where one begins.
-                measureHeading.textContent = [
-                    `Measure ${measureIndex + 1}`,
-                    measure.section,
-                    // What the barlines say about the playing order. The measures are listed
-                    // straight through, which is not how a song with repeats is played, so a
-                    // repeat mark is as much a part of finding your way as the section is.
-                    measure.repeat,
-                    // The chords the file prints: "chord C", "continues C, chord G at beat 3".
-                    // See docs/chord-forms-in-scores.md.
-                    measure.chords
-                ].filter(Boolean).join(' - ');
-                measuresDetails.append(measureHeading);
-
-                const measureList = document.createElement('ul');
-                // The words sung over this measure lead the list, one line per singing part.
-                // They are the clearest landmark a measure has, and they are shown on every
-                // track, since the part being read is rarely the one carrying them. Kept as
-                // separate items rather than run together: a duet's two lines are two thoughts,
-                // and one long line is harder to follow than two short ones.
-                for (const lyricLine of measure.lyrics ?? []) {
-                    const li = document.createElement('li');
-                    li.textContent = lyricLine;
-                    measureList.append(li);
-                }
-                for (const beatText of measure.beats) {
-                    const li = document.createElement('li');
-                    li.textContent = beatText;
-                    measureList.append(li);
-                }
-                measuresDetails.append(measureList);
-            });
-        });
-
-        container.append(measuresDetails);
-
-        // Last in the track, after the measures: playing the track is something to do rather than
-        // something to read, so it does not interrupt the track's content. Collapsed, it is one
-        // line, like the two regions above it.
-        // By the track's place in the file, which is how the score reaches it.
-        if (audioTrackDisclosureFor) container.append(audioTrackDisclosureFor(track.index, track.name));
+        // The measures and the means of playing them, in one collapsed region. See
+        // docs/measure-practice.md. Kept from one rebuild of the panel to the next, so a track
+        // being played keeps playing when the beat descriptions change.
+        if (trackRegionFor) container.append(trackRegionFor(track));
     });
 
     return container;
@@ -460,14 +398,15 @@ function buildSongMetadata(score) {
  * Rebuilds the summary of every open song. Called when the beat-description setting changes, so
  * the change is visible in files already open rather than only in the next one. Cheap enough to do
  * outright: extracting the metadata and building the panel measure in fractions of a millisecond,
- * and the measures themselves are still only built when a disclosure is opened. A track's audio
- * track disclosure is carried across as it is, so a track being played keeps playing.
+ * and the measures themselves are still only built when a disclosure is opened. A track's
+ * Measures and Playback region is carried across, with its measures redone, so a track being
+ * played keeps playing.
  */
 function rebuildOpenSongPanels() {
     for (const item of openItems) {
         if (!item.score) continue;
         const meta = buildSongMetadata(item.score);
-        const content = buildSummaryPanel(meta, { audioTrackDisclosureFor: item.audioTrackDisclosureFor });
+        const content = buildSummaryPanel(meta, { trackRegionFor: item.trackRegionFor });
         item.panelEl.replaceChildren(content);
     }
 }
@@ -479,21 +418,25 @@ function handleFileOpened({ fileName, data }) {
     let score;
     // Resolved once the item exists. An audio track is keyed by the song it belongs to.
     let songItemId = null;
-    // One disclosure per track, made the first time the track is laid out and kept from then on,
-    // so rebuilding the song's panel does not lose a track that is set up or playing.
-    const audioDisclosures = new Map();
-    const audioTrackDisclosureFor = (trackIndex, trackName) => {
-        if (!audioDisclosures.has(trackIndex)) {
-            audioDisclosures.set(trackIndex,
-                buildAudioTrackDisclosure(score, trackIndex, trackName, () => songItemId));
+    // One region per track, made the first time the track is laid out and kept from then on, so
+    // rebuilding the song's panel does not lose a track that is set up or playing. A rebuild
+    // hands it the track's measures afresh. Keyed by the track's place in the file, which is how
+    // the score reaches it.
+    const trackRegions = new Map();
+    const trackRegionFor = track => {
+        let region = trackRegions.get(track.index);
+        if (region) region.setTrack(track);
+        else {
+            region = buildTrackRegion(score, track, () => songItemId);
+            trackRegions.set(track.index, region);
         }
-        return audioDisclosures.get(trackIndex);
+        return region.details;
     };
 
     try {
         score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
         const meta = buildSongMetadata(score);
-        contentEl = buildSummaryPanel(meta, { audioTrackDisclosureFor });
+        contentEl = buildSummaryPanel(meta, { trackRegionFor });
         setStatus(`Opened "${fileName}". Found ${meta.tracks.length} guitar and bass track${meta.tracks.length === 1 ? '' : 's'}.`);
     } catch (error) {
         isError = true;
@@ -506,7 +449,7 @@ function handleFileOpened({ fileName, data }) {
         isError, score,
         onClose: () => closeAudioTracksOf(item.id)
     });
-    item.audioTrackDisclosureFor = audioTrackDisclosureFor;
+    item.trackRegionFor = trackRegionFor;
     songItemId = item.id;
     showItem(item.id, { focusContent: true });
 }
@@ -2495,8 +2438,7 @@ function describeAudioTrack(state) {
     if (state.metronome) {
         const firstBar = audioTrack.bars[0];
         const beats = firstBar ? firstBar.beatsPerBar : 4;
-        rows.push(`Metronome - on, ${beats} clicks per measure,` +
-            ' with one measure counting in at the start of the song');
+        rows.push(`Metronome - on, ${beats} clicks per measure`);
     }
     if (audioTrack.skipped.tiedContinuations > 0) {
         rows.push(`Tied notes held over - ${audioTrack.skipped.tiedContinuations}` +
@@ -2540,7 +2482,7 @@ function clearAudioTrackTimers() {
 
 function setAudioTrackPlayingState(state, playing) {
     state.playing = playing;
-    state.ui.playButton.textContent = playing ? 'Pause' : 'Play Track';
+    state.ui.playButton.textContent = playing ? 'Pause' : 'Play';
     state.ui.playButton.setAttribute('aria-pressed', String(playing));
     playbackChanged('audioTrack', state);
 }
@@ -2627,14 +2569,14 @@ function metronomeToneBuffer(kind) {
 /**
  * One measure of clicks before the music, the way a band counts itself in.
  *
- * For the first time through, and for later repeats only if asked. Resuming from a pause or landing
- * on a measure mid-song always plays straight away.
+ * For the first time through if Count In is checked, and for later repeats if Count In Before Every
+ * Repeat is. Resuming from a pause or landing on a measure mid-song always plays straight away.
  *
- * The metronome decides this outright: with no clicks running, a silent measure of waiting before
- * the music would be a delay with nothing to show for it.
+ * Separate from the metronome since 2026-10-27: a count-in with no clicks during the music is
+ * worth having when learning a passage. Before that the metronome decided it outright.
  */
 function audioTrackLeadInSeconds(state, fromSeconds, countIn) {
-    if (!state.metronome || !countIn) return 0;
+    if (!countIn) return 0;
     const bar = state.audioTrack.bars[measureIndexAt(state, fromSeconds)];
     return bar ? bar.endSeconds - bar.startSeconds : 0;
 }
@@ -2701,11 +2643,25 @@ function announceAudioTrack(state, message) {
     announceLiveRegion(state.ui.announce, message);
 }
 
-/** The selected measures as zero-based bar indices and their second boundaries. */
+/**
+ * The measures that play, counting from 1: the one being tried on its own, if there is one,
+ * otherwise the selection.
+ *
+ * Trying a measure (N, or Try Next Measure) plays it alone without changing the selection, so
+ * upArrow can go back to the selection as it was. Anything that sets the selection ends the try.
+ */
+function playingMeasures(state) {
+    return state.tryingMeasure
+        ? { first: state.tryingMeasure, last: state.tryingMeasure }
+        : { first: state.firstMeasure, last: state.lastMeasure };
+}
+
+/** The measures that play as zero-based bar indices and their second boundaries. */
 function audioTrackRange(state) {
     const bars = state.audioTrack.bars;
-    const firstIndex = Math.min(bars.length - 1, Math.max(0, state.firstMeasure - 1));
-    const lastIndex = Math.min(bars.length - 1, Math.max(firstIndex, state.lastMeasure - 1));
+    const { first, last } = playingMeasures(state);
+    const firstIndex = Math.min(bars.length - 1, Math.max(0, first - 1));
+    const lastIndex = Math.min(bars.length - 1, Math.max(firstIndex, last - 1));
     return {
         firstIndex,
         lastIndex,
@@ -2806,7 +2762,7 @@ function measureIndexAt(state, positionSeconds) {
  */
 function rangeNotesFor(state) {
     const range = audioTrackRange(state);
-    const cacheKey = `${state.targetTempo}:${state.firstMeasure}:${state.lastMeasure}`;
+    const cacheKey = `${state.targetTempo}:${range.firstIndex}:${range.lastIndex}`;
     if (state.rangeCache && state.rangeCache.key === cacheKey) return state.rangeCache.notes;
 
     const inRange = state.audioTrack.notes.filter(note =>
@@ -3079,10 +3035,38 @@ function pauseAudioTrackPlayback(state) {
 }
 
 function toggleAudioTrackPlayback(state) {
-    if (state.playing) pauseAudioTrackPlayback(state);
-    // Only a start that was armed by creating the track, finishing a run, restarting, or
-    // changing the selection counts in; resuming after a pause carries straight on.
-    else startAudioTrackPlayback(state, state.anchorSeconds, { countIn: state.countInArmed });
+    if (state.playing) {
+        pauseAudioTrackPlayback(state);
+        return;
+    }
+    // Only a start that was armed by a first play, finishing a run, restarting, or changing the
+    // selection counts in; resuming after a pause carries straight on.
+    playAudioTrackWhenReady(state, () =>
+        startAudioTrackPlayback(state, state.anchorSeconds, { countIn: state.countInArmed && state.countIn }));
+}
+
+/**
+ * Runs `start` once the track's samples are loaded, loading them first if this is the first play.
+ *
+ * There is no Create Track button any more: the first Play, from the button, a measure, a key or the
+ * headphones, loads the samples and says so while it does. The audio context is asked for here, in
+ * the press itself, since a phone only lets sound start from a press and the loading runs past it.
+ * A second press while loading does not start a second load.
+ */
+function playAudioTrackWhenReady(state, start) {
+    getSharedAudioContext();
+    if (state.ready) {
+        if (selectionIsPlayable(state)) start();
+        return;
+    }
+    state.pendingStart = start;
+    if (state.preparing) return;
+    state.preparing = prepareAudioTrack(state).then(() => {
+        state.preparing = null;
+        const pending = state.pendingStart;
+        state.pendingStart = null;
+        if (state.ready && pending && selectionIsPlayable(state)) pending();
+    });
 }
 
 /** Moves the play position within the selection, continuing to play if playing. Says nothing. */
@@ -3113,14 +3097,20 @@ function seekToStartOfCurrentMeasure(state) {
 /**
  * Back to the start of the selection, counting in again, without losing our place in the
  * repeats: restarting during the third of five plays replays the third, then the remaining two.
+ *
+ * A measure being tried on its own is let go of, which is how to go back to the selection without
+ * adding it. That is a fresh start, so the repeats start over too.
  */
 function restartAudioTrackSelection(state) {
-    const range = audioTrackRange(state);
-    const pass = state.playing ? currentPassAt(state) : state.anchorPass;
+    const pass = state.tryingMeasure ? 1 : state.playing ? currentPassAt(state) : state.anchorPass;
+    state.tryingMeasure = null;
+    state.rangeCache = null;
     state.anchorPass = pass;
+    showAudioTrackSelection(state);
+    const range = audioTrackRange(state);
 
     if (state.playing) {
-        startAudioTrackPlayback(state, range.startSeconds, { countIn: true });
+        startAudioTrackPlayback(state, range.startSeconds, { countIn: state.countIn });
     } else {
         state.anchorSeconds = range.startSeconds;
         state.anchorContextTime = null;
@@ -3141,23 +3131,26 @@ function stepAudioTrackTempo(state, deltaBpm) {
 
 function announceCurrentMeasure(state) {
     const measure = measureIndexAt(state, audioTrackPosition(state)) + 1;
-    const range = audioTrackRange(state);
-    const first = range.firstIndex + 1;
-    const last = range.lastIndex + 1;
-
-    // Against the selection rather than the whole song, when they differ. Saying "measure 17 of
-    // 102" while only 7 to 21 are being played gives a number with nothing to measure it against:
-    // how far through the passage that is, which is the thing being asked, cannot be worked out
-    // from it. When the whole song is selected the two readings are the same.
-    const whole = first === 1 && last === state.audioTrack.barCount;
-    let text = whole
-        ? `Measure ${measure} of ${state.audioTrack.barCount}`
-        : `Measure ${measure} of measures ${first} through ${last}`;
-    // When the selection repeats, which play-through we are on matters just as much.
-    if (state.repeatCount !== 1) {
-        const pass = currentPassAt(state);
-        text += state.repeatCount === 0 ? `, play ${pass}` : `, play ${pass} of ${state.repeatCount}`;
+    let text;
+    if (state.tryingMeasure) {
+        text = `Measure ${measure} on its own`;
+    } else {
+        const range = audioTrackRange(state);
+        const first = range.firstIndex + 1;
+        const last = range.lastIndex + 1;
+        // Against the selection rather than the whole song, when they differ. Saying "measure 17
+        // of 102" while only 7 to 21 are being played gives a number with nothing to measure it
+        // against: how far through the passage that is, which is the thing being asked, cannot be
+        // worked out from it. When the whole song is selected the two readings are the same.
+        const whole = first === 1 && last === state.audioTrack.barCount;
+        text = whole
+            ? `Measure ${measure} of ${state.audioTrack.barCount}`
+            : first === last
+                ? `Measure ${measure}`
+                : `Measure ${measure} of measures ${first} through ${last}`;
     }
+    // When it repeats, which play-through we are on matters just as much.
+    if (state.repeatCount === 0) text += `, play ${currentPassAt(state)}`;
     announceAudioTrack(state, text);
 }
 
@@ -3173,13 +3166,37 @@ function announceCurrentMeasure(state) {
 function setAudioTrackMetronome(state, enabled) {
     state.metronome = enabled;
     state.ui.metronomeCheckbox.checked = enabled;
-
-    if (state.playing) {
-        const position = audioTrackPosition(state);
-        pauseAudioTrackPlayback(state);
-        startAudioTrackPlayback(state, position);
-    }
+    replayFromHere(state);
     refreshAudioTrackSummary(state);
+}
+
+/**
+ * Schedules again from where playback has reached, for a setting that changes what is scheduled
+ * ahead: the metronome, repeating, counting in each repeat. Does nothing while paused.
+ */
+function replayFromHere(state) {
+    if (!state.playing) return;
+    const position = audioTrackPosition(state);
+    pauseAudioTrackPlayback(state);
+    startAudioTrackPlayback(state, position);
+}
+
+/**
+ * Repeat until stopped, or play once.
+ *
+ * Once or continuously is all a learner needs, so the 0 to 50 count this replaced is gone; inside,
+ * it is still a count, 0 for until stopped and 1 for once, which is what the scheduler reads.
+ * Turning it off while repeating finishes the play-through under way and stops.
+ *
+ * `announce` is for the key: the checkbox reports its own state when it is what changed it, and
+ * whether a selection is going to repeat cannot be heard until it does.
+ */
+function setAudioTrackRepeat(state, repeat, { announce = false } = {}) {
+    state.repeatCount = repeat ? 0 : 1;
+    state.ui.repeatCheckbox.checked = repeat;
+    state.ui.countInEachPassParagraph.hidden = !repeat;
+    replayFromHere(state);
+    if (announce) announceAudioTrack(state, repeat ? 'Repeat on' : 'Repeat off');
 }
 
 /**
@@ -3199,29 +3216,158 @@ function activeAudioTrackState() {
     return latest ? latest.state : null;
 }
 
+// --- Practising measure by measure ----------------------------------------------------------
+// See docs/measure-practice.md. Play a measure on its own, try the next one, add it, and so on
+// through the song. Each of these is a fresh start: playback stops, the measures that play start
+// from their first, the repeats start over, and it counts in if Count In is checked.
+
+/** Stops playback without keeping a position, ahead of changing what plays. */
+function haltAudioTrack(state) {
+    if (!state.playing) return;
+    stopAudioTrackPlayback();
+    clearAudioTrackTimers();
+    setAudioTrackPlayingState(state, false);
+}
+
+/** Puts the position at the start of the measures that play, as a first play. */
+function armAudioTrackFromStart(state) {
+    state.rangeCache = null;
+    state.anchorSeconds = audioTrackRange(state).startSeconds;
+    state.anchorContextTime = null;
+    state.anchorPass = 1;
+    state.countInArmed = true;
+}
+
+function playAudioTrackFromStart(state) {
+    armAudioTrackFromStart(state);
+    playAudioTrackWhenReady(state, () =>
+        startAudioTrackPlayback(state, audioTrackRange(state).startSeconds, { countIn: state.countIn }));
+}
+
+/** "5", or "5 to 12". */
+function measureSpanText(first, last) {
+    return first === last ? `${first}` : `${first} to ${last}`;
+}
+
+/**
+ * Sets which measures are selected, ends any try, and moves to the start of them. Does not start
+ * playing: the fields and the Section dropdown leave that to Play, the buttons go on to play.
+ */
+function setAudioTrackSelection(state, first, last) {
+    haltAudioTrack(state);
+    state.tryingMeasure = null;
+    state.firstMeasure = first;
+    state.lastMeasure = last;
+    armAudioTrackFromStart(state);
+    showAudioTrackSelection(state);
+}
+
+/**
+ * Whether no selection has been made: the whole song, as a track starts. Practising starts from
+ * here, so the measure after the selection is measure 1, and adding a measure selects it alone
+ * rather than stretching the whole song to take in what it already has.
+ */
+function nothingSelected(state) {
+    return state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount;
+}
+
+/** Play measure 5: the selection becomes that measure alone, and plays. */
+function playMeasureAlone(state, measure) {
+    setAudioTrackSelection(state, measure, measure);
+    playAudioTrackFromStart(state);
+}
+
+/**
+ * Add measure 5 to selection: the selection stretches to take it in, and plays from its start. It
+ * is always one run of measures, so adding 5 to 1 to 2 gives 1 to 5.
+ */
+function addMeasureToSelection(state, measure, { announce = false } = {}) {
+    const first = nothingSelected(state) ? measure : Math.min(state.firstMeasure, measure);
+    const last = nothingSelected(state) ? measure : Math.max(state.lastMeasure, measure);
+    setAudioTrackSelection(state, first, last);
+    if (announce) announceAudioTrack(state, first === last ? `Measure ${first}` : `Measures ${first} to ${last}`);
+    playAudioTrackFromStart(state);
+}
+
+/**
+ * n: plays the measure after the selection on its own, leaving the selection as it is. Pressed
+ * again, the measure after that one.
+ */
+function tryNextMeasure(state) {
+    const next = state.tryingMeasure ? state.tryingMeasure + 1
+        : nothingSelected(state) ? 1 : state.lastMeasure + 1;
+    if (next > state.audioTrack.barCount) {
+        announceAudioTrack(state, `Measure ${state.audioTrack.barCount} is the last measure.`);
+        return;
+    }
+    haltAudioTrack(state);
+    state.tryingMeasure = next;
+    showAudioTrackSelection(state);
+    announceAudioTrack(state, `Measure ${next} on its own`);
+    playAudioTrackFromStart(state);
+}
+
+/** a: adds the measure being tried, or else the one after the selection, and plays the selection. */
+function addNextMeasure(state) {
+    const measure = state.tryingMeasure ?? (nothingSelected(state) ? 1 : state.lastMeasure + 1);
+    if (measure > state.audioTrack.barCount) {
+        announceAudioTrack(state,
+            `The selection already runs to the last measure, ${state.audioTrack.barCount}.`);
+        return;
+    }
+    addMeasureToSelection(state, measure, { announce: true });
+}
+
 // How much one press of the tempo keys moves the tempo.
 const AUDIO_TRACK_TEMPO_STEP_BPM = 5;
 
 // Playback shortcuts. These only reach the app while the screen reader is passing keys straight
 // through, which is focus mode in NVDA. No modifier variants are offered: which combinations a
 // screen reader lets through is not consistent between them, so a Ctrl alternative would work in
-// some and not others. The buttons cover the same ground for when you are not in focus mode.
+// some and not others. Every one of them has a button as well, for when you are not in focus mode
+// and for a phone, where there are no keys at all.
 //
-// `needsTrack` marks the moves that only mean something once the track has been created; tempo
-// can be adjusted before that.
+// The first Play loads the track's samples, so none of these waits for that; the moves only shift
+// the position until then.
 const AUDIO_TRACK_SHORTCUTS = {
-    ' ': { needsTrack: true, run: state => toggleAudioTrackPlayback(state) },
-    ArrowLeft: { needsTrack: true, run: state => seekAudioTrackByMeasure(state, -1) },
-    ArrowRight: { needsTrack: true, run: state => seekAudioTrackByMeasure(state, 1) },
-    ArrowDown: { needsTrack: true, run: state => seekToStartOfCurrentMeasure(state) },
+    ' ': state => toggleAudioTrackPlayback(state),
+    ArrowLeft: state => seekAudioTrackByMeasure(state, -1),
+    ArrowRight: state => seekAudioTrackByMeasure(state, 1),
+    ArrowDown: state => seekToStartOfCurrentMeasure(state),
     // Back to the top of the selection, counting in again, keeping the repeat count.
-    ArrowUp: { needsTrack: true, run: state => restartAudioTrackSelection(state) },
-    b: { needsTrack: false, run: state => announceCurrentMeasure(state) },
-    m: { needsTrack: false, run: state => setAudioTrackMetronome(state, !state.metronome) },
-    s: { needsTrack: false, run: state => stepAudioTrackTempo(state, -AUDIO_TRACK_TEMPO_STEP_BPM) },
-    f: { needsTrack: false, run: state => stepAudioTrackTempo(state, AUDIO_TRACK_TEMPO_STEP_BPM) },
-    d: { needsTrack: false, run: state => defaultAudioTrackTempo(state) }
+    ArrowUp: state => restartAudioTrackSelection(state),
+    n: state => tryNextMeasure(state),
+    a: state => addNextMeasure(state),
+    l: state => setAudioTrackRepeat(state, state.repeatCount !== 0, { announce: true }),
+    b: state => announceCurrentMeasure(state),
+    m: state => setAudioTrackMetronome(state, !state.metronome),
+    s: state => stepAudioTrackTempo(state, -AUDIO_TRACK_TEMPO_STEP_BPM),
+    f: state => stepAudioTrackTempo(state, AUDIO_TRACK_TEMPO_STEP_BPM),
+    d: state => defaultAudioTrackTempo(state),
+    // Typed with shift, so it is let through with shift where the others are not.
+    '?': () => openPlaybackKeysDialog()
 };
+
+// What the playback keys do, as the Playback Keys dialog lists them. user-docs/features.md says the
+// same; change both together.
+const AUDIO_TRACK_KEY_DESCRIPTIONS = [
+    'spaceBar: play and pause.',
+    'leftArrow: back one measure.',
+    'rightArrow: forward one measure.',
+    'downArrow: back to the start of the current measure.',
+    'upArrow: back to the start of the selection, counting in again. After trying a measure on its' +
+        ' own, back to the selection without adding it.',
+    'n: try the measure after the selection on its own. Press it again for the one after that.',
+    'a: add the measure being tried to the selection, or the one after the selection, and play the' +
+        ' selection.',
+    'l: repeat on or off.',
+    'b: say which measure is playing, and which repeat.',
+    'm: metronome on or off.',
+    `s: slower by ${AUDIO_TRACK_TEMPO_STEP_BPM} beats per minute.`,
+    `f: faster by ${AUDIO_TRACK_TEMPO_STEP_BPM} beats per minute.`,
+    'd: back to the default tempo: the song\'s own, or the one last typed into the Tempo field.',
+    '?: this list of keys.'
+];
 
 // Only a field you type into should swallow these keys. A checkbox is an input too, but nothing is
 // being typed there, so the shortcuts must still reach playback: focus sitting on the metronome
@@ -3234,7 +3380,7 @@ const TEXT_ENTRY_INPUT_TYPES = new Set([
 
 // What a spinner genuinely uses. Arrows step it and the rest edit the value; a letter does
 // nothing there, so a letter belongs to playback even while a spinner has focus. Without this a
-// tempo or repeat field quietly ate M, B, S and F for as long as focus sat in it, which reads as
+// tempo or measure field quietly ate M, B, S and F for as long as focus sat in it, which reads as
 // the shortcuts having stopped working.
 const NUMBER_FIELD_KEYS = new Set([
     'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
@@ -3255,8 +3401,10 @@ function eventTargetSwallowsKey(target, key) {
 }
 
 document.addEventListener('keydown', event => {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.shiftKey && event.key !== '?') return;
     const shortcut = AUDIO_TRACK_SHORTCUTS[event.key];
-    if (!shortcut || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    if (!shortcut) return;
     if (document.querySelector('dialog[open]')) return;
 
     // Typing in a field always wins; everywhere else these keys belong to playback. That includes
@@ -3266,10 +3414,44 @@ document.addEventListener('keydown', event => {
 
     const state = activeAudioTrackState();
     if (!state) return;
-    if (shortcut.needsTrack && !state.ready) return;
 
     event.preventDefault();
-    shortcut.run(state);
+    shortcut(state);
+});
+
+// --- Playback Keys dialog -----------------------------------------------------------------------
+// The keys are listed here rather than in every track, where the list came before the measures and
+// had to be passed every time. Opened by ? and by the Keyboard Commands button.
+
+const playbackKeysDialog = document.getElementById('playback-keys-dialog');
+const playbackKeysList = document.getElementById('playback-keys-list');
+let playbackKeysDialogOpener = null;
+
+function openPlaybackKeysDialog() {
+    if (playbackKeysList.childElementCount === 0) appendTextItems(playbackKeysList, AUDIO_TRACK_KEY_DESCRIPTIONS);
+    playbackKeysDialogOpener = document.activeElement;
+    playbackKeysDialog.showModal();
+    playbackKeysDialog.focus();
+}
+
+document.getElementById('playback-keys-close-button').addEventListener('click', () => playbackKeysDialog.close());
+
+playbackKeysDialog.addEventListener('close', () => {
+    if (playbackKeysDialogOpener && typeof playbackKeysDialogOpener.focus === 'function') {
+        playbackKeysDialogOpener.focus();
+    }
+    playbackKeysDialogOpener = null;
+});
+
+// The link to Features closes the dialog first, so the document opens in the main area with nothing
+// in front of it.
+playbackKeysDialog.addEventListener('click', event => {
+    const link = event.target.closest('a');
+    if (!link) return;
+    event.preventDefault();
+    playbackKeysDialogOpener = null;
+    playbackKeysDialog.close();
+    followHelpLink(link);
 });
 
 /** Measure numbers as compact ranges: "2 to 4, 6, 9 to 12", capped so it never runs long. */
@@ -3286,86 +3468,63 @@ function summarizeMeasureNumbers(measureNumbers) {
     return groups.length > 6 ? groups.slice(0, 6).join(', ') + ', and more' : groups.join(', ');
 }
 
-/** Notes in the current selection whose sample failed to load, i.e. cannot be played. */
+/** Notes in the measures that play whose sample failed to load, i.e. cannot be played. */
 function unplayableSelectionNotes(state) {
     if (!state.failedSampleKeys || state.failedSampleKeys.size === 0) return [];
     return rangeNotesFor(state).filter(n => state.failedSampleKeys.has(`${n.midi}:${n.velocity}`));
 }
 
 /**
- * Puts the panel into its error shape: everything below the buttons goes away so the message
- * is the next thing after the Create Track button, not buried under controls that cannot be
- * used and a list of shortcuts that will not work.
+ * Whether the measures about to play can be, saying why not in the error line if they cannot.
+ *
+ * Playing them anyway would silently skip the notes with no sample. Before the samples are loaded
+ * nothing is known to be missing, so that counts as playable.
  */
-function showAudioTrackError(state, message) {
-    state.ready = false;
-    state.ui.playButton.disabled = true;
-    for (const button of state.ui.transportButtons) button.disabled = true;
-    state.ui.extraControls.hidden = true;
-    state.ui.status.textContent = '';
-    state.ui.error.textContent = message;
-}
-
-function clearAudioTrackError(state) {
-    state.ui.error.textContent = '';
-    state.ui.extraControls.hidden = false;
+function selectionIsPlayable(state) {
+    const unplayable = unplayableSelectionNotes(state);
+    if (unplayable.length === 0) {
+        state.ui.error.textContent = '';
+        return true;
+    }
+    const measures = [...new Set(unplayable.map(n => n.bar + 1))].sort((a, b) => a - b);
+    state.ui.error.textContent =
+        `Cannot play these measures: ${unplayable.length} of their notes have no guitar sample, because` +
+        ' this track goes outside the range the bundled samples cover. The affected measures are' +
+        ` ${summarizeMeasureNumbers(measures)}. Choose other measures.`;
+    return false;
 }
 
 /**
  * Loads every sample the track needs, which is the slow part of getting ready to play.
  *
  * The whole track's samples are attempted so that later selection changes stay instant, but
- * only the selected measures decide success: a track whose low notes have no guitar sample can
- * still be created for the measures that avoid them.
+ * only the measures being played decide whether they can play: a track whose low notes have no
+ * guitar sample can still be played in the measures that avoid them.
  */
 async function prepareAudioTrack(state) {
     const { ui } = state;
     const needed = [...new Set(state.audioTrack.notes.map(n => `${n.midi}:${n.velocity}`))];
-
-    ui.createButton.disabled = true;
-    ui.playButton.disabled = true;
-    ui.error.textContent = '';
-    ui.status.textContent = `Creating the track: loading ${needed.length} guitar samples…`;
+    ui.status.textContent = 'Loading the guitar samples for this track…';
 
     const results = await Promise.allSettled(needed.map(key => {
         const [midi, velocity] = key.split(':');
         return loadFullSample(Number(midi), velocity);
     }));
-    ui.createButton.disabled = false;
 
     state.failedSampleKeys = new Set();
     results.forEach((result, index) => {
         if (result.status === 'rejected') state.failedSampleKeys.add(needed[index]);
     });
-
-    const unplayable = unplayableSelectionNotes(state);
-    if (unplayable.length > 0) {
-        const measures = [...new Set(unplayable.map(n => n.bar + 1))].sort((a, b) => a - b);
-        const selectionSize = rangeNotesFor(state).length;
-        showAudioTrackError(state,
-            `Could not create the track: ${unplayable.length} of the ${selectionSize} notes in the` +
-            ` selected measures have no guitar sample; this track goes outside the range the` +
-            ` bundled samples cover. The first is in measure ${measures[0]}; affected measures are` +
-            ` ${summarizeMeasureNumbers(measures)}. Choose different measures and press Create` +
-            ` Track again.`);
-        return;
-    }
-
-    clearAudioTrackError(state);
     state.ready = true;
-    state.countInArmed = true; // a fresh track starts from the top, so count it in
-    ui.playButton.disabled = false;
-    for (const button of ui.transportButtons) button.disabled = false;
 
-    let readyText = `Track ready: ${rangeNotesFor(state).length} notes at ` +
-        `${state.audioTrack.tempo} BPM, ${formatMinutesSeconds(state.audioTrack.totalSeconds)}.` +
-        ' Press Play Track, or press space.';
+    // Short, since the music is about to start under it.
+    let readyText = 'Samples loaded.';
     if (state.failedSampleKeys.size > 0) {
         const affectedBars = [...new Set(state.audioTrack.notes
             .filter(n => state.failedSampleKeys.has(`${n.midi}:${n.velocity}`))
             .map(n => n.bar + 1))].sort((a, b) => a - b);
-        readyText += ` Note: measures ${summarizeMeasureNumbers(affectedBars)} contain notes with` +
-            ' no guitar sample and cannot be selected.';
+        readyText += ` Measures ${summarizeMeasureNumbers(affectedBars)} contain notes with no guitar` +
+            ' sample and cannot be played.';
     }
     ui.status.textContent = readyText;
 }
@@ -3376,7 +3535,8 @@ async function prepareAudioTrack(state) {
  * The same measure falls at a different second once the tempo changes, so the position is carried
  * across by measure rather than by seconds. If the track was playing it keeps playing from there,
  * which is what makes nudging the tempo while playing along useful. `silent` suppresses the
- * written status, for the tempo keys that report through the announcement region instead.
+ * written status, for the tempo keys and buttons that report through the announcement line
+ * instead.
  */
 function applyAudioTrackTempo(state, requestedTempo, { silent = false } = {}) {
     // An empty field converts to 0, which would otherwise clamp to the minimum tempo rather than
@@ -3407,42 +3567,87 @@ function applyAudioTrackTempo(state, requestedTempo, { silent = false } = {}) {
     if (wasPlaying && state.ready) startAudioTrackPlayback(state, state.anchorSeconds);
 
     if (silent) return;
-    state.ui.status.textContent = state.ready
-        ? `Tempo is now ${clamped} BPM, ` +
-          `${formatMinutesSeconds(state.audioTrack.totalSeconds)}, at measure ${measure + 1}.`
-        : `Tempo is now ${clamped} BPM. Press Create Track to prepare it.`;
+    state.ui.status.textContent = `Tempo is now ${clamped} BPM, at measure ${measure + 1}.`;
 }
 
 // --- Measure selection ------------------------------------------------------------------
-function audioTrackSelectionText(state) {
-    const rangeText = state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount
-        ? 'all'
-        : `${state.firstMeasure} to ${state.lastMeasure}`;
-    const repeatText = state.repeatCount === 1
-        ? ''
-        : state.repeatCount === 0 ? ', repeat until stopped' : `, repeat ${state.repeatCount} times`;
-    return `${rangeText}${repeatText}`;
+
+/**
+ * The sections the file marks, each running from its marker to the next one, or to the end.
+ *
+ * Measures before the first marker belong to none. A name used twice, as a chorus is, is told apart
+ * by its measures in the dropdown.
+ */
+function trackSections(track) {
+    const sections = [];
+    track.measures.forEach((measure, index) => {
+        if (!measure.section) return;
+        if (sections.length > 0) sections.at(-1).last = index;
+        sections.push({ name: measure.section, first: index + 1, last: track.measures.length });
+    });
+    return sections;
 }
 
-function updateAudioTrackSelectionSummary(state) {
-    state.ui.measuresSummary.textContent = `Measures Selected - ${audioTrackSelectionText(state)}`;
+/** The section the selection is exactly, or null. */
+function selectedSection(state) {
+    return state.sections.find(section =>
+        section.first === state.firstMeasure && section.last === state.lastMeasure) ?? null;
+}
+
+/** "Entire Song", "5 to 12, Verse" or "7". */
+function audioTrackSelectionText(state) {
+    if (state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount) return 'Entire Song';
+    const section = selectedSection(state);
+    const span = measureSpanText(state.firstMeasure, state.lastMeasure);
+    return section ? `${span}, ${section.name}` : span;
 }
 
 /**
- * Applies the measure-selection fields.
+ * Puts the selection into everything that shows it: the two fields, the Section dropdown and the
+ * summary of the Measures to Play region.
  *
- * Values are clamped rather than rejected: the last measure cannot come before the first, and
- * repeats run 0 (until stopped) to 50. Changing the selection is a fresh start, so playback
- * stops, the position moves to the start of the new selection, the repeat count goes back to the
- * first play-through, and the next play counts in again.
+ * The dropdown always shows something true. Where the selection is the whole song or a section,
+ * that entry; otherwise an entry for the measures themselves, added at the end and taken away again
+ * once it is not needed.
  */
-function applyAudioTrackSelection(state) {
-    const { firstInput, lastInput, repeatInput } = state.ui;
-    const barCount = state.audioTrack.barCount;
+function showAudioTrackSelection(state) {
+    const { firstInput, lastInput, measuresSummary, sectionSelect } = state.ui;
+    firstInput.value = String(state.firstMeasure);
+    lastInput.value = String(state.lastMeasure);
+    let summaryText = `Measures to Play - ${audioTrackSelectionText(state)}`;
+    if (state.tryingMeasure) summaryText += `; trying measure ${state.tryingMeasure} on its own`;
+    measuresSummary.textContent = summaryText;
 
+    if (!sectionSelect) return;
+    const whole = state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount;
+    const section = selectedSection(state);
+    let own = sectionSelect.querySelector('option[value="own"]');
+    if (whole || section) {
+        own?.remove();
+        sectionSelect.value = whole ? 'all' : `section-${state.sections.indexOf(section)}`;
+        return;
+    }
+    if (!own) {
+        own = document.createElement('option');
+        own.value = 'own';
+        sectionSelect.append(own);
+    }
+    own.textContent = `Measures ${measureSpanText(state.firstMeasure, state.lastMeasure)}`;
+    sectionSelect.value = 'own';
+}
+
+/**
+ * Applies the first and last measure fields.
+ *
+ * Values are clamped rather than rejected: the last measure cannot come before the first.
+ * Changing the selection is a fresh start, so playback stops, the position moves to the start of
+ * the new selection, the repeats start over, and the next play counts in again.
+ */
+function applyAudioTrackMeasureFields(state) {
+    const { firstInput, lastInput } = state.ui;
+    const barCount = state.audioTrack.barCount;
     const firstRaw = Number(firstInput.value);
     const lastRaw = Number(lastInput.value);
-    const repeatRaw = Number(repeatInput.value);
 
     const first = Number.isFinite(firstRaw) && firstRaw >= 1
         ? Math.min(barCount, Math.round(firstRaw))
@@ -3450,253 +3655,186 @@ function applyAudioTrackSelection(state) {
     const last = Number.isFinite(lastRaw) && lastRaw >= 1
         ? Math.max(first, Math.min(barCount, Math.round(lastRaw)))
         : Math.max(first, state.lastMeasure);
-    const repeat = Number.isFinite(repeatRaw) && repeatRaw >= 0
-        ? Math.min(50, Math.round(repeatRaw))
-        : state.repeatCount;
-
-    if (state.playing) pauseAudioTrackPlayback(state);
-
-    state.firstMeasure = first;
-    state.lastMeasure = last;
-    state.repeatCount = repeat;
-    state.rangeCache = null;
-    state.anchorSeconds = audioTrackRange(state).startSeconds;
-    state.anchorContextTime = null;
-    state.anchorPass = 1;
-    state.countInArmed = true;
-
-    firstInput.value = String(first);
-    lastInput.value = String(last);
-    repeatInput.value = String(repeat);
-    updateAudioTrackSelectionSummary(state);
-
-    // Moving the selection onto notes with no sample must not silently skip them: the track
-    // goes back to needing Create Track, which will explain exactly which measures are wrong.
-    const unplayable = unplayableSelectionNotes(state);
-    if (unplayable.length > 0) {
-        const measures = [...new Set(unplayable.map(n => n.bar + 1))].sort((a, b) => a - b);
-        showAudioTrackError(state,
-            `Measures ${summarizeMeasureNumbers(measures)} contain notes with no guitar sample,` +
-            ' so this selection cannot be played. Choose different measures and press Create' +
-            ' Track again.');
-        return;
-    }
-    if (state.ui.error.textContent !== '' && state.failedSampleKeys) {
-        // A previous error is resolved by this selection; creating again restores the panel.
-        state.ui.error.textContent = '';
-    }
-
-    state.ui.status.textContent =
-        `Measures ${audioTrackSelectionText(state)}. ` +
-        (state.ready ? 'Press Play Track.' : 'Press Create Track to prepare it.');
+    setAudioTrackSelection(state, first, last);
+    reportAudioTrackSelection(state);
 }
 
+function applyAudioTrackSection(state) {
+    const value = state.ui.sectionSelect.value;
+    if (value === 'own') return;
+    const section = value === 'all' ? null : state.sections[Number(value.replace('section-', ''))];
+    setAudioTrackSelection(state,
+        section ? section.first : 1, section ? section.last : state.audioTrack.barCount);
+    reportAudioTrackSelection(state);
+}
+
+function reportAudioTrackSelection(state) {
+    if (!selectionIsPlayable(state)) return;
+    state.ui.status.textContent = `Measures ${audioTrackSelectionText(state)}. Press Play.`;
+}
+
+// --- Building the region ----------------------------------------------------------------
+
+/** A checkbox and its label in a paragraph of their own. */
+function buildCheckboxParagraph(idPrefix, labelText, checked) {
+    const paragraph = document.createElement('p');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = uniqueControlId(idPrefix);
+    checkbox.checked = checked;
+    const label = document.createElement('label');
+    label.htmlFor = checkbox.id;
+    label.textContent = labelText;
+    paragraph.append(checkbox, label);
+    return { paragraph, checkbox };
+}
+
+/** A number field and its label in a paragraph of their own. */
+function buildNumberParagraph(idPrefix, labelText, { min, max, value }) {
+    const paragraph = document.createElement('p');
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.inputMode = 'numeric';
+    input.id = uniqueControlId(idPrefix);
+    label.htmlFor = input.id;
+    input.min = String(min);
+    input.max = String(max);
+    input.step = '1';
+    input.value = String(value);
+    paragraph.append(label, input);
+    return { paragraph, input };
+}
+
+/** A row of buttons, each running its action on the track. */
+function buildActionRow(state, actions) {
+    const row = createButtonRow();
+    for (const [label, action] of actions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', () => action(state));
+        row.append(button);
+    }
+    return row;
+}
+
+/**
+ * The top of a track's Measures and Playback region: Playback Settings, then Playback Controls.
+ *
+ * Both are h4, as is the Measures heading after them, and each measure is an h5. So shift+4 from
+ * any measure reaches the Measures heading, then Playback Controls, then Playback Settings, while 5
+ * still steps through the measures.
+ */
 function buildAudioTrackPanel(state) {
     const container = document.createElement('div');
     container.className = 'audio-track';
 
-    // Inside the track's own section, under its h3, so the levels start at 4. The heading comes
-    // first, straight after the disclosure's summary: moving to the previous heading from anywhere
-    // in here and then up one line reaches the summary, to collapse it again.
-    const heading = document.createElement('h4');
-    heading.textContent = `Audio Track - ${state.trackLabel}`;
-    container.append(heading);
-
-    const settingsHeading = document.createElement('h5');
+    const settingsHeading = document.createElement('h4');
     settingsHeading.textContent = 'Playback Settings';
     container.append(settingsHeading);
 
-    const tempoParagraph = document.createElement('p');
-    const tempoLabel = document.createElement('label');
-    tempoLabel.textContent =
-        `Tempo in beats per minute, ${AUDIO_TRACK_MIN_BPM} to ${AUDIO_TRACK_MAX_BPM}`;
-    const tempoInput = document.createElement('input');
-    tempoInput.type = 'number';
-    tempoInput.inputMode = 'numeric';
-    tempoInput.id = uniqueControlId('audio-track-tempo-input');
-    tempoLabel.htmlFor = tempoInput.id;
-    tempoInput.min = String(AUDIO_TRACK_MIN_BPM);
-    tempoInput.max = String(AUDIO_TRACK_MAX_BPM);
-    tempoInput.step = '1';
-    tempoInput.value = String(state.targetTempo);
-    tempoParagraph.append(tempoLabel, tempoInput);
-    container.append(tempoParagraph);
+    const tempo = buildNumberParagraph('audio-track-tempo-input',
+        `Tempo in beats per minute, ${AUDIO_TRACK_MIN_BPM} to ${AUDIO_TRACK_MAX_BPM}`,
+        { min: AUDIO_TRACK_MIN_BPM, max: AUDIO_TRACK_MAX_BPM, value: state.targetTempo });
+    container.append(tempo.paragraph);
+    // The tempo keys as buttons, for a phone. Straight after the field they change.
+    container.append(buildActionRow(state, [
+        ['Slower', state2 => stepAudioTrackTempo(state2, -AUDIO_TRACK_TEMPO_STEP_BPM)],
+        ['Faster', state2 => stepAudioTrackTempo(state2, AUDIO_TRACK_TEMPO_STEP_BPM)],
+        ['Default Tempo', state2 => defaultAudioTrackTempo(state2)]
+    ]));
 
-    // Which measures to play, collapsed behind a summary that reads out the current selection.
+    const metronome = buildCheckboxParagraph('audio-track-metronome-checkbox',
+        'Metronome', state.metronome);
+    const countIn = buildCheckboxParagraph('audio-track-count-in-checkbox',
+        'Count in, one measure of clicks before playing starts', state.countIn);
+    const repeat = buildCheckboxParagraph('audio-track-repeat-checkbox',
+        'Repeat until stopped', state.repeatCount === 0);
+    // Only about a selection that repeats, so it is there only while Repeat is checked, straight
+    // after it.
+    const countInEachPass = buildCheckboxParagraph('audio-track-count-in-each-pass-checkbox',
+        'Count in before every repeat', state.countInEachPass);
+    countInEachPass.paragraph.hidden = state.repeatCount !== 0;
+    container.append(metronome.paragraph, countIn.paragraph, repeat.paragraph, countInEachPass.paragraph);
+
+    // Which measures play, collapsed behind a summary that reads out the selection.
     const measuresDetails = document.createElement('details');
     const measuresSummary = document.createElement('summary');
     measuresDetails.append(measuresSummary);
 
-    const firstParagraph = document.createElement('p');
-    const firstLabel = document.createElement('label');
-    firstLabel.textContent = 'First measure to play';
-    const firstInput = document.createElement('input');
-    firstInput.type = 'number';
-    firstInput.inputMode = 'numeric';
-    firstInput.id = uniqueControlId('audio-track-first-measure-input');
-    firstLabel.htmlFor = firstInput.id;
-    firstInput.min = '1';
-    firstInput.max = String(state.audioTrack.barCount);
-    firstInput.step = '1';
-    firstInput.value = String(state.firstMeasure);
-    firstParagraph.append(firstLabel, firstInput);
-    measuresDetails.append(firstParagraph);
+    // Only where the file marks sections; with none it would offer nothing but Entire Song.
+    let sectionSelect = null;
+    if (state.sections.length > 0) {
+        const sectionParagraph = document.createElement('p');
+        const sectionLabel = document.createElement('label');
+        sectionLabel.textContent = 'Section';
+        sectionSelect = document.createElement('select');
+        sectionSelect.id = uniqueControlId('audio-track-section-select');
+        sectionLabel.htmlFor = sectionSelect.id;
+        const all = document.createElement('option');
+        all.value = 'all';
+        all.textContent = 'Entire Song';
+        sectionSelect.append(all);
+        state.sections.forEach((section, index) => {
+            const option = document.createElement('option');
+            option.value = `section-${index}`;
+            option.textContent = section.first === section.last
+                ? `${section.name}, measure ${section.first}`
+                : `${section.name}, measures ${section.first} to ${section.last}`;
+            sectionSelect.append(option);
+        });
+        sectionParagraph.append(sectionLabel, sectionSelect);
+        measuresDetails.append(sectionParagraph);
+    }
 
-    const lastParagraph = document.createElement('p');
-    const lastLabel = document.createElement('label');
-    lastLabel.textContent = 'Last measure to play';
-    const lastInput = document.createElement('input');
-    lastInput.type = 'number';
-    lastInput.inputMode = 'numeric';
-    lastInput.id = uniqueControlId('audio-track-last-measure-input');
-    lastLabel.htmlFor = lastInput.id;
-    lastInput.min = '1';
-    lastInput.max = String(state.audioTrack.barCount);
-    lastInput.step = '1';
-    lastInput.value = String(state.lastMeasure);
-    lastParagraph.append(lastLabel, lastInput);
-    measuresDetails.append(lastParagraph);
-
-    const repeatParagraph = document.createElement('p');
-    const repeatLabel = document.createElement('label');
-    repeatLabel.textContent = 'Times to play the selection, up to 50; 0 repeats until stopped';
-    const repeatInput = document.createElement('input');
-    repeatInput.type = 'number';
-    repeatInput.inputMode = 'numeric';
-    repeatInput.id = uniqueControlId('audio-track-repeat-input');
-    repeatLabel.htmlFor = repeatInput.id;
-    repeatInput.min = '0';
-    repeatInput.max = '50';
-    repeatInput.step = '1';
-    repeatInput.value = String(state.repeatCount);
-    repeatParagraph.append(repeatLabel, repeatInput);
-    measuresDetails.append(repeatParagraph);
-
-    // Only ever relevant to a selection that repeats, so it belongs in here with the repeat count
-    // rather than beside the metronome. The metronome itself still decides whether any clicks
-    // happen at all; this only says whether a repeat gets counted in like the first pass did.
-    const countInEachPassParagraph = document.createElement('p');
-    const countInEachPassCheckbox = document.createElement('input');
-    countInEachPassCheckbox.type = 'checkbox';
-    countInEachPassCheckbox.id = uniqueControlId('audio-track-count-in-each-pass-checkbox');
-    countInEachPassCheckbox.checked = state.countInEachPass;
-    const countInEachPassLabel = document.createElement('label');
-    countInEachPassLabel.htmlFor = countInEachPassCheckbox.id;
-    countInEachPassLabel.textContent =
-        'Count in before every repeat, not just the first time through. Needs the metronome on.';
-    countInEachPassParagraph.append(countInEachPassCheckbox, countInEachPassLabel);
-    measuresDetails.append(countInEachPassParagraph);
-
+    const barCount = state.audioTrack.barCount;
+    const first = buildNumberParagraph('audio-track-first-measure-input', 'First measure to play',
+        { min: 1, max: barCount, value: state.firstMeasure });
+    const last = buildNumberParagraph('audio-track-last-measure-input', 'Last measure to play',
+        { min: 1, max: barCount, value: state.lastMeasure });
+    measuresDetails.append(first.paragraph, last.paragraph);
     container.append(measuresDetails);
 
-    const metronomeParagraph = document.createElement('p');
-    const metronomeCheckbox = document.createElement('input');
-    metronomeCheckbox.type = 'checkbox';
-    metronomeCheckbox.id = uniqueControlId('audio-track-metronome-checkbox');
-    metronomeCheckbox.checked = state.metronome;
-    const metronomeLabel = document.createElement('label');
-    metronomeLabel.htmlFor = metronomeCheckbox.id;
-    metronomeLabel.textContent =
-        'Metronome, with one measure of clicks counting in the first time through';
-    metronomeParagraph.append(metronomeCheckbox, metronomeLabel);
-    container.append(metronomeParagraph);
+    const controlsHeading = document.createElement('h4');
+    controlsHeading.textContent = 'Playback Controls';
+    container.append(controlsHeading);
 
-    const summaryHeading = document.createElement('h5');
-    summaryHeading.textContent = 'Track';
-    container.append(summaryHeading);
-    const summary = document.createElement('ul');
-    container.append(summary);
-
-    const actions = createButtonRow();
-    const createButton = document.createElement('button');
-    createButton.type = 'button';
-    createButton.textContent = 'Create Track';
+    // Play first and alone in its row, being what is pressed most.
+    const playRow = createButtonRow();
     const playButton = document.createElement('button');
     playButton.type = 'button';
-    playButton.textContent = 'Play Track';
+    playButton.textContent = 'Play';
     playButton.setAttribute('aria-pressed', 'false');
-    // Nothing to play until the samples are in hand.
-    playButton.disabled = true;
-    actions.append(createButton, playButton);
-    container.append(actions);
+    playButton.addEventListener('click', () => toggleAudioTrackPlayback(state));
+    const keysButton = document.createElement('button');
+    keysButton.type = 'button';
+    keysButton.textContent = 'Keyboard Commands';
+    keysButton.addEventListener('click', () => openPlaybackKeysDialog());
+    playRow.append(playButton, keysButton);
+    container.append(playRow);
 
-    // When creation fails, the message lands right here, straight after the buttons, and
-    // everything below is hidden so the failure is the next thing encountered, not a footnote
-    // beneath controls that cannot be used.
+    // When a selection cannot be played, the reason lands straight after Play.
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
     container.append(error);
 
-    // Everything below the buttons lives in one container so the error state can remove it.
-    const extraControls = document.createElement('div');
-    container.append(extraControls);
-
-    // The same moves the shortcuts make, as buttons, so nothing here is keyboard-only.
-    const transportHeading = document.createElement('h5');
-    transportHeading.textContent = 'Move Around the Track';
-    extraControls.append(transportHeading);
-
-    const transportParagraph = createButtonRow();
-    const transportButtons = [];
-    const transportActions = [
+    // Every key has a button, for when you are not in focus mode and for a phone.
+    container.append(buildActionRow(state, [
+        ['Try Next Measure', state2 => tryNextMeasure(state2)],
+        ['Add Next Measure', state2 => addNextMeasure(state2)],
+        ['Restart Selection', state2 => restartAudioTrackSelection(state2)]
+    ]));
+    container.append(buildActionRow(state, [
         ['Previous Measure', state2 => seekAudioTrackByMeasure(state2, -1)],
         ['Next Measure', state2 => seekAudioTrackByMeasure(state2, 1)],
         ['Start of Measure', state2 => seekToStartOfCurrentMeasure(state2)],
-        ['Restart', state2 => restartAudioTrackSelection(state2)]
-    ];
-    for (const [label, action] of transportActions) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = label;
-        button.disabled = true;
-        button.addEventListener('click', () => action(state));
-        transportButtons.push(button);
-        transportParagraph.append(button);
-    }
-    extraControls.append(transportParagraph);
+        ['Where Am I', state2 => announceCurrentMeasure(state2)]
+    ]));
 
-    const keysHeading = document.createElement('h5');
-    keysHeading.textContent = 'Keyboard Control';
-    extraControls.append(keysHeading);
-
-    const keysNote = document.createElement('p');
-    keysNote.textContent =
-        'These keys only work while your screen reader is passing keystrokes straight through to' +
-        ' unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
-        ' same things.';
-    extraControls.append(keysNote);
-
-    // Worth stating outright, because the consequence shows up somewhere else from the cause and
-    // looks like a bug there. Nothing in the page can turn this mode off: a mode the reader
-    // was told to enter stays entered until it is told otherwise, which is the whole point of it
-    // being a manual choice.
-    const keysModeNote = document.createElement('p');
-    keysModeNote.textContent =
-        'You turn that mode on yourself, so you have to turn it off yourself as well. unstrung' +
-        ' cannot do it for you. If you move to another open item while it is still on, you will' +
-        ' not be able to navigate that item, because your screen reader is still' +
-        ' handing every key to unstrung instead of using them to move around the document. Turn' +
-        ' the mode off and everything behaves normally again.';
-    extraControls.append(keysModeNote);
-
-    const keysList = document.createElement('ul');
-    appendTextItems(keysList, [
-        'Space - pause and resume',
-        'Left arrow - back one measure',
-        'Right arrow - forward one measure',
-        'Down arrow - back to the start of the current measure',
-        'Up arrow - restart the selected measures, counting in again;' +
-            ' keeps count of which repeat you are on',
-        'B - say which measure you are in, and which repeat',
-        'M - metronome on or off',
-        `S - slower by ${AUDIO_TRACK_TEMPO_STEP_BPM} BPM`,
-        `F - faster by ${AUDIO_TRACK_TEMPO_STEP_BPM} BPM`,
-        'D - back to the default tempo: the song\'s own, or the one last typed into the Tempo field'
-    ]);
-    extraControls.append(keysList);
-
-    // Moving around stays silent so the music is not talked over. This is where the keys that
-    // exist to ask a question put their answer. Deliberately not role="status", which maps to a
+    // Moving around stays silent so the music is not talked over. This is where the keys and
+    // buttons that exist to say something put it. Deliberately not role="status", which maps to a
     // status bar on Windows and reads oddly mid-panel.
     const announce = document.createElement('p');
     announce.setAttribute('aria-live', 'polite');
@@ -3706,140 +3844,239 @@ function buildAudioTrackPanel(state) {
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
-    status.textContent = 'Set a tempo if you want one, then press Create Track.';
     container.append(status);
 
+    // Facts about the track, collapsed: worth looking up, not worth passing every time.
+    const aboutDetails = document.createElement('details');
+    const aboutSummary = document.createElement('summary');
+    aboutSummary.textContent = 'About the Audio Track';
+    const summary = document.createElement('ul');
+    aboutDetails.append(aboutSummary, summary);
+    container.append(aboutDetails);
+
     state.ui = {
-        tempoInput, metronomeCheckbox, countInEachPassCheckbox, createButton, playButton, error,
-        extraControls, firstInput, lastInput, repeatInput, measuresSummary,
-        status, announce, summary, transportButtons
+        tempoInput: tempo.input, metronomeCheckbox: metronome.checkbox, countInCheckbox: countIn.checkbox,
+        repeatCheckbox: repeat.checkbox, countInEachPassCheckbox: countInEachPass.checkbox,
+        countInEachPassParagraph: countInEachPass.paragraph, sectionSelect,
+        firstInput: first.input, lastInput: last.input, measuresSummary,
+        playButton, error, status, announce, summary
     };
     refreshAudioTrackSummary(state);
-    updateAudioTrackSelectionSummary(state);
+    showAudioTrackSelection(state);
 
-    metronomeCheckbox.addEventListener('change', () =>
-        setAudioTrackMetronome(state, metronomeCheckbox.checked));
-
+    metronome.checkbox.addEventListener('change', () =>
+        setAudioTrackMetronome(state, metronome.checkbox.checked));
+    countIn.checkbox.addEventListener('change', () => { state.countIn = countIn.checkbox.checked; });
+    repeat.checkbox.addEventListener('change', () => setAudioTrackRepeat(state, repeat.checkbox.checked));
     // Re-anchors while playing, the same way the metronome does. Repeats are already scheduled
     // ahead, and the reported position is worked out from how long a repeat takes, so leaving the
     // old schedule running under the new setting would put the two out of step.
-    countInEachPassCheckbox.addEventListener('change', () => {
-        state.countInEachPass = countInEachPassCheckbox.checked;
-        if (state.playing) {
-            const position = audioTrackPosition(state);
-            pauseAudioTrackPlayback(state);
-            startAudioTrackPlayback(state, position);
-        }
+    countInEachPass.checkbox.addEventListener('change', () => {
+        state.countInEachPass = countInEachPass.checkbox.checked;
+        replayFromHere(state);
     });
 
     // Committing on change rather than on every keystroke: a number field fires input for each
     // digit typed, and rebuilding the timeline mid-number would be wasted work.
     // A tempo typed here is the one D goes back to.
-    tempoInput.addEventListener('change', () => {
-        const requested = Number(tempoInput.value);
+    tempo.input.addEventListener('change', () => {
+        const requested = Number(tempo.input.value);
         applyAudioTrackTempo(state, requested);
         if (Number.isFinite(requested) && requested > 0) state.defaultTempo = state.targetTempo;
     });
 
-    for (const input of [firstInput, lastInput, repeatInput]) {
-        input.addEventListener('change', () => applyAudioTrackSelection(state));
+    for (const input of [first.input, last.input]) {
+        input.addEventListener('change', () => applyAudioTrackMeasureFields(state));
     }
-
-    createButton.addEventListener('click', () => {
-        stopAudioTrackPlayback();
-        clearAudioTrackTimers();
-        setAudioTrackPlayingState(state, false);
-        state.anchorSeconds = audioTrackRange(state).startSeconds;
-        state.anchorContextTime = null;
-        state.anchorPass = 1;
-        prepareAudioTrack(state);
-    });
-
-    playButton.addEventListener('click', () => toggleAudioTrackPlayback(state));
+    sectionSelect?.addEventListener('change', () => applyAudioTrackSection(state));
 
     return container;
 }
 
-/**
- * The Audio track disclosure at the end of a track's section.
- *
- * Collapsed, it is one line. Its content is built the first time it is opened, since deriving the
- * timeline is work worth doing only for the tracks someone plays, and kept after that, so closing
- * and reopening it keeps the tempo, the selection and the samples already loaded.
- */
-function buildAudioTrackDisclosure(score, trackIndex, trackName, getSongItemId) {
-    const details = document.createElement('details');
-    details.className = 'audio-track-disclosure';
-    const summary = document.createElement('summary');
-    summary.textContent = `Audio Track - ${trackName}`;
-    details.append(summary);
-
-    let built = false;
-    details.addEventListener('toggle', () => {
-        // Collapsing is stopping. The position is kept, so Play Track carries on from there after
-        // it is expanded again; nothing starts by itself on expanding. This includes the collapse
-        // done on showing another open item.
-        if (!details.open) {
-            const entry = audioTrackPanels.get(`${getSongItemId()}:${trackIndex}`);
-            if (entry?.state.playing) pauseAudioTrackPlayback(entry.state);
-            return;
-        }
-        if (built) return;
-        built = true;
-        details.append(buildAudioTrackContent(score, trackIndex, trackName, getSongItemId(), details));
-    });
-    return details;
+/** "Measure 5 - Verse - chord G": what governs the measure rather than any one note in it. */
+function measureHeadingText(measure, measureIndex) {
+    return [
+        `Measure ${measureIndex + 1}`,
+        // Navigating by heading is how a long track gets read, so these ride here: it puts the
+        // song's structure and its chord changes on the path already being taken. The section
+        // comes first, being the larger unit and only present where one begins.
+        measure.section,
+        // What the barlines say about the playing order. The measures are listed straight
+        // through, which is not how a song with repeats is played, so a repeat mark is as much a
+        // part of finding your way as the section is.
+        measure.repeat,
+        // The chords the file prints: "chord C", "continues C, chord G at beat 3".
+        // See docs/chord-forms-in-scores.md.
+        measure.chords
+    ].filter(Boolean).join(' - ');
 }
 
-function buildAudioTrackContent(score, trackIndex, trackName, songItemId, details) {
+/**
+ * The measures of a track, under an h4, each an h5 followed by its Play and Add buttons and then
+ * its lyrics and beats. `state` is null for a track with nothing to play, which gets no buttons.
+ *
+ * The buttons come after the heading rather than inside it, where they would be read at every
+ * heading stop. Each names its measure, because tab in focus mode reads the button and not the
+ * heading above it.
+ */
+function fillTrackMeasures(container, track, state) {
+    container.replaceChildren();
+    const heading = document.createElement('h4');
+    heading.textContent = `Measures - ${track.measures.length}`;
+    container.append(heading);
+
+    track.measures.forEach((measure, measureIndex) => {
+        const measureHeading = document.createElement('h5');
+        measureHeading.textContent = measureHeadingText(measure, measureIndex);
+        container.append(measureHeading);
+
+        if (state) {
+            const number = measureIndex + 1;
+            const row = createButtonRow();
+            for (const [label, action] of [
+                [`Play measure ${number}`, 'play'],
+                [`Add measure ${number} to selection`, 'add']
+            ]) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = label;
+                button.dataset.measure = String(number);
+                button.dataset.measureAction = action;
+                row.append(button);
+            }
+            container.append(row);
+        }
+
+        const measureList = document.createElement('ul');
+        // The words sung over this measure lead the list, one line per singing part. They are the
+        // clearest landmark a measure has, and they are shown on every track, since the part being
+        // read is rarely the one carrying them. Kept as separate items rather than run together: a
+        // duet's two lines are two thoughts, and one long line is harder to follow than two short
+        // ones.
+        appendTextItems(measureList, [...(measure.lyrics ?? []), ...measure.beats]);
+        container.append(measureList);
+    });
+}
+
+/**
+ * A track's Measures and Playback region, as { details, setTrack }.
+ *
+ * Collapsed, it is one line. The measures are almost all of a song's content, hundreds of short
+ * text lines per track, and they are only built when the region is first opened, for more than
+ * tidiness. A screen reader's browse buffer pays a per-text-line cost walking newly exposed
+ * content, so a panel that exposes every beat of every measure took seconds to enter each time it
+ * was visited. Collapsed content stays out of the accessibility tree entirely, so entering the
+ * document is immediate and the cost is only paid if and when the region is opened. Deriving the
+ * audio timeline waits for the same moment.
+ *
+ * Kept after that, so closing and reopening it keeps the tempo, the selection and the samples
+ * already loaded. `setTrack` hands it the track's measures again when the song's panel is rebuilt,
+ * as it is when the beat descriptions setting changes.
+ */
+function buildTrackRegion(score, track, getSongItemId) {
+    const details = document.createElement('details');
+    details.className = 'track-region';
+    const summary = document.createElement('summary');
+    details.append(summary);
+
+    const label = t => `Measures and Playback - ${t.measures.length} measure${t.measures.length === 1 ? '' : 's'}`;
+    summary.textContent = label(track);
+
+    let current = track;
+    let state = null;
+    let measures = null;
+
+    details.addEventListener('toggle', () => {
+        // Collapsing is stopping. The position is kept, so Play carries on from there after it is
+        // expanded again; nothing starts by itself on expanding. This includes the collapse done on
+        // showing another open item.
+        if (!details.open) {
+            if (state?.playing) pauseAudioTrackPlayback(state);
+            return;
+        }
+        if (measures) return;
+
+        const playback = buildAudioTrackContent(score, current, getSongItemId(), details);
+        state = playback.state;
+        measures = document.createElement('div');
+        fillTrackMeasures(measures, current, state);
+        measures.addEventListener('click', event => {
+            const button = event.target.closest('button[data-measure]');
+            if (!button || !state) return;
+            const measure = Number(button.dataset.measure);
+            if (button.dataset.measureAction === 'play') playMeasureAlone(state, measure);
+            else addMeasureToSelection(state, measure);
+        });
+        details.append(playback.element, measures);
+    });
+
+    return {
+        details,
+        setTrack(next) {
+            current = next;
+            summary.textContent = label(next);
+            if (measures) fillTrackMeasures(measures, next, state);
+        }
+    };
+}
+
+/**
+ * The playback half of a track's region, as { element, state }. `state` is null for a track with
+ * no playable notes, which gets a line saying so in place of the controls.
+ */
+function buildAudioTrackContent(score, track, songItemId, details) {
     const state = {
         score,
-        trackIndex,
+        trackIndex: track.index,
         songItemId,
-        trackLabel: trackName,
+        trackLabel: track.name,
         targetTempo: scoreTempo(score),
         // What D goes back to: the song's own tempo, until another is typed into the Tempo field.
         defaultTempo: scoreTempo(score),
         audioTrack: null,
+        // Samples loaded. The first Play loads them; see playAudioTrackWhenReady.
         ready: false,
+        preparing: null,
+        pendingStart: null,
         ui: null,
         // Transport: where we are in the track, and the context time that position was anchored at.
         playing: false,
         anchorSeconds: 0,
         anchorContextTime: null,
         metronome: false,
-        countInArmed: false,
+        // On by default: playing along from a standing start is what a count-in is for.
+        countIn: true,
+        countInArmed: true,
         // Off by default: a count-in before every repeat is occasionally wanted, but it interrupts
         // a loop being used to drill a phrase, which is the usual reason for looping at all.
         countInEachPass: false,
-        // Which measures play, how many times, and which play-through we are on.
+        // Which measures play, whether they repeat (0 for until stopped, 1 for once), and which
+        // play-through we are on. A measure tried on its own plays in place of the selection.
         firstMeasure: 1,
         lastMeasure: 1,
+        tryingMeasure: null,
         repeatCount: 1,
         anchorPass: 1,
+        sections: trackSections(track),
         rangeCache: null,
         failedSampleKeys: null
     };
     state.audioTrack = deriveAudioTrack(state);
 
     if (!state.audioTrack || state.audioTrack.notes.length === 0) {
-        const container = document.createElement('div');
-        const heading = document.createElement('h4');
-        heading.textContent = `Audio Track - ${trackName}`;
         const message = document.createElement('p');
         message.textContent = 'This track has no playable notes.';
-        container.append(heading, message);
-        return container;
+        return { element: message, state: null };
     }
     state.lastMeasure = state.audioTrack.barCount;
 
-    const container = buildAudioTrackPanel(state);
+    const element = buildAudioTrackPanel(state);
     const entry = { itemId: songItemId, state, details, lastUsed: performance.now() };
-    audioTrackPanels.set(`${songItemId}:${trackIndex}`, entry);
+    audioTrackPanels.set(`${songItemId}:${track.index}`, entry);
     // Using a track is what makes it the one the playback keys act on, whether or not focus is
     // still inside it when the key is pressed.
     details.addEventListener('focusin', () => { entry.lastUsed = performance.now(); });
-    return container;
+    return { element, state };
 }
 
 /** Stops and forgets every audio track belonging to a song that is closing. */
@@ -4077,46 +4314,36 @@ function describePlayedFrets(frets) {
 }
 
 /**
- * The chord symbols a track prints, collapsed.
+ * The chord symbols a track prints, as the last row of the track's details: "Chord Symbols - 5",
+ * with the chords listed inside it, each collapsed. So the names are heard reading the track,
+ * without opening anything. See docs/measure-practice.md.
  *
- * Built on first open, like the measures, and for the same reason: collapsed content stays out of
- * the accessibility tree, so a song with several tracks does not pay for chord regions nobody
- * opened. The chord library is fetched on that first open too, since the summary panel is built
- * the moment a file is parsed and waiting on the library then would delay every file.
+ * The chords are matched against the chord library, which may not be loaded yet. The panel is built
+ * the moment a file is parsed and waiting on the library then would delay every file, so the row
+ * goes in at once and its chords follow when the library arrives.
  */
-function buildTrackChordsRegion(track) {
-    const details = document.createElement('details');
-    const summary = document.createElement('summary');
+function appendTrackChordSymbols(trackList, track) {
     const chords = track.chords ?? [];
-    summary.textContent = `Chord Symbols - ${chords.length}`;
-    details.append(summary);
+    const item = document.createElement('li');
+    item.textContent = chords.length === 0
+        ? 'Chord Symbols - none; the file prints no chord symbols over this part'
+        : `Chord Symbols - ${chords.length}`;
+    trackList.append(item);
+    if (chords.length === 0) return;
 
-    let built = false;
-    details.addEventListener('toggle', async () => {
-        if (!details.open || built) return;
-        built = true;
-
-        if (chords.length === 0) {
-            const p = document.createElement('p');
-            p.textContent = 'None. The file prints no chord symbols over this part.';
-            details.append(p);
-            return;
-        }
-
-        if (!chordPracticeLibrary) {
-            const loading = document.createElement('p');
-            loading.textContent = 'Loading chord library…';
-            details.append(loading);
-            chordPracticeLibrary = await window.unstrung.getChordLibrary();
-            loading.remove();
-        }
-
-        const list = document.createElement('ul');
+    const list = document.createElement('ul');
+    item.append(list);
+    const fill = () => {
         for (const chord of chords) list.append(buildTrackChordRow(chord));
-        details.append(list);
+    };
+    if (chordPracticeLibrary) {
+        fill();
+        return;
+    }
+    window.unstrung.getChordLibrary().then(library => {
+        chordPracticeLibrary ??= library;
+        fill();
     });
-
-    return details;
 }
 
 // --- Playing a progression -------------------------------------------------------------
@@ -7548,8 +7775,9 @@ const MEDIA_SESSION_KINDS = {
     },
     audioTrack: {
         // Expanded, as for the playback keys: a collapsed track is stopped, and starting it again
-        // from a key would be playing something hidden.
-        available: state => state.ready && [...audioTrackPanels.values()]
+        // from a key would be playing something hidden. Not necessarily loaded: the first play
+        // loads the samples, from the headphones as from the Play button.
+        available: state => [...audioTrackPanels.values()]
             .some(entry => entry.state === state && entry.details.open),
         title: state => {
             const song = state.score.title?.trim() ||
@@ -7578,7 +7806,7 @@ function mediaSessionTarget() {
     const practice = activeChordPracticeState();
     if (practice) return { kind: 'chordPractice', state: practice };
     const track = activeAudioTrackState();
-    if (track?.ready) return { kind: 'audioTrack', state: track };
+    if (track) return { kind: 'audioTrack', state: track };
     return owner;
 }
 

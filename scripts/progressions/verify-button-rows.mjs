@@ -43,9 +43,10 @@ try {
     }, SONG);
     await menu('menu-open-file');
     await page.waitForTimeout(3000);
-    // Its first audio track, which builds its controls when it is first expanded.
+    // Its first track's Measures and Playback region, which builds its controls and the measures'
+    // Play and Add buttons when it is first expanded.
     await page.evaluate(() => {
-        const summary = [...document.querySelectorAll('summary')].find(s => s.textContent.startsWith('Audio Track - '));
+        const summary = [...document.querySelectorAll('summary')].find(s => s.textContent.startsWith('Measures and Playback - '));
         summary?.click();
     });
     await page.waitForTimeout(1000);

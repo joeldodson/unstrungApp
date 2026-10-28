@@ -112,6 +112,51 @@ track's details list reads Instrument, Tuning, Capo, then "Chord Symbols - 4", w
 listed inside that item, each keeping its own collapsed details. The chord names are then heard
 reading the track, without opening anything.
 
+## What was built, 2026-10-27
+
+Built the same day, while Joel was away, with the questions that came up settled by assumption so
+that he could try it and change what is wrong. Where it differs from the decisions above, this is
+what the app does.
+
+- **Play measure 5 selects the measure**, rather than playing it and leaving the selection as it
+  was. The selection starts as the whole song, so a Play that left it alone gave Add nothing to
+  build from: Play measure 1 then Add measure 2 would have stretched the whole song to the whole
+  song. Trying a measure without changing the selection is n, or Try Next Measure, as decided.
+  Going back from a measure played alone loses nothing that matters: Play measure 3 while 1 to 2 is
+  selected, then Add measure 1, gives 1 to 3, which is the next step anyway.
+- **The whole song counts as nothing selected.** With it selected, n tries measure 1, a and Add
+  Next Measure select measure 1, and Add measure 5 selects measure 5 alone.
+- **n pressed again moves on**: it tries the measure after the one being tried. a then adds up to
+  that measure, so trying 4 and 5 and adding gives the selection through 5.
+- **Two headings for playback, not one**: Playback Settings (tempo and its buttons, the
+  checkboxes, Measures to Play) and Playback Controls (Play, Keyboard Commands, the practice and
+  moving buttons, the announcement and status lines, and About the Audio Track, collapsed, which
+  holds the facts the old Track list gave). shift+4 from a measure reaches Measures, then Playback
+  Controls, then Playback Settings.
+- **The buttons**: Slower, Faster and Default Tempo straight after the Tempo field; Play and
+  Keyboard Commands in a row of their own; Try Next Measure, Add Next Measure and Restart
+  Selection; then Previous Measure, Next Measure, Start of Measure and Where Am I (b). The
+  metronome and repeat keys have their checkboxes. Placed to be tried and moved.
+- **Count In is on to begin with.** Playing along from a standing start is what it is for. Count In
+  Before Every Repeat is independent of it, and off.
+- **What is said**: n, a and l say what they did ("Measure 4 on its own", "Measures 3 to 4",
+  "Repeat on"), since none of it can be heard straight away. Play measure 5 and Add measure 5 say
+  nothing, the button having said it. The first play says "Loading the guitar samples for this
+  track…" and then "Samples loaded."
+- **The Playback Keys dialog** works where the keys do: while a track's region is open and focus
+  mode passes keys through. Chord practice keeps its own printed list of keys for now; ? does
+  nothing there.
+- **Sections** come from what the measure headings already show, which includes section names a
+  file wrote as beat text. Ripple's dropdown reads Intro, then "End Intro during beat 3, measures
+  18 to 85", then Outro: the file's words, not tidied.
+- **Headphones and media keys** can start a track that has never been played; the first play loads
+  the samples as Play does. On a phone, the context is asked for in the press itself, before the
+  loading, but this has not been tried on an iPhone.
+
+Checked by `scripts/songs/verify-measure-practice.mjs` against Ripple. The older scripts that drove
+the Audio Track disclosure were moved to the new region; `verify-track-chords.mjs`, which checked
+the old order of Chord Symbols, Measures and Audio Track, was removed, the new script covering it.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.

@@ -100,7 +100,7 @@ const report = async where => {
 
 let problems = 0;
 
-// --- A song, then an audio track for two different tracks of it ---
+// --- A song, then the Measures and Playback region of two different tracks of it ---
 const bytes = [...new Uint8Array(await readFile(`${APP_DIR}/musicfiles/${SONG}`))];
 await app.evaluate(({ BrowserWindow }, payload) => {
     BrowserWindow.getAllWindows()[0].webContents.send('files:opened', {
@@ -109,32 +109,31 @@ await app.evaluate(({ BrowserWindow }, payload) => {
 }, { fileName: SONG, bytes });
 await page.waitForTimeout(6000);
 
-const trackCount = await page.evaluate(() => {
-    const panel = document.querySelector('.tab-panel:not([hidden])') ?? document.body;
-    return [...panel.querySelectorAll('button')].filter(b => /Create Audio Track/.test(b.textContent)).length;
-});
-console.log(`Song open, ${trackCount} tracks offering an audio track`);
+const trackCount = await page.evaluate(() =>
+    document.querySelectorAll('#item-panels > section:not([hidden]) details.track-region').length);
+console.log(`Song open, ${trackCount} tracks with a Measures and Playback region`);
 
+// Two tracks open at once, so their controls' ids are checked against each other.
 for (const which of [0, 1]) {
     await page.evaluate(index => {
-        const panel = document.querySelector('.tab-panel:not([hidden])') ?? document.body;
-        const buttons = [...panel.querySelectorAll('button')].filter(b => /Create Audio Track/.test(b.textContent));
-        buttons[index]?.click();
+        const regions = document.querySelectorAll('#item-panels > section:not([hidden]) details.track-region');
+        if (regions[index]) regions[index].open = true;
     }, which);
     await page.waitForTimeout(3000);
-    problems += await report(`Audio track page ${which + 1} open`);
+    problems += await report(`Measures and Playback region ${which + 1} open`);
 }
 
-// --- The audio track page after its track has been built, in case that adds controls ---
+// --- After the first Play, which loads the samples, in case that adds controls ---
 await page.evaluate(() => {
-    const panels = [...document.querySelectorAll('#item-panels > section:not([hidden])')];
-    for (const panel of panels) {
-        const button = [...panel.querySelectorAll('button')].find(b => /^Create Track$/.test(b.textContent.trim()));
-        button?.click();
-    }
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
+    [...panel.querySelectorAll('button')].find(b => b.textContent === 'Play')?.click();
 });
 await page.waitForTimeout(8000);
-problems += await report('Audio track page after Create Track');
+problems += await report('Measures and Playback region after Play');
+await page.evaluate(() => {
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
+    [...panel.querySelectorAll('button')].find(b => b.textContent === 'Pause')?.click();
+});
 
 // --- Dialogs, one at a time ---
 const DIALOGS = [

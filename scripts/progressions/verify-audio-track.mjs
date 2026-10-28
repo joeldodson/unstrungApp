@@ -29,17 +29,17 @@ await app.evaluate(({ BrowserWindow }, { fileName, bytes }) => {
 }, { fileName: 'Grateful Dead-Ripple-12-20-2025.gp', bytes: songBytes });
 await page.waitForTimeout(5000);
 
-console.log('=== Creating an audio track for the lead part ===');
-// Each track of the song ends with an Audio Track disclosure; expanding it builds the track's
-// controls in place. The first is the lead part.
-const TRACK = '#item-panels > section:not([hidden]) details.audio-track-disclosure[open]';
+console.log('=== Playing the lead part ===');
+// Each track of the song ends with a Measures and Playback region; expanding it builds the
+// track's controls and measures in place. The first is the lead part.
+const TRACK = '#item-panels > section:not([hidden]) details.track-region[open]';
 const created = await page.evaluate(() => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
-    const disclosures = [...panel.querySelectorAll('details.audio-track-disclosure')];
+    const disclosures = [...panel.querySelectorAll('details.track-region')];
     if (disclosures.length > 0) disclosures[0].open = true;
     return { found: disclosures.length, summary: disclosures[0]?.querySelector('summary').textContent };
 });
-console.log(`  Audio Track disclosures found: ${created.found}, opened ${created.summary}`);
+console.log(`  Measures and Playback regions found: ${created.found}, opened ${created.summary}`);
 check('the song offers audio tracks', created.found > 0);
 await page.waitForTimeout(3000);
 
@@ -47,7 +47,7 @@ const panelState = () => page.evaluate(selector => {
     const panel = document.querySelector(selector);
     if (!panel) return null;
     const play = [...panel.querySelectorAll('button')]
-        .find(b => /^(Play Track|Pause)$/.test(b.textContent));
+        .find(b => /^(Play|Pause)$/.test(b.textContent));
     const live = [...panel.querySelectorAll('[aria-live]')];
     return {
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
@@ -63,28 +63,30 @@ const panelState = () => page.evaluate(selector => {
 
 let state = await panelState();
 console.log(`  track buttons: ${state?.buttons.join(', ')}`);
-check('the track\'s controls appeared', state?.buttons.some(b => /Create Track/i.test(b)),
-    state?.buttons.join(', '));
+check('the track\'s controls appeared', state?.playLabel === 'Play', state?.buttons.slice(0, 8).join(', '));
 
+// There is no Create Track any more: the first Play fetches the samples, then plays.
 await page.evaluate(selector => {
     const track = document.querySelector(selector);
-    [...track.querySelectorAll('button')].find(b => /^Create Track$/.test(b.textContent))?.click();
+    [...track.querySelectorAll('button')].find(b => b.textContent === 'Play')?.click();
 }, TRACK);
-// Building the note timeline and fetching samples for a hundred-measure track takes a while.
+// Fetching samples for a hundred-measure track takes a while.
 for (let i = 0; i < 60; i++) {
     state = await panelState();
-    if (state.playDisabled === false) break;
+    if (state.playLabel === 'Pause') break;
     await page.waitForTimeout(1000);
 }
-console.log(`  status after creating: ${state.status.slice(0, 120)}`);
+console.log(`  status after the first Play: ${state.status.slice(0, 120)}`);
 // 0.9.0 said "NaN BPM" here, the file's tempo having become the function that reads it.
 const tempoLine = await page.evaluate(selector =>
     [...document.querySelector(selector).querySelectorAll('li, p')].map(el => el.textContent).find(t => /^Tempo - /.test(t)) ?? '', TRACK);
 console.log(`  ${tempoLine}`);
 check('the track gives its tempo as a number', /^Tempo - \d+ BPM \(the tempo written in the file\)$/.test(tempoLine), tempoLine);
-check('so does the status line', /\d+ BPM, /.test(state.status) && !/NaN/.test(state.status), state.status.slice(0, 120));
-check('the track was created and can be played', state.playDisabled === false,
-    `play disabled: ${state.playDisabled}`);
+check('the first Play loaded the samples and is playing', state.playLabel === 'Pause' && /Samples loaded\./.test(state.status),
+    `${state.playLabel}: ${state.status.slice(0, 120)}`);
+await page.evaluate(selector => {
+    [...document.querySelector(selector).querySelectorAll('button')].find(b => b.textContent === 'Pause')?.click();
+}, TRACK);
 
 console.log('\n=== Transport keys ===');
 await page.evaluate(() =>
@@ -163,7 +165,7 @@ check('seeking while playing keeps it playing', afterSeeks.playLabel === 'Pause'
 
 const paused = await press(' ');
 console.log(`  Space -> ${paused.announcement}`);
-check('Space pauses', paused.playLabel === 'Play Track', paused.playLabel);
+check('Space pauses', paused.playLabel === 'Play', paused.playLabel);
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 await close();

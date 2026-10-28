@@ -41,7 +41,7 @@ eyesunstrung.vip.
 
 - `measure-practice.md` -- one region per track for the measures and playback, with Play and Add
   buttons on each measure, so a song can be learned a measure at a time; and the Chord Symbols in
-  the track's details. Decided 2026-10-27, not built.
+  the track's details. Decided and built 2026-10-27, with the assumptions made while building.
 - `note-timing.md` -- why notes sounded behind the metronome's clicks (the pick noise at the start
   of every recording), measured for every recording, and starting each note early by its attack.
   Built 2026-10-22.

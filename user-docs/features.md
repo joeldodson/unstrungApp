@@ -72,7 +72,7 @@ As noted below regarding browsers, if your browser does not support the file sys
 - ctrl+shift+s: save it under a new name.
 
 Playback has its own keys, described with each kind of playback.
-You can find the description of the keyboard commands for playback within the document with the audio track.
+While a track is being played, ? lists its keys in a dialog.
 
 ### Dialogs
 
@@ -128,19 +128,20 @@ Voice, keyboards, drums and other parts are left out, and the summary says how m
 The words of a vocal part are still read, and shown with every listed track's measures.
 
 The next heading is Tracks, with the number of tracks listed.
-Each track has a level 3 heading with its number and name, and a list of its instrument, tuning and capo.
+Each track has a level 3 heading with its number and name, and a list of its instrument, tuning, capo and chord symbols.
 The tuning is spelled out note by note, with its name when the file gives one.
 
-Each track then has these collapsed sections:
+The last item of the list is **Chord Symbols,** with the number of chords.
+Inside it, each chord the file prints over the track is listed once, collapsed, in the order it first appears, with how many times it is printed.
+Where the file gives a chord diagram, its fingering is shown; otherwise the fingering comes from the chord library.
+A track the file prints no chords over says so.
 
-- **Chord Symbols,** with the number of chords.
-  Each chord the file prints over the track is listed once, collapsed, in the order it first appears, with how many times it is printed.
-  Where the file gives a chord diagram, its fingering is shown; otherwise the fingering comes from the chord library.
-  A track the file prints no chords over says so.
-- **Measures,** with the number of measures.
-  Each measure is a level 4 heading with its number, the section it starts if any, its repeat marks and its chord names.
-  Under the heading are the lyrics sung over the measure, then a description of each beat: the strings and frets played, how the strings are struck, and techniques such as slides, bends, vibrato, harmonics and let ring.
-- **Audio Track** and the track's name, where the track is played.
+After the list is a collapsed section, **Measures and Playback,** with the number of measures.
+It holds the settings and controls for playing the track, described below under Playing a Track, and then the measures.
+The Measures heading is level 4, with the number of measures.
+Each measure is a level 5 heading with its number, the section it starts if any, its repeat marks and its chord names.
+Under the heading are two buttons, Play and Add, described under Practising Measure by Measure.
+Then come the lyrics sung over the measure, then a description of each beat: the strings and frets played, how the strings are struck, and techniques such as slides, bends, vibrato, harmonics and let ring.
 
 ### Chords in Measure Headings
 
@@ -163,8 +164,8 @@ A beat is named as a chord when it sounds three different notes or more, such as
 A beat with fewer is listed string by string, so open strings 3 and 4 are not called G5.
 A stroke direction is given only where the file states one.
 
-The measures are collapsed because a song can run to hundreds of lines.
-Expand them when you want the detail.
+The Measures and Playback section is collapsed because a song can run to hundreds of lines.
+Expand it when you want the detail or want to play the track.
 
 ## Media Controls Integration
 
@@ -180,7 +181,7 @@ Those are specific to unstrung and work only when the screen reader is in focus 
 In addition to the proprietary keyboard commands unstrung has defined, media controls are also supported.
 
 Audio track and chord progression playback is focused on measures.
-You select which measures to play, including how many times to loop the selection.
+You select which measures to play, and whether to play them once or repeat them.
 Hit the play button and the audio will begin playing.
 You can pause/resume playback with the media control mechanism, or using the spaceBar keyboard command.
 You can restart the progression using previous track from media control, or upArrow on the keyboard.
@@ -205,49 +206,95 @@ Worst case you might need to close the tab with unstrung and open a new one.
 
 ## Playing a Track
 
-Expand the "Audio Track" section at the end of a track.
-It starts with a level 4 heading of the same name.
-To collapse it again, go to that heading and then up one line.
+Expand the "Measures and Playback" section after a track's details.
+It starts with the Playback Settings and Playback Controls headings, both level 4, and then the Measures heading.
+From any measure, shift+4 goes back up to the Measures heading, then Playback Controls, then Playback Settings.
+To collapse the section, go to Playback Settings and then up one line.
 
-### Setting It Up
+### Playback Settings
 
 - **Tempo in beats per minute,** from 15 to 300.
   It starts at the tempo the file gives, or 60 if the file gives none.
-- **Measures Selected,** a collapsed section saying which measures will play.
-  Inside it are the first and last measure, how many times to play them (up to 50, or 0 to repeat until you stop), and whether to count in before every repeat or only the first time.
-- **Metronome,** which also counts in one measure of clicks the first time through.
+  A tempo you set stays until the song is closed.
+- **Slower, Faster and Default Tempo,** buttons that change the tempo by 5 beats per minute, or put it back.
+- **Metronome,** clicks while the music plays.
   Each note is timed so that its attack sounds with the click, and the pick noise recorded before it comes just ahead.
+- **Count in,** one measure of clicks before playing starts.
+  It is on to begin with, and works whether or not the metronome is on.
+- **Repeat until stopped.**
+  Unchecked, the measures play once.
+  Turning it off while they repeat lets the time through under way finish, then stops.
+- **Count in before every repeat,** shown only while Repeat is checked.
+- **Measures to Play,** a collapsed section saying which measures will play.
+  Inside it is a Section dropdown, starting with Entire Song, then one entry for each section the file marks, such as Intro or Verse 2.
+  A file that marks no sections has no dropdown.
+  Then come the first and last measure.
+  When the measures chosen are not the whole song or a section, the dropdown has an entry for them, such as "Measures 3 to 7".
 
-### Playing
+### Playback Controls
 
-After the settings, the Track heading is followed by a summary of the track: how many notes, how long it is, and the tempo.
-Then come the Create Track and Play Track buttons.
+- **Play,** which becomes Pause while playing.
+  The first time you play a track, unstrung loads its guitar samples first, says so, and then plays.
+- **Keyboard Commands,** which opens the list of keys described below.
+- **Try Next Measure, Add Next Measure and Restart Selection,** described under Practising Measure by Measure.
+- **Previous Measure, Next Measure, Start of Measure and Where Am I.**
+  Where Am I says which measure is playing.
 
-Press Create Track.
-unstrung builds the track from the guitar samples, says when it is ready, and enables Play Track.
-Play Track starts and pauses playback.
+Below the buttons, unstrung says what it has done when you ask, and a collapsed section, About the Audio Track, gives how many notes the track has, how long it is, and its tempo.
 
-Under the "Move Around the Track" heading are buttons to go to the previous or next measure, to the start of the current measure, or to the start of the selected measures.
-
-Collapsing the Audio Track section stops playback.
-Expanding it again does not restart it; press Play Track to carry on from where it stopped.
+Collapsing the Measures and Playback section stops playback.
+Expanding it again does not restart it; press Play to carry on from where it stopped.
 Showing another open item collapses the section, and so stops playback, unless you turn that setting off.
+
+### Practising Measure by Measure
+
+This is for learning a song a measure at a time: play a measure until you have it, try the next one on its own, then play the two together, and so on.
+
+Each measure has two buttons under its heading:
+
+- **Play measure 5** selects that measure alone and plays it.
+- **Add measure 5 to selection** stretches the selection to include it and plays the selection from its start.
+  The selection is always one run of measures, so adding measure 5 to measures 1 to 2 gives 1 to 5.
+  While the whole song is selected, as it is to begin with, Add selects the measure alone.
+
+The same can be done from Playback Controls, or with keys, without going to the measure:
+
+- **Try Next Measure** plays the measure after the selection on its own, leaving the selection as it is.
+  Press it again for the one after that.
+- **Add Next Measure** adds the measure being tried, or if none, the one after the selection, and plays the selection.
+- **Restart Selection** goes back to the start of the selection.
+  After trying a measure on its own, it goes back to the selection without adding it.
+
+For example, press Play measure 1, with Repeat checked.
+Then Try Next Measure plays measure 2 on its own.
+Add Next Measure then plays measures 1 and 2 together.
+Try Next Measure again plays measure 3 on its own, and so on.
+
+Each of these starts again from the beginning of what it plays, counting in if Count in is checked.
+The tempo stays as you set it.
 
 ### Keys
 
 While your screen reader is in focus mode, these keys control playback.
-The same list is in the Audio Track section, under the Keyboard Control heading.
+? lists them in the Playback Keys dialog, as does the Keyboard Commands button.
+The dialog has a link to this document, which closes the dialog and opens this document.
 
-- spaceBar: pause and resume.
+- spaceBar: play and pause.
 - leftArrow: back one measure.
 - rightArrow: forward one measure.
 - downArrow: back to the start of the current measure.
-- upArrow: restart the selected measures, counting in again.
-- b: say which measure you are in, and which repeat.
+- upArrow: back to the start of the selection, counting in again.
+  After trying a measure on its own, back to the selection without adding it.
+- n: try the measure after the selection on its own.
+  Press it again for the one after that.
+- a: add the measure being tried to the selection, or the one after the selection, and play the selection.
+- l: repeat on or off.
+- b: say which measure is playing, and which repeat.
 - m: metronome on or off.
 - s: slower by 5 beats per minute.
 - f: faster by 5 beats per minute.
 - d: back to the default tempo, which is the song's own until you type another into the Tempo field.
+- ?: the list of keys.
 
 In NVDA, nvdaKey+spaceBar turns focus mode on and off.
 unstrung cannot do it for you.

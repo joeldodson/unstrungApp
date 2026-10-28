@@ -32,30 +32,43 @@ const check = (label, condition, detail = '') => {
 const { app, page, close } = await launchApp();
 await openSongFile(app, path.basename(song), bytes);
 await page.waitForSelector(`${VISIBLE_PANEL} h3`, { timeout: 15000 });
+await new Promise(r => setTimeout(r, 1000)); // the chord library arrives after the panel
 
-// Each track's regions, in order, with their contents once opened.
+// Each track's Chord Symbols, the last row of its details, and the measures of its Measures and
+// Playback region once opened. See docs/measure-practice.md. Each measure is an h5, followed by
+// its Play and Add buttons and then its lyrics and beats.
 const tracks = await page.evaluate(async panelSelector => {
     const panel = document.querySelector(panelSelector);
     const result = [];
-    let current = null;
-    for (const node of panel.querySelectorAll('h3, details:not(details details)')) {
-        if (node.tagName === 'H3') { current = { name: node.textContent, regions: [] }; result.push(current); continue; }
-        const summary = node.querySelector(':scope > summary').textContent;
-        node.open = true;
-        for (let i = 0; i < 50 && node.children.length < 2; i++) await new Promise(r => setTimeout(r, 100));
-        await new Promise(r => setTimeout(r, 200));
-        current.regions.push({
-            summary,
-            text: node.querySelector(':scope > p')?.textContent ?? null,
-            headings: [...node.querySelectorAll('h4')].map(h => ({
-                text: h.textContent,
-                beats: [...(h.nextElementSibling?.querySelectorAll('li') ?? [])].map(li => li.textContent)
-            })),
-            rows: [...node.querySelectorAll(':scope > ul > li')].map(li => ({
-                summary: li.querySelector('summary')?.textContent ?? li.textContent,
-                facts: [...li.querySelectorAll('details > ul > li')].map(x => x.textContent)
-            }))
-        });
+    for (const h3 of panel.querySelectorAll('h3')) {
+        const list = h3.nextElementSibling;
+        const chordItem = [...list.querySelectorAll(':scope > li')]
+            .find(li => li.firstChild.textContent.startsWith('Chord Symbols'));
+        const region = list.nextElementSibling;
+        region.open = true;
+        for (let i = 0; i < 50 && !region.querySelector('h5'); i++) await new Promise(r => setTimeout(r, 100));
+        const beatsAfter = heading => {
+            let next = heading.nextElementSibling;
+            if (next?.classList.contains('button-row')) next = next.nextElementSibling;
+            return [...(next?.querySelectorAll('li') ?? [])].map(li => li.textContent);
+        };
+        result.push({ name: h3.textContent, rowsOfDetails: [...list.querySelectorAll(':scope > li')].map(li => li.firstChild.textContent), regions: [
+            {
+                summary: chordItem.firstChild.textContent,
+                text: chordItem.firstChild.textContent,
+                headings: [],
+                rows: [...chordItem.querySelectorAll(':scope > ul > li')].map(li => ({
+                    summary: li.querySelector('summary')?.textContent ?? li.textContent,
+                    facts: [...li.querySelectorAll('details > ul > li')].map(x => x.textContent)
+                }))
+            },
+            {
+                summary: 'Measures',
+                text: null,
+                headings: [...region.querySelectorAll('h5')].map(h => ({ text: h.textContent, beats: beatsAfter(h) })),
+                rows: []
+            }
+        ] });
     }
     return result;
 }, VISIBLE_PANEL);
@@ -76,7 +89,10 @@ meta.tracks.forEach((expected, t) => {
     check('  no heading says "holds"', !headings.some(h => /\bholds\b/.test(h)));
     check('  no Anomalies region', !region(shown, /^Anomalies/));
     const symbols = region(shown, /^Chord Symbols/);
-    check('  Chord Symbols comes first of the regions', shown.regions[0]?.summary === `Chord Symbols - ${expected.chords.length}`, shown.regions[0]?.summary);
+    const wantedRow = expected.chords.length === 0
+        ? 'Chord Symbols - none; the file prints no chord symbols over this part'
+        : `Chord Symbols - ${expected.chords.length}`;
+    check('  Chord Symbols is the last row of the track\'s details', shown.rowsOfDetails.at(-1) === wantedRow, shown.rowsOfDetails.at(-1));
     check('  it lists the printed chords in order', symbols.rows.map(r => r.summary).join(' ') === expected.chords.map(c => c.name).join(' '),
         symbols.rows.map(r => r.summary).join(' '));
     if (expected.chords.length === 0) check('  an empty list says the file prints none', /prints no chord symbols/.test(symbols.text ?? ''), symbols.text);

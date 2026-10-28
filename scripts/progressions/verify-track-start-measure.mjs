@@ -1,7 +1,9 @@
 // Checks that the Track summary on the audio track page says where the part comes in.
 //
 // Ripple carries both cases: the Acoustic Lead plays from the first measure, so the note count
-// stands alone, and the Mandolin does not come in until measure 19, so it is named.
+// stands alone, and the Acoustic Capo VII does not come in until measure 2, so it is named. The
+// Mandolin, which came in at measure 19, was the late case until only guitar and bass tracks were
+// listed.
 
 const APP_DIR = `${import.meta.dirname}/../..`.split('\\').join('/');
 const SONG = 'Grateful Dead-Ripple-12-20-2025.gp';
@@ -25,17 +27,17 @@ await app.evaluate(({ BrowserWindow }, payload) => {
 }, { fileName: SONG, bytes });
 await page.waitForTimeout(6000);
 
-// Track 1 plays from the top; track 4 comes in late.
+// Track 1 plays from the top; track 2 comes in late.
 const cases = [
     { index: 0, name: 'Acoustic Lead', expect: /^Notes - \d+$/ },
-    { index: 3, name: 'Mandolin', expect: /^Notes - \d+, starting at measure 19$/ }
+    { index: 1, name: 'Acoustic Capo VII', expect: /^Notes - \d+, starting at measure 2$/ }
 ];
 
 for (const testCase of cases) {
-    // Each track ends with an Audio Track disclosure; expanding it builds that track's controls.
+    // Each track ends with a Measures and Playback region; expanding it builds that track's controls.
     const inTrack = (index, action) => page.evaluate(({ index, action }) => {
         const panel = document.querySelector('#item-panels > section:not([hidden])');
-        const disclosure = panel.querySelectorAll('details.audio-track-disclosure')[index];
+        const disclosure = panel.querySelectorAll('details.track-region')[index];
         if (action === 'open') disclosure.open = true;
         if (action === 'create') {
             [...disclosure.querySelectorAll('button')]

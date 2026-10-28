@@ -82,14 +82,14 @@ await app.evaluate(({ BrowserWindow }, bytes) =>
         fileName: 'Ripple.gp', data: new Uint8Array(bytes)
     }), songBytes);
 await page.waitForTimeout(5000);
-// Each track ends with an Audio Track disclosure; expanding it builds that track's controls.
-await page.evaluate(() => { document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure').open = true; });
+// Each track ends with a Measures and Playback region; expanding it builds that track's controls.
+await page.evaluate(() => { document.querySelector('#item-panels > section:not([hidden]) details.track-region').open = true; });
 await page.waitForTimeout(3000);
 
 await page.evaluate(() => {
     // Control ids carry a per-page suffix so two audio track pages cannot collide, so these match
     // the prefix within the current panel rather than a fixed id.
-    const panel = document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]');
+    const panel = document.querySelector('#item-panels > section:not([hidden]) details.track-region[open]');
     const set = (prefix, value) => {
         const input = panel.querySelector(`[id^="${prefix}"]`);
         input.value = value;
@@ -99,12 +99,12 @@ await page.evaluate(() => {
     set('audio-track-last-measure-input', '21');
 });
 await page.waitForTimeout(600);
-await page.evaluate(() => document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]').querySelectorAll('button').forEach(b => {
+await page.evaluate(() => document.querySelector('#item-panels > section:not([hidden]) details.track-region[open]').querySelectorAll('button').forEach(b => {
         if (/^Create Track$/.test(b.textContent)) b.click();
     }));
 for (let i = 0; i < 40; i++) {
     const ready = await page.evaluate(() => {
-        const p = document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]');
+        const p = document.querySelector('#item-panels > section:not([hidden]) details.track-region[open]');
         return ![...p.querySelectorAll('button')].find(b => /^Play Track$/.test(b.textContent))?.disabled;
     });
     if (ready) break;
@@ -115,7 +115,7 @@ await page.evaluate(() =>
 await page.keyboard.press('b');
 await page.waitForTimeout(700);
 const said = await page.evaluate(() => {
-    const p = document.querySelector('#item-panels > section:not([hidden]) details.audio-track-disclosure[open]');
+    const p = document.querySelector('#item-panels > section:not([hidden]) details.track-region[open]');
     return [...p.querySelectorAll('[aria-live]')][0].textContent;
 });
 console.log(`  B with 7 through 21 selected: ${said}`);
