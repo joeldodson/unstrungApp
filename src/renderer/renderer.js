@@ -2482,7 +2482,25 @@ function setAudioTrackPlayingState(state, playing) {
     state.playing = playing;
     state.ui.playButton.textContent = playing ? 'Pause' : 'Play';
     state.ui.playButton.setAttribute('aria-pressed', String(playing));
+    showMeasurePlaying(state);
     playbackChanged('audioTrack', state);
+}
+
+/**
+ * While a measure plays on its own, its Play button is its Stop button, so a measure repeating
+ * until stopped can be stopped from where it is being read, without focus mode. Only the name
+ * changes: aria-pressed on every measure's button would add "toggle button, not pressed" to each
+ * one read on the way through the song.
+ */
+function showMeasurePlaying(state) {
+    const previous = state.ui.stopMeasureButton;
+    const button = state.playing && state.measureAlone && state.ui.measures
+        ? state.ui.measures.querySelector(`button[data-measure-action="play"][data-measure="${state.measureAlone}"]`)
+        : null;
+    if (previous === button) return;
+    if (previous) previous.textContent = `Play measure ${previous.dataset.measure}`;
+    if (button) button.textContent = `Stop measure ${button.dataset.measure}`;
+    state.ui.stopMeasureButton = button;
 }
 
 // --- Metronome ------------------------------------------------------------------------
@@ -3031,11 +3049,14 @@ function pauseAudioTrackPlayback(state) {
 
 function toggleAudioTrackPlayback(state) {
     if (state.playing) {
+        // The one time a key acts on a measure played on its own, so it is said: the next press
+        // starts the track, not the measure.
+        if (state.measureAlone) announceAudioTrack(state, `Stopped measure ${state.measureAlone}.`);
         pauseAudioTrackPlayback(state);
         return;
     }
     // Play is the track's, so after a measure played on its own it goes back to where the track was.
-    returnToTrack(state);
+    if (returnToTrack(state)) sayBackToTrack(state);
     // Only a start that was armed by a first play, finishing a run, restarting, or changing the
     // selection counts in; resuming after a pause carries straight on.
     playAudioTrackWhenReady(state, () =>
@@ -3079,23 +3100,25 @@ function seekAudioTrack(state, toSeconds) {
     }
 }
 
-// The moves are the track's. From a measure played on its own they go back to the track first, and
-// carry on playing there if the measure was playing.
+// The moves are the track's. From a measure played on its own they go back to the track first, say
+// so, and carry on playing there if the measure was playing.
 
 function seekAudioTrackByMeasure(state, delta) {
-    const resume = returnToTrack(state);
+    const left = returnToTrack(state);
     const range = audioTrackRange(state);
     const current = measureIndexAt(state, audioTrackPosition(state));
     const target = Math.max(range.firstIndex, Math.min(range.lastIndex, current + delta));
     seekAudioTrack(state, state.audioTrack.barStartSeconds[target]);
-    if (resume) startAudioTrackPlayback(state, state.anchorSeconds);
+    if (left?.wasPlaying) startAudioTrackPlayback(state, state.anchorSeconds);
+    if (left) sayBackToTrack(state);
 }
 
 function seekToStartOfCurrentMeasure(state) {
-    const resume = returnToTrack(state);
+    const left = returnToTrack(state);
     const starts = state.audioTrack.barStartSeconds;
     seekAudioTrack(state, starts[measureIndexAt(state, audioTrackPosition(state))]);
-    if (resume) startAudioTrackPlayback(state, state.anchorSeconds);
+    if (left?.wasPlaying) startAudioTrackPlayback(state, state.anchorSeconds);
+    if (left) sayBackToTrack(state);
 }
 
 /**
@@ -3103,7 +3126,8 @@ function seekToStartOfCurrentMeasure(state) {
  * repeats: restarting during the third of five plays replays the third, then the remaining two.
  */
 function restartAudioTrackSelection(state) {
-    const resume = returnToTrack(state) || state.playing;
+    const left = returnToTrack(state);
+    const resume = left?.wasPlaying || state.playing;
     const pass = state.playing ? currentPassAt(state) : state.anchorPass;
     state.rangeCache = null;
     state.anchorPass = pass;
@@ -3116,6 +3140,7 @@ function restartAudioTrackSelection(state) {
         state.anchorContextTime = null;
         state.countInArmed = true;
     }
+    if (left) sayBackToTrack(state);
 }
 
 /** Steps the tempo, keeping the music playing from the measure we are in. */
@@ -3302,10 +3327,11 @@ function playMeasureAlone(state, measure) {
 
 /**
  * Lets go of a measure played on its own and puts the track back where it was, paused. Returns
- * whether the measure was playing, for the moves, which carry on playing in the track.
+ * null if there was none, otherwise { wasPlaying }, for the moves, which carry on playing in the
+ * track.
  */
 function returnToTrack(state) {
-    if (!state.measureAlone) return false;
+    if (!state.measureAlone) return null;
     const wasPlaying = state.playing;
     haltAudioTrack(state);
     const place = state.trackPlace;
@@ -3317,7 +3343,16 @@ function returnToTrack(state) {
     state.anchorContextTime = null;
     state.anchorPass = place.pass;
     state.countInArmed = place.countInArmed;
-    return wasPlaying;
+    return { wasPlaying };
+}
+
+/**
+ * Said when a key, Play or a move goes from a measure played on its own back to the track, where
+ * the track may be anywhere. Nothing else about playing and pausing is said: starting and stopping
+ * the track, or a measure from its own button, is heard well enough.
+ */
+function sayBackToTrack(state) {
+    announceAudioTrack(state, `Back to the track at measure ${measureIndexAt(state, state.anchorSeconds) + 1}.`);
 }
 
 /**
@@ -4004,12 +4039,16 @@ function buildTrackRegion(score, track, getSongItemId) {
         state = playback.state;
         measures = document.createElement('div');
         fillTrackMeasures(measures, current, state);
+        if (state) state.ui.measures = measures;
         measures.addEventListener('click', event => {
             const button = event.target.closest('button[data-measure]');
             if (!button || !state) return;
             const measure = Number(button.dataset.measure);
-            if (button.dataset.measureAction === 'play') playMeasureAlone(state, measure);
-            else addMeasureToSelection(state, measure);
+            if (button.dataset.measureAction === 'add') addMeasureToSelection(state, measure);
+            // Stop measure 5. Its place is kept as the measure, so spaceBar after it goes back to
+            // the track, as it would after the measure ended.
+            else if (state.playing && state.measureAlone === measure) haltAudioTrack(state);
+            else playMeasureAlone(state, measure);
         });
         details.append(playback.element, measures);
     });
@@ -4019,7 +4058,12 @@ function buildTrackRegion(score, track, getSongItemId) {
         setTrack(next) {
             current = next;
             summary.textContent = label(next);
-            if (measures) fillTrackMeasures(measures, next, state);
+            if (!measures) return;
+            fillTrackMeasures(measures, next, state);
+            if (state) {
+                state.ui.stopMeasureButton = null;
+                showMeasurePlaying(state);
+            }
         }
     };
 }

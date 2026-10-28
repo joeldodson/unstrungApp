@@ -190,6 +190,31 @@ try playing it, and only then add it.
 - **No n or a keys.** Measures are added from where they are read, with the Add button under each.
   Add fills in what lies between: with 1 to 2 selected, Add measure 5 gives 1 to 5.
 
+### The measure and the track, 2026-10-28
+
+Joel found the two hard to keep apart. A measure repeating until stopped could only be stopped
+from the keyboard by going into focus mode and pressing spaceBar, and the next spaceBar then started
+the track, possibly part way through, which was easy to do by mistake.
+
+- **Play measure 5 is a toggle.** While the measure plays, its button is named Stop measure 5, so a
+  repeating measure can be stopped from where it is read, in browse mode. Only the name changes:
+  aria-pressed on every measure's Play button would add "toggle button, not pressed" to each one
+  read on the way through the song. Stopping it keeps it as the measure, so spaceBar afterwards goes
+  back to the track, as it would after the measure ended.
+- **spaceBar stays the track's.** Making it play whatever played last was considered and dropped:
+  it would mean two things depending on something that cannot be heard, getting back to the track
+  would need another key, and headphone and media keys would have the same problem.
+- **Only the switch is said.** spaceBar stopping a measure says "Stopped measure 5." Going from a
+  measure back to the track, by Play, spaceBar, a media key or any of the moves, says "Back to the
+  track at measure 12." Pausing and playing the track, and the measure's own button, say nothing:
+  what happens there is heard. The moves are included because, from a measure, rightArrow lands a
+  measure past wherever the track was, which otherwise goes unsaid.
+- **Features says it plainly**: two things play, the keys and Play are the track's, a measure's
+  button is the measure's, and spaceBar stopping a measure is the one exception.
+
+The setting keys, l, m and the tempo keys, act on whatever is playing, the measure included. That
+is intended and was left alone.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.

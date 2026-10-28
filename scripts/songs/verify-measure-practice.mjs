@@ -3,8 +3,8 @@
 //
 // Drives the Electron app with musicfiles/Grateful Dead-Ripple-12-20-2025.gp, or the song given:
 // the song's headings, Chord Symbols in the track's details, the region's headings and buttons, the
-// settings, the measure buttons, the n, a, l and ? keys, the Section dropdown, and the Playback Keys dialog's
-// link to Features. Judged from the DOM, ARIA state and the announcement lines, never pixels.
+// settings, the measure buttons and their Stop, the l and ? keys, what is said on going from a
+// measure back to the track, the Section dropdown, and the Playback Keys dialog's link to Features. Judged from the DOM, ARIA state and the announcement lines, never pixels.
 //
 // Run: node scripts/songs/verify-measure-practice.mjs [song file]
 
@@ -109,6 +109,7 @@ const region = () => page.evaluate(() => {
         keysNote: [...r.querySelectorAll('h3')].find(h => h.textContent === 'Playback Controls')?.nextElementSibling?.textContent ?? null,
         firstButtons: [...(r.querySelector('h4')?.nextElementSibling?.querySelectorAll('button') ?? [])].map(b => b.textContent),
         measureButtonCount: r.querySelectorAll('button[data-measure]').length,
+        stopButtons: [...r.querySelectorAll('button[data-measure]')].map(b => b.textContent).filter(t => t.startsWith('Stop')),
         play: { text: r.querySelector('.audio-track button[aria-pressed]').textContent,
             pressed: r.querySelector('.audio-track button[aria-pressed]').getAttribute('aria-pressed') },
         summary: text('.audio-track details > summary'),
@@ -136,6 +137,10 @@ const clickInRegion = name => page.evaluate(name => {
     button.click();
 }, name);
 const press = async key => { await page.keyboard.press(key); await pause(150); };
+// Empties the announcement line, so that whether anything was said after it can be told.
+const clearAnnounce = () => page.evaluate(() => {
+    window.__region.querySelector('p[aria-live="polite"]:not([role])').textContent = '';
+});
 const waitPlaying = async () => {
     for (let i = 0; i < 100; i++) {
         if ((await region()).play.pressed === 'true') return true;
@@ -183,39 +188,63 @@ for (let i = 0; i < 4; i++) await press('ArrowRight');
 await press('b');
 r = await region();
 check('the track is paused at measure 5', r.play.pressed === 'false' && r.announce.startsWith(`Measure 5 of ${barCount}`), r.announce);
+await clearAnnounce();
 await clickInRegion('Play measure 3');
 check('Play measure 3 plays', await waitPlaying());
+r = await region();
+check('its button becomes Stop measure 3, and nothing is said', r.stopButtons.join() === 'Stop measure 3' && r.announce === '',
+    `${r.stopButtons.join()} "${r.announce}"`);
 await press('b');
 r = await region();
 check('it plays on its own, and says so', r.announce.startsWith('Measure 3 on its own'), r.announce);
 check('the selection is untouched', r.summary === 'Measures to Play - Entire Song' && r.first === '1' && r.last === String(barCount),
     `${r.summary}, fields ${r.first}-${r.last}`);
 await clickInRegion('Play measure 7');
+await waitPlaying();
 await press('b');
 r = await region();
 check('another measure takes its place', r.announce.startsWith('Measure 7 on its own'), r.announce);
+check('only its button is Stop', r.stopButtons.join() === 'Stop measure 7', r.stopButtons.join());
 await press(' ');
 r = await region();
-check('spaceBar pauses the measure', r.play.pressed === 'false');
+check('spaceBar stops the measure, and says so', r.play.pressed === 'false' && r.announce === 'Stopped measure 7.' &&
+    r.stopButtons.length === 0, `${r.play.pressed} "${r.announce}" ${r.stopButtons.join()}`);
 await press(' ');
 await waitPlaying();
+r = await region();
+check('spaceBar again goes back to the track, and says where', r.announce === 'Back to the track at measure 5.', r.announce);
 await press('b');
 r = await region();
-check('Play then goes back to the track, where it was', r.announce.startsWith(`Measure 5 of ${barCount}`), r.announce);
+check('which is where it was', r.announce.startsWith(`Measure 5 of ${barCount}`), r.announce);
 await clickInRegion('Play measure 3');
 await waitPlaying();
 await press('ArrowRight');
-await press('b');
 r = await region();
-check('rightArrow from a measure goes back to the track, a measure on, still playing',
-    r.play.pressed === 'true' && r.announce.startsWith(`Measure 6 of ${barCount}`), `${r.play.pressed} "${r.announce}"`);
+check('rightArrow from a measure goes back to the track, a measure on, still playing, and says so',
+    r.play.pressed === 'true' && r.announce === 'Back to the track at measure 6.', `${r.play.pressed} "${r.announce}"`);
 await clickInRegion('Play measure 9');
 await waitPlaying();
 await press('ArrowUp');
-await press('b');
 r = await region();
-check('upArrow from a measure restarts the selection', r.play.pressed === 'true' && r.announce.startsWith(`Measure 1 of ${barCount}`),
+check('upArrow from a measure restarts the selection', r.play.pressed === 'true' && r.announce === 'Back to the track at measure 1.',
     r.announce);
+await clickInRegion('Play measure 9');
+await waitPlaying();
+await clearAnnounce();
+await clickInRegion('Stop measure 9');
+r = await region();
+check('Stop measure 9 stops it, becomes Play again, and says nothing',
+    r.play.pressed === 'false' && r.stopButtons.length === 0 && r.announce === '', `${r.play.pressed} "${r.announce}"`);
+await press(' ');
+await waitPlaying();
+r = await region();
+check('spaceBar after it goes back to the track, and says so', /^Back to the track at measure \d+\.$/.test(r.announce), r.announce);
+await clearAnnounce();
+await press(' ');
+await press(' ');
+await waitPlaying();
+r = await region();
+check('pausing and playing the track says nothing', r.announce === '', r.announce);
 await press('n');
 await press('a');
 r = await region();
@@ -357,7 +386,7 @@ check('the window title names it', dialog.title.endsWith('Playback Keys dialog')
 await page.keyboard.press('Escape');
 await pause(150);
 check('escape closes it and focus goes back', await page.evaluate(() =>
-    !document.getElementById('playback-keys-dialog').open && document.activeElement?.textContent === 'Play measure 2'));
+    !document.getElementById('playback-keys-dialog').open && document.activeElement?.textContent === 'Stop measure 2'));
 await press('Shift+Slash');
 await page.evaluate(() => document.querySelector('#playback-keys-dialog a').click());
 await pause(500);

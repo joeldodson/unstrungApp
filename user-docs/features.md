@@ -254,13 +254,21 @@ Each measure has two buttons under its heading:
 
 - **Play measure 5** plays that measure on its own, once, or until stopped if Repeat is checked.
   It leaves the selection as it is, and remembers where the track had got to.
-  Press it again to hear the measure again.
+  While the measure plays, the button is named Stop measure 5, and pressing it stops the measure.
+  Press Play measure 5 again to hear the measure from its start.
 - **Add measure 5 to selection** stretches the selection to include it and plays the selection from its start.
   The selection is always one run of measures, so adding measure 5 to measures 1 to 2 gives 1 to 5.
   While the whole song is selected, as it is to begin with, Add selects the measure alone.
 
+Two things can play here: the track, which is the selected measures, and a measure on its own.
+Play, the playback keys and media keys belong to the track.
+A measure's own button belongs to the measure.
+The one exception is spaceBar while a measure plays on its own: it stops the measure and says "Stopped measure 5."
+
 After listening to a measure on its own, Play goes back to the track, from where it was.
-So do Restart Selection, Previous Measure, Next Measure, Start of Measure and their keys.
+So do spaceBar, media keys, Restart Selection, Previous Measure, Next Measure, Start of Measure and their keys.
+Each says where the track is as it goes back, for example "Back to the track at measure 12."
+Nothing else about playing and stopping is said.
 Where Am I says "Measure 5 on its own" while a measure plays on its own.
 
 For example, with Repeat checked, press Play measure 1 and listen until you have it, then Add measure 1 to selection.
