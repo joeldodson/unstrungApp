@@ -353,12 +353,29 @@ A progression's item has:
 - **Progression:** the chords in order, one per measure.
   While there are unsaved changes, this heading, the item's name and the level 2 heading at the top all say "unsaved changes".
 - The Edit Progression, Save Progression and Save Progression As buttons.
-- **Playback:** whether to speak the chord names, the strumming pattern, tempo, times to play, count in, metronome, and the Play Progression button.
-  Changing the strumming pattern carries on from where the progression is, so you can try patterns while it plays.
+- **Playback Settings** and **Playback Controls,** level 3 headings laid out as a track's are; see Playing a Track.
+
+Playback Settings has:
+
+- **Tempo in beats per minute,** from 30 to 240.
+- **Strumming pattern.**
+  Changing it carries on from where the progression is, so you can try patterns while it plays.
   Like the tempo, it is not counted as an unsaved change, but saving keeps the pattern you are on.
-- **Move Around the Progression** and **Keyboard Control,** the same buttons and keys as an audio track.
-  b also says the chord of the measure you are in.
-  d goes back to the tempo the progression opened with, until you type another into the Tempo field.
+- **Speak the name of the next chord.**
+  Changing it starts the progression again from the first measure.
+- **Metronome,** clicks while the progression plays.
+- **Count in,** one measure of clicks before playing starts.
+  It is on to begin with, and works whether or not the metronome is on.
+- **Times to play the progression,** up to 50, with 0 for until stopped.
+  Playing it a set number of times is a way to practise for a set time.
+- **Count in before every repeat,** shown only when the progression plays more than once.
+
+Playback Controls has the same buttons as a track: Play and Where Am I; Slower, Faster and Default Tempo; Restart Progression, Previous Measure, Next Measure and Start of Measure.
+Where Am I says the measure, its chord, and which time through it is.
+Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.
+
+The keys are a track's, except l, since a progression has a number of times to play rather than Repeat.
+? lists them in the Playback Keys dialog.
 
 The media keys and headphone buttons control a progression as they do an audio track; see Media Controls Integration, before Playing a Track.
 

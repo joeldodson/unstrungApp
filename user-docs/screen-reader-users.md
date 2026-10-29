@@ -39,10 +39,9 @@ I would turn on focus mode to try the playback keys, then move to another open i
 I would get there but be unable to navigate it, until I remembered I was still in focus mode and switched back to browse mode.
 If something suddenly seems unresponsive, that is almost certainly why.
 
-The keys are listed in the audio track itself, under a level 5 heading called Keyboard Control, once a track has been created.
-There are buttons for moving around the track as well, so nothing is keyboard only.
-The keys go further than the buttons, though.
-They also tell you where you are, turn the metronome on and off, and change the tempo without you leaving your place.
+Type ? in a track's Measures and Playback section, or in a chord progression, and the Playback Keys dialog lists the keys.
+Each key has a button under Playback Controls as well, so nothing is keyboard only.
+The keys save you leaving your place, though: they tell you where you are, turn the metronome on and off, and change the tempo from wherever you are reading.
 
 ## Why the Measures Are Collapsed
 

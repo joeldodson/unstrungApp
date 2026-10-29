@@ -95,7 +95,7 @@ try {
 
     await runMenuCommand(page, MENU.chordPractice);
     await page.click('#chord-practice-generate-button');
-    await measure('chord practice', await button(VISIBLE_PANEL, 'Play Progression'));
+    await measure('chord practice', await button(VISIBLE_PANEL, 'Play'));
 
     if (songPath) {
         await openSongFile(app, path.basename(songPath), await readFile(songPath));

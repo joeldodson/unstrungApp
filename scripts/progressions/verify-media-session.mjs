@@ -119,7 +119,7 @@ await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
 let state = await snapshot();
-check('a progression tab is in front', state.playButton === 'Play Progression', state.playButton);
+check('a progression tab is in front', state.playButton === 'Play', state.playButton);
 check('no media handlers before the first play', state.registered.length === 0, state.registered.join(', '));
 check('no metadata before the first play', state.title === null, state.title);
 check('Windows has no session for the app', windowsSession() === null);
@@ -150,7 +150,7 @@ console.log('\n=== play/pause from Windows pauses ===');
 windowsSession('PlayPause');
 await page.waitForTimeout(800);
 state = await snapshot();
-check('playback stops', state.playButton === 'Play Progression', state.playButton);
+check('playback stops', state.playButton === 'Play', state.playButton);
 check('playbackState is paused', state.playbackState === 'paused', state.playbackState);
 check('the media element is paused', state.elementPaused === true, String(state.elementPaused));
 check('pause says where it stopped', /^Paused at measure \d+\.$/.test(state.announcement ?? ''),
@@ -182,7 +182,7 @@ await callHandler('seekbackward');
 measure = await measureNow();
 check('seekbackward goes to the first measure', measure === 1, `to ${measure}`);
 state = await snapshot();
-check('moving while paused stays paused', state.playButton === 'Play Progression', state.playButton);
+check('moving while paused stays paused', state.playButton === 'Play', state.playButton);
 
 console.log('\n=== play/pause from Windows resumes ===');
 windowsSession('PlayPause');
@@ -208,7 +208,7 @@ check('previous while playing restarts and keeps playing',
 await callHandler('stop');
 await page.waitForTimeout(300);
 state = await snapshot();
-check('stop stops playback', state.playButton === 'Play Progression', state.playButton);
+check('stop stops playback', state.playButton === 'Play', state.playButton);
 
 console.log('\n=== Closing the tab clears it ===');
 await page.click('button[aria-label^="Close Practice"]');
@@ -236,7 +236,7 @@ windowsSession('PlayPause');
 await page.waitForTimeout(800);
 state = await snapshot();
 check('play/pause from Windows reaches the new progression',
-    state.playButton === 'Play Progression', state.playButton);
+    state.playButton === 'Play', state.playButton);
 
 // The context stopping by itself is how an interruption reaches the page. Suspending it from here
 // stands in for a call starting; resuming it from here, for the call ending.
@@ -250,7 +250,7 @@ check('playing before the interruption', (await snapshot()).playButton === 'Paus
 await interrupt();
 await page.waitForTimeout(500);
 state = await snapshot();
-check('an interruption pauses', state.playButton === 'Play Progression', state.playButton);
+check('an interruption pauses', state.playButton === 'Play', state.playButton);
 check('and says where', /^Paused at measure \d+\.$/.test(state.announcement ?? ''), state.announcement);
 check('and tells the system', state.playbackState === 'paused', state.playbackState);
 await endInterruption();
@@ -269,7 +269,7 @@ check('play after an interruption brings the sound back',
     state.playButton === 'Pause' && (await contexts()).at(-1) === 'running', state.playButton);
 await page.keyboard.press(' ');
 await page.waitForTimeout(500);
-check('and spaceBar still pauses it', (await snapshot()).playButton === 'Play Progression');
+check('and spaceBar still pauses it', (await snapshot()).playButton === 'Play');
 
 // Paused, then the audio taken away: the case that left an iPhone silent until Chrome restarted.
 // The next play makes a new context rather than trusting the old one.
@@ -306,7 +306,7 @@ await page.waitForTimeout(500);
 await page.keyboard.press(' ');
 await page.waitForTimeout(2000);
 state = await snapshot();
-check('a start that never gets going goes back to paused', state.playButton === 'Play Progression',
+check('a start that never gets going goes back to paused', state.playButton === 'Play',
     state.playButton);
 check('and says so', state.announcement === 'The sound could not start. Press play to try again.',
     state.announcement);
@@ -322,7 +322,7 @@ check('the next play tries a new context, and plays',
     `${after.join(', ')}; ${state.playButton}`);
 await page.keyboard.press(' ');
 await page.waitForTimeout(500);
-check('and spaceBar pauses it', (await snapshot()).playButton === 'Play Progression');
+check('and spaceBar pauses it', (await snapshot()).playButton === 'Play');
 
 // A context that reports itself running while its clock stands still. Nothing has said anything
 // is wrong, so only the clock can tell.
@@ -349,7 +349,7 @@ await page.keyboard.press(' ');
 await page.waitForTimeout(2000);
 state = await snapshot();
 check('a start whose clock does not move goes back to paused, and says so',
-    state.playButton === 'Play Progression' &&
+    state.playButton === 'Play' &&
     state.announcement === 'The sound could not start. Press play to try again.',
     `${state.playButton}; ${state.announcement}`);
 await page.evaluate(() => { window.__deadFromBirth = false; });

@@ -700,14 +700,14 @@
         <button type="button" id="directory-error-ok-button">OK</button>
     </dialog>
 
-    <!-- The keys that play a song's tracks, opened by ?. The list is filled from
-         AUDIO_TRACK_KEY_DESCRIPTIONS in renderer.js. -->
+    <!-- The keys that play a song's tracks or a chord progression, opened by ?. The first paragraph
+         and the list are filled by openPlaybackKeysDialog in renderer.js. -->
     <dialog id="playback-keys-dialog" aria-labelledby="playback-keys-heading-name" tabindex="-1">
         <h1 id="playback-keys-heading"><span id="playback-keys-heading-name">Playback Keys</span> Dialog Box</h1>
-        <p>These keys play the track whose Measures and Playback region is open.</p>
+        <p id="playback-keys-intro"></p>
         <ul id="playback-keys-list"></ul>
         <p>
-            <a href="https://eyesunstrung.vip/unstrung/docs/features/">Features</a> describes playing a track in full, under Playing a Track.
+            <a href="https://eyesunstrung.vip/unstrung/docs/features/">Features</a> describes them in full, under Playing a Track for a song and The Progression for a chord progression.
             Following the link closes this dialog.
         </p>
         <button type="button" id="playback-keys-close-button">Close</button>

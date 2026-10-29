@@ -248,6 +248,39 @@ setting, because:
 
 If the reset turns out to happen by mistake often, the dialog can be added on top.
 
+## Chord progressions laid out to match, 2026-10-28
+
+Joel liked the track's Playback Settings and Playback Controls and asked for a progression's playback
+to read the same, with ? in place of its printed Keyboard Control list. Its Playback, Move Around
+the Progression and Keyboard Control headings became Playback Settings and Playback Controls.
+
+- **Settings**: tempo, strumming pattern, speak the names, metronome, count in, times to play, count
+  in before every repeat. The speak label was shortened to "Speak the name of the next chord;
+  changing it starts again from the first measure".
+- **Controls**: the "Type ? for keyboard commands." line, then the track's three rows: Play and
+  Where Am I; Slower, Faster, Default Tempo; Restart Progression, Previous Measure, Next Measure,
+  Start of Measure. Where Am I and the tempo buttons were keys only before. Play Progression became
+  Play: the tab plays only one thing.
+- **Count in is its own checkbox**, on to begin with, as the track's has been since 2026-10-27.
+  Before, the metronome decided it. With the names spoken, a start from the top still keeps one
+  silent measure before the first chord, which is where its name is said.
+- **Count in before every repeat** shows only when the progression plays more than once, and no
+  longer needs the metronome.
+- **The Playback Keys dialog** serves both, each with its own list: a progression's has no l, and
+  its upArrow, b and d are worded for a progression.
+
+Kept different, on purpose:
+
+- **Times to play stays a number**, not Repeat: playing a progression a set number of times is how
+  Joel practises for a set time. So there is no l key; switching between until stopped and a count
+  would need to remember the count.
+- **No Measures to Play**, and no Play or Add under each chord: a progression is a few measures,
+  practised whole, and Chords Used already holds each chord's fingering.
+- **The Chord Practice dialog keeps its playback fields**, which give a new tab its starting values.
+  Count in is not among them and starts checked.
+
+The Metronome tool keeps its own Keyboard Control list for now.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.

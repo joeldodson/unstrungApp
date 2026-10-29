@@ -151,17 +151,15 @@ const tab = await page.evaluate(() => {
 check('a tab opened and the dialog closed', tab !== null && tab.dialogClosed);
 console.log(`  tab: ${tab.tabName}`);
 console.log(`  headings: ${tab.headings.join(' | ')}`);
-// The same shape as the audio track panel: a heading per section, keyboard commands last. How many
-// distinct chords a run produces varies, so the counts are matched rather than spelled out.
+// The same shape as a song track's playback: Playback Settings, then Playback Controls, last. How
+// many distinct chords a run produces varies, so the counts are matched rather than spelled out.
 const headingShape = tab.headings.map(h => h.replace(/\(\d+[^)]*\)/, '(n)')).join(' | ');
 check('the sections are laid out in order',
     headingShape ===
     'H2: Chord Practice - C major | H3: Metadata | H3: Chords Used (n) | H3: Progression (n) | ' +
-    'H3: Playback | H3: Move Around the Progression | H3: Keyboard Control',
+    'H3: Playback Settings | H3: Playback Controls',
     headingShape);
-check('keyboard control is the last heading',
-    tab.headings[tab.headings.length - 1] === 'H3: Keyboard Control');
-check('playback has a transport', tab.buttons.includes('Play Progression'), tab.buttons.join(', '));
+check('playback has a transport', tab.buttons.includes('Play'), tab.buttons.join(', '));
 check('there is a live region for playback state', tab.liveRegions >= 1);
 
 console.log(`  summary: ${tab.summaryItems.join(' | ')}`);
@@ -223,7 +221,7 @@ check('instrumentation installed', timing === true);
 // One button toggles: it reads Play, then Pause once running.
 const clickTransport = () => page.evaluate(() => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
-    [...panel.querySelectorAll('button')].find(b => /^(Play Progression|Pause)$/.test(b.textContent)).click();
+    [...panel.querySelectorAll('button')].find(b => /^(Play|Pause)$/.test(b.textContent)).click();
 });
 await clickTransport();
 await page.waitForTimeout(9000);
@@ -249,7 +247,7 @@ if (speech.length >= 2) {
 console.log('\n=== Transport matches the audio track ===');
 const panelState = () => page.evaluate(() => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
-    const play = [...panel.querySelectorAll('button')].find(b => /^(Play Progression|Pause)$/.test(b.textContent));
+    const play = [...panel.querySelectorAll('button')].find(b => /^(Play|Pause)$/.test(b.textContent));
     return {
         playLabel: play.textContent,
         pressed: play.getAttribute('aria-pressed'),
@@ -265,31 +263,82 @@ const controls = await page.evaluate(() => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
     const labelled = [...panel.querySelectorAll('input, select')].every(el =>
         panel.querySelector(`label[for="${el.id}"]`));
-    // The key list is the last plain list in the panel, under the Keyboard Control heading.
-    const lists = [...panel.querySelectorAll('ul:not(.chord-progression)')]
-        .filter(ul => !ul.closest('details'));
-    const keyRows = [...lists[lists.length - 1].querySelectorAll('li')].map(li => li.textContent);
     const listStyle = getComputedStyle(panel.querySelector('ul.chord-progression')).listStyleType;
+    const headingNamed = text => [...panel.querySelectorAll('h3')].find(h => h.textContent === text);
+    const after = (heading, until) => {
+        const found = [];
+        for (let el = heading?.nextElementSibling; el && el !== until && el.tagName !== 'H3'; el = el.nextElementSibling) found.push(el);
+        return found;
+    };
+    const settings = after(headingNamed('Playback Settings'));
+    const controlsHeading = headingNamed('Playback Controls');
+    const controlsAfter = after(controlsHeading);
+    const labelOf = el => panel.querySelector(`label[for="${el.id}"]`)?.textContent;
     return {
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
-        labelled, keyRows, listStyle
+        labelled, listStyle,
+        settings: settings.map(p => labelOf(p.querySelector('input, select'))),
+        keysNote: controlsHeading?.nextElementSibling?.textContent ?? null,
+        controlRows: controlsAfter.filter(el => el.classList.contains('button-row'))
+            .map(row => [...row.querySelectorAll('button')].map(b => b.textContent).join(', ')),
+        plainLists: controlsAfter.filter(el => el.tagName === 'UL').length,
+        countIn: panel.querySelector('input[id^="chord-practice-tab-count-in-"]:not([id*="each-pass"])')?.checked ?? null,
+        eachPassHidden: panel.querySelector('input[id^="chord-practice-tab-count-in-each-pass"]')?.closest('p').hidden ?? null
     };
 });
 check('the chord list carries no bullet or number', controls.listStyle === 'none',
     controls.listStyle);
 check('the panel has tempo, repeats and metronome, all labelled', controls.labelled);
-check('the transport buttons match the audio track',
-    controls.buttons.includes('Play Progression') && controls.buttons.includes('Restart'),
-    controls.buttons.join(', '));
-console.log(`  keyboard commands listed: ${controls.keyRows.length}`);
-// Ten rows, one per key, worded as the audio track words them. The tenth, D for the default
-// tempo, came with the metronome.
-check('the audio track keys are documented', controls.keyRows.length === 10,
-    `${controls.keyRows.length} rows`);
+console.log(`  settings: ${controls.settings.join(' | ')}`);
+check('Playback Settings: tempo, pattern, names, metronome, count in, times to play, count in each repeat',
+    controls.settings.join(' | ') === 'Tempo in beats per minute, 30 to 240 | Strumming pattern | ' +
+    'Speak the name of the next chord; changing it starts again from the first measure | Metronome | ' +
+    'Count in, one measure of clicks before playing starts | ' +
+    'Times to play the progression, up to 50; 0 repeats until stopped | Count in before every repeat',
+    controls.settings.join(' | '));
+check('Count in starts checked', controls.countIn === true, String(controls.countIn));
+check('Count in before every repeat is shown while it repeats until stopped', controls.eachPassHidden === false);
+check('Playback Controls starts by saying how to reach the keys', controls.keysNote === 'Type ? for keyboard commands.',
+    controls.keysNote);
+check('Playback Controls: Play and Where Am I; the tempo; then the moves',
+    controls.controlRows.join(' / ') === 'Play, Where Am I / Slower, Faster, Default Tempo / ' +
+    'Restart Progression, Previous Measure, Next Measure, Start of Measure', controls.controlRows.join(' / '));
+check('no printed key list', controls.plainLists === 0, `${controls.plainLists} lists`);
+
+console.log('\n=== The Playback Keys dialog ===');
+await page.evaluate(() => document.querySelector('#item-panels > section:not([hidden])').focus());
+await page.keyboard.press('Shift+Slash');
+await page.waitForTimeout(300);
+const keysDialog = await page.evaluate(() => {
+    const d = document.getElementById('playback-keys-dialog');
+    return { open: d.open, intro: d.querySelector('#playback-keys-intro').textContent,
+        rows: [...d.querySelectorAll('li')].map(li => li.textContent) };
+});
+check('? opens it', keysDialog.open);
+check('it is about the progression', keysDialog.intro === 'These keys play the progression.', keysDialog.intro);
+check('eleven keys, without l', keysDialog.rows.length === 11 && !keysDialog.rows.some(r => r.startsWith('l:')),
+    `${keysDialog.rows.length}: ${keysDialog.rows.map(r => r.split(':')[0]).join(' ')}`);
+check('upArrow, b and d are worded for a progression',
+    keysDialog.rows.includes('upArrow: back to the first measure, counting in again.') &&
+    keysDialog.rows.includes('b: say which measure is playing, its chord, and which repeat.') &&
+    keysDialog.rows.some(r => r.startsWith('d: back to the default tempo: the progression\'s own')),
+    keysDialog.rows.join(' | '));
 check('the tempo keys name their step size',
-    controls.keyRows.some(r => r === 'S - slower by 5 BPM') &&
-    controls.keyRows.some(r => r === 'F - faster by 5 BPM'),
-    controls.keyRows.filter(r => /^[SF] /.test(r)).join(' | '));
+    keysDialog.rows.includes('s: slower by 5 beats per minute.') && keysDialog.rows.includes('f: faster by 5 beats per minute.'));
+await page.keyboard.press('Escape');
+await page.waitForTimeout(200);
+check('escape closes it', await page.evaluate(() => !document.getElementById('playback-keys-dialog').open));
+
+const eachPassHiddenAt = times => page.evaluate(times => {
+    const panel = document.querySelector('#item-panels > section:not([hidden])');
+    const repeats = panel.querySelector('input[id^="chord-practice-tab-repeat"]');
+    repeats.value = String(times);
+    repeats.dispatchEvent(new Event('change'));
+    return panel.querySelector('input[id^="chord-practice-tab-count-in-each-pass"]').closest('p').hidden;
+}, times);
+check('Count in before every repeat goes when it plays once', await eachPassHiddenAt(1) === true);
+check('and comes back when it plays more than once', await eachPassHiddenAt(3) === false);
+await eachPassHiddenAt(0);
 
 // Focus the panel itself so the bare keys reach the transport.
 await page.evaluate(() => {
@@ -387,7 +436,7 @@ void afterSpace;
 const afterPause = await press(' ');
 console.log(`  Space -> button "${afterPause.playLabel}", ${afterPause.announcement}`);
 check('Space pauses and says where it stopped',
-    afterPause.playLabel === 'Play Progression' && /^Paused at measure \d+\./.test(afterPause.announcement),
+    afterPause.playLabel === 'Play' && /^Paused at measure \d+\./.test(afterPause.announcement),
     afterPause.announcement);
 
 // Up says nothing, as the audio track's restart says nothing: the count-in is the answer.
@@ -453,12 +502,12 @@ await page.waitForTimeout(1500);
 console.log('\n=== Speaking the names is a control on the tab, not only a choice in the dialog ===');
 const speakUi = await page.evaluate(() => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
-    const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
-    const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
+    const box = panel.querySelector('input[id^="chord-practice-tab-speak"]');
+    const settings = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback Settings');
     const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
         .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent);
     return {
-        firstThingAfterPlayback: Boolean(box),
+        inSettings: Boolean(box) && settings.compareDocumentPosition(box) === Node.DOCUMENT_POSITION_FOLLOWING,
         label: box ? panel.querySelector(`label[for="${box.id}"]`)?.textContent
             .replace(/\s+/g, ' ').trim() : '',
         checked: box?.checked,
@@ -466,10 +515,10 @@ const speakUi = await page.evaluate(() => {
         meta
     };
 });
-check('the checkbox is the first thing under the Playback heading', speakUi.firstThingAfterPlayback);
+check('the checkbox is under Playback Settings', speakUi.inSettings);
 console.log(`  label: "${speakUi.label}"`);
-check('the label warns that changing it rebuilds the audio and starts again',
-    /rebuild/i.test(speakUi.label) && /(again|restart)/i.test(speakUi.label), speakUi.label);
+check('the label warns that changing it starts again from the first measure',
+    /starts again from the first measure/.test(speakUi.label), speakUi.label);
 // A static line in the metadata saying speech is off would contradict the checkbox the moment it
 // is ticked, so the checkbox is the only place that answer lives now.
 check('the metadata no longer states it as well',
@@ -482,8 +531,7 @@ if (speakUi.disabled) {
     // Speaking is on by default, and this checks turning it on, so it is turned off first.
     await page.evaluate(() => {
         const panel = document.querySelector('#item-panels > section:not([hidden])');
-        const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
-        const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
+        const box = panel.querySelector('input[id^="chord-practice-tab-speak"]');
         if (!box.checked) return;
         box.checked = false;
         box.dispatchEvent(new Event('change'));
@@ -500,8 +548,7 @@ if (speakUi.disabled) {
 
     await page.evaluate(() => {
         const panel = document.querySelector('#item-panels > section:not([hidden])');
-        const heading = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback');
-        const box = heading.nextElementSibling.querySelector('input[type="checkbox"]');
+        const box = panel.querySelector('input[id^="chord-practice-tab-speak"]');
         box.checked = true;
         box.dispatchEvent(new Event('change'));
     });

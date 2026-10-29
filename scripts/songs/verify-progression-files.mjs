@@ -152,7 +152,7 @@ try {
 
     console.log('\n=== Playing it ===');
     const before = consoleErrors.length;
-    await clickInPanel('Play Progression');
+    await clickInPanel('Play');
     await page.waitForTimeout(4000);
     const playing = await page.evaluate(() => document.querySelector('#item-panels > section:not([hidden]) button[aria-pressed]')?.getAttribute('aria-pressed'));
     await clickInPanel('Pause');
@@ -186,7 +186,7 @@ try {
     check('Playback has a labelled pattern list', playback.label === 'Strumming pattern', playback.label);
     check('it starts on the progression\'s pattern', playback.chosen === 'Old Faithful: D - D U - U D U', playback.chosen);
     const errorsBefore = consoleErrors.length;
-    await clickInPanel('Play Progression');
+    await clickInPanel('Play');
     await page.waitForTimeout(2500);
     await page.selectOption(`#${playback.id}`, { label: 'All Down-Up: D U D U D U D U' });
     await page.waitForTimeout(2500);

@@ -3391,7 +3391,7 @@ const AUDIO_TRACK_SHORTCUTS = {
     f: state => stepAudioTrackTempo(state, AUDIO_TRACK_TEMPO_STEP_BPM),
     d: state => defaultAudioTrackTempo(state),
     // Typed with shift, so it is let through with shift where the others are not.
-    '?': () => openPlaybackKeysDialog()
+    '?': () => openPlaybackKeysDialog('track')
 };
 
 // What the playback keys do, as the Playback Keys dialog lists them. user-docs/features.md says the
@@ -3462,15 +3462,24 @@ document.addEventListener('keydown', event => {
 });
 
 // --- Playback Keys dialog -----------------------------------------------------------------------
-// The keys are listed here rather than in every track, where the list came before the measures and
-// had to be passed every time. Opened by ?, which a line under Playback Controls mentions.
+// The keys are listed here rather than in every track and progression, where the list had to be
+// passed every time. Opened by ?, which a line under Playback Controls mentions. A song's tracks
+// and a progression share it, each with its own list: they differ in l and in what upArrow, b and
+// d refer to.
 
 const playbackKeysDialog = document.getElementById('playback-keys-dialog');
+const playbackKeysIntro = document.getElementById('playback-keys-intro');
 const playbackKeysList = document.getElementById('playback-keys-list');
 let playbackKeysDialogOpener = null;
 
-function openPlaybackKeysDialog() {
-    if (playbackKeysList.childElementCount === 0) appendTextItems(playbackKeysList, AUDIO_TRACK_KEY_DESCRIPTIONS);
+/** `kind` is 'track' or 'progression'. */
+function openPlaybackKeysDialog(kind) {
+    const progression = kind === 'progression';
+    playbackKeysIntro.textContent = progression
+        ? 'These keys play the progression.'
+        : 'These keys play the track whose Measures and Playback region is open.';
+    playbackKeysList.replaceChildren();
+    appendTextItems(playbackKeysList, progression ? CHORD_PRACTICE_KEY_DESCRIPTIONS : AUDIO_TRACK_KEY_DESCRIPTIONS);
     playbackKeysDialogOpener = document.activeElement;
     playbackKeysDialog.showModal();
     playbackKeysDialog.focus();
@@ -4741,12 +4750,11 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, 
 /**
  * One measure of clicks before the music, and how long it lasts.
  *
- * Returns 0 without scheduling anything when there should be no count-in, so a caller can add the
- * result to its cursor either way. With the metronome off there is nothing to count in with, so
- * the silence would be a delay with nothing to show for it.
+ * For the first time through if Count In is checked, and for later repeats if Count In Before
+ * Every Repeat is. Separate from the metronome since 2026-10-28, as a track's has been since the
+ * day before: a count-in with no clicks during the music is worth having.
  */
 function scheduleChordPracticeCountIn(state, contextStart) {
-    if (!state.metronome) return 0;
     const context = getSharedAudioContext();
     const secondsPerBeat = 60 / state.tempo;
     for (let beat = 0; beat < state.beatsPerBar; beat++) {
@@ -4772,9 +4780,8 @@ function chordPracticeTopUp(state, myToken) {
         hasNextPass: pass => chordPracticeHasNextPass(state, pass),
         scheduleChunk: ({ fromSeconds, toSeconds, baseContext, firstChunk }) =>
             scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, firstChunk),
-        // A repeat is counted in only when asked for, and only with the metronome running. Read
-        // now rather than when playback started, so ticking the box mid-loop takes effect from the
-        // next repeat. The anchor moves past the count-in so the reported position stays right.
+        // A repeat is counted in only when asked for. Read now rather than when playback started,
+        // so ticking the box mid-loop takes effect from the next repeat.
         //
         // Nothing about where playback *is* may be touched here. This runs when a repeat is
         // scheduled, which is up to a whole horizon ahead of it being heard: advancing the pass or
@@ -4808,6 +4815,10 @@ function chordPracticeHasNextPass(state, pass = state.pass) {
     return state.repeatCount === 0 || pass < state.repeatCount;
 }
 
+/**
+ * `countIn` says this is a start from the top, which counts in if Count In is checked. Resuming,
+ * moving and changing a setting mid-way pass false and carry straight on.
+ */
 function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {}) {
     if (!state.ready) return;
     clearChordPracticeTimers();
@@ -4820,16 +4831,17 @@ function startChordPracticePlayback(state, fromSeconds, { countIn = true } = {})
     chordPracticeMasterGain.connect(context.destination);
     chordPracticeSources = [];
 
-    // A count-in bar is also where the first chord gets announced, so it is scheduled even with
-    // the metronome off -- silent, but occupying the time the announcement needs.
-    const leadIn = countIn ? state.beatsPerBar * (60 / state.tempo) : 0;
+    // A count-in bar is also where the first chord gets announced, so with the names spoken it is
+    // kept even without Count In -- silent, but occupying the time the announcement needs.
+    const clicks = countIn && state.countIn;
+    const leadIn = clicks || (countIn && state.speech) ? state.beatsPerBar * (60 / state.tempo) : 0;
     // The same head start the audio track uses. It was twice this, which was audible as a longer
     // gap whenever playback re-anchors -- toggling the metronome, changing tempo, seeking -- since
     // every one of those stops and restarts from the current position.
     const zero = context.currentTime + 0.12;
     const musicStart = zero + leadIn;
 
-    if (countIn) scheduleChordPracticeCountIn(state, zero);
+    if (clicks) scheduleChordPracticeCountIn(state, zero);
 
     state.anchorSeconds = fromSeconds;
     state.anchorContextTime = musicStart;
@@ -4915,6 +4927,10 @@ function seekChordPracticeByMeasure(state, delta) {
     const measureSeconds = chordPracticeMeasureSeconds(state);
     const measure = chordPracticeMeasureAt(state, chordPracticePosition(state));
     seekChordPractice(state, (measure + delta) * measureSeconds);
+}
+
+function seekToStartOfChordPracticeMeasure(state) {
+    seekChordPracticeByMeasure(state, 0);
 }
 
 /**
@@ -5064,23 +5080,41 @@ function restartChordPractice(state) {
     else state.setPlaying(false);
 }
 
-// The same keys as the audio track, deliberately: a player should not have to remember which panel
-// they are in. Bare keys, no modifier variants -- which combinations a screen reader passes through
-// differs between them, so a Ctrl alternative would work in some and not others. The buttons cover
-// the same ground for when focus mode is not on.
+// The same keys as a song track, deliberately: a player should not have to remember which panel
+// they are in. The one missing is l, Repeat, since a progression has a number of times to play
+// instead. Bare keys, no modifier variants -- which combinations a screen reader passes through
+// differs between them, so a Ctrl alternative would work in some and not others. The buttons in
+// Playback Controls cover the same ground, for a phone.
 const CHORD_PRACTICE_SHORTCUTS = {
     ' ': state => toggleChordPracticePlayback(state),
     ArrowLeft: state => seekChordPracticeByMeasure(state, -1),
     ArrowRight: state => seekChordPracticeByMeasure(state, 1),
-    ArrowDown: state => seekChordPractice(state,
-        chordPracticeMeasureAt(state, chordPracticePosition(state)) * chordPracticeMeasureSeconds(state)),
+    ArrowDown: state => seekToStartOfChordPracticeMeasure(state),
     ArrowUp: state => restartChordPractice(state),
     b: state => announceChordPracticeMeasure(state),
     m: state => setChordPracticeMetronome(state, !state.metronome),
     s: state => stepChordPracticeTempo(state, -CHORD_PRACTICE_TEMPO_STEP_BPM),
     f: state => stepChordPracticeTempo(state, CHORD_PRACTICE_TEMPO_STEP_BPM),
-    d: state => defaultChordPracticeTempo(state)
+    d: state => defaultChordPracticeTempo(state),
+    // Typed with shift, so it is let through with shift where the others are not.
+    '?': () => openPlaybackKeysDialog('progression')
 };
+
+// What the progression's keys do, as the Playback Keys dialog lists them. user-docs/features.md
+// says the same; change both together.
+const CHORD_PRACTICE_KEY_DESCRIPTIONS = [
+    'spaceBar: play and pause.',
+    'leftArrow: back one measure.',
+    'rightArrow: forward one measure.',
+    'downArrow: back to the start of the current measure.',
+    'upArrow: back to the first measure, counting in again.',
+    'b: say which measure is playing, its chord, and which repeat.',
+    'm: metronome on or off.',
+    `s: slower by ${CHORD_PRACTICE_TEMPO_STEP_BPM} beats per minute.`,
+    `f: faster by ${CHORD_PRACTICE_TEMPO_STEP_BPM} beats per minute.`,
+    'd: back to the default tempo: the progression\'s own, or the one last typed into the Tempo field.',
+    '?: this list of keys.'
+];
 
 /** The practice state of the tab currently on screen, or null when another kind of tab is. */
 function activeChordPracticeState() {
@@ -5090,7 +5124,8 @@ function activeChordPracticeState() {
 
 document.addEventListener('keydown', event => {
     const shortcut = CHORD_PRACTICE_SHORTCUTS[event.key];
-    if (!shortcut || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    if (!shortcut || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.shiftKey && event.key !== '?') return;
     if (document.querySelector('dialog[open]')) return;
     if (eventTargetSwallowsKey(event.target, event.key)) return;
 
@@ -5101,11 +5136,12 @@ document.addEventListener('keydown', event => {
 });
 
 /**
- * Builds the tab, laid out to match the audio track panel.
+ * Builds the tab, laid out to match a song track's playback.
  *
- * Where the two panels do the same thing they read the same: the same headings, the same button
- * labels, the same key list at the end, and "measure" throughout rather than "bar". Having to
- * remember which tab you are in to know what a control is called is a cost paid on every use.
+ * Where the two do the same thing they read the same: Playback Settings and Playback Controls, the
+ * same button labels and rows, the keys in the same dialog, and "measure" throughout rather than
+ * "bar". Having to remember which tab you are in to know what a control is called is a cost paid
+ * on every use.
  *
  * The progression itself comes straight after the metadata, because it is what the tab is for.
  * The controls sit below it: they are set once and then left alone, while the chords are read
@@ -5186,25 +5222,19 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const saveAsButton = makeButton('Save Progression As', 'Control+Shift+S');
     container.append(fileActions);
 
-    const playbackHeading = document.createElement('h3');
-    playbackHeading.textContent = 'Playback';
-    container.append(playbackHeading);
+    // Playback Settings and Playback Controls, laid out as a song track's are, so that the two read
+    // the same. What differs is what a progression needs: a strumming pattern, the spoken names,
+    // and a number of times to play rather than Repeat, since playing a progression a set number
+    // of times is a way to practise for a set time. No measures to choose: a progression is a few
+    // measures, practised whole.
+    const settingsHeading = document.createElement('h3');
+    settingsHeading.textContent = 'Playback Settings';
+    container.append(settingsHeading);
 
-    // First thing under the heading, because it is the one playback setting that cannot be
-    // changed in place: the names have to be fetched and the whole run laid out again around
-    // them, so it costs a restart where tempo and the metronome do not.
-    const speakParagraph = document.createElement('p');
-    const speakCheckbox = document.createElement('input');
-    speakCheckbox.type = 'checkbox';
-    speakCheckbox.id = uniqueControlId('chord-practice-tab-speak');
-    speakCheckbox.checked = options.speak;
-    speakCheckbox.disabled = !chordPracticeSpeechSupported;
-    const speakLabel = document.createElement('label');
-    speakLabel.htmlFor = speakCheckbox.id;
-    speakLabel.textContent = 'Speak the name of the next chord. Changing this rebuilds the audio ' +
-        'and starts the progression again from the first measure.';
-    speakParagraph.append(speakCheckbox, speakLabel);
-    container.append(speakParagraph);
+    const tempo = buildNumberParagraph('chord-practice-tab-tempo',
+        `Tempo in beats per minute, ${CHORD_PRACTICE_MIN_TEMPO} to ${CHORD_PRACTICE_MAX_TEMPO}`,
+        { min: CHORD_PRACTICE_MIN_TEMPO, max: CHORD_PRACTICE_MAX_TEMPO, value: options.tempo });
+    const tempoInput = tempo.input;
 
     // The same list as the Chord Practice dialog's, to try patterns on the progression as it
     // plays. Not an edit: see setChordPracticePattern.
@@ -5216,125 +5246,77 @@ function buildChordPracticeTab(progression, options, file = {}) {
     patternLabel.htmlFor = patternSelect.id;
     patternLabel.textContent = 'Strumming pattern';
     patternParagraph.append(patternLabel, patternSelect);
-    container.append(patternParagraph);
 
-    const tempoParagraph = document.createElement('p');
-    const tempoInput = document.createElement('input');
-    tempoInput.type = 'number';
-    tempoInput.inputMode = 'numeric';
-    tempoInput.id = uniqueControlId('chord-practice-tab-tempo');
-    tempoInput.min = String(CHORD_PRACTICE_MIN_TEMPO);
-    tempoInput.max = String(CHORD_PRACTICE_MAX_TEMPO);
-    tempoInput.step = '1';
-    tempoInput.value = String(options.tempo);
-    const tempoLabel = document.createElement('label');
-    tempoLabel.htmlFor = tempoInput.id;
-    tempoLabel.textContent = 'Tempo (beats per minute)';
-    tempoParagraph.append(tempoLabel, tempoInput);
+    // The one setting that cannot be changed in place: the names have to be fetched and the whole
+    // run laid out again around them, so it costs a restart, and the label says so.
+    const speak = buildCheckboxParagraph('chord-practice-tab-speak',
+        'Speak the name of the next chord; changing it starts again from the first measure', options.speak);
+    const speakCheckbox = speak.checkbox;
+    speakCheckbox.disabled = !chordPracticeSpeechSupported;
 
-    const repeatParagraph = document.createElement('p');
-    const repeatInput = document.createElement('input');
-    repeatInput.type = 'number';
-    repeatInput.inputMode = 'numeric';
-    repeatInput.id = uniqueControlId('chord-practice-tab-repeat');
-    repeatInput.min = '0';
-    repeatInput.max = '50';
-    repeatInput.step = '1';
-    repeatInput.value = String(options.repeatCount);
-    const repeatLabel = document.createElement('label');
-    repeatLabel.htmlFor = repeatInput.id;
-    // Worded exactly as the audio track words it.
-    repeatLabel.textContent = 'Times to play the progression, up to 50; 0 repeats until stopped';
-    repeatParagraph.append(repeatLabel, repeatInput);
+    const metronome = buildCheckboxParagraph('chord-practice-tab-metronome', 'Metronome', options.metronome);
+    const metronomeCheckbox = metronome.checkbox;
+    const countIn = buildCheckboxParagraph('chord-practice-tab-count-in',
+        'Count in, one measure of clicks before playing starts', options.countIn);
+    const countInCheckbox = countIn.checkbox;
+    const repeat = buildNumberParagraph('chord-practice-tab-repeat',
+        'Times to play the progression, up to 50; 0 repeats until stopped',
+        { min: 0, max: 50, value: options.repeatCount });
+    const repeatInput = repeat.input;
+    // Only about a progression that repeats, so it is there only when it plays more than once,
+    // straight after the count.
+    const countInEachPass = buildCheckboxParagraph('chord-practice-tab-count-in-each-pass',
+        'Count in before every repeat', options.countInEachPass);
+    const countInEachPassCheckbox = countInEachPass.checkbox;
+    countInEachPass.paragraph.hidden = options.repeatCount === 1;
 
-    const metronomeParagraph = document.createElement('p');
-    const metronomeCheckbox = document.createElement('input');
-    metronomeCheckbox.type = 'checkbox';
-    metronomeCheckbox.id = uniqueControlId('chord-practice-tab-metronome');
-    metronomeCheckbox.checked = options.metronome;
-    const metronomeLabel = document.createElement('label');
-    metronomeLabel.htmlFor = metronomeCheckbox.id;
-    metronomeLabel.textContent =
-        'Metronome, with one measure of clicks counting in the first time through';
-    metronomeParagraph.append(metronomeCheckbox, metronomeLabel);
+    container.append(tempo.paragraph, patternParagraph, speak.paragraph, metronome.paragraph,
+        countIn.paragraph, repeat.paragraph, countInEachPass.paragraph);
 
-    // Only ever relevant to a progression that repeats, so it sits with the repeat count. The
-    // metronome still decides whether any clicks happen at all; this only says whether a repeat
-    // gets counted in the way the first pass did.
-    const countInEachPassParagraph = document.createElement('p');
-    const countInEachPassCheckbox = document.createElement('input');
-    countInEachPassCheckbox.type = 'checkbox';
-    countInEachPassCheckbox.id = uniqueControlId('chord-practice-tab-count-in');
-    countInEachPassCheckbox.checked = options.countInEachPass;
-    const countInEachPassLabel = document.createElement('label');
-    countInEachPassLabel.htmlFor = countInEachPassCheckbox.id;
-    countInEachPassLabel.textContent =
-        'Count in before every repeat, not just the first time through. Needs the metronome on.';
-    countInEachPassParagraph.append(countInEachPassCheckbox, countInEachPassLabel);
+    const controlsHeading = document.createElement('h3');
+    controlsHeading.textContent = 'Playback Controls';
+    container.append(controlsHeading);
 
-    container.append(tempoParagraph, repeatParagraph, countInEachPassParagraph, metronomeParagraph);
-
-    const actions = document.createElement('p');
-    const playButton = document.createElement('button');
-    playButton.type = 'button';
-    playButton.textContent = 'Play Progression';
-    playButton.setAttribute('aria-pressed', 'false');
-    actions.append(playButton);
-    container.append(actions);
-
-    // The same moves the shortcuts make, as buttons, so nothing here is keyboard-only. Same
-    // headings and same labels as the audio track panel.
-    const transportHeading = document.createElement('h3');
-    transportHeading.textContent = 'Move Around the Progression';
-    container.append(transportHeading);
-
-    const transportParagraph = createButtonRow();
-    const transportActions = [
-        ['Previous Measure', s => seekChordPracticeByMeasure(s, -1)],
-        ['Next Measure', s => seekChordPracticeByMeasure(s, 1)],
-        ['Start of Measure', s => seekChordPractice(s,
-            chordPracticeMeasureAt(s, chordPracticePosition(s)) * chordPracticeMeasureSeconds(s))],
-        ['Restart', s => restartChordPractice(s)]
-    ];
-    const transportButtons = [];
-    for (const [label, action] of transportActions) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = label;
-        transportButtons.push({ button, action });
-        transportParagraph.append(button);
-    }
-    container.append(transportParagraph);
-
-    const keysHeading = document.createElement('h3');
-    keysHeading.textContent = 'Keyboard Control';
-    container.append(keysHeading);
-
+    // The keys are listed in a dialog rather than here; this only says how to reach it.
     const keysNote = document.createElement('p');
-    keysNote.textContent =
-        'These keys only work while your screen reader is passing keystrokes straight through to' +
-        ' unstrung, which is focus mode in NVDA. Outside that, use the buttons above, which do the' +
-        ' same things.';
+    keysNote.textContent = 'Type ? for keyboard commands.';
     container.append(keysNote);
 
-    const keysList = document.createElement('ul');
-    appendTextItems(keysList, [
-        'Space - pause and resume',
-        'Left arrow - back one measure',
-        'Right arrow - forward one measure',
-        'Down arrow - back to the start of the current measure',
-        'Up arrow - restart the progression, counting in again',
-        'B - say which measure you are in, its chord, and which repeat',
-        'M - metronome on or off',
-        `S - slower by ${CHORD_PRACTICE_TEMPO_STEP_BPM} BPM`,
-        `F - faster by ${CHORD_PRACTICE_TEMPO_STEP_BPM} BPM`,
-        'D - back to the default tempo: the progression\'s own, or the one last typed into the Tempo field'
+    // The same rows as a track's: Play and Where Am I, the tempo, then the moves. Each button
+    // does what its key does, for a phone, where there are no keys.
+    const controlRow = actions => {
+        const row = createButtonRow();
+        for (const [label, action] of actions) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = label;
+            button.addEventListener('click', () => action(state));
+            row.append(button);
+        }
+        container.append(row);
+        return row;
+    };
+    const playRow = controlRow([['Where Am I', s => announceChordPracticeMeasure(s)]]);
+    const playButton = document.createElement('button');
+    playButton.type = 'button';
+    playButton.textContent = 'Play';
+    playButton.setAttribute('aria-pressed', 'false');
+    playRow.prepend(playButton);
+    controlRow([
+        ['Slower', s => stepChordPracticeTempo(s, -CHORD_PRACTICE_TEMPO_STEP_BPM)],
+        ['Faster', s => stepChordPracticeTempo(s, CHORD_PRACTICE_TEMPO_STEP_BPM)],
+        ['Default Tempo', s => defaultChordPracticeTempo(s)]
     ]);
-    container.append(keysList);
+    controlRow([
+        ['Restart Progression', s => restartChordPractice(s)],
+        ['Previous Measure', s => seekChordPracticeByMeasure(s, -1)],
+        ['Next Measure', s => seekChordPracticeByMeasure(s, 1)],
+        ['Start of Measure', s => seekToStartOfChordPracticeMeasure(s)]
+    ]);
 
-    // Moving around stays silent so the music is not talked over; this is where the keys that
-    // exist to ask a question put their answer. Not role="status", which maps to a status bar on
-    // Windows and reads oddly mid-panel.
+    // Moving around stays silent so the music is not talked over; this is where the keys and
+    // buttons that exist to say something put it. Not role="status", which maps to a status bar
+    // on Windows and reads oddly mid-panel.
     const announcement = document.createElement('p');
     announcement.setAttribute('aria-live', 'polite');
     announcement.setAttribute('aria-atomic', 'true');
@@ -5361,6 +5343,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         speechVolume: options.speechVolume,
         voice: options.voice,
         metronome: options.metronome,
+        countIn: options.countIn,
         countInEachPass: options.countInEachPass,
         repeatCount: options.repeatCount,
         pass: 1,
@@ -5375,7 +5358,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
-            playButton.textContent = playing ? 'Pause' : 'Play Progression';
+            playButton.textContent = playing ? 'Pause' : 'Play';
             playButton.setAttribute('aria-pressed', String(playing));
             playbackChanged('chordPractice', state);
         }
@@ -5386,11 +5369,10 @@ function buildChordPracticeTab(progression, options, file = {}) {
     saveButton.addEventListener('click', () => saveChordPractice(state));
     saveAsButton.addEventListener('click', () => saveChordPractice(state, { saveAs: true }));
     playButton.addEventListener('click', () => toggleChordPracticePlayback(state));
-    for (const { button, action } of transportButtons) {
-        button.addEventListener('click', () => action(state));
-    }
     metronomeCheckbox.addEventListener('change',
         () => setChordPracticeMetronome(state, metronomeCheckbox.checked));
+    // Read when playback next starts from the top, as the track's is.
+    countInCheckbox.addEventListener('change', () => { state.countIn = countInCheckbox.checked; });
     speakCheckbox.addEventListener('change',
         () => setChordPracticeSpeak(state, speakCheckbox.checked));
     patternSelect.addEventListener('change',
@@ -5412,6 +5394,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
             ? Math.max(0, Math.min(50, Math.trunc(wanted)))
             : state.repeatCount;
         repeatInput.value = String(state.repeatCount);
+        countInEachPass.paragraph.hidden = state.repeatCount === 1;
         state.pass = 1;
         state.anchorSeconds = position;
         state.anchorContextTime = null;
@@ -5448,6 +5431,9 @@ function chordPracticePlaybackOptions({ fromDialog = true } = {}) {
         speechVolume: Math.min(1, Math.max(0, chordVoiceSettings.chordVoicePercent / 100)),
         voice: chordVoiceSettings.chordVoice,
         metronome: checked(chordPracticeMetronomeCheckbox),
+        // Not in the dialog. On to begin with, as a track's is: playing along from a standing
+        // start is what it is for.
+        countIn: true,
         countInEachPass: checked(chordPracticeCountInEachPassCheckbox),
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
     };
@@ -5608,7 +5594,7 @@ function replaceChordPracticeProgression(entry, progression, { dirty }) {
     clearMediaSession(old);
     const options = {
         tempo: old.tempo, defaultTempo: old.defaultTempo, speak: old.speak, speechVolume: old.speechVolume, voice: old.voice,
-        metronome: old.metronome, countInEachPass: old.countInEachPass, repeatCount: old.repeatCount
+        metronome: old.metronome, countIn: old.countIn, countInEachPass: old.countInEachPass, repeatCount: old.repeatCount
     };
     const { container, state } = buildChordPracticeTab(progression, options,
         { filePath: old.filePath, fileName: old.fileName, dirty });
