@@ -31,12 +31,19 @@ const read = name => fs.readFileSync(path.join(USER_DOCS, `${name}.md`), 'utf8')
 // Each document opens as an item in the list of open items. The item's own h1 is the document's
 // title, and renderer.js repeats it as an h1 at the start of the document in the main area, so the
 // body starts at h2 beneath both. The About dialog is titled with an h1 too.
+//
+// The headings are numbered, "1: ", "1.1: ", as eyesunstrung.vip numbers them on its pages for
+// these documents, so a section has the same number in both places.
 const documents = HELP_DOCUMENTS.map(({ id }) => {
     const markdown = read(id);
-    return { id, title: documentTitle(markdown, id), html: markdownBodyToHtml(markdown, { startLevel: 2 }) };
+    return {
+        id,
+        title: documentTitle(markdown, id),
+        html: markdownBodyToHtml(markdown, { startLevel: 2, numberHeadings: true })
+    };
 });
 const aboutMarkdown = read(ABOUT_DOCUMENT);
-const aboutHtml = markdownBodyToHtml(aboutMarkdown, { startLevel: 2 });
+const aboutHtml = markdownBodyToHtml(aboutMarkdown, { startLevel: 2, numberHeadings: true });
 
 // The links these documents offer, so the main process can allow exactly those through to the
 // browser. Collected here because the markdown is only read here: at runtime there is nothing left
