@@ -35,7 +35,7 @@ On that page, search for "download".
 It's in a set of tabs, I think near the end of the page.
 Press enter on the download tab to select it.
 Immediately after selecting the download tab, I press ctrl+downArrow and hear "dialog download tab."
-Press enter on that and you get, I guess, a pop-up dialog with buttons for which format you want.
+Press enter on that and you get, I guess, a popup dialog with buttons for which format you want.
 Choose the Guitar Pro button and you should get a standard dialog for where to save the file.
 
 ## MusicXML

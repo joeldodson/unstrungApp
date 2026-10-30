@@ -3,6 +3,8 @@
 unstrung is an accessible, screen-reader-friendly viewer for song composition files, such as Guitar Pro tablature.
 It parses a file into its underlying data model (tracks, tuning, measures, time and key signatures, and more) and presents that information as plain, semantic HTML text and headings instead of a visual score, so it can be read and navigated entirely with a screen reader.
 
+unstrung also has tools designed to encourage practice and new skills development.
+
 ## Supported File Formats
 
 - Guitar Pro: .gp, .gpx, .gp5, .gp4, .gp3

@@ -3,7 +3,8 @@
 unstrung is an application designed and built specifically for screen reader users learning to play guitar.
 Hopefully it will also be useful for more advanced players.
 And maybe even sighted people will find some value here.
-It attempts to make music notation files (e.g., .gp and MusicXML) readable using basic web technologies.
+It attempts to make music notation files (e.g., .gp and MusicXML) useful using basic web technologies.
+And it has tools to help build skills and encourage practice.
 It makes full use of semantic HTML, optimized for single letter navigation from your favorite screen reader.
 It might expand at some point.
 It might go away at some point.
@@ -58,8 +59,17 @@ Nor do any mobile browsers.
 
 Features that do not use the file system should still work in all browsers, e.g., generating and playing along with a chord progression.
 Testing has been limited, though, to Chrome (done by me) and Edge (done by Claude).
-And I have not tried any mobile browsers yet.
-If and when I do, this section will be updated with the results.
+
+Features requiring file system access might still work, though slightly differently than in Electron.
+Recent Files, for example, isn't supported outside Electron and Chromium-based browsers.
+Files can be loaded and saved though, the process is slightly different but probably familiar to users of other browsers.
+
+Mobile does mostly work.
+It is similar to how Firefox or Safari would work on Windows or macOS.
+I've tested briefly using Chrome on iOS with VoiceOver.
+It's not a great experience, but I'm not a fan of typing on mobile devices.
+I have tried optimizations like properties in the HTML to show the number pad when input is only positive integers.
+Your mileage might vary in a more positive way.
 
 ### Running from the Desktop
 
@@ -108,5 +118,5 @@ You can watch the same videos from the [videos page on the unstrung website (ope
 The page uses YouTube's embedded player, so you can stream each video there or click through to watch it on YouTube.
 If you're familiar with YouTube's keyboard shortcuts, you have probably used shift+. (period) to speed up playback.
 That does not work in the embedded player.
-To change playback speed, there is a Playback speed drop-down above each video.
+To change playback speed, there is a Playback speed dropdown above each video.
 The speed you choose applies to every video on the page, and your browser remembers it for your next visit.

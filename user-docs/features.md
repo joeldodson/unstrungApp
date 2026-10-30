@@ -4,6 +4,7 @@ Prompter's Note: This file was initially written by Claude.
 I've lightly edited some areas and some sections are all human written.
 There is still a lot that smells like AI writing though.
 But it is accurate and has good details, I decided to leave it as is.
+
 The user interface (UI) for unstrung is very accessible and, I think, intuitive.
 You might want to simply try it and arrow around in the features when you use them.
 If you have not yet, spend a few minutes skimming the
@@ -12,22 +13,22 @@ It might help to understand the features and why they exist as they do.
 
 ## Platform is a Feature
 
-As noted elsewhere, unstrung started as an Electron based desktop app.
+As noted elsewhere, unstrung started as an Electron-based desktop app.
 It was designed to be downloaded and installed.
-I chose Electron for its web based core and tight control over components and their versions.
+I chose Electron for its web-based core and tight control over components and their versions.
 Building an Electron app you know exactly what you are using, it's all packaged and installed with your own code.
 It's a lot of work though to get into app stores and support multiple platforms, even only Windows and macOS.
 
 As noted in the [Introduction to eyesunstrung](https://eyesunstrung.vip/articles/introduction/), Claude assured me almost all of unstrung would run in a browser.
 So I did a complete redesign with the goal of a single look and feel for unstrung across any platform.
-My initial thought though was to still require a Chromium based browser to still have some level of consistency.
+My initial thought though was to still require a Chromium-based browser to still have some level of consistency.
 Then I wanted to try it on a browser on my phone.
 I'll keep my rantings about Apple and WebKit to myself and simply note all browsers on iOS are effectively Safari (WebKit) underneath.
 (I really wish Google could make TalkBack on Android less laggy, I'd switch.)
 The unfortunate reality is most blind people, at least in the U.S., use iOS.
 So I broadened my target to browsers on iOS which indirectly opens support for Firefox on Windows, macOS, and Linux.
 
-I initially thought I'd limit functionality on non Chromium based browsers lacking support for some APIs.
+I initially thought I'd limit functionality on non-Chromium-based browsers lacking support for some APIs.
 Claude suggested workarounds though which sounded not too bad.
 And I figured if people are using those platforms and browsers, that's the experience they'd expect anyway.
 
@@ -44,12 +45,22 @@ And look in the footer of any page on eyesunstrung.vip for how to provide feedba
 
 unstrung is designed to be identical in both the web and desktop versions.
 This window description thus applies to both.
-Well, one caveat now, the desktop version does not include the eyesunstrung.vip main menu bar.
+Well, one caveat now, the desktop version does not include the eyesunstrung.vip horizontal main menu bar.
+
+First, at a high level, after the banner and menu button, the window is split into two columns.
+The left column is the open items and should be at most 20% of the width of the window.
+The remaining 80% I'll refer to as the main area.
+Open items are a vertically stacked list of buttons with h1 headings to what is available in the main area.
+Only one open item is active at a time and its contents fills the main area.
+Next to each h1 is a close button.
+Navigating by h1 headings should take you to all open items and the active one should say so.
+There should be no other h1 headings in the app.
+Caveat, the help documents start with h1 headings and they can be opened within the unstrung app.
 
 From the top, the window has:
 
 - The eyesunstrung banner with a link to the main site.
-- The web app has the eyesunstrung main menu bar.
+- The web app has the eyesunstrung.vip main menu bar.
 - **The Menu button,** through which all features are accessed.
   It is in a navigation landmark named unstrung, so in browse mode d and shift+d move to it.
 - **Open items.** Every song, chord progression, chord library and help document you open is listed here, newest first.
@@ -64,7 +75,7 @@ From the top, the window has:
 
 ### Keyboard Shortcuts
 
-As noted below regarding browsers, if your browser does not support the file system access API, these commands work a little differently.
+As noted below regarding browsers, if your browser does not support the File System Access API, these commands work a little differently.
 
 - ctrl+o: open a song file.
 - ctrl+shift+o: open a saved chord progression.
@@ -82,7 +93,7 @@ escape closes a dialog.
 
 ## The Menu
 
-As noted below, some menu items are not available if your browser does not support the file system access API.
+As noted below, some menu items are not available if your browser does not support the File System Access API.
 
 Press enter, spaceBar or downArrow on the Menu button to open the menu.
 It works like a desktop application's menu:
@@ -139,7 +150,7 @@ After the list is a collapsed section, **Measures and Playback,** with the numbe
 It holds the settings and controls for playing the track, described below under Playing a Track, and then the measures.
 The Measures heading is level 3, with the number of measures.
 Each measure is a level 4 heading with its number, the section it starts if any, its repeat marks and its chord names.
-Under the heading are two buttons, Play and Add, described under Practising Measure by Measure.
+Under the heading are two buttons, Play and Add, described under Practicing Measure by Measure.
 Then come the lyrics sung over the measure, then a description of each beat: the strings and frets played, how the strings are struck, and techniques such as slides, bends, vibrato, harmonics and let ring.
 
 ### Chords in Measure Headings
@@ -188,7 +199,7 @@ Media control's "next track" (in quotes because we're kind of redefining that bu
 Remember the keyboard commands require your screen reader to be passing keyboard input through (focus mode in NVDA) while media controls work independent of the screen reader.
 
 If you haven't, read the section above about Platform is a Feature.
-The web based version of unstrung, especially on mobile, has implemented media control ... creatively (some might call it a hack).
+The web-based version of unstrung, especially on mobile, has implemented media control ... creatively (some might call it a hack).
 There are times it will not work, or be inconsistent.
 Suppose your phone goes to sleep.
 A chord progression, for example, should continue to play.
@@ -246,7 +257,7 @@ Collapsing the Measures and Playback section stops playback.
 Expanding it again does not restart it; press Play to carry on from where it stopped.
 Showing another open item collapses the section, and so stops playback, unless you turn that setting off.
 
-### Practising Measure by Measure
+### Practicing Measure by Measure
 
 This is for learning a song a measure at a time: read a measure, listen to it until you have it, then add it to the measures you are learning, and so on.
 
@@ -329,7 +340,7 @@ The Chord Practice dialog asks for:
 - **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
 - **Number of measures,** from 2 to 256.
 - **No chord held over into the next measure,** checked to begin with.
-  The chord then changes on every measure, which is what practising changes needs.
+  The chord then changes on every measure, which is what practicing changes needs.
   Chords with the same root count as the same chord, so G7 never follows G.
   Unchecked, a chord is sometimes held for two measures, as in most real progressions.
 - **Times to play the progression,** up to 50, or 0 to repeat until you stop, and whether to count in before every repeat.
@@ -367,17 +378,17 @@ Playback Settings has:
 - **Count in,** one measure of clicks before playing starts.
   It is on to begin with, and works whether or not the metronome is on.
 - **Times to play the progression,** up to 50, with 0 for until stopped.
-  Playing it a set number of times is a way to practise for a set time.
+  Playing it a set number of times is a way to practice for a set time.
 - **Count in before every repeat,** shown only when the progression plays more than once.
 
 Playback Controls has the same buttons as a track: Play and Where Am I; Slower, Faster and Default Tempo; Restart Progression, Previous Measure, Next Measure and Start of Measure.
 Where Am I says the measure, its chord, and which time through it is.
 Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.
 
-The keys are a track's, except l, since a progression has a number of times to play rather than Repeat.
+The keys are the same as a track's, except l, since a progression has a number of times to play rather than Repeat.
 ? lists them in the Playback Keys dialog.
 
-The media keys and headphone buttons control a progression as they do an audio track; see Media Controls Integration, before Playing a Track.
+The media keys on your keyboard and headphone buttons control a progression as they do an audio track; see Media Controls Integration, before Playing a Track.
 
 ### Saving and Opening Progressions
 
@@ -523,8 +534,8 @@ Choose Metronome from the menu.
 It opens as an item in the list of open items, with you on the Time signature list.
 Its clicks follow a strumming pattern: one click wherever the pattern strikes the strings, and none where it passes without strumming.
 The click follows the stroke, wherever it falls.
-A down stroke is a low, round click.
-An up stroke is a much higher, shorter tick, and quieter.
+A downstroke is a low, round click.
+An upstroke is a much higher, shorter tick, and quieter.
 A muted strum is a short burst of noise, like a chuck.
 So eight downs in a measure are eight of the same click, and down-up eighths alternate the two.
 The first stroke of the measure is higher, so you can hear where the measure starts.
@@ -653,7 +664,7 @@ The last entry, About unstrung, opens a dialog with the version and the file for
 The two work the same way, with these differences in the web version:
 
 - Recent Files and the folder of saved progressions need Chrome or Edge on a computer.
-  Firefox, Safari and every browser on an iPhone or iPad do not support the file system access API they use.
+  Firefox, Safari and every browser on an iPhone or iPad do not support the File System Access API they use.
   In those browsers, Recent Files and the folder settings are there but unavailable, and:
   - Open File and Open Saved Progression open one file at a time through the browser's upload picker, which on an iPhone or iPad is the Files app.
     To open a song or progression sent as an email attachment there, save it to Files first.
