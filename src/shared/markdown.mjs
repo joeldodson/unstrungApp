@@ -48,33 +48,14 @@ function indentOf(line) {
 }
 
 /**
- * The section number of a heading, from the count of headings so far at each level from
- * `numberFrom` down: the second heading one level below the first top one is "1.2". Truncating
- * `counters` drops the deeper counts, so they start again under a new heading. A level with no
- * heading yet above this one counts as 0. eyesunstrung.vip numbers the same documents the same
- * way, so a section has the same number in the app and on the site.
- */
-function sectionNumber(counters, level, numberFrom) {
-    const depth = level - numberFrom;
-    counters.length = depth + 1;
-    counters[depth] = (counters[depth] ?? 0) + 1;
-    return Array.from(counters, count => count ?? 0).join('.');
-}
-
-/**
  * @param markdown  the document source
  * @param headingOffset  levels to push headings down by. The default of 1 turns the source's
  *   single "#" into an h2, so the document sits under the tab's own heading structure rather
  *   than competing with it.
- * @param numberFrom  the heading level, after the offset, whose headings are numbered 1, 2, 3,
- *   with the levels below it numbered 1.1, 1.1.1 and so on. The number goes in front of the
- *   heading's text with a colon, "1.1: ", which makes a short pause in speech. Headings above
- *   this level are not numbered. Omitted, nothing is numbered.
  */
-export function markdownToHtml(markdown, { headingOffset = 1, numberFrom = null } = {}) {
+export function markdownToHtml(markdown, { headingOffset = 1 } = {}) {
     const lines = markdown.replace(/\r\n/g, '\n').split('\n');
     const out = [];
-    const counters = [];
 
     let paragraph = [];
     // A stack, so a bulleted list nested under a numbered item closes in the right order.
@@ -108,9 +89,7 @@ export function markdownToHtml(markdown, { headingOffset = 1, numberFrom = null 
         if (heading) {
             closeEverything();
             const level = Math.max(1, Math.min(heading[1].length + headingOffset, 6));
-            const number = numberFrom !== null && level >= numberFrom
-                ? `${sectionNumber(counters, level, numberFrom)}: ` : '';
-            out.push(`<h${level}>${number}${renderInline(heading[2].trim())}</h${level}>`);
+            out.push(`<h${level}>${renderInline(heading[2].trim())}</h${level}>`);
             continue;
         }
 
@@ -171,9 +150,8 @@ export function markdownToHtml(markdown, { headingOffset = 1, numberFrom = null 
  *
  * @param options.startLevel  the level the outermost remaining heading should become. A dialog
  *   titled with an h2 wants 3; a panel titled with an h1 wants 2.
- * @param options.numberHeadings  number the headings, "1: ", "1.1: ", starting at `startLevel`.
  */
-export function markdownBodyToHtml(markdown, { startLevel = 2, numberHeadings = false } = {}) {
+export function markdownBodyToHtml(markdown, { startLevel = 2 } = {}) {
     const lines = markdown.replace(/\r\n/g, '\n').split('\n');
 
     let start = 0;
@@ -184,8 +162,5 @@ export function markdownBodyToHtml(markdown, { startLevel = 2, numberHeadings = 
     const levels = body.map(line => HEADING.exec(line)).filter(Boolean).map(match => match[1].length);
     const shallowest = levels.length > 0 ? Math.min(...levels) : startLevel;
 
-    return markdownToHtml(body.join('\n').trim(), {
-        headingOffset: startLevel - shallowest,
-        numberFrom: numberHeadings ? startLevel : null
-    });
+    return markdownToHtml(body.join('\n').trim(), { headingOffset: startLevel - shallowest });
 }

@@ -647,8 +647,6 @@ The dialog has three tabs.
 
 The Help submenu opens each help document as an item in the list of open items: Introduction, Screen Reader Users, Features (this document), Third Party Components and Resources.
 The last entry, About unstrung, opens a dialog with the version and the file formats supported.
-The headings in the help documents are numbered, 1, 1.1, 1.1.1, so moving by heading tells you which section a heading belongs to.
-A section has the same number in the app and on its page on eyesunstrung.vip.
 
 ## The Desktop App and the Web Version
 

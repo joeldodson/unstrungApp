@@ -77,10 +77,6 @@ eyesunstrung.vip:
   documents as they stood at the last release.
 - Each file starts with a level 1 heading, its title, and its sections
   start at level 2.
-- Headings are not numbered in the files. `build-help.mjs` numbers them
-  for the app ("1: ", "1.1: "), and the site numbers them the same way on
-  its pages, so a section has one number in both. eyesunstrung's
-  `docs/site-structure.md` has why.
 
 `README.md` is about the repository only and is not used for any of this.
 Joel writes it himself and keeps it high level.
