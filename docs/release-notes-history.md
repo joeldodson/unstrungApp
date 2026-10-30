@@ -10,6 +10,47 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.10.0 - Measure by measure
+
+Published 2026-10-29.
+
+0.10.0 is for learning a song a measure at a time. Each track's measures and playback are one section, every measure has Play and Add buttons, ? lists the playback keys, and a chord progression's playback is laid out the same way as a track's.
+
+### Measures and Playback
+
+Each track's measures and its playback are now one collapsed section after the track's details, Measures and Playback, with the number of measures. There is no Create Track button: the first time you play a track, unstrung loads its guitar samples and then plays.
+
+Each track is a level 2 heading beside Song Summary. Inside the section, Playback Settings, Playback Controls and Measures are level 3 headings, and each measure is level 4. Chord Symbols is the last item in the track's details.
+
+Playback Settings has the tempo, the metronome, Count in, Repeat until stopped, Count in before every repeat, shown only while Repeat is checked, and Measures to Play. Count in is its own setting, on to begin with, and works whether or not the metronome is on. Measures to Play has a Section dropdown with an entry for each section the file marks, such as Intro or Verse 2.
+
+Playback Controls has three rows of buttons: Play and Where Am I; Slower, Faster and Default Tempo; Restart Selection, Previous Measure, Next Measure and Start of Measure.
+
+### Practicing Measure by Measure
+
+Each measure has two buttons under its heading.
+
+- **Play measure 5** plays that measure on its own, once, or until stopped if Repeat is checked. It leaves the selection as it is, and remembers where the track had got to. While the measure plays, the button is named Stop measure 5.
+- **Add measure 5 to selection** stretches the selection to include it and says what the track now is, such as "Audio track is now measures 1 through 5." On a measure already in the selection, it makes that measure the selection alone, which is how to start over from one measure. Add does not play the track, and stops anything playing.
+
+spaceBar stays the track's play and pause key. While a measure plays on its own, spaceBar stops it and says "Stopped measure 5." Play, spaceBar, a media key or a move going from a measure back to the track says where the track is, such as "Back to the track at measure 12."
+
+### Playback Keys
+
+In focus mode, ? in a track's Measures and Playback section, or in a chord progression, opens the Playback Keys dialog. It lists the keys, and links to the Features document. Playback Controls starts with a reminder, and the keys are no longer printed in each track. l turns Repeat on or off.
+
+### Chord Progressions
+
+A progression's playback now has Playback Settings and Playback Controls headings, laid out as a track's are. Play Progression is now Play.
+
+Playback Settings has a new Count in checkbox, on to begin with, which no longer depends on the metronome. Count in before every repeat is shown only when the progression plays more than once.
+
+? opens the Playback Keys dialog with the keys for a progression. A progression has no l key, since it has a number of times to play rather than Repeat.
+
+### Documentation
+
+The Help documents have Joel's edits: how the window is laid out, playing in mobile browsers, and the semantic HTML unstrung relies on. Spelling and terms are made consistent across them.
+
 ## unstrung 0.9.3 - Printed chords only
 
 Published 2026-10-27.
