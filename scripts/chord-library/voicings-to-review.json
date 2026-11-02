@@ -1,0 +1,269 @@
+{
+    "about": "Shapes from chords-db that did not pass the check in 2026-11, kept so they can be looked at again. Not read by the build. A shape moved to voicings.json is checked there like any other.",
+    "format": "As in voicings.json, with reason: why the check did not take it.",
+    "origin": {
+        "chords-db": {
+            "url": "https://github.com/tombatossals/chords-db",
+            "version": "0.5.1",
+            "license": "MIT",
+            "copied": "2026-11-02"
+        }
+    },
+    "chords": [
+        {
+            "root": "C", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,3,2,5,5,2],"fingers":[0,2,1,3,4,1],"barres":[2],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,3,4,5,5,0],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,10,9,7,8],"fingers":[0,0,4,3,1,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,10,11,13,12],"fingers":[0,0,1,2,4,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "C", "suffix": "7sg",
+            "voicings": [
+                {"frets":[3,3,2,3,-1,-1],"fingers":[2,3,1,4,0,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"7sg\""},
+                {"frets":[3,1,2,0,1,0],"fingers":[4,2,3,0,1,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"7sg\""},
+                {"frets":[3,3,5,3,5,3],"fingers":[1,1,3,1,4,1],"barres":[3],"from":"chords-db","reason":"no interval formula for suffix \"7sg\""}
+            ]
+        },
+        {
+            "root": "C", "suffix": "9",
+            "voicings": [
+                {"frets":[0,3,2,0,3,0],"fingers":[0,2,3,0,4,0],"barres":[],"from":"chords-db","reason":"has no seventh. Sounds C D E G; the chord is C D E G Bb"}
+            ]
+        },
+        {
+            "root": "C#", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,4,3,0,2,1],"fingers":[0,4,3,0,2,1],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,4,5,0,6,3],"fingers":[0,2,3,0,4,1],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,4,5,6,6,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,11,10,8,9],"fingers":[0,0,4,3,1,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "C#", "suffix": "aug",
+            "voicings": [
+                {"frets":[-1,4,4,4,2,2],"fingers":[0,2,3,4,1,1],"barres":[2],"from":"chords-db","reason":"sounds F#, B, not in the chord. Sounds C# F# B; the chord is C# E# A"},
+                {"frets":[4,4,6,4,7,4],"fingers":[1,1,3,1,4,1],"barres":[4],"from":"chords-db","reason":"sounds Ab, B, F#, not in the chord. Sounds C# F# Ab B; the chord is C# E# A"}
+            ]
+        },
+        {
+            "root": "C#", "suffix": "7b5",
+            "voicings": [
+                {"frets":[-1,-1,12,13,13,14],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","reason":"sounds D, Ab, C, F#, not in the chord; has no seventh. Sounds D F# Ab C; the chord is C# E# G B"}
+            ]
+        },
+        {
+            "root": "C#", "suffix": "11",
+            "voicings": [
+                {"frets":[-1,4,3,0,0,4],"fingers":[0,2,1,0,0,3],"barres":[],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B"},
+                {"frets":[-1,4,5,4,6,4],"fingers":[0,1,2,1,3,1],"barres":[4],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B"},
+                {"frets":[9,8,9,8,8,9],"fingers":[2,1,3,1,1,4],"barres":[8],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# D# E# G B; the chord is C# D# E# F# G# B"},
+                {"frets":[9,10,9,10,9,9],"fingers":[1,2,1,3,1,1],"barres":[9],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B"}
+            ]
+        },
+        {
+            "root": "C#", "suffix": "9#11",
+            "voicings": [
+                {"frets":[-1,3,2,0,0,3],"fingers":[0,2,1,0,0,3],"barres":[],"from":"chords-db","reason":"sounds C, E, not in the chord. Sounds E G B C; the chord is C# D# E# G G# B"}
+            ]
+        },
+        {
+            "root": "D", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,-1,0,1,3,2],"fingers":[0,0,0,1,3,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,5,4,-1,3,4],"fingers":[0,4,2,0,1,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,5,6,7,7,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,11,0,11,9,10],"fingers":[0,3,0,4,1,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "D", "suffix": "7#9",
+            "voicings": [
+                {"frets":[0,0,0,10,7,8],"fingers":[0,0,0,4,1,2],"barres":[],"from":"chords-db","reason":"sounds E, not in the chord. Sounds D E E# F# A C; the chord is D E# F# A C"}
+            ]
+        },
+        {
+            "root": "D", "suffix": "maj9",
+            "voicings": [
+                {"frets":[-1,5,4,6,4,-1],"fingers":[0,2,1,4,3,0],"barres":[],"from":"chords-db","reason":"sounds Eb, not in the chord. Sounds D Eb F# C#; the chord is D E F# A C#"}
+            ]
+        },
+        {
+            "root": "D", "suffix": "mmaj7",
+            "voicings": [
+                {"frets":[-1,5,3,2,2,0],"fingers":[0,4,2,1,1,0],"barres":[2],"from":"chords-db","reason":"sounds E, not in the chord. Sounds D E F A C#; the chord is D F A C#"}
+            ]
+        },
+        {
+            "root": "D", "suffix": "mmaj11",
+            "voicings": [
+                {"frets":[5,5,5,7,7,5],"fingers":[1,1,1,2,3,1],"barres":[5],"from":"chords-db","reason":"sounds F#, not in the chord; has no seventh. Sounds D F# G A; the chord is D E F G A C#"}
+            ]
+        },
+        {
+            "root": "Eb", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,-1,1,2,4,3],"fingers":[0,0,1,2,4,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,6,5,0,4,5],"fingers":[0,4,2,0,1,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,6,7,0,8,-1],"fingers":[0,1,2,0,3,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[11,10,-1,12,10,11],"fingers":[2,1,0,4,1,3],"barres":[10],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "Eb", "suffix": "7b5",
+            "voicings": [
+                {"frets":[-1,6,7,6,8,6],"fingers":[0,1,2,1,3,0],"barres":[6],"from":"chords-db","reason":"sounds Bb, not in the chord. Sounds Eb G A Bb Db; the chord is Eb G A Db"}
+            ]
+        },
+        {
+            "root": "Eb", "suffix": "11",
+            "voicings": [
+                {"frets":[0,6,6,6,8,6],"fingers":[0,1,1,1,3,1],"barres":[6],"from":"chords-db","reason":"sounds E, not in the chord. Sounds Eb E G Ab Bb Db; the chord is Eb F G Ab Bb Db"}
+            ]
+        },
+        {
+            "root": "Eb", "suffix": "maj7b5",
+            "voicings": [
+                {"frets":[-1,6,7,7,8,6],"fingers":[0,1,2,2,4,0],"barres":[6],"from":"chords-db","reason":"sounds Bb, not in the chord. Sounds Eb G A Bb D; the chord is Eb G A D"}
+            ]
+        },
+        {
+            "root": "Eb", "suffix": "m69",
+            "voicings": [
+                {"frets":[11,9,10,10,9,9],"fingers":[4,1,2,3,0,0],"barres":[9],"from":"chords-db","reason":"sounds Ab, C#, not in the chord. Sounds Eb F Gb Ab C C#; the chord is Eb F Gb Bb C"}
+            ]
+        },
+        {
+            "root": "E", "suffix": "alt",
+            "voicings": [
+                {"frets":[0,1,2,1,-1,-1],"fingers":[0,1,3,2,0,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,2,3,5,4],"fingers":[0,0,1,2,4,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[0,7,6,-1,5,6],"fingers":[0,4,2,0,1,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[0,7,8,9,9,0],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "E", "suffix": "madd9",
+            "voicings": [
+                {"frets":[-1,-1,3,1,1,3],"fingers":[0,0,3,1,1,4],"barres":[1],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B"},
+                {"frets":[-1,8,6,5,8,-1],"fingers":[0,3,2,1,4,0],"barres":[],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B"},
+                {"frets":[-1,8,6,0,6,8],"fingers":[0,3,1,0,2,4],"barres":[],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B"},
+                {"frets":[-1,8,10,0,9,8],"fingers":[0,1,4,0,3,2],"barres":[],"from":"chords-db","reason":"sounds F, C, Ab, not in the chord. Sounds F G Ab C; the chord is E F# G B"}
+            ]
+        },
+        {
+            "root": "F", "suffix": "alt",
+            "voicings": [
+                {"frets":[1,2,3,2,0,-1],"fingers":[1,2,4,3,0,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,3,4,0,5],"fingers":[0,0,1,2,0,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,8,9,10,10,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[13,12,-1,14,12,13],"fingers":[2,1,0,4,1,3],"barres":[12],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "F", "suffix": "/A",
+            "voicings": [
+                {"frets":[5,3,3,5,6,0],"fingers":[2,1,1,3,4,0],"barres":[3],"from":"chords-db","reason":"sounds E, not in the chord. Sounds F A C E; the chord is F A C"}
+            ]
+        },
+        {
+            "root": "F#", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,-1,4,3,1,2],"fingers":[0,0,4,3,1,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[2,3,4,3,-1,2],"fingers":[1,2,4,3,0,1],"barres":[2],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,4,5,7,6],"fingers":[0,0,1,2,4,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,9,10,11,11,9],"fingers":[0,1,2,3,4,0],"barres":[9],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "G", "suffix": "alt",
+            "voicings": [
+                {"frets":[3,2,-1,0,2,3],"fingers":[3,1,0,0,2,4],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,5,6,0,7],"fingers":[0,0,1,2,0,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,10,9,0,0,9],"fingers":[0,3,1,0,0,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,10,11,12,12,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "G", "suffix": "m11",
+            "voicings": [
+                {"frets":[-1,-1,5,5,7,7],"fingers":[0,0,1,1,2,3],"barres":[5],"from":"chords-db","reason":"sounds F#, B, not in the chord; has no seventh. Sounds G B C F#; the chord is G A Bb C D F"}
+            ]
+        },
+        {
+            "root": "G", "suffix": "add9",
+            "voicings": [
+                {"frets":[-1,-1,3,2,1,4],"fingers":[0,0,3,2,1,4],"barres":[],"from":"chords-db","reason":"sounds F, C, Ab, not in the chord. Sounds Ab A C F; the chord is G A B D"}
+            ]
+        },
+        {
+            "root": "Ab", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,-1,6,5,3,4],"fingers":[0,0,4,3,1,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,6,7,9,8],"fingers":[0,0,1,2,4,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,11,10,13,13,10],"fingers":[0,2,1,4,4,1],"barres":[10,13],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,11,12,13,13,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "Ab", "suffix": "maj7b5",
+            "voicings": [
+                {"frets":[0,0,6,7,8,8],"fingers":[0,0,1,2,3,4],"barres":[8],"from":"chords-db","reason":"sounds E, A, not in the chord. Sounds Ab A C D E G; the chord is Ab C D G"}
+            ]
+        },
+        {
+            "root": "A", "suffix": "dim",
+            "voicings": [
+                {"frets":[5,3,-1,4,3,-1],"fingers":[3,1,0,4,2,0],"barres":[],"from":"chords-db","reason":"sounds B, D, not in the chord. Sounds A B C D; the chord is A C Eb"}
+            ]
+        },
+        {
+            "root": "A", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,0,1,2,2,-1],"fingers":[0,0,1,2,3,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,0,7,6,4,5],"fingers":[0,0,4,3,1,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,0,11,8,10,9],"fingers":[0,0,4,1,3,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,12,13,14,14,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "A", "suffix": "m/G#",
+            "voicings": [
+                {"frets":[-1,-1,4,5,5,5],"fingers":[0,0,2,1,1,1],"barres":[5],"from":"chords-db","reason":"sounds F#, not in the chord. Sounds A C E F#; the chord is A C E Ab"}
+            ]
+        },
+        {
+            "root": "Bb", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,1,2,3,3,0],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[6,7,0,7,5,0],"fingers":[2,3,0,4,1,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[6,7,0,7,-1,6],"fingers":[1,3,0,4,0,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,8,9,11,10],"fingers":[0,0,1,2,4,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "Bb", "suffix": "6",
+            "voicings": [
+                {"frets":[-1,13,11,11,10,-1],"fingers":[0,4,2,3,1,0],"barres":[],"from":"chords-db","reason":"sounds C#, F#, A, not in the chord. Sounds Bb C# F# A; the chord is Bb D F G"}
+            ]
+        },
+        {
+            "root": "B", "suffix": "alt",
+            "voicings": [
+                {"frets":[-1,2,3,4,4,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,9,8,6,7],"fingers":[0,0,4,3,1,2],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[7,8,9,8,0,-1],"fingers":[1,2,4,3,0,0],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""},
+                {"frets":[-1,-1,9,10,0,11],"fingers":[0,0,1,2,0,3],"barres":[],"from":"chords-db","reason":"no interval formula for suffix \"alt\""}
+            ]
+        },
+        {
+            "root": "B", "suffix": "aug",
+            "voicings": [
+                {"frets":[-1,14,13,12,12,0],"fingers":[0,3,2,1,1,0],"barres":[12],"from":"chords-db","reason":"sounds E, not in the chord. Sounds B D# E G; the chord is B D# G"}
+            ]
+        }
+    ]
+}

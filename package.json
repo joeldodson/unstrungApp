@@ -21,7 +21,6 @@
   "devDependencies": {
     "@coderline/alphatab": "^1.8.4",
     "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
-    "@tombatossals/chords-db": "^0.5.1",
     "electron": "^43.0.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.23.0",

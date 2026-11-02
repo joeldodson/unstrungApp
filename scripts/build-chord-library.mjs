@@ -1,24 +1,24 @@
-// Generates src/assets/chords/chord-library.json from the chords-db dataset.
+// Generates src/assets/chords/chord-library.json from scripts/chord-library/voicings.json.
 //
-// chords-db (https://github.com/tombatossals/chords-db, MIT) is a community dataset and is
-// NOT authoritative: it has real, confirmed errors, including off-by-one transposition bugs
-// (e.g. a "Bbm7" whose notes actually spell Am7). So every voicing is re-derived from the
-// raw fret positions and checked against its chord's interval formula before it ships.
-// Anything that fails is dropped and reported, never silently included.
+// voicings.json is unstrung's own record of chord shapes. It began on 2026-11-02 as a copy of
+// what passed this check from chords-db 0.5.1 (https://github.com/tombatossals/chords-db, MIT),
+// which is no longer a dependency; see scripts/chord-library/README.md. chords-db had real,
+// confirmed errors, including off-by-one transposition bugs, so every voicing, whoever added
+// it, is still re-derived from its frets and checked against its chord's interval formula
+// before it ships. Anything that fails is dropped and reported, never silently included.
 //
 // Run with: node scripts/build-chord-library.mjs
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { createRequire } from 'node:module';
 import {
     CHORD_FORMULAS, FINGER_NAMES, IDENTIFY_SUFFIXES, PITCH_CLASSES, PITCH_CLASS_NAMES,
     QUALITY_LABELS, STANDARD_TUNING_MIDI, STANDARD_TUNING_NAMES, STRING_NUMBERS,
     fretToMidi, fretSpan, parseSuffix, spellChordNotes, verifyVoicing, voicingSoundedNotes
 } from '../src/shared/musicTheory.mjs';
 
-const require = createRequire(import.meta.url);
-const db = require('@tombatossals/chords-db/lib/guitar.json');
+const SOURCE_PATH = path.join(import.meta.dirname, 'chord-library', 'voicings.json');
+const source = JSON.parse(fs.readFileSync(SOURCE_PATH, 'utf8'));
 
 const OUT_PATH = path.join(import.meta.dirname, '..', 'src', 'assets', 'chords', 'chord-library.json');
 
@@ -179,24 +179,19 @@ function qualityLabel(suffix) {
     return bass ? `${label}, with ${bass} in the bass` : label;
 }
 
-// --- Convert a chords-db position into our voicing shape ----------------------------
-// chords-db stores frets relative to `baseFret`, where relative 1 means the base fret
-// itself, 0 means a genuinely open string, and -1 means muted. We store absolute frets
-// only, so nothing downstream ever has to redo this conversion.
-function toAbsoluteFrets(position) {
-    return position.frets.map(f => (f < 1 ? f : position.baseFret + f - 1));
-}
-
-function buildVoicing(position) {
-    const absolute = toAbsoluteFrets(position);
-    const barreFrets = (position.barres ?? []).map(rel => position.baseFret + rel - 1);
+// --- Convert a source voicing into the library's voicing shape ----------------------
+// The source gives frets string 6 first, -1 for not played and 0 for open, fingers in the
+// same order with 0 for none, and the frets held by a barre.
+function buildVoicing(source) {
+    const absolute = source.frets;
+    const barreFrets = source.barres ?? [];
 
     const strings = STRING_NUMBERS.map((stringNumber, index) => {
         const fret = absolute[index];
         if (fret < 0) return { string: stringNumber, play: 'muted' };
 
         const entry = { string: stringNumber, play: fret === 0 ? 'open' : 'fretted', fret };
-        const finger = position.fingers?.[index];
+        const finger = source.fingers?.[index];
         if (finger) entry.finger = finger;
         if (fret > 0 && barreFrets.includes(fret)) entry.barre = true;
         return entry;
@@ -293,63 +288,61 @@ const dropped = [];
 const skippedSuffixes = new Map();
 const counts = { canonical: 0, common: 0, advanced: 0, suspect: 0 };
 
-for (const keyName of Object.keys(db.chords)) {
-    for (const entry of db.chords[keyName]) {
-        const { key, suffix } = entry;
-        const voicings = [];
+for (const entry of source.chords) {
+    const { root: key, suffix } = entry;
+    const voicings = [];
 
-        for (const position of entry.positions) {
-            const voicing = buildVoicing(position);
-            const theory = verifyVoicing(voicing, key, suffix);
+    for (const sourceVoicing of entry.voicings) {
+        const voicing = buildVoicing(sourceVoicing);
+        const theory = verifyVoicing(voicing, key, suffix);
 
-            if (theory.status === 'unknown') {
-                skippedSuffixes.set(suffix, (skippedSuffixes.get(suffix) ?? 0) + 1);
-                continue;
-            }
-
-            const { confidence, shape } = classify(voicing, key, suffix, theory);
-            counts[confidence]++;
-
-            if (confidence === 'suspect') {
-                dropped.push(`${displayName(key, suffix)} frets=[${voicing.absolute.join(',')}] ` +
-                    `notes=${theory.notes.join(' ')} expected=${theory.expected.join(' ')} ` +
-                    `${theory.foreign.length ? 'foreign: ' + theory.foreign.join(',') : ''}` +
-                    `${!theory.hasSeventh ? ' missing 7th' : ''}`);
-                continue;
-            }
-
-            const notes = voicingSoundedNotes(voicing);
-            voicings.push({
-                confidence,
-                shape,
-                strings: voicing.strings,
-                barres: voicing.barres,
-                fretSpan: fretSpan(voicing),
-                lowestFret: Math.min(...voicing.absolute.filter(f => f > 0), Infinity) === Infinity
-                    ? 0 : Math.min(...voicing.absolute.filter(f => f > 0)),
-                notes: theory.notes,
-                midi: notes.map(n => n.midi),
-                description: describeVoicing(voicing),
-                theory: { status: theory.status, notes: theory.notes, expected: theory.expected }
-            });
+        if (theory.status === 'unknown') {
+            skippedSuffixes.set(suffix, (skippedSuffixes.get(suffix) ?? 0) + 1);
+            continue;
         }
 
-        if (voicings.length === 0) continue;
+        const { confidence, shape } = classify(voicing, key, suffix, theory);
+        counts[confidence]++;
 
-        // Most approachable voicing first: canonical shapes, then lower on the neck.
-        const rank = { canonical: 0, common: 1, advanced: 2 };
-        voicings.sort((a, b) => rank[a.confidence] - rank[b.confidence] || a.lowestFret - b.lowestFret);
+        if (confidence === 'suspect') {
+            dropped.push(`${displayName(key, suffix)} frets=[${voicing.absolute.join(',')}] ` +
+                `notes=${theory.notes.join(' ')} expected=${theory.expected.join(' ')} ` +
+                `${theory.foreign.length ? 'foreign: ' + theory.foreign.join(',') : ''}` +
+                `${!theory.hasSeventh ? ' missing 7th' : ''}`);
+            continue;
+        }
 
-        chords.push({
-            name: displayName(key, suffix),
-            root: key,
-            suffix,
-            quality: qualityLabel(suffix),
-            genres: genresFor(suffix),
-            confidence: voicings[0].confidence,
-            voicings
+        const notes = voicingSoundedNotes(voicing);
+        voicings.push({
+            confidence,
+            shape,
+            strings: voicing.strings,
+            barres: voicing.barres,
+            fretSpan: fretSpan(voicing),
+            lowestFret: Math.min(...voicing.absolute.filter(f => f > 0), Infinity) === Infinity
+                ? 0 : Math.min(...voicing.absolute.filter(f => f > 0)),
+            notes: theory.notes,
+            midi: notes.map(n => n.midi),
+            description: describeVoicing(voicing),
+            theory: { status: theory.status, notes: theory.notes, expected: theory.expected }
         });
     }
+
+    if (voicings.length === 0) continue;
+
+    // Most approachable voicing first: canonical shapes, then lower on the neck.
+    const rank = { canonical: 0, common: 1, advanced: 2 };
+    voicings.sort((a, b) => rank[a.confidence] - rank[b.confidence] || a.lowestFret - b.lowestFret);
+
+    chords.push({
+        name: displayName(key, suffix),
+        root: key,
+        suffix,
+        quality: qualityLabel(suffix),
+        genres: genresFor(suffix),
+        confidence: voicings[0].confidence,
+        voicings
+    });
 }
 
 // --- Power chords -------------------------------------------------------------------
@@ -440,12 +433,16 @@ const library = {
     // Deliberately no build date: this file is committed, and a timestamp would make it differ
     // from its own regenerated output every day, defeating any check that it is up to date.
     source: {
-        name: '@tombatossals/chords-db',
-        version: require('@tombatossals/chords-db/package.json').version,
-        url: 'https://github.com/tombatossals/chords-db',
-        license: 'MIT',
+        name: 'unstrung',
+        file: 'scripts/chord-library/voicings.json',
+        startedFrom: {
+            name: '@tombatossals/chords-db',
+            version: source.origin['chords-db'].version,
+            url: source.origin['chords-db'].url,
+            license: source.origin['chords-db'].license
+        },
         note: 'Every voicing re-verified against its interval formula; failures excluded. ' +
-            'Power chords and coverage entries are generated here, not sourced from chords-db.'
+            'Power chords and coverage entries are generated here, not kept in the source file.'
     },
     tuning: {
         name: 'standard',
@@ -465,7 +462,7 @@ fs.writeFileSync(OUT_PATH, JSON.stringify(library), 'utf8');
 
 // --- Report -------------------------------------------------------------------------
 console.log('=== chord library build ===');
-console.log(`source: chords-db v${library.source.version}`);
+console.log(`source: ${library.source.file} (started from chords-db v${library.source.startedFrom.version})`);
 console.log(`\nvoicings by confidence:`);
 for (const [level, count] of Object.entries(counts)) console.log(`  ${level.padEnd(10)} ${count}`);
 console.log(`\nchords written:   ${chords.length}`);

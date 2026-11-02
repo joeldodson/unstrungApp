@@ -48,6 +48,13 @@ eyesunstrung.vip.
 - `note-timing.md` -- why notes sounded behind the metronome's clicks (the pick noise at the start
   of every recording), measured for every recording, and starting each note early by its attack.
   Built 2026-10-22.
+- `your-own-chords.md` -- adding fingerings and new chords of your own to the chord library, why
+  not to send them to chords-db, and carrying them in .atex progressions with alphaTex's `lf`
+  finger marks so a reader can add them. Proposed 2026-11-01, not built.
+- `chord-library-maintenance.md` -- chords-db copied into unstrung's own source file and dropped as
+  a dependency (built 2026-11-02), what the check rejects and why the 38 chords have no fingering, a
+  shape checked against the name it is given, and, proposed, a maintainer tool for adding shipped
+  fingerings and how your own items are handled when a release ships the same thing.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
