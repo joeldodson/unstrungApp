@@ -17,7 +17,7 @@ The web version does not use it.
 ## alphaTab
 
 [alphaTab](https://alphatab.net) reads the song files.
-It turns a Guitar Pro or MusicXML file into tracks, measures, beats and notes, and unstrung builds its text and headings from those.
+It turns a Guitar Pro, MusicXML or alphaTex file into tracks, measures, beats and notes, and unstrung builds its text and headings from those.
 alphaTab can also draw a score and play it, but unstrung uses only the part that reads files.
 alphaTab is released under the Mozilla Public License 2.0.
 

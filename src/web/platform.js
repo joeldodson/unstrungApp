@@ -29,9 +29,9 @@ const NOTE_LETTER_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A',
 
 const SONG_FILE_TYPES = [{
     description: 'Music notation files',
-    accept: { 'application/octet-stream': ['.gp', '.gpx', '.gp5', '.gp4', '.gp3', '.musicxml', '.xml'] }
+    accept: { 'application/octet-stream': ['.gp', '.gpx', '.gp5', '.gp4', '.gp3', '.musicxml', '.xml', '.atex'] }
 }];
-// Progressions are saved as alphaTex.
+// Progressions are saved as alphaTex, which also opens as a song.
 const PROGRESSION_EXTENSION = '.atex';
 const PROGRESSION_FILE_TYPES = [{
     description: 'Chord progressions',

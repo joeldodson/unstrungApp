@@ -9,6 +9,7 @@ unstrung also has tools designed to encourage practice and new skills developmen
 
 - Guitar Pro: .gp, .gpx, .gp5, .gp4, .gp3
 - MusicXML: .musicxml, .xml
+- alphaTex: .atex, the format chord progressions are saved in
 
 ## Source Code and License
 

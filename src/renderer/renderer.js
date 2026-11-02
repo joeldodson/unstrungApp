@@ -413,6 +413,26 @@ function rebuildOpenSongPanels() {
     }
 }
 
+/**
+ * An alphaTex file, such as a saved chord progression, read as a song.
+ *
+ * alphaTab's ScoreLoader would read it too, as the last of its importers, but a file it cannot read
+ * is then reported by whichever importer failed first, in terms of bytes. Read directly, the error
+ * says which line. A progression is saved without a title, its file name being its name, so that
+ * stands in for one.
+ */
+function importAlphaTexSong(fileName, data) {
+    let score;
+    try {
+        score = importAlphaTex(new TextDecoder().decode(data));
+    } catch (error) {
+        const { message, line, column } = alphaTexError(error);
+        throw new Error(line === null ? message : `line ${line}, column ${column}: ${message}`);
+    }
+    if (!score.title) score.title = fileName.replace(/\.atex$/i, '');
+    return score;
+}
+
 function handleFileOpened({ fileName, data }) {
     let contentEl;
     let isError = false;
@@ -436,7 +456,8 @@ function handleFileOpened({ fileName, data }) {
     };
 
     try {
-        score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
+        score = /\.atex$/i.test(fileName) ? importAlphaTexSong(fileName, data)
+            : alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
         const meta = buildSongMetadata(score);
         contentEl = buildSummaryPanel(meta, { trackRegionFor });
         setStatus(`Opened "${fileName}". Found ${meta.tracks.length} guitar and bass track${meta.tracks.length === 1 ? '' : 's'}.`);

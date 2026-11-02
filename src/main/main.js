@@ -3,7 +3,8 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 
 const OPEN_FILE_FILTERS = [
-    { name: 'Music notation files', extensions: ['gp', 'gpx', 'gp5', 'gp4', 'gp3', 'musicxml', 'xml'] },
+    // atex is alphaTex, which saved chord progressions are written in.
+    { name: 'Music notation files', extensions: ['gp', 'gpx', 'gp5', 'gp4', 'gp3', 'musicxml', 'xml', 'atex'] },
     { name: 'All files', extensions: ['*'] }
 ];
 

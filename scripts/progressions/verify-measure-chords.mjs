@@ -11,7 +11,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { launchApp, runMenuCommand, closeCurrentItem, VISIBLE_PANEL } from '../lib/app-ui.mjs';
+import { launchApp, runMenuCommand, closeCurrentItem, openSongFile, VISIBLE_PANEL } from '../lib/app-ui.mjs';
 import { readSongFromScore, describeMeasure } from '../../src/shared/songScore.mjs';
 
 const APP_DIR = path.join(import.meta.dirname, '..', '..');
@@ -272,6 +272,52 @@ try {
     // Measured from the first strum, which starts early by its recording's attack.
     const repeatOffset = measureAt(spoken[3].measure) - spoken[3].words[0].when;
     check('"repeat" is said a beat ahead', Math.abs(repeatOffset - 0.5) < 0.04, repeatOffset.toFixed(3));
+
+    console.log('\n=== The saved progression opened as a song ===');
+    // Through Open File, the dialog answered with the saved file, keeping the filters it was given.
+    await app.evaluate(({ dialog }, file) => {
+        dialog.showOpenDialog = async (_window, options) => {
+            globalThis.__openFilters = options.filters;
+            return { canceled: false, filePaths: [file] };
+        };
+    }, filePath);
+    await page.evaluate(() => document.getElementById('menu-open-file').click());
+    await wait(2000);
+    const filters = await app.evaluate(() => globalThis.__openFilters);
+    check('Open File offers .atex among the song files',
+        filters?.[0]?.extensions.includes('atex'), JSON.stringify(filters));
+    const song = await page.evaluate(selector => {
+        const panel = document.querySelector(selector);
+        const details = [...panel.querySelectorAll('details')]
+            .find(d => /^Measures/.test(d.querySelector('summary')?.textContent.trim() ?? ''));
+        if (details) {
+            details.open = true;
+            details.dispatchEvent(new Event('toggle'));
+        }
+        return {
+            tabName: document.querySelector('#open-items-list button[aria-current="true"]')?.textContent,
+            text: panel.textContent,
+            headings: [...(details?.querySelectorAll('h4') ?? [])].map(h => h.textContent)
+        };
+    }, VISIBLE_PANEL);
+    await wait(500);
+    const headings = await page.evaluate(selector => [...document.querySelector(selector).querySelectorAll('h4')]
+        .map(h => h.textContent).filter(t => /^Measure \d/.test(t)), VISIBLE_PANEL);
+    console.log(`  ${song.tabName}: ${headings.join(' | ')}`);
+    check('it opens as a song, named by its file', song.tabName === 'Changes.atex', song.tabName);
+    check('its title is the file name, as it has none of its own', /Changes/.test(song.text) && !/\(untitled\)/.test(song.text),
+        song.text.slice(0, 200));
+    check('its measure headings name every chord where it starts',
+        /chord G, chord D at beat 2, chord C at beat 4/.test(headings[0] ?? '') &&
+        /chord G at beat 3/.test(headings[1] ?? '') && /chord C during beat 2/.test(headings[2] ?? ''),
+        headings.slice(0, 3).join(' | '));
+
+    // A file that is not good alphaTex says where.
+    await openSongFile(app, 'Broken.atex', new TextEncoder().encode('\\tempo 90\n.\n(0.3 2.2).4 {ch "G" |'));
+    await wait(800);
+    const broken = await page.evaluate(selector => document.querySelector(selector).textContent, VISIBLE_PANEL);
+    check('a broken .atex file is reported with its line and column', /Could not read "Broken\.atex": line \d+, column \d+/.test(broken),
+        broken.slice(0, 200));
 } finally {
     console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
     await close();

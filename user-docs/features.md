@@ -121,7 +121,9 @@ The menu holds:
 ### Opening a File
 
 Choose Open File from the menu, or press ctrl+o.
-unstrung reads Guitar Pro files (.gp, .gpx, .gp5, .gp4 and .gp3) and MusicXML files (.musicxml and .xml).
+unstrung reads Guitar Pro files (.gp, .gpx, .gp5, .gp4 and .gp3), MusicXML files (.musicxml and .xml), and alphaTex files (.atex).
+alphaTex is the format chord progressions are saved in, so a saved progression can be opened as a song as well as a progression.
+As a song, it has a track and measure headings like any other song, with its file name as its title.
 Files you have opened are listed in Recent Files, in the menu.
 
 The file opens as a new item in the list of open items, and you are moved to the start of it.

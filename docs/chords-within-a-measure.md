@@ -150,6 +150,25 @@ They add about 2 MB across the two voices. The beat is said as typed, "at 2.5" a
 five"; "two and" would be a different recording if that reads better. Committed before Joel had
 heard it.
 
+## Saved progressions open as songs (2026-11-01)
+
+With several chords in a measure, a progression comes closer to a song: the boat and ship of
+`strumming-patterns-and-metronome.md`. Joel still thinks of progressions as boats, but some will
+treat them as ships, so Open File now takes .atex, the format progressions are saved in, as a song.
+The single kind of open item proposed in that document is not built; a saved progression opens as
+either kind, by which way it is opened.
+
+- **alphaTab's ScoreLoader already reads alphaTex**, as the last of its importers, so only the file
+  filters needed it: `OPEN_FILE_FILTERS` in `src/main/main.js` and `SONG_FILE_TYPES` in
+  `src/web/platform.js`.
+- **An .atex file goes straight to the alphaTex importer**, not through ScoreLoader. Through it, a
+  broken file was reported by the first importer to fail, a Guitar Pro one: "Unexpected end of data
+  within reader". Read directly, the error gives the line and column, as opening a progression does.
+- **A file without a title takes its file name**, since a progression is saved without one and is
+  named by its file. Other formats still say "(untitled)".
+- Checked at the end of `scripts/progressions/verify-measure-chords.mjs`: the saved progression
+  opened through Open File, its measure headings, and a broken file's error.
+
 ## Not yet checked by Joel
 
 How NVDA reads "@" and "2.5" at his punctuation level, both in the editor and from Where Am I;
