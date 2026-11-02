@@ -96,6 +96,36 @@ also spell C over G. No voicing like it was rejected from chords-db, which has n
 - New chord types: whether their formulas go in the source file or stay a code change in
   `musicTheory.mjs` is open.
 
+## Looked at: szaza/guitar-chords-db-json (2026-11-02)
+
+https://github.com/szaza/guitar-chords-db-json, MIT on its face, last pushed 2020-04-21. Its README
+calls it a filtered copy of T-vK/chord-collection, last pushed 2019, whose README says it was made
+with the help of jguitar.com and that its source is under the GPL. GitHub finds no license file in
+T-vK's repository. So where the shapes came from, and on what terms, is unclear.
+
+Checked by unstrung's own check, with formulas written for the run for the types we lack:
+
+- 99,231 voicings in 9,072 files, one per key, type and bass note. 98,828 pass. Most of the 403
+  that fail are its maj#11, which seems to mean maj9#11, not the maj7#11 guessed for the run.
+- 84,840 are slash chords: every type over every bass note, such as Amaj#11 over Bb.
+- Frets go to 22, many shapes repeated an octave up. 562 span more than four frets.
+- Fingers are given for every shape. 153 have a finger at two different frets or a fretted string
+  with no finger.
+- 846 of our 1,989 chords-db shapes are in it, so chords-db is not simply drawn from it.
+- 23 types we have no formula for, such as 7sus2, 9sus4, m13, m7#5 and maj7sus4. No add11, no
+  madd9, and no sus4add6 or 6sus4.
+- For our 38 unfingered chords: 13 to 23 shapes for each maj7sus2 and sus2sus4, and 10 for C#11.
+  None for add11 or Emadd9. That would cover 25 of the 38.
+
+Nearly every shape passing, and every type in every key over every bass, look like a calculator's
+output rather than shapes players chose. That is what the proposed fretboard search would make,
+without the question of terms. Not copied into unstrung. Possible uses: as a cross-check of the
+search's results, and a single shape looked up while reviewing a chord, a fact rather than the
+collection.
+
+Joel agreed (2026-11-02): it is not a fully reliable source, and it was almost certainly generated
+by an algorithm.
+
 ## Proposed: your own items against new built-in ones
 
 No shipped progressions are planned. Progressions a player made or shared are not at risk: a saved
