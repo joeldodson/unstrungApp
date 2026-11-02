@@ -103,6 +103,21 @@ export function coarsestPattern(slots, slotsPerBeat) {
     return { slotsPerBeat, slots };
 }
 
+/**
+ * The same sound on a finer grid: misses put between the slots. `D D D D` on the beat is
+ * `D - D - D - D -` in eighths. `slotsPerBeat` must be a multiple of the pattern's own.
+ */
+export function finerPattern(pattern, slotsPerBeat) {
+    const step = slotsPerBeat / pattern.slotsPerBeat;
+    if (step <= 1) return pattern;
+    const slots = [];
+    for (const slot of pattern.slots) {
+        slots.push(slot);
+        for (let i = 1; i < step; i++) slots.push({ stroke: 'miss', accent: false });
+    }
+    return { slotsPerBeat, slots };
+}
+
 // --- Patterns that ship with unstrung ----------------------------------------------------------
 //
 // The ones guitar teachers start with, by time signature, in the notation they use: D and U on the

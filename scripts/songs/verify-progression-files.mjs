@@ -133,9 +133,9 @@ try {
     }));
     console.log(`  listed: ${tree.top.join(' | ')}`);
     for (const line of tree.skipped) console.log(`  skipped: ${line}`);
-    check('the folder and the song are listed', tree.top.join('|') === 'Blues|Strum', tree.top.join(', '));
+    // Two chords in a measure opens since 2026-10-30.
+    check('the folder and the songs are listed', tree.top.join('|') === 'Blues|Strum|Two chords', tree.top.join(', '));
     check('a melody is refused as written out', tree.skipped.some(s => /^Melody\.atex - measure 1 is written out/.test(s)), tree.skipped.join(' ; '));
-    check('two chords in a measure is refused for now', tree.skipped.some(s => /^Two chords\.atex - measure 1 has more than one chord/.test(s)), tree.skipped.join(' ; '));
     check('broken alphaTex says where', tree.skipped.some(s => /^Broken\.atex - it could not be read at line 2, column \d+/.test(s)), tree.skipped.join(' ; '));
 
     console.log('\n=== Opening an alphaTex song with a pattern ===');

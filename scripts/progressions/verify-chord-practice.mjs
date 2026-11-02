@@ -292,7 +292,7 @@ check('the panel has tempo, repeats and metronome, all labelled', controls.label
 console.log(`  settings: ${controls.settings.join(' | ')}`);
 check('Playback Settings: tempo, pattern, names, metronome, count in, times to play, count in each repeat',
     controls.settings.join(' | ') === 'Tempo in beats per minute, 30 to 240 | Strumming pattern | ' +
-    'Speak the name of the next chord; changing it starts again from the first measure | Metronome | ' +
+    'Speak the next measure; changing it starts again from the first measure | Metronome | ' +
     'Count in, one measure of clicks before playing starts | ' +
     'Times to play the progression, up to 50; 0 repeats until stopped | Count in before every repeat',
     controls.settings.join(' | '));
@@ -358,8 +358,9 @@ await press('ArrowUp');
 const afterB = await press('b');
 console.log(`  B  -> ${afterB.announcement}`);
 // Which time round is deliberately left out: a progression repeating until stopped has no total
-check('B announces the measure, the chord and which play this is',
-    /^Measure 1 of 8, [A-G][^,]*, play 1\.$/.test(afterB.announcement), afterB.announcement);
+// The beat since 2026-10-30, when a measure could hold more than one chord.
+check('B announces the measure, the chord, the beat and which play this is',
+    /^Measure 1 of 8, [A-G][^,]*, beat 1, play 1\.$/.test(afterB.announcement), afterB.announcement);
 
 // Moving around is silent, as in the audio track. Where a seek landed is confirmed with B, which
 // is the key that exists to ask.
@@ -382,10 +383,10 @@ check('Down returns to the start of this measure', /^Measure 1 of 8, /.test(down
     downThenB.announcement);
 
 // The one deliberate divergence from the audio track: a measure there can hold anything, so the
-// number is all that can be said. Here a measure is exactly one chord, and which chord it is is
-// the thing worth knowing.
+// number is all that can be said. Here a measure is only chords, and which they are is the thing
+// worth knowing.
 check('B names the chord as well as the measure, unlike the audio track',
-    /^Measure \d+ of \d+, [A-G][^,]*, play \d+\.$/.test(downThenB.announcement), downThenB.announcement);
+    /^Measure \d+ of \d+, [A-G][^,]*, beat \d+, play \d+\.$/.test(downThenB.announcement), downThenB.announcement);
 
 const afterSlower = await press('s');
 console.log(`  S  -> "${afterSlower.announcement}", tempo box now ${afterSlower.tempo}`);

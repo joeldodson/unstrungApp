@@ -24,7 +24,7 @@ import {
     identifyChordFromNotes, spellChordNotes, IDENTIFY_SUFFIXES, PITCH_CLASS_NAMES, PITCH_CLASSES,
     STANDARD_TUNING_MIDI
 } from './musicTheory.mjs';
-import { coarsestPattern, everyBeatDown, formatStrummingPattern } from './strummingPatterns.mjs';
+import { coarsestPattern, everyBeatDown, finerPattern, formatStrummingPattern, SLOTS_PER_BEAT_CHOICES } from './strummingPatterns.mjs';
 import { DEFAULT_TEMPO, scoreTempo } from './tempo.mjs';
 
 export const TICKS_PER_QUARTER = 960;
@@ -108,7 +108,10 @@ export function spelledFrets(chord) {
     return frets;
 }
 
-/** A generated or edited progression as a song: one chord a measure, one pattern throughout. */
+/**
+ * A generated or edited progression as a song, with one pattern throughout. Each measure is its
+ * chord, and the `laterChords` after it, each with the beat it starts on.
+ */
 export function songFromProgression(progression, { library, tempo = DEFAULT_TEMPO, pattern = null, title = '' }) {
     const songPattern = pattern ?? everyBeatDown(progression.beatsPerBar);
     return {
@@ -120,10 +123,11 @@ export function songFromProgression(progression, { library, tempo = DEFAULT_TEMP
         tempo,
         measures: progression.chords.map(chord => ({
             section: null,
-            chords: [{
-                root: chord.root, suffix: chord.suffix, beat: 1,
-                frets: libraryFrets(library, chord) ?? spelledFrets(chord)
-            }],
+            chords: [{ root: chord.root, suffix: chord.suffix, beat: 1 }, ...(chord.laterChords ?? [])]
+                .map(c => ({
+                    root: c.root, suffix: c.suffix, beat: c.beat,
+                    frets: libraryFrets(library, c) ?? spelledFrets(c)
+                })),
             pattern: { slotsPerBeat: songPattern.slotsPerBeat, slots: songPattern.slots }
         }))
     };
@@ -141,14 +145,18 @@ export function songFromProgression(progression, { library, tempo = DEFAULT_TEMP
  * over what the previous measure left ringing, or is a rest if nothing is.
  */
 export function expandMeasure(measure, song, context = { ringing: null, named: null }) {
-    const { slotsPerBeat, slots } = measure.pattern;
     // A measure may have its own time signature, such as a single bar of 2/4.
     const beatsPerBar = measure.beatsPerBar ?? song.beatsPerBar;
     const beatUnit = measure.beatUnit ?? song.beatUnit;
-    const slotLength = slotTicks(beatUnit, slotsPerBeat);
-    if (slots.length !== beatsPerBar * slotsPerBeat) {
-        return { error: `The pattern has ${slots.length} slots; this measure needs ${beatsPerBar * slotsPerBeat}.` };
+    if (measure.pattern.slots.length !== beatsPerBar * measure.pattern.slotsPerBeat) {
+        return { error: `The pattern has ${measure.pattern.slots.length} slots; this measure needs ${beatsPerBar * measure.pattern.slotsPerBeat}.` };
     }
+    // A chord may start between the pattern's slots, as C@2.5 does with Down Only. The pattern is
+    // then laid on a grid fine enough to hold it, with misses between, so the change has a slot.
+    const fineEnough = SLOTS_PER_BEAT_CHOICES.find(n => n % measure.pattern.slotsPerBeat === 0 &&
+        measure.chords.every(chord => Number.isInteger(((chord.beat ?? 1) - 1) * n)));
+    const { slotsPerBeat, slots } = fineEnough ? finerPattern(measure.pattern, fineEnough) : measure.pattern;
+    const slotLength = slotTicks(beatUnit, slotsPerBeat);
 
     // Where each chord takes over. The first holds from beat 1. A chord may start on a miss, as on
     // beat 3 of D - D U - U D U: the player changes there, and the next stroke plays it.
@@ -436,6 +444,16 @@ function readBar(bar, song, stringCount, context) {
         if (beat.chordName) {
             const entry = song.index.byName.get(beat.chordName);
             if (!entry) return fail(`it names a chord unstrung does not know, ${beat.chordName}`);
+            // A chord named and not struck before the next is named, as C is in G C@2.5 D played
+            // on the beat: it still starts where it is named, with the library's shape.
+            if (pending) {
+                current = {
+                    root: pending.root, suffix: pending.suffix,
+                    frets: libraryFrets(song.library, pending) ?? spelledFrets(pending)
+                };
+                if (!current.frets) return fail(`it names ${chordDisplayName(pending)}, which has no fingering`);
+                changes.push({ tick: pending.tick, chord: current });
+            }
             pending = { root: entry.root, suffix: entry.suffix, tick: beat.tick };
         }
         if (beat.kind !== 'strike') continue;
@@ -566,7 +584,8 @@ export function readSongFromScore(score, { library, trackIndex = 0 }) {
 }
 
 /**
- * A song as chord practice shows it: one chord a measure, one strumming pattern throughout.
+ * A song as chord practice shows it: chords in each measure, one strumming pattern throughout.
+ * A measure's first chord is its entry in `chords`, and any after it are its `laterChords`.
  *
  * Returns { progression } in the shape chord practice is built from, with the song's tempo and
  * pattern, or { error } saying, in the words the Open dialog uses, what chord practice cannot show
@@ -584,17 +603,21 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
         if (measure.form === 'written') return { error: `measure ${number} is written out, because ${measure.reason}` };
         if (measure.form === 'silent') return { error: `measure ${number} is silent, which chord practice cannot show yet` };
         if (measure.beatsPerBar) return { error: `measure ${number} changes the time signature, which chord practice cannot show yet` };
-        if (measure.chords.length !== 1) return { error: `measure ${number} has more than one chord, which chord practice cannot show yet` };
-        const chord = measure.chords[0];
-        if (!(library?.chords ?? []).some(e => e.root === chord.root && e.suffix === chord.suffix)) {
-            return { error: `measure ${number} has ${chordDisplayName(chord)}, which is not in the chord library` };
+        for (const chord of measure.chords) {
+            if (!(library?.chords ?? []).some(e => e.root === chord.root && e.suffix === chord.suffix)) {
+                return { error: `measure ${number} has ${chordDisplayName(chord)}, which is not in the chord library` };
+            }
         }
+        const [chord, ...later] = measure.chords;
         const text = formatStrummingPattern(measure.pattern.slots);
         if (pattern && text !== pattern.text) {
             return { error: 'it uses more than one strumming pattern, which chord practice cannot show yet' };
         }
         pattern ??= { text, slotsPerBeat: measure.pattern.slotsPerBeat, slots: measure.pattern.slots };
-        chords.push({ root: chord.root, suffix: chord.suffix });
+        chords.push({
+            root: chord.root, suffix: chord.suffix,
+            ...(later.length ? { laterChords: later.map(c => ({ root: c.root, suffix: c.suffix, beat: c.beat })) } : {})
+        });
     }
     return {
         progression: {

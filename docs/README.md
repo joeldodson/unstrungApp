@@ -42,6 +42,9 @@ eyesunstrung.vip.
 - `measure-practice.md` -- one region per track for the measures and playback, with Play and Add
   buttons on each measure, so a song can be learned a measure at a time; and the Chord Symbols in
   the track's details. Decided and built 2026-10-27, with the assumptions made while building.
+- `chords-within-a-measure.md` -- more than one chord in a measure of a progression, typed as
+  `G D C@4`; progressions kept to chords rather than grown into song editing; speaking the next
+  measure, with "repeat". Decided and built 2026-10-30.
 - `note-timing.md` -- why notes sounded behind the metronome's clicks (the pick noise at the start
   of every recording), measured for every recording, and starting each note early by its attack.
   Built 2026-10-22.

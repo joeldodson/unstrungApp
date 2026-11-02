@@ -319,7 +319,7 @@ The dialog has a link to this document, which closes the dialog and opens this d
 ## Chord Practice
 
 Chord practice generates a chord progression and plays it for you to play along with.
-Each measure has one chord, strummed with the progression's strumming pattern, with a metronome and, if you want it, the name of the next chord spoken.
+Each measure has one chord or more, strummed with the progression's strumming pattern, with a metronome and, if you want it, the next measure's chords spoken.
 
 ### Generating a Progression
 
@@ -346,7 +346,8 @@ The Chord Practice dialog asks for:
 - **Times to play the progression,** up to 50, or 0 to repeat until you stop, and whether to count in before every repeat.
 - **Metronome.**
   Each strum is timed so that its attack sounds with the click, and the pick noise recorded before it comes just ahead.
-- **Speak the name of the next chord on the last beat of each measure,** checked to begin with.
+- **Speak the next measure,** checked to begin with.
+  The next measure's chords are said just before it starts, as described under The Progression.
   The voice and its volume are set in Settings.
 
 Press Generate Progression.
@@ -361,7 +362,7 @@ A progression's item has:
   A pattern unstrung does not have a name for is given by its strokes alone.
 - **Chords Used:** each different chord once, collapsed, with its fingering and notes.
   A chord from outside the key says which key it comes from and why.
-- **Progression:** the chords in order, one per measure.
+- **Progression:** the measures in order, each as its chords are written in the editor, such as G D C@4.
   While there are unsaved changes, this heading, the item's name and the level 2 heading at the top all say "unsaved changes".
 - The Edit Progression, Save Progression and Save Progression As buttons.
 - **Playback Settings** and **Playback Controls,** level 3 headings laid out as a track's are; see Playing a Track.
@@ -372,8 +373,13 @@ Playback Settings has:
 - **Strumming pattern.**
   Changing it carries on from where the progression is, so you can try patterns while it plays.
   Like the tempo, it is not counted as an unsaved change, but saving keeps the pattern you are on.
-- **Speak the name of the next chord.**
+- **Speak the next measure.**
   Changing it starts the progression again from the first measure.
+  A measure with one chord has its name said one beat before it.
+  A measure with several has them all said one after the other, finishing just before it starts, which may be earlier than one beat ahead.
+  They are said as the editor writes them, so a chord with an @ is followed by its beat: G C@3 is said "G, C, at 3".
+  Where there is not time for them all, only the first is said.
+  A measure the same as the one before it is announced as "repeat".
 - **Metronome,** clicks while the progression plays.
 - **Count in,** one measure of clicks before playing starts.
   It is on to begin with, and works whether or not the metronome is on.
@@ -382,7 +388,7 @@ Playback Settings has:
 - **Count in before every repeat,** shown only when the progression plays more than once.
 
 Playback Controls has the same buttons as a track: Play and Where Am I; Slower, Faster and Default Tempo; Restart Progression, Previous Measure, Next Measure and Start of Measure.
-Where Am I says the measure, its chord, and which time through it is.
+Where Am I says the measure, its chords, the beat, and which time through it is: "Measure 5 of 8, G C@3, beat 2, play 1".
 Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.
 
 The keys are the same as a track's, except l, since a progression has a number of times to play rather than Repeat.
@@ -408,7 +414,7 @@ To open one, choose Open Saved Progression from the Chord Progressions submenu, 
 The folder is shown as a tree.
 upArrow and downArrow move, rightArrow and leftArrow open and close a folder, a letter moves to the next name starting with that letter, and enter opens the progression.
 Any file that cannot be opened is listed after the tree with the reason.
-That includes music chord practice cannot show yet, such as a measure with two chords in it, or single notes rather than chords.
+That includes music chord practice cannot show, such as single notes rather than chords, or more than one strumming pattern.
 
 If you close a progression with unsaved changes, or quit the desktop app with one open, unstrung asks whether to save first.
 A progression that has just been generated and never saved is not asked about.
@@ -506,14 +512,16 @@ Under Export and Import:
 Edit Progression opens the Editing Chord Progression dialog.
 Manually Create Chord Progression, in the Chord Progressions submenu, opens the same dialog as Creating Chord Progression, with one empty measure.
 
-The dialog sets the key, time signature and strumming pattern, and lists the measures, one chord each.
+The dialog sets the key, time signature and strumming pattern, and lists the measures with their chords.
 The strumming pattern starts on the progression's own.
 A progression opened from a file whose pattern unstrung has no name for keeps it, listed as this progression's own.
+The list of measures is used in focus mode.
+In browse mode it is one line, Measures, and enter on it goes into the list at the current measure.
 In the list of measures:
 
-- enter: choose a new chord for the measure.
+- enter: choose new chords for the measure.
 - delete: remove the measure.
-- ctrl+i: insert an empty measure after it.
+- ctrl+i: insert an empty measure after it and go to its chord field, ready to type its chords.
 - ctrl+d: duplicate it.
 - alt+upArrow and alt+downArrow: move it.
 
@@ -527,6 +535,28 @@ enter takes the chord and goes back to the measure in the list.
 
 Apply Changes, or Create Progression for a new one, puts the progression in its item.
 With changes made, escape does not close the dialog; press Cancel to discard them.
+
+#### More Than One Chord in a Measure
+
+Type the chords with spaces between them.
+Each chord starts on the next beat, and the last one lasts to the end of the measure.
+In 4/4:
+
+- G D C Am is a chord on each beat.
+- G D C is G on beat 1, D on beat 2, and C on beats 3 and 4.
+- G D C@4 is G on beat 1, D on beats 2 and 3, and C on beat 4.
+
+An @ and a beat after a chord starts it on that beat, so G C@3 is two beats each.
+The same chord typed twice in a row carries on rather than starting again, so C C G G is the same as C G@3, and is written that way.
+
+A chord can start partway through a beat.
+2.5 is the and of 2, and 2.25 and 2.75 are the sixteenths either side of it, so G C@2.5 changes to C on the upstroke after beat 2.
+A chord after one that starts on an and starts on the next whole beat: G C@2.5 D puts D on beat 3.
+
+The list of chords offers matches for the last chord typed.
+After a space, downArrow lists the key's chords for the next one.
+Anything that cannot be read is not taken, and the reason is said, such as a chord past the end of the measure.
+Where the strumming pattern does not strum a chord on the beat it starts, the editor says when it is first heard: with Down Only, G C@2.5 says "The pattern first strums C on 3."
 
 ## Metronome
 

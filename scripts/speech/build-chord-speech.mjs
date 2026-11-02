@@ -22,6 +22,8 @@ import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 import { IDENTIFY_SUFFIXES, PITCH_CLASS_NAMES } from '../../src/shared/musicTheory.mjs';
 import { spokenChordName, trimSilence } from '../../src/shared/spokenPhrases.mjs';
+import { SPOKEN_REPEAT, spokenBeatVocabulary } from '../../src/shared/measureChords.mjs';
+import { MAX_BEATS } from '../../src/shared/keyChords.mjs';
 
 const execFileAsync = promisify(execFile);
 const HERE = `${import.meta.dirname}`.replace(/\\/g, '/');
@@ -59,6 +61,11 @@ export function chordSpeechVocabulary() {
     for (const root of PITCH_CLASS_NAMES) {
         for (const suffix of IDENTIFY_SUFFIXES) phrases.add(spokenChordName(root, suffix));
     }
+    // Said before a measure the same as the one before it, and after a chord written with an @,
+    // "at 3". Lower case sorts after every chord name, so adding these numbered them after the
+    // chords and left those where they were.
+    phrases.add(SPOKEN_REPEAT);
+    for (const phrase of spokenBeatVocabulary(MAX_BEATS)) phrases.add(phrase);
     return [...phrases].sort();
 }
 

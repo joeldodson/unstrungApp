@@ -207,7 +207,7 @@ try {
         bare(editorOpen.focusedText) === generatedChords[0], `${editorOpen.focusedRole}: ${editorOpen.focusedText}`);
     check('the key is the progression\'s', editorOpen.key === 'C|major', editorOpen.key);
     check('the chord field names its measure and what it holds, and starts empty',
-        editorOpen.chordLabel === `Chord for measure 1, now ${generatedChords[0]}` && editorOpen.chordValue === '',
+        editorOpen.chordLabel === `Chords for measure 1, now ${generatedChords[0]}` && editorOpen.chordValue === '',
         `${editorOpen.chordLabel}: "${editorOpen.chordValue}"`);
     check('every field is labelled', editorOpen.unlabelled.length === 0, editorOpen.unlabelled.join(', '));
 
@@ -243,7 +243,7 @@ try {
     }));
     check('Down moves to the next measure and the chord field follows',
         bare(second.focused) === generatedChords[1] &&
-        second.chordLabel === `Chord for measure 2, now ${generatedChords[1].replace(', outside the key', '')}`,
+        second.chordLabel === `Chords for measure 2, now ${generatedChords[1].replace(', outside the key', '')}`,
         `${second.focused} / ${second.chordLabel}`);
 
     // Enter goes to the chord field, which is empty; Down lists the key's own chords.
@@ -300,7 +300,7 @@ try {
     check('and puts focus back on that measure in the list', afterBb.focusedId === 'progression-editor-measure-1',
         afterBb.focusedId);
     check('the field is empty again and its label names the new chord',
-        afterBb.value === '' && afterBb.label === 'Chord for measure 2, now Bb', `${afterBb.label}: "${afterBb.value}"`);
+        afterBb.value === '' && afterBb.label === 'Chords for measure 2, now Bb', `${afterBb.label}: "${afterBb.value}"`);
 
     // Enter on an empty field goes back to the list and changes nothing.
     await page.keyboard.press('Enter');
@@ -338,12 +338,19 @@ try {
     await page.waitForTimeout(150);
     const inserted = await page.evaluate(() => ({
         options: [...document.querySelectorAll('#progression-editor-measures [role="option"]')].map(o => o.textContent),
-        focused: document.activeElement?.textContent
+        focused: document.activeElement?.id,
+        label: document.getElementById('progression-editor-chord-label').textContent
     }));
     console.log(`  after duplicate and insert: ${inserted.options.join(' | ')}`);
     check('Control+D duplicates and Control+I inserts an empty measure after it',
         inserted.options.length === 10 && inserted.options[1] === 'Bb, outside the key' &&
-        inserted.options[2] === 'no chord' && inserted.focused === 'no chord', inserted.options.join(', '));
+        inserted.options[2] === 'no chord', inserted.options.join(', '));
+    check('Control+I goes straight to the new measure\'s chord field',
+        inserted.focused === 'progression-editor-chord-input' && inserted.label === 'Chords for measure 3, no chord yet',
+        `${inserted.focused} / ${inserted.label}`);
+    // Empty, Enter goes back to the measure, so the checks after start from the list as before.
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(150);
 
     await page.click('#progression-editor-apply-button');
     await page.waitForTimeout(300);

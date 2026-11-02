@@ -13,7 +13,7 @@ import {
     checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern,
     BUILT_IN_PATTERNS
 } from '../../src/shared/strummingPatterns.mjs';
-import { songFromProgression, songToAlphaTex, readSongFromScore, describeMeasure, libraryFrets } from '../../src/shared/songScore.mjs';
+import { songFromProgression, songToAlphaTex, readSongFromScore, describeMeasure, libraryFrets, progressionFromSong } from '../../src/shared/songScore.mjs';
 import { generateProgression } from '../../src/shared/chordProgressions.mjs';
 import { buildAudioTrack } from '../../src/shared/audioTrack.mjs';
 
@@ -215,12 +215,44 @@ console.log('\n=== A simplified song: sections, two patterns, a split measure, a
     }
 }
 
-console.log('\n=== Refused while writing ===');
+console.log('\n=== Chords between the pattern\'s slots ===');
 {
+    // Refused until 2026-10-30. The pattern is now laid on a grid fine enough for the change.
     const song = { key: 'G', mode: 'major', beatsPerBar: 4, beatUnit: 4, tempo: 90,
         measures: [{ section: null, chords: [chord('G'), chord('C', 2.25)], pattern: pattern('D - D U - U D U') }] };
-    const written = songToAlphaTex(song);
-    check('a chord starting off the pattern\'s grid', /not on the pattern's grid/.test(written.error ?? ''), JSON.stringify(written));
+    const { first, second } = roundTrip(song);
+    for (const [label, read] of [['written', first], ['exported', second]]) {
+        const d = describeMeasure(read.measures[0], 1);
+        check(`${label}: C on a sixteenth, with Old Faithful kept`, d === 'Measure 1, G C at 2.25, D - D U - U D U', d);
+    }
+}
+
+console.log('\n=== Progressions with more than one chord in a measure ===');
+{
+    const progression = {
+        key: 'G', mode: 'major', beatsPerBar: 4, beatUnit: 4,
+        chords: [
+            { root: 'G', suffix: 'major', laterChords: [{ root: 'D', suffix: 'major', beat: 2 }, { root: 'C', suffix: 'major', beat: 4 }] },
+            { root: 'G', suffix: 'major', laterChords: [{ root: 'C', suffix: 'major', beat: 2.5 }] },
+            // C is named on the and of 2 and D on 3: with Down Only, C is never struck.
+            { root: 'G', suffix: 'major', laterChords: [{ root: 'C', suffix: 'major', beat: 2.5 }, { root: 'D', suffix: 'major', beat: 3 }] },
+            { root: 'D', suffix: 'major' }
+        ]
+    };
+    for (const [name, strokes] of [['Down Only', 'D D D D'], ['Old Faithful', 'D - D U - U D U']]) {
+        const song = songFromProgression(progression, { library, tempo: 70, pattern: pattern(strokes) });
+        const { first, second } = roundTrip(song);
+        for (const [label, read] of [['written', first], ['exported', second]]) {
+            const back = progressionFromSong(read, { library });
+            const text = (back.progression?.chords ?? []).map(c =>
+                [`${c.root}${c.suffix}@1`, ...(c.laterChords ?? []).map(l => `${l.root}${l.suffix}@${l.beat}`)].join(' ')).join(' | ');
+            check(`${name}, ${label}: the chords and where they start come back`,
+                text === 'Gmajor@1 Dmajor@2 Cmajor@4 | Gmajor@1 Cmajor@2.5 | Gmajor@1 Cmajor@2.5 Dmajor@3 | Dmajor@1',
+                back.error ?? text);
+            check(`${name}, ${label}: the pattern comes back`, formatStrummingPattern(back.progression?.pattern?.slots ?? []) === strokes,
+                formatStrummingPattern(back.progression?.pattern?.slots ?? []));
+        }
+    }
 }
 
 console.log('\n=== Measures that are written out ===');

@@ -22,6 +22,10 @@ import {
     checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
+import {
+    chordsInMeasure, parseMeasureChords, formatMeasureChords, formatBeat, chordsStruckLate, spokenMeasurePlan,
+    spokenMeasureWords, SPOKEN_REPEAT, SPOKEN_WORD_GAP_SECONDS
+} from '../shared/measureChords.mjs';
 import { attackSeconds, attackAlignedStart } from '../shared/sampleAttack.mjs';
 import { DEFAULT_TEMPO, scoreTempo } from '../shared/tempo.mjs';
 import {
@@ -4160,9 +4164,10 @@ function closeAudioTracksOf(songItemId) {
 // lives in shared/chordProgressions.mjs and knows nothing about the DOM; this asks it for a
 // progression, lists the result, and plays it.
 //
-// Each chord lasts one bar and is strummed on every beat. With spoken names on, the NEXT chord's
-// name is said on the LAST beat of the current bar, which is the only moment it is useful: early
-// enough to move a hand, late enough not to be forgotten.
+// A measure holds one chord or several, strummed with the progression's pattern. With spoken names
+// on, the NEXT measure's chords are said just before it, one beat ahead or earlier if the list
+// needs longer, which is the only moment it is useful: early enough to move a hand, late enough
+// not to be forgotten. A measure the same as the one before is announced as "repeat".
 //
 // The speech is rendered to audio rather than spoken by the browser, so it can be scheduled on the
 // same clock as the strums instead of started on a timer and hoped for. That is the one platform
@@ -4500,7 +4505,7 @@ function chordPracticeMeasureAt(state, seconds) {
 /** Fetches and decodes every guitar note the progression needs, once. */
 async function chordPracticeLoadNotes(state, myToken) {
     const wanted = new Set();
-    for (const chord of state.progression.chords) {
+    for (const chord of state.progression.chords.flatMap(chordsInMeasure)) {
         for (const midi of chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? []) {
             wanted.add(midi);
         }
@@ -4542,8 +4547,7 @@ async function loadPracticeNoteBuffers(wanted, cancelled) {
  * scheduler places against the beat.
  */
 async function chordPracticeLoadSpeech(state, myToken) {
-    const names = [...new Set(state.progression.chords.map(c =>
-        spokenChordName(c.root, c.suffix)))];
+    const names = [...new Set(chordPracticeSpokenMeasures(state).flatMap(spokenMeasureWords)), SPOKEN_REPEAT];
     const rendered = await window.unstrung.getSpokenPhrases(state.voice, names);
     if (myToken !== chordPracticeToken) return null;
 
@@ -4676,10 +4680,10 @@ const CHORD_PRACTICE_TOPUP_INTERVAL_MS = 3000;
 /**
  * Schedules everything falling in [fromSeconds, toSeconds) of the progression.
  *
- * A chord's spoken name falls one beat before its measure, which for the first chord is negative
+ * A measure's spoken chords fall before it, up to a measure ahead, which for the first is negative
  * music time. That needs no special case: on the first play the count-in occupies exactly that
- * time, and on a repeat the previous pass is still sounding there. Both are the chunk's own base
- * minus a beat. Only a seek can put it genuinely in the past, which the clock check drops.
+ * time, and on a repeat the previous pass is still sounding there. Only a seek can put it
+ * genuinely in the past, which the clock check drops.
  */
 function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, includeRinging) {
     const context = getSharedAudioContext();
@@ -4690,14 +4694,21 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, 
     // Start at the measure the window opens in rather than walking from the first every time. With
     // a chunk scanning the whole progression, the work per pass grew with the square of its length:
     // fine for eight measures, not fine for two hundred. The measure before the first is included
-    // because a chord's spoken name is scheduled one beat ahead of it.
+    // because a measure's spoken chords are scheduled ahead of it.
     const firstMeasure = Math.max(0, Math.floor(fromSeconds / measureSeconds) - 1);
 
+    const speechPlan = state.speech ? chordPracticeSpeechPlan(state) : null;
+
     for (let index = firstMeasure; index < state.progression.chords.length; index++) {
-        const chord = state.progression.chords[index];
         const measureStart = index * measureSeconds;
         if (measureStart >= toSeconds) break;
-        const midi = chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? [];
+        // Each stroke plays the chord that has started by then. A chord starting on a miss, or
+        // between strokes, is first heard on the next stroke; until then the last strum rings on.
+        const chords = chordsInMeasure(state.progression.chords[index]).map(chord => ({
+            beat: chord.beat,
+            midi: chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? []
+        }));
+        const midiAt = beat => chords.filter(chord => chord.beat <= beat + 1e-9).pop().midi;
 
         // The metronome keeps the beat, whatever the pattern does.
         for (let beat = 0; beat < state.beatsPerBar && state.metronome; beat++) {
@@ -4713,6 +4724,7 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, 
         const slotSeconds = secondsPerBeat / state.strokes.slotsPerBeat;
         for (const stroke of state.strokes.strokes) {
             const strokeSeconds = measureStart + stroke.slot * slotSeconds;
+            const midi = midiAt(1 + stroke.slot / state.strokes.slotsPerBeat);
 
             // A strum that began before this window and has not finished ringing. Only on the
             // first chunk of a run, since later windows scheduled these when they fell inside them.
@@ -4729,22 +4741,45 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, 
         }
 
         // Announced with the measure it belongs to, so it is scheduled in the same chunk.
-        if (!state.speech) continue;
+        const spoken = speechPlan?.[index];
+        if (!spoken) continue;
         if (measureStart < fromSeconds - 1e-6 || measureStart >= toSeconds - 1e-6) continue;
-        const phrase = state.speech.get(spokenChordName(chord.root, chord.suffix));
-        if (!phrase) continue;
 
-        const when = at(measureStart - secondsPerBeat);
+        let when = at(measureStart + spoken.offsetSeconds);
         if (when < context.currentTime) continue;
-
-        const source = context.createBufferSource();
-        source.buffer = phrase.buffer;
-        const gain = context.createGain();
-        gain.gain.value = state.speechVolume;
-        source.connect(gain).connect(chordPracticeMasterGain);
-        source.start(when, phrase.startSeconds, phrase.speechSeconds);
-        chordPracticeSources.push({ source, endsAt: when + phrase.speechSeconds });
+        for (const word of spoken.words) {
+            const phrase = state.speech.get(word);
+            const source = context.createBufferSource();
+            source.buffer = phrase.buffer;
+            const gain = context.createGain();
+            gain.gain.value = state.speechVolume;
+            source.connect(gain).connect(chordPracticeMasterGain);
+            source.start(when, phrase.startSeconds, phrase.speechSeconds);
+            chordPracticeSources.push({ source, endsAt: when + phrase.speechSeconds });
+            when += phrase.speechSeconds + SPOKEN_WORD_GAP_SECONDS;
+        }
     }
+}
+
+/**
+ * What is said before each measure and when, worked out from the recordings' lengths and the
+ * tempo, and kept until either changes. See spokenMeasurePlan for the rules.
+ */
+function chordPracticeSpokenMeasures(state) {
+    return state.progression.chords.map(measure => chordsInMeasure(measure)
+        .map(chord => ({ name: spokenChordName(chord.root, chord.suffix), beat: chord.beat })));
+}
+
+function chordPracticeSpeechPlan(state) {
+    const cached = state.speechPlan;
+    if (cached && cached.tempo === state.tempo && cached.speech === state.speech) return cached.plan;
+    const plan = spokenMeasurePlan(chordPracticeSpokenMeasures(state), {
+        secondsPerBeat: 60 / state.tempo,
+        beatsPerBar: state.beatsPerBar,
+        speechSeconds: word => state.speech.get(word)?.speechSeconds
+    });
+    state.speechPlan = { tempo: state.tempo, speech: state.speech, plan };
+    return plan;
 }
 
 /**
@@ -4940,16 +4975,21 @@ function seekToStartOfChordPracticeMeasure(state) {
  * else reports it, so without this there is no way to know how many times round you have been.
  * Left out when the progression plays once, where there is nothing to count.
  *
- * The chord name is the one deliberate difference between the two panels. A measure in a song can
- * hold anything, so its number is all that can usefully be said; a measure here is exactly one
- * chord, and which chord it is is the thing worth knowing.
+ * The chords are the one deliberate difference between the two panels. A measure in a song can
+ * hold anything, so its number is all that can usefully be said; a measure here is only chords,
+ * and which they are is the thing worth knowing. They are said as the editor writes them, then
+ * the beat, which says which chord is sounding without reordering them: "Measure 5 of 8, G C@3,
+ * beat 2". Every measure gets the beat, so every answer has the same shape.
  */
 function announceChordPracticeMeasure(state) {
-    const measure = chordPracticeMeasureAt(state, chordPracticePosition(state));
-    const chord = state.progression.chords[measure];
+    const position = chordPracticePosition(state);
+    const measure = chordPracticeMeasureAt(state, position);
+    const chords = chordsInMeasure(state.progression.chords[measure]);
+    const beat = Math.min(state.beatsPerBar, 1 + Math.floor(
+        (position - measure * chordPracticeMeasureSeconds(state)) / (60 / state.tempo) + 1e-6));
 
     let text = `Measure ${measure + 1} of ${state.progression.chords.length}, ` +
-        `${chordDisplayName(chord)}`;
+        `${formatMeasureChords(chords)}, beat ${beat}`;
     if (state.repeatCount !== 1) {
         text += state.repeatCount === 0
             ? `, play ${chordPracticeCurrentPass(state)}`
@@ -5175,7 +5215,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     // would mean reading the same shape four times to get through eight measures.
     const distinct = [];
     const seen = new Set();
-    for (const chord of progression.chords) {
+    for (const chord of progression.chords.flatMap(chordsInMeasure)) {
         const name = chordDisplayName(chord);
         if (seen.has(name)) continue;
         seen.add(name);
@@ -5201,7 +5241,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     list.className = 'chord-progression progression-list';
     for (const chord of progression.chords) {
         const item = document.createElement('li');
-        item.textContent = chordDisplayName(chord);
+        item.textContent = formatMeasureChords(chordsInMeasure(chord));
         list.append(item);
     }
     container.append(list);
@@ -5250,7 +5290,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
     // The one setting that cannot be changed in place: the names have to be fetched and the whole
     // run laid out again around them, so it costs a restart, and the label says so.
     const speak = buildCheckboxParagraph('chord-practice-tab-speak',
-        'Speak the name of the next chord; changing it starts again from the first measure', options.speak);
+        'Speak the next measure; changing it starts again from the first measure', options.speak);
     const speakCheckbox = speak.checkbox;
     speakCheckbox.disabled = !chordPracticeSpeechSupported;
 
@@ -5481,10 +5521,16 @@ function prepareProgression({
         return prepared;
     }
     const keyClasses = keyPitchClasses(progressionModel, mode, key);
+    const outsideKey = chord => (isChordInKey(chordPracticeLibraryEntry(chord), keyClasses) ? null : `${key} ${mode}`);
     prepared.chords = chords.map(chord => ({
         root: chord.root,
         suffix: chord.suffix,
-        outsideKey: isChordInKey(chordPracticeLibraryEntry(chord), keyClasses) ? null : `${key} ${mode}`
+        outsideKey: outsideKey(chord),
+        ...(chord.laterChords?.length ? {
+            laterChords: chord.laterChords.map(later => ({
+                root: later.root, suffix: later.suffix, beat: later.beat, outsideKey: outsideKey(later)
+            }))
+        } : {})
     }));
     return prepared;
 }
@@ -5519,7 +5565,8 @@ function chordPracticeMetadataRows(progression) {
     }
 
     if (made !== 'hand' && levelName) rows.push(`Level - ${levelName}`);
-    const outside = progression.chords.filter(chord => chord.outsideKey || chord.borrowed).length;
+    const outside = progression.chords.flatMap(chordsInMeasure)
+        .filter(chord => chord.outsideKey || chord.borrowed).length;
     rows.push(
         `Time signature - ${progression.beatsPerBar}/${progression.beatUnit}`,
         `Strumming - ${progressionPatternLabel(progression)}`,
@@ -7214,9 +7261,13 @@ async function openProgressionOpenDialog({ opener = document.activeElement, opti
 // --- Progression editor ------------------------------------------------------------------------
 //
 // One dialog for editing a progression and for writing one from nothing. The measures are a list
-// box, one option per measure named by its chord; a single chord field below it edits whichever
+// box, one option per measure named by its chords; a single chord field below it edits whichever
 // measure is current. However long the progression, getting to any chord is arrowing to it and
 // one Tab, where a field per measure would put hundreds of stops in the way.
+//
+// A measure's chords are typed as a list, "G D C@4": see measureChords.mjs for how they are
+// placed. editor.measures holds each measure as [{ root, suffix, beat }], or null before it has
+// any.
 
 const editorDialog = document.getElementById('progression-editor-dialog');
 // The dialog's name, without the words Dialog Box that follow it in its heading.
@@ -7260,7 +7311,7 @@ function editorKey() {
 
 function editorSnapshot() {
     return JSON.stringify([editorKeySelect.value, editorBeatsInput.value, editorBeatUnitInput.value,
-        editor.measures.map(chord => (chord ? `${chord.root}|${chord.suffix}` : null)),
+        editor.measures.map(measure => (measure ? formatMeasureChords(measure) : null)),
         editorPatternSelect.value]);
 }
 
@@ -7269,11 +7320,20 @@ function editorKeyClasses() {
     return keyPitchClasses(progressionModel, mode, key);
 }
 
-/** What a measure option says: the chord, and whether it is outside the key. */
-function editorMeasureLabel(chord, keyClasses) {
-    if (!chord) return 'no chord';
-    const inKey = isChordInKey(chordPracticeLibraryEntry(chord), keyClasses);
-    return chordDisplayName(chord) + (inKey ? '' : ', outside the key');
+/**
+ * What a measure option says: its chords, and which are outside the key. One chord says only
+ * "outside the key"; with several, the ones outside it are named.
+ */
+function editorMeasureLabel(measure, keyClasses) {
+    if (!measure) return 'no chord';
+    const outside = measure.filter(chord => !isChordInKey(chordPracticeLibraryEntry(chord), keyClasses));
+    const text = formatMeasureChords(measure);
+    if (outside.length === 0) return text;
+    if (measure.length === 1) return `${text}, outside the key`;
+    const names = [...new Set(outside.map(chordDisplayName))];
+    const listed = names.length === 1 ? names[0]
+        : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+    return `${text}, ${listed} outside the key`;
 }
 
 function renderEditorMeasures() {
@@ -7314,9 +7374,9 @@ function focusEditorMeasure(index) {
  * instead, so it is heard on arriving without being in the way.
  */
 function syncEditorChordField() {
-    const chord = editor.measures[editor.current];
-    editorChordLabel.textContent = `Chord for measure ${editor.current + 1}, ` +
-        (chord ? `now ${chordDisplayName(chord)}` : 'no chord yet');
+    const measure = editor.measures[editor.current];
+    editorChordLabel.textContent = `Chords for measure ${editor.current + 1}, ` +
+        (measure ? `now ${formatMeasureChords(measure)}` : 'no chord yet');
     editorChordInput.value = '';
     closeEditorSuggestions();
 }
@@ -7332,20 +7392,29 @@ function editorAnnounce(text) {
     editorStatusTimer = setTimeout(() => { editorStatus.textContent = ''; }, EDITOR_STATUS_SECONDS * 1000);
 }
 
-function editorInsert({ duplicate = false, moveFocus = false } = {}) {
+/**
+ * Adds a measure after the current one. `toChordField` is Control+I: an empty measure is there to
+ * be given chords, so focus goes straight to the field, whose label says which measure it is.
+ */
+function editorInsert({ duplicate = false, moveFocus = false, toChordField = false } = {}) {
     if (editor.measures.length >= MAX_MEASURES) {
         editorAnnounce(`A progression can have at most ${MAX_MEASURES} measures.`);
         return;
     }
     const source = editor.measures[editor.current];
-    const copy = duplicate && source ? { root: source.root, suffix: source.suffix } : null;
+    const copy = duplicate && source ? source.map(chord => ({ ...chord })) : null;
     editor.measures.splice(editor.current + 1, 0, copy);
     editor.current += 1;
     renderEditorMeasures();
+    if (toChordField) {
+        setEditorCurrent(editor.current);
+        editorChordInput.focus();
+        return;
+    }
     if (moveFocus) focusEditorMeasure(editor.current);
     else setEditorCurrent(editor.current);
     editorAnnounce(copy
-        ? `Duplicated ${chordDisplayName(copy)} as measure ${editor.current + 1}.`
+        ? `Duplicated ${formatMeasureChords(copy)} as measure ${editor.current + 1}.`
         : `Inserted measure ${editor.current + 1}, with no chord yet.`);
 }
 
@@ -7375,8 +7444,8 @@ function editorMove(delta, { moveFocus = false } = {}) {
     renderEditorMeasures();
     if (moveFocus) focusEditorMeasure(target);
     else setEditorCurrent(target);
-    const chord = measures[target];
-    editorAnnounce(`Moved ${chord ? chordDisplayName(chord) : 'the empty measure'} to measure ${target + 1}.`);
+    const moved = measures[target];
+    editorAnnounce(`Moved ${moved ? formatMeasureChords(moved) : 'the empty measure'} to measure ${target + 1}.`);
 }
 
 editorMeasures.addEventListener('keydown', event => {
@@ -7401,7 +7470,7 @@ editorMeasures.addEventListener('keydown', event => {
     } else if (plain && key === 'Delete') {
         editorRemove({ moveFocus: true });
     } else if (event.ctrlKey && !event.altKey && key.toLowerCase() === 'i') {
-        editorInsert({ moveFocus: true });
+        editorInsert({ toChordField: true });
     } else if (event.ctrlKey && !event.altKey && key.toLowerCase() === 'd') {
         editorInsert({ duplicate: true, moveFocus: true });
     } else {
@@ -7410,9 +7479,18 @@ editorMeasures.addEventListener('keydown', event => {
     event.preventDefault();
 });
 
+// A click on a measure goes to the chord field, as Enter does. A screen reader in browse mode sends
+// Enter on a measure as a click, so this is the same key whichever mode it is in. In browse mode
+// NVDA shows the list as one line, and Enter there clicks the list itself: that goes into it, to
+// the current measure, where the screen reader changes to focus mode.
 editorMeasures.addEventListener('click', event => {
     const option = event.target.closest('[role="option"]');
-    if (option) focusEditorMeasure([...editorMeasures.children].indexOf(option));
+    if (!option) {
+        focusEditorMeasure(editor.current);
+        return;
+    }
+    setEditorCurrent([...editorMeasures.children].indexOf(option));
+    editorChordInput.focus();
 });
 
 document.getElementById('progression-editor-insert-button').addEventListener('click', () => editorInsert());
@@ -7450,7 +7528,21 @@ function editorChordByName(text) {
 }
 
 /**
- * What the chord field offers for what has been typed.
+ * The chord being typed: the last word in the field, without any @ and beat after it.
+ *
+ * The field holds a list, "G D C@4", and the suggestions are for the chord at the end of it. After
+ * a space nothing of the next chord is typed yet, so Down offers the key's chords for it.
+ */
+function editorLastWord() {
+    const value = editorChordInput.value;
+    const start = value.search(/\S*$/);
+    const word = value.slice(start);
+    const at = word.indexOf('@');
+    return { start, name: at < 0 ? word : word.slice(0, at), rest: at < 0 ? '' : word.slice(at) };
+}
+
+/**
+ * What the chord field offers for the chord being typed.
  *
  * Nothing typed: the chords the key is built from, in scale order with their degrees, since that is
  * what a progression is mostly made of. Something typed: every library chord whose name starts
@@ -7503,7 +7595,7 @@ function renderEditorSuggestions() {
         option.setAttribute('aria-selected', String(index === editor.suggestionIndex));
         option.textContent = suggestion.label;
         option.addEventListener('mousedown', event => event.preventDefault());
-        option.addEventListener('click', () => commitEditorChord(suggestion.chord, { returnToList: true }));
+        option.addEventListener('click', () => takeEditorSuggestion(suggestion.chord));
         editorSuggestions.append(option);
     }
     const open = editor.suggestions.length > 0;
@@ -7518,33 +7610,56 @@ function renderEditorSuggestions() {
 }
 
 function openEditorSuggestions(highlight) {
-    editor.suggestions = editorSuggestionsFor(editorChordInput.value);
+    editor.suggestions = editorSuggestionsFor(editorLastWord().name);
     editor.suggestionIndex = editor.suggestions.length > 0 ? highlight : -1;
     renderEditorSuggestions();
 }
 
-/**
- * Gives the current measure a chord.
- *
- * With `returnToList`, focus goes back to that measure in the list, which reads out its new chord;
- * that is what Enter and a click do. Otherwise -- leaving the field with Tab -- focus stays where
- * it went and the change is announced instead.
- */
-function commitEditorChord(chord, { returnToList = false } = {}) {
-    editor.measures[editor.current] = { root: chord.root, suffix: chord.suffix };
-    const option = editorMeasures.children[editor.current];
-    if (option) option.textContent = editorMeasureLabel(editor.measures[editor.current], editorKeyClasses());
-    syncEditorChordField();
-    if (returnToList) focusEditorMeasure(editor.current);
-    else editorAnnounce(`Measure ${editor.current + 1} is ${chordDisplayName(chord)}.`);
+/** The beats in a measure, as the time signature field has them now. */
+function editorBeatsPerBar() {
+    return Math.max(1, Math.min(MAX_BEATS, Number(editorBeatsInput.value) || 4));
 }
 
 /**
- * Takes what was typed as the measure's chord, if it names one.
+ * A sentence for each chord the strumming pattern chosen does not strike where it starts, or ''.
+ * Said after the chords are taken: it is how they will sound, not a mistake.
+ */
+function editorLateChordsNote(measure) {
+    const late = chordsStruckLate(measure, progressionPattern({
+        beatsPerBar: editorBeatsPerBar(), pattern: selectedPattern(editorPatternSelect)
+    }), editorBeatsPerBar());
+    return late.map(({ chord, heardAt }) => (heardAt === null
+        ? `The pattern does not strum ${chordDisplayName(chord)} before the next chord.`
+        : `The pattern first strums ${chordDisplayName(chord)} on ${formatBeat(heardAt)}.`)).join(' ');
+}
+
+/**
+ * Gives the current measure its chords.
+ *
+ * With `returnToList`, focus goes back to that measure in the list, which reads out its new
+ * chords; that is what Enter and a click do. Otherwise -- leaving the field with Tab -- focus
+ * stays where it went and the change is announced instead.
+ */
+function commitEditorChords(measure, { returnToList = false } = {}) {
+    editor.measures[editor.current] = measure;
+    const option = editorMeasures.children[editor.current];
+    if (option) option.textContent = editorMeasureLabel(measure, editorKeyClasses());
+    syncEditorChordField();
+    const note = editorLateChordsNote(measure);
+    if (returnToList) {
+        focusEditorMeasure(editor.current);
+        if (note) editorAnnounce(note);
+    } else {
+        editorAnnounce(`Measure ${editor.current + 1} is ${formatMeasureChords(measure)}.${note ? ` ${note}` : ''}`);
+    }
+}
+
+/**
+ * Takes what was typed as the measure's chords, if it reads.
  *
  * An empty field changes nothing: the field starts empty, so empty means no new chord was given.
- * A name that matches nothing is announced; `revert` empties the field too, for when it is being
- * left, while Enter leaves the text there to be corrected.
+ * Anything that does not read is announced with the reason; `revert` empties the field too, for
+ * when it is being left, while Enter leaves the text there to be corrected.
  */
 function commitEditorTypedChord({ revert = false, returnToList = false } = {}) {
     const text = editorChordInput.value.trim();
@@ -7553,14 +7668,25 @@ function commitEditorTypedChord({ revert = false, returnToList = false } = {}) {
         if (returnToList) focusEditorMeasure(editor.current);
         return true;
     }
-    const entry = editorChordByName(text);
-    if (entry) {
-        commitEditorChord(entry, { returnToList });
+    const read = parseMeasureChords(text, { beatsPerBar: editorBeatsPerBar(), chordByName: editorChordByName });
+    if (!read.error) {
+        commitEditorChords(read.chords, { returnToList });
         return true;
     }
-    editorAnnounce(`There is no chord named ${text} in the chord library.`);
+    editorAnnounce(read.error);
     if (revert) editorChordInput.value = '';
     return false;
+}
+
+/**
+ * Puts a chosen suggestion in place of the chord being typed, keeping any @ and beat after it,
+ * and takes the whole field. With one chord in the field this is simply choosing it.
+ */
+function takeEditorSuggestion(chord) {
+    const { start, rest } = editorLastWord();
+    editorChordInput.value = editorChordInput.value.slice(0, start) + chordDisplayName(chord) + rest;
+    closeEditorSuggestions();
+    commitEditorTypedChord({ returnToList: true });
 }
 
 editorChordInput.addEventListener('input', () => openEditorSuggestions(-1));
@@ -7579,7 +7705,7 @@ editorChordInput.addEventListener('keydown', event => {
         renderEditorSuggestions();
     } else if (event.key === 'Enter') {
         if (open && editor.suggestionIndex >= 0) {
-            commitEditorChord(editor.suggestions[editor.suggestionIndex].chord, { returnToList: true });
+            takeEditorSuggestion(editor.suggestions[editor.suggestionIndex].chord);
         } else {
             commitEditorTypedChord({ returnToList: true });
         }
@@ -7631,7 +7757,8 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorKeySelect.value = `${progression.key}|${progression.mode}`;
         editorBeatsInput.value = String(progression.beatsPerBar);
         editorBeatUnitInput.value = String(progression.beatUnit);
-        editor.measures = progression.chords.map(chord => ({ root: chord.root, suffix: chord.suffix }));
+        editor.measures = progression.chords.map(measure => chordsInMeasure(measure)
+            .map(chord => ({ root: chord.root, suffix: chord.suffix, beat: chord.beat })));
         editor.origin = progression.origin ?? { made: 'hand' };
         // The progression's own pattern is chosen, and offered even if it is not a built-in one.
         editorPatternSelect.patterns = null;
@@ -7686,6 +7813,15 @@ function applyProgressionEditor() {
             return;
         }
     }
+    // A shorter measure can leave a chord past its end.
+    const overlong = editor.measures.findIndex(measure => measure.some(chord => chord.beat >= beatsPerBar + 1));
+    if (overlong >= 0) {
+        const chord = editor.measures[overlong].find(c => c.beat >= beatsPerBar + 1);
+        focusEditorMeasure(overlong);
+        editorAnnounce(`Measure ${overlong + 1} has ${chordDisplayName(chord)} on beat ${formatBeat(chord.beat)}, ` +
+            `past the end of a measure of ${beatsPerBar} beats.`);
+        return;
+    }
 
     // Nothing changed: close as Cancel would, rather than marking the tab as having changes.
     if (editor.entry && editorSnapshot() === editor.original) {
@@ -7701,7 +7837,10 @@ function applyProgressionEditor() {
     // Refilled first, in case the time signature was typed and Apply pressed without leaving it.
     refreshEditorPatterns();
     const progression = prepareProgression({
-        key, mode, beatsPerBar, beatUnit, chords: editor.measures, origin,
+        key, mode, beatsPerBar, beatUnit, origin,
+        chords: editor.measures.map(([first, ...later]) => ({
+            root: first.root, suffix: first.suffix, laterChords: later
+        })),
         pattern: selectedPattern(editorPatternSelect)
     });
 

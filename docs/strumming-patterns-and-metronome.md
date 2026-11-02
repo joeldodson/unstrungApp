@@ -232,6 +232,10 @@ hold in mind. Repeats can be added later.
 
 ### Two chords in a measure, now
 
+Superseded on 2026-10-30 by `chords-within-a-measure.md`: chords without a beat now take one beat
+each rather than splitting the measure evenly, so `G C` is G on beat 1 and C on beats 2 to 4. The
+original decision:
+
 A measure can hold more than one chord, each starting at a position in the measure. Built together
 with strumming patterns rather than later. In a `Score` this is ordinary: each beat carries its own
 chord.

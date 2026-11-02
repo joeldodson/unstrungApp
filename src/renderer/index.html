@@ -272,7 +272,7 @@
         <p>
             <input type="checkbox" id="chord-practice-speak-checkbox" checked />
             <label for="chord-practice-speak-checkbox">
-                Speak the name of the next chord on the last beat of each bar
+                Speak the next measure
             </label>
         </p>
 
@@ -314,8 +314,11 @@
         </div>
     </dialog>
 
-    <dialog id="progression-editor-dialog" aria-labelledby="progression-editor-heading-name" tabindex="-1">
+    <!-- Without a description of its own, NVDA reads every line of a dialog when focus enters it. -->
+    <dialog id="progression-editor-dialog" aria-labelledby="progression-editor-heading-name"
+        aria-describedby="progression-editor-description" tabindex="-1">
         <h1 id="progression-editor-heading"><span id="progression-editor-heading-name">Editing Chord Progression</span> Dialog Box</h1>
+        <p id="progression-editor-description" hidden>Key, time signature, strumming pattern, then the measures.</p>
 
         <p>
             <label for="progression-editor-key-select">Key</label>
@@ -344,9 +347,9 @@
         <details>
             <summary>Keyboard Commands for the Measures List</summary>
             <ul>
-                <li>Enter - choose a new chord for the measure</li>
+                <li>Enter - choose new chords for the measure</li>
                 <li>Delete - remove the measure</li>
-                <li>Control+I - insert an empty measure after it</li>
+                <li>Control+I - insert an empty measure after it and go to its chord field</li>
                 <li>Control+D - duplicate it</li>
                 <li>Alt+Up and Alt+Down - move it</li>
             </ul>
@@ -373,8 +376,18 @@
                     is built from, each with its scale degree. Typing searches every chord in the
                     chord library instead. A chord outside the key is marked as such but can still
                     be chosen. Enter takes the chord and goes back to the measure in the list.
-                    Leaving the field empty keeps the chord the measure has. Changing the key does
+                    Leaving the field empty keeps the chords the measure has. Changing the key does
                     not change the chords already chosen.
+                </p>
+                <p>
+                    A measure can have more than one chord. Type them with spaces between. Each
+                    chord starts on the next beat, and the last lasts to the end of the measure:
+                    G D C in 4/4 is G on beat 1, D on beat 2 and C on beats 3 and 4. To start a
+                    chord on a particular beat, put @ and the beat after it: G C@3 is two beats
+                    each. 2.5 is the and of 2, and 2.25 and 2.75 are the sixteenths either side of
+                    it. A chord after one on an and starts on the next whole beat. The list offers
+                    chords for the last one typed; after a space, Down lists the key's chords for
+                    the next.
                 </p>
             </details>
         </div>
