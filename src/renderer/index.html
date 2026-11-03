@@ -517,7 +517,7 @@
                 </p>
             </details>
 
-            <h3 id="chords-results-heading">Search Results</h3>
+            <h3 id="chords-results-heading" tabindex="-1">Search Results</h3>
             <ul id="chords-results-list"></ul>
 
             <!-- A heading here is the way past a long results list: searching "C" gives dozens of
@@ -578,7 +578,8 @@
             <select id="frets-string-1"></select>
         </p>
 
-        <h2 id="frets-result-heading">Identified Chord</h2>
+        <!-- A tab stop, so tabbing from the strings to View in Chord Library passes the result. -->
+        <h2 id="frets-result-heading" tabindex="0">Identified Chord</h2>
         <ul id="frets-result-list"></ul>
 
         <div class="button-row">

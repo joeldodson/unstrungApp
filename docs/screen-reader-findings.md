@@ -49,6 +49,20 @@ when it is set; an empty paragraph is skipped when reading.
 Also: when focus moves to something that already says the result -- returning to a measure that
 now reads its new chord -- make no announcement at all, or it is said twice.
 
+## A status line said as focus lands is talked over
+
+Found 2026-11-02. View in Chord Library, from Frets to Chord, put focus in the Chord Library's
+search field and set the status line, a polite live region, to "Showing C/G in the Chord Library,
+voicing option 3 checked." NVDA read the search field and the status line was not heard. Focus now
+lands on what the message would have said: the checked voicing, with its list opened, or the
+Search Results heading.
+
+When focus moves as the result of an action, put it on the result rather than announcing the result
+from somewhere else.
+
+In the same dialog, the Identified Chord heading was passed over when tabbing from the strings to
+View in Chord Library. Joel asked for it to be a tab stop, and it is.
+
 ## A combo box that expands as you type: not a bug
 
 Reported 2026-09-23 and then withdrawn. Typing F into the progression editor's chord field said

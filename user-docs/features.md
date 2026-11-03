@@ -642,7 +642,11 @@ Choose it from the Chords submenu.
 
 Set the tuning, then each string from 6 to 1: open, not played, or a fret from 1 to 15.
 The chord name follows the Identified Chord heading, and updates as you change each string.
-View in Chord Library opens that chord in the chord library.
+The heading is a tab stop, between string 1 and View in Chord Library, so tabbing past the strings reads the chord.
+Where the shape is in the chord library, the result says under which chord and which voicing option, such as C/G, voicing option 3, for 332010.
+View in Chord Library opens that chord in the chord library, with Difficulty widened if needed so the shape's voicing shows.
+That voicing is the one checked, so Play Selected Chords plays the shape you entered, and you land on it, with the chord's voicing options expanded.
+Otherwise it opens the identified chord, and you land on the Search Results heading.
 
 In a tuning other than standard, unstrung still names the chord from its notes, but says that the fingerings in the chord library do not apply.
 

@@ -2058,8 +2058,15 @@ async function openChordLibraryTab() {
  * Opens the library focused on one chord by name. Widens the difficulty filter only if the
  * chord would otherwise be filtered out, so arriving here never silently hides the very chord
  * you asked to see, but also does not reset a setting that was already showing it.
+ * `voicing`, one of the chord's own voicings, must show too, as Frets to Chord's shape must: the
+ * filter is widened only as far as it needs to be, and that voicing alone is checked, in place of
+ * the chord's first, so what plays is the shape that was entered.
+ *
+ * Focus lands in the results, on that voicing with its list opened, or on the Search Results
+ * heading. Landing in the search field had the field's own announcement talk over the status
+ * line, so the result was never heard.
  */
-async function showChordInLibrary(chordName) {
+async function showChordInLibrary(chordName, { voicing = null } = {}) {
     await openChordLibraryTab();
 
     chordsUi.searchInput.value = chordName;
@@ -2069,10 +2076,41 @@ async function showChordInLibrary(chordName) {
         chordsUi.levelSelect.value = 'advanced';
         rebuildChordResults();
     }
+    if (voicing && !allowedConfidences().includes(voicing.confidence)) {
+        chordsUi.levelSelect.value = Object.keys(CONFIDENCE_TIERS)
+            .find(level => CONFIDENCE_TIERS[level].includes(voicing.confidence));
+        rebuildChordResults();
+    }
+
+    let checkedOption = false;
+    const chord = chordsMatches.find(c => c.name === chordName);
+    const voicingIndex = voicing && chord ? visibleVoicings(chord).indexOf(voicing) : -1;
+    if (voicingIndex !== -1) {
+        chordsSelection.clear();
+        chordsSelection.set(chordName, new Set([voicingIndex]));
+        const row = chordRowsByName.get(chordName);
+        for (const other of chordRowsByName.values()) {
+            if (other.box) other.box.checked = other === row;
+            for (const [index, box] of other.voicingBoxes.entries()) box.checked = other === row && index === voicingIndex;
+        }
+        updateChordResultsHeading();
+        checkedOption = true;
+    }
 
     closeChordSuggestions();
-    chordsUi.searchInput.focus();
-    setStatus(`Showing ${chordName} in the Chord Library.`);
+    const shownRow = chordRowsByName.get(chordName);
+    if (checkedOption && shownRow) {
+        const details = shownRow.item.querySelector('details');
+        if (details) details.open = true;
+        shownRow.voicingBoxes[voicingIndex].focus();
+    } else {
+        // Leaving the search field is what normally queues the default; focus never enters it here.
+        queueDefaultChordIfNoneQueued();
+        chordsUi.resultsHeading.focus();
+    }
+    // What focus lands on says the result. The status line only states the search, as it does on
+    // leaving the search field, which happens here too when the library opened with focus in it.
+    announceChordLibraryState();
 }
 
 // --- end chord library ---
@@ -2092,6 +2130,9 @@ const fretsTuningSelect = document.getElementById('frets-tuning-select');
 
 let fretsDialogOpener = null;
 let fretsIdentifiedName = null;
+// The library entry the shape is filed under when the notes agree with its name, such as C/G for
+// 332010, which the notes name C. View in Chord Library opens that entry, with the voicing showing.
+let fretsLibraryMatch = null;
 
 function fretsTuning() {
     return TUNINGS.find(t => t.id === fretsTuningSelect.value) ?? TUNINGS[0];
@@ -2200,6 +2241,7 @@ function renderFretsResult() {
 
     fretsResultList.replaceChildren();
     fretsIdentifiedName = null;
+    fretsLibraryMatch = null;
 
     if (sounded.length === 0) {
         fretsResultHeading.textContent = 'Identified Chord: no strings are being played';
@@ -2252,7 +2294,8 @@ function renderFretsResult() {
             ` - ${quality}`);
 
         if (aligned) {
-            rows.push(`This is a standard shape: chord library voicing option ${aligned.index + 1}.`);
+            fretsLibraryMatch = { name: aligned.chord.name, voicing: aligned.voicing };
+            rows.push(`This shape is in the chord library: ${aligned.chord.name}, voicing option ${aligned.index + 1}.`);
             if (aligned.voicing.shape) rows.push(`Shape: ${aligned.voicing.shape}`);
             rows.push(`Difficulty: ${CONFIDENCE_LABELS[aligned.voicing.confidence]}`);
             rows.push(`Genres: ${aligned.chord.genres.join(', ')}`);
@@ -2323,12 +2366,13 @@ fretsDialog.addEventListener('close', () => {
 
 fretsViewButton.addEventListener('click', async () => {
     if (!fretsIdentifiedName) return;
-    const name = fretsIdentifiedName;
+    const name = fretsLibraryMatch?.name ?? fretsIdentifiedName;
+    const voicing = fretsLibraryMatch?.voicing ?? null;
     // Closing first means focus is not restored to the dialog's opener afterwards, which would
     // fight with the library tab taking focus.
     fretsDialogOpener = null;
     fretsDialog.close();
-    await showChordInLibrary(name);
+    await showChordInLibrary(name, { voicing });
 });
 
 async function openFretsToChordDialog() {
