@@ -10,6 +10,38 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.10.1 - More chords
+
+Published 2026-11-02.
+
+0.10.1 lets a chord progression change chord partway through a measure, opens saved progressions as songs, and rebuilds the chord library so every chord has a fingering.
+
+### More Than One Chord in a Measure
+
+The progression editor's chord field takes a list of chords with spaces between them, such as G D C@4. Each chord starts on the next beat, or on the beat after its @, and lasts until the next one. A chord can start on the and of a beat: G C@2.5 changes to C on the upstroke after beat 2.
+
+Speak the next measure replaces speaking the next chord. It says the measure as the editor writes it, such as "G, C, at 3", and "repeat" for a measure the same as the one before. Where Am I says the measure's chords the same way.
+
+In browse mode, enter on a measure opens its chord field, and ctrl+i goes straight to a new measure's chord field. NVDA no longer reads the whole editor dialog when it opens.
+
+### Saved Progressions as Songs
+
+Open File now offers .atex files, so a saved progression can be opened as a song as well as a progression. Its measure headings name the chords it prints, as for any song. A file with no title takes its file name.
+
+### Chord Library
+
+The chord library now comes from tabsy-gr/chords-db, a fork of chords-db that documents and corrects it. It has 854 chords and 3,316 voicings, up from 564 chords, and every chord has at least one fingering. No fingering uses the thumb.
+
+Most shapes now have the root as their lowest note, as the fork does. New chord types are major flat fifth, 7 sharp eleventh and 7 sus 2, with sus 4 add 6 and sus 4 add 9 for G. A shape can be listed under more than one name: 3x2013 is Gsus4add6, G6sus4 and C/G.
+
+Difficulty starts on common alternatives rather than standard shapes only, so the open C/G 332010 is found. Standard shapes are still listed first.
+
+Spoken chord names say a number after flat or sharp as an ordinal: C 7 flat fifth, B flat 9 sharp eleventh.
+
+### Frets to Chord
+
+Frets to Chord says where a shape is in the chord library, such as "C/G, voicing option 3" for 332010. View in Chord Library opens that chord with that voicing checked and lands on it, so Play Selected Chords plays the shape you entered. The Identified Chord heading is a tab stop between string 1 and View in Chord Library.
+
 ## unstrung 0.10.0 - Measure by measure
 
 Published 2026-10-29.
