@@ -19,6 +19,12 @@ One entry per chord, by `root` and `suffix`, with one voicing to a line:
 - `barres`: the frets held by a barre. The build works out which strings each one covers.
 - `from`: where the shape came from, and `id`: its id there. The fork's ids never change, so a
   shape can be looked up in its `UPSTREAM-DIFF.md` and `data/changes.json`.
+- `forkId`, on a shape of ours from chords-db 0.5.1: the fork voicing it stands in for. The 27
+  where the fork's only fingering used the thumb ship this way.
+
+Every fretted string needs a finger; the build stops otherwise. A barre is the strings its finger
+holds at that fret, so a string there played by another finger is not under it. A muted string
+inside a barre, as in F6 1x3231, is described as damped under the barre.
 
 The suffix must be one `CHORD_FORMULAS` in `src/shared/musicTheory.mjs` knows. The build checks every
 voicing against its chord's formula and drops and reports any that sound a note outside the chord or
@@ -31,15 +37,20 @@ build; the source's own power chords are kept only where the generator does not 
 ## voicings-to-review.json
 
 Shapes not shipped, each with `reason`. The build does not read this file. A shape moved to
-`voicings.json` is checked there like any other. As of 2026-11-02, 723 voicings:
+`voicings.json` is checked there like any other. An entry settled by a decision keeps its place and
+gains `resolved`, with the date and a note, so the reasoning is there for the next source compared
+with this one; an entry without it is still open. As of 2026-11-02, 723 voicings, 416 resolved:
 
-- 43 of the fork's that use the thumb.
+- 43 of the fork's that use the thumb. Resolved: unstrung has no thumb fingerings.
 - 117 of the fork's whose type unstrung has no formula for: 7#11, (b5), and 7sus2 over a bass note.
 - 483 of chords-db 0.5.1's, the shapes unstrung shipped before 2026-11-02, that do not ship
   unchanged. Each has `forkId`, the fork voicing that replaced it, where there is one, and the fork's
   change number and reason: 345 changed, most of them by putting the root lowest (change 51); 65
   with other fingers; 25 filed under another chord; 3 removed; 45 that chords-db itself changed
-  between 0.5.1 and 0.6.0, with no reason recorded.
+  between 0.5.1 and 0.6.0, with no reason recorded. Resolved: the 346 the fork changed to put the
+  root lowest, its version shipping instead, except the taught shapes the build lists as canonical,
+  such as Cmaj7 332000, which stay open. Also resolved: the 27 where the fork's only fingering
+  used the thumb, shipped in voicings.json with ours, finger 1 across the barre.
 - 80 from chords-db 0.5.1 that failed the check or had no formula in 2026-11.
 
 ## Where this came from

@@ -192,6 +192,10 @@ function buildVoicing(source) {
         throw new Error(`voicings.json: frets [${source.frets.join(',')}] have finger ${JSON.stringify(unknownFinger)}; ` +
             'fingers are 0 for none and 1 to 4, index to little. Thumb fingerings belong in voicings-to-review.json.');
     }
+    if (source.frets.some((fret, index) => fret > 0 && !source.fingers[index])) {
+        throw new Error(`voicings.json: frets [${source.frets.join(',')}] fingers [${source.fingers.join(',')}] ` +
+            'leave a fretted string with no finger.');
+    }
     const absolute = source.frets;
     const barreFrets = source.barres ?? [];
 
@@ -202,12 +206,22 @@ function buildVoicing(source) {
         const entry = { string: stringNumber, play: fret === 0 ? 'open' : 'fretted', fret };
         const finger = source.fingers?.[index];
         if (finger) entry.finger = finger;
-        if (fret > 0 && barreFrets.includes(fret)) entry.barre = true;
         return entry;
     });
 
+    // A barre is the strings one finger holds at its fret. Other strings at that fret can have
+    // fingers of their own: in Cm7 8x888x finger 2 frets string 6 and finger 3 barres strings 4
+    // to 2, so the barre is 4 through 2, not 6 through 2. The barring finger is the one on the
+    // most strings there, the lower finger where two tie; with no fingers given, every string
+    // at the fret counts.
     const barres = barreFrets.map(fret => {
-        const covered = strings.filter(s => s.fret === fret).map(s => s.string);
+        const atFret = strings.filter(s => s.play === 'fretted' && s.fret === fret);
+        const perFinger = new Map();
+        for (const s of atFret) if (s.finger) perFinger.set(s.finger, (perFinger.get(s.finger) ?? 0) + 1);
+        const barreFinger = [...perFinger].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+        const held = atFret.filter(s => barreFinger === undefined || s.finger === barreFinger);
+        for (const s of held) s.barre = true;
+        const covered = held.map(s => s.string);
         return { fret, fromString: Math.max(...covered), toString: Math.min(...covered) };
     });
 
@@ -274,7 +288,10 @@ function describeVoicing(voicing) {
     for (const stringNumber of STRING_NUMBERS) {
         const entry = voicing.strings.find(s => s.string === stringNumber);
         if (entry.play === 'muted') {
-            lines.push(`String ${stringNumber}: not played`);
+            // A barre across a string that is not played, as in F6 1x3231, leaves the string
+            // damped rather than fretted: the barring finger touches it without pressing it down.
+            const under = voicing.barres.some(b => b.fromString >= stringNumber && stringNumber >= b.toString);
+            lines.push(`String ${stringNumber}: not played${under ? ', damped under the barre' : ''}`);
             continue;
         }
         if (entry.play === 'open') {

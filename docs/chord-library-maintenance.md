@@ -202,6 +202,37 @@ What was done:
 Not yet checked: the app with NVDA, in particular the Chord Library with the many new slash chords
 in its search and the new spoken names.
 
+## Deciding the review list by group (2026-11-02)
+
+Joel asked not to go through 700 voicings one by one, and to keep every entry, marking each settled
+one resolved with a short note, for the next time another source is compared. An entry in
+`voicings-to-review.json` gains `resolved: { date, note }`; one without it is open.
+
+Decided so far:
+
+- **Thumb voicings, 43:** resolved, not shipped. unstrung has no thumb fingerings.
+- **Root lowest, 346:** our old shapes the fork changed to put the root lowest. Resolved; the fork's
+  version ships. The taught shapes the build lists as canonical were left open; of those only Cmaj7
+  332000, with G in the bass, was among them.
+- **Ours where the fork used the thumb, 27:** the fork's only fingering of these frets used the thumb,
+  so neither version shipped. Ours now ships, finger 1 across the barre with the muted string
+  damped, as F6 1x3231 is 1 0 3 2 4 1. The UCI dataset fingers 8 of them the same way. One, Bb6
+  6x7886, had no finger on string 1 in chords-db 0.5.1; it ships as 1 3 0 2 4 1.
+
+Found on the way and fixed in `scripts/build-chord-library.mjs`:
+
+- A barre was taken to be every string at its fret, whatever finger played it, so Cm7 8x888x read
+  "Barre: fret 8, strings 6 through 2" with string 6 held by the barre, where finger 2 frets string 6
+  and finger 3 barres strings 4 to 2. A barre is now the strings its own finger holds. 104 shipped
+  descriptions changed.
+- A muted string inside a barre is described as "not played, damped under the barre".
+- A fretted string with no finger stops the build.
+
+Still to decide, each as one group: the 168 of types with no formula (major flat five, 7#11, 7sus2
+over a bass note, and 7sg), the fork's 92 other documented corrections, and the 45 shapes chords-db
+changed between 0.5.1 and 0.6.0 with no reason recorded. Then a few one by one: Cmaj7 332000, any
+of the 45 worth restoring by name, and Absus2sus4, which no source fingers.
+
 ## Looked at: UCI "Guitar Chords finger positions" (2026-11-02)
 
 https://archive.ics.uci.edu/dataset/575/guitar+chords+finger+positions, DOI 10.24432/C5RG8K,
