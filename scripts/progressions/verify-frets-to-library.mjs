@@ -124,7 +124,8 @@ check('focus lands on voicing option 1, checked',
     library.focused.text.startsWith('Voicing option 1:') && library.focused.checked === true, library.focused.text);
 
 console.log('\n=== A shape the library does not have ===');
-rows = await enterFrets([3, -1, 2, 0, 1, 3]);
+// 3x2010, C over G. Was 3x2013 until 2026-11-02, when that shape joined the library as C/G.
+rows = await enterFrets([3, -1, 2, 0, 1, 0]);
 console.log(`  ${rows.slice(0, 4).join(' | ')}`);
 library = await viewInLibrary();
 console.log(`  focus: ${library.focused.tag} "${library.focused.text}"; status: ${library.status}`);

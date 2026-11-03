@@ -241,6 +241,12 @@
             ]
         },
         {
+            "root": "C", "suffix": "maj7/G",
+            "voicings": [
+                {"frets":[3,3,2,0,0,0],"fingers":[3,4,2,0,0,0],"barres":[],"from":"chords-db"}
+            ]
+        },
+        {
             "root": "C", "suffix": "maj7b5",
             "voicings": [
                 {"frets":[-1,3,2,4,0,2],"fingers":[0,3,1,4,0,2],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/C/maj7b5/1"},
@@ -445,7 +451,8 @@
                 {"frets":[3,3,2,0,1,0],"fingers":[3,4,2,0,1,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/C/_G/1"},
                 {"frets":[-1,-1,5,5,5,3],"fingers":[0,0,2,3,4,1],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/C/_G/3"},
                 {"frets":[3,3,5,5,5,3],"fingers":[1,1,2,3,4,1],"barres":[3],"from":"tabsy-gr/chords-db","id":"guitar/C/_G/2"},
-                {"frets":[-1,-1,5,5,5,8],"fingers":[0,0,1,1,1,4],"barres":[5],"from":"tabsy-gr/chords-db","id":"guitar/C/_G/4"}
+                {"frets":[-1,-1,5,5,5,8],"fingers":[0,0,1,1,1,4],"barres":[5],"from":"tabsy-gr/chords-db","id":"guitar/C/_G/4"},
+                {"frets":[3,-1,2,0,1,3],"fingers":[3,0,2,0,1,4],"barres":[],"from":"unstrung","note":"Joel's voicing, strummed between open G chords in Take It Easy"}
             ]
         },
         {
@@ -1613,7 +1620,8 @@
             "voicings": [
                 {"frets":[-1,-1,4,2,3,5],"fingers":[0,0,3,1,2,4],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/D/_Fsharp/4"},
                 {"frets":[-1,-1,4,2,3,2],"fingers":[0,0,3,1,2,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_Fsharp/3"},
-                {"frets":[2,5,4,2,3,2],"fingers":[1,4,3,1,2,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_Fsharp/1"}
+                {"frets":[2,5,4,2,3,2],"fingers":[1,4,3,1,2,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_Fsharp/1"},
+                {"frets":[2,0,0,2,3,2],"fingers":[1,0,0,2,4,3],"barres":[],"from":"chords-db"}
             ]
         },
         {
@@ -1629,7 +1637,7 @@
             "root": "D", "suffix": "/A",
             "voicings": [
                 {"frets":[-1,0,4,2,3,5],"fingers":[0,0,3,1,2,4],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/D/_A/3"},
-                {"frets":[-1,0,0,2,3,2],"fingers":[0,0,0,1,2,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_A/1"},
+                {"frets":[-1,0,0,2,3,2],"fingers":[0,0,0,1,3,2],"barres":[],"from":"chords-db","forkId":"guitar/D/_A/1"},
                 {"frets":[-1,0,4,2,3,2],"fingers":[0,0,3,1,2,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_A/2"},
                 {"frets":[-1,0,7,7,7,5],"fingers":[0,0,2,3,4,1],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/D/_A/4"}
             ]
@@ -1649,13 +1657,14 @@
                 {"frets":[-1,2,4,2,3,2],"fingers":[0,1,3,1,2,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_B/1"},
                 {"frets":[-1,2,4,2,3,5],"fingers":[0,1,3,1,2,4],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_B/2"},
                 {"frets":[7,9,7,7,7,10],"fingers":[1,3,1,1,1,4],"barres":[7],"from":"tabsy-gr/chords-db","id":"guitar/D/_B/3"},
-                {"frets":[7,9,7,7,10,10],"fingers":[1,3,1,1,4,4],"barres":[7,10],"from":"tabsy-gr/chords-db","id":"guitar/D/_B/4"}
+                {"frets":[7,9,7,7,10,10],"fingers":[1,3,1,1,4,4],"barres":[7,10],"from":"tabsy-gr/chords-db","id":"guitar/D/_B/4"},
+                {"frets":[-1,2,0,2,3,2],"fingers":[0,1,0,2,4,3],"barres":[],"from":"chords-db"}
             ]
         },
         {
             "root": "D", "suffix": "/C",
             "voicings": [
-                {"frets":[-1,3,0,2,3,2],"fingers":[0,2,0,1,3,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_C/1"},
+                {"frets":[-1,3,0,2,3,2],"fingers":[0,3,0,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/D/_C/1"},
                 {"frets":[-1,3,4,2,3,2],"fingers":[0,2,4,1,3,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/D/_C/2"},
                 {"frets":[8,9,7,7,7,10],"fingers":[2,3,1,1,1,4],"barres":[7],"from":"tabsy-gr/chords-db","id":"guitar/D/_C/3"},
                 {"frets":[8,9,7,7,10,10],"fingers":[2,3,1,1,4,4],"barres":[7,10],"from":"tabsy-gr/chords-db","id":"guitar/D/_C/4"}
@@ -4263,13 +4272,32 @@
             ]
         },
         {
+            "root": "G", "suffix": "sus4add6",
+            "voicings": [
+                {"frets":[3,-1,2,0,1,3],"fingers":[3,0,2,0,1,4],"barres":[],"from":"unstrung","note":"Joel's voicing, strummed between open G chords in Take It Easy"}
+            ]
+        },
+        {
+            "root": "G", "suffix": "6sus4",
+            "voicings": [
+                {"frets":[3,-1,2,0,1,3],"fingers":[3,0,2,0,1,4],"barres":[],"from":"unstrung","note":"Joel's voicing, strummed between open G chords in Take It Easy"}
+            ]
+        },
+        {
+            "root": "G", "suffix": "sus4add9",
+            "voicings": [
+                {"frets":[3,-1,0,2,1,3],"fingers":[3,0,0,2,1,4],"barres":[],"from":"unstrung","note":"Joel's voicing, strummed between open G chords in Take It Easy"}
+            ]
+        },
+        {
             "root": "G", "suffix": "sus2sus4",
             "voicings": [
                 {"frets":[3,0,0,2,1,3],"fingers":[3,0,0,2,1,4],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/sus2sus4/3"},
                 {"frets":[3,3,0,2,1,-1],"fingers":[3,4,0,2,1,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/sus2sus4/1"},
                 {"frets":[3,3,0,2,3,-1],"fingers":[2,3,0,1,4,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/sus2sus4/2"},
                 {"frets":[3,3,5,5,3,5],"fingers":[1,1,2,3,1,4],"barres":[3],"from":"tabsy-gr/chords-db","id":"guitar/G/sus2sus4/4"},
-                {"frets":[-1,10,10,12,10,10],"fingers":[0,1,1,3,1,1],"barres":[10],"from":"tabsy-gr/chords-db","id":"guitar/G/sus2sus4/5"}
+                {"frets":[-1,10,10,12,10,10],"fingers":[0,1,1,3,1,1],"barres":[10],"from":"tabsy-gr/chords-db","id":"guitar/G/sus2sus4/5"},
+                {"frets":[3,-1,0,2,1,3],"fingers":[3,0,0,2,1,4],"barres":[],"from":"unstrung","note":"Joel's voicing, strummed between open G chords in Take It Easy"}
             ]
         },
         {
@@ -4599,7 +4627,7 @@
                 {"frets":[0,2,0,0,0,3],"fingers":[0,1,0,0,0,2],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_E/1"},
                 {"frets":[0,2,0,4,0,3],"fingers":[0,1,0,3,0,2],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_E/3"},
                 {"frets":[0,2,0,4,3,3],"fingers":[0,1,0,4,2,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_E/4"},
-                {"frets":[0,2,0,0,3,3],"fingers":[0,1,0,0,2,2],"barres":[3],"from":"tabsy-gr/chords-db","id":"guitar/G/_E/2"}
+                {"frets":[0,2,0,0,3,3],"fingers":[0,1,0,0,2,3],"barres":[],"from":"chords-db","forkId":"guitar/G/_E/2"}
             ]
         },
         {
@@ -4608,7 +4636,8 @@
                 {"frets":[1,2,0,0,0,3],"fingers":[1,2,0,0,0,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_F/1"},
                 {"frets":[1,2,0,4,0,3],"fingers":[1,2,0,4,0,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_F/2"},
                 {"frets":[-1,-1,3,4,3,3],"fingers":[0,0,1,2,1,1],"barres":[3],"from":"tabsy-gr/chords-db","id":"guitar/G/_F/3"},
-                {"frets":[-1,8,9,7,8,7],"fingers":[0,2,4,1,3,1],"barres":[7],"from":"tabsy-gr/chords-db","id":"guitar/G/_F/4"}
+                {"frets":[-1,8,9,7,8,7],"fingers":[0,2,4,1,3,1],"barres":[7],"from":"tabsy-gr/chords-db","id":"guitar/G/_F/4"},
+                {"frets":[1,2,0,0,3,3],"fingers":[1,2,0,0,3,4],"barres":[],"from":"chords-db"}
             ]
         },
         {
@@ -4616,7 +4645,7 @@
             "voicings": [
                 {"frets":[2,2,0,0,0,3],"fingers":[1,2,0,0,0,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_Fsharp/1"},
                 {"frets":[2,2,0,4,0,3],"fingers":[1,2,0,4,0,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_Fsharp/3"},
-                {"frets":[2,2,0,0,3,3],"fingers":[1,2,0,0,3,3],"barres":[3],"from":"tabsy-gr/chords-db","id":"guitar/G/_Fsharp/2"},
+                {"frets":[2,2,0,0,3,3],"fingers":[1,2,0,0,3,4],"barres":[],"from":"chords-db","forkId":"guitar/G/_Fsharp/2"},
                 {"frets":[-1,-1,4,4,3,3],"fingers":[0,0,2,3,1,1],"barres":[3],"from":"tabsy-gr/chords-db","id":"guitar/G/_Fsharp/4"}
             ]
         },
@@ -4644,7 +4673,7 @@
                 {"frets":[-1,2,0,0,0,3],"fingers":[0,1,0,0,0,2],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_B/1"},
                 {"frets":[-1,2,0,4,0,3],"fingers":[0,1,0,3,0,2],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_B/3"},
                 {"frets":[-1,2,0,4,3,3],"fingers":[0,1,0,4,2,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/_B/4"},
-                {"frets":[-1,2,0,0,3,3],"fingers":[0,1,0,0,2,2],"barres":[3],"from":"tabsy-gr/chords-db","id":"guitar/G/_B/2"}
+                {"frets":[-1,2,0,0,3,3],"fingers":[0,1,0,0,2,3],"barres":[],"from":"chords-db","forkId":"guitar/G/_B/2"}
             ]
         },
         {
@@ -4852,6 +4881,12 @@
                 {"frets":[-1,-1,6,8,9,9],"fingers":[0,0,1,2,3,4],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/Ab/sus4/3"},
                 {"frets":[4,6,6,6,4,4],"fingers":[1,2,3,4,1,1],"barres":[4],"from":"tabsy-gr/chords-db","id":"guitar/Ab/sus4/2"},
                 {"frets":[-1,11,13,13,14,11],"fingers":[0,1,2,3,4,1],"barres":[11],"from":"tabsy-gr/chords-db","id":"guitar/Ab/sus4/4"}
+            ]
+        },
+        {
+            "root": "Ab", "suffix": "sus2sus4",
+            "voicings": [
+                {"frets":[4,4,6,6,4,6],"fingers":[1,1,3,3,1,4],"barres":[4,6],"from":"unstrung"}
             ]
         },
         {
@@ -5901,7 +5936,8 @@
                 {"frets":[-1,-1,3,2,1,0],"fingers":[0,0,3,2,1,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/A/m_F/1"},
                 {"frets":[-1,-1,3,5,5,5],"fingers":[0,0,1,3,3,3],"barres":[5],"from":"tabsy-gr/chords-db","id":"guitar/A/m_F/2"},
                 {"frets":[-1,8,7,5,5,5],"fingers":[0,4,3,1,1,1],"barres":[5],"from":"tabsy-gr/chords-db","id":"guitar/A/m_F/3"},
-                {"frets":[-1,8,10,9,10,8],"fingers":[0,1,3,2,4,1],"barres":[8],"from":"tabsy-gr/chords-db","id":"guitar/A/m_F/4"}
+                {"frets":[-1,8,10,9,10,8],"fingers":[0,1,3,2,4,1],"barres":[8],"from":"tabsy-gr/chords-db","id":"guitar/A/m_F/4"},
+                {"frets":[1,0,2,2,1,0],"fingers":[1,0,3,4,2,0],"barres":[],"from":"chords-db"}
             ]
         },
         {
@@ -7188,6 +7224,12 @@
             ]
         },
         {
+            "root": "C", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,3,5,3,3,3],"fingers":[0,1,3,1,1,1],"barres":[3],"from":"unstrung"}
+            ]
+        },
+        {
             "root": "C#", "suffix": "(b5)",
             "voicings": [
                 {"frets":[-1,4,3,0,2,1],"fingers":[0,4,3,0,2,1],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/Csharp/alt/1"},
@@ -7211,6 +7253,12 @@
                 {"frets":[7,4,6,4,4,-1],"fingers":[4,1,3,1,1,0],"barres":[4],"from":"tabsy-gr/chords-db","id":"guitar/Csharp/m9_B/4"},
                 {"frets":[7,4,6,6,4,4],"fingers":[4,1,2,3,1,1],"barres":[4],"from":"tabsy-gr/chords-db","id":"guitar/Csharp/m9_B/2"},
                 {"frets":[-1,14,11,13,12,11],"fingers":[0,4,1,3,2,1],"barres":[11],"from":"tabsy-gr/chords-db","id":"guitar/Csharp/m9_B/3"}
+            ]
+        },
+        {
+            "root": "C#", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,4,6,4,4,4],"fingers":[0,1,3,1,1,1],"barres":[4],"from":"unstrung"}
             ]
         },
         {
@@ -7239,6 +7287,12 @@
             ]
         },
         {
+            "root": "D", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,-1,0,2,1,0],"fingers":[0,0,0,2,1,0],"barres":[],"from":"unstrung"}
+            ]
+        },
+        {
             "root": "Eb", "suffix": "(b5)",
             "voicings": [
                 {"frets":[-1,-1,1,2,4,3],"fingers":[0,0,1,2,4,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/Eb/alt/1"},
@@ -7260,6 +7314,12 @@
                 {"frets":[9,6,8,6,6,6],"fingers":[4,1,3,1,1,1],"barres":[6],"from":"tabsy-gr/chords-db","id":"guitar/Eb/m9_Csharp/2"},
                 {"frets":[9,6,8,6,6,-1],"fingers":[4,1,3,1,1,0],"barres":[6],"from":"tabsy-gr/chords-db","id":"guitar/Eb/m9_Csharp/4"},
                 {"frets":[9,6,8,8,6,6],"fingers":[4,1,2,3,1,1],"barres":[6],"from":"tabsy-gr/chords-db","id":"guitar/Eb/m9_Csharp/3"}
+            ]
+        },
+        {
+            "root": "Eb", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,-1,1,3,2,1],"fingers":[0,0,1,3,2,1],"barres":[1],"from":"unstrung"}
             ]
         },
         {
@@ -7288,6 +7348,12 @@
             ]
         },
         {
+            "root": "E", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[0,2,2,4,3,2],"fingers":[0,1,1,3,2,1],"barres":[2],"from":"unstrung"}
+            ]
+        },
+        {
             "root": "F", "suffix": "(b5)",
             "voicings": [
                 {"frets":[1,2,3,2,0,-1],"fingers":[1,2,4,3,0,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/F/alt/1"},
@@ -7309,6 +7375,12 @@
                 {"frets":[11,8,10,8,8,8],"fingers":[4,1,3,1,1,1],"barres":[8],"from":"tabsy-gr/chords-db","id":"guitar/F/m9_Eb/2"},
                 {"frets":[11,8,10,8,8,-1],"fingers":[4,1,3,1,1,0],"barres":[8],"from":"tabsy-gr/chords-db","id":"guitar/F/m9_Eb/4"},
                 {"frets":[11,8,10,10,8,8],"fingers":[4,1,2,3,1,1],"barres":[8],"from":"tabsy-gr/chords-db","id":"guitar/F/m9_Eb/3"}
+            ]
+        },
+        {
+            "root": "F", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,-1,3,5,4,3],"fingers":[0,0,1,3,2,1],"barres":[3],"from":"unstrung"}
             ]
         },
         {
@@ -7334,6 +7406,12 @@
             ]
         },
         {
+            "root": "F#", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,-1,4,6,5,4],"fingers":[0,0,1,3,2,1],"barres":[4],"from":"unstrung"}
+            ]
+        },
+        {
             "root": "G", "suffix": "(b5)",
             "voicings": [
                 {"frets":[3,2,-1,0,2,3],"fingers":[3,1,0,0,2,4],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/G/alt/1"},
@@ -7356,6 +7434,12 @@
                 {"frets":[13,10,12,10,10,10],"fingers":[4,1,3,1,1,1],"barres":[10],"from":"tabsy-gr/chords-db","id":"guitar/G/m9_F/2"},
                 {"frets":[13,10,12,10,10,-1],"fingers":[4,1,3,1,1,0],"barres":[10],"from":"tabsy-gr/chords-db","id":"guitar/G/m9_F/4"},
                 {"frets":[13,10,12,12,10,10],"fingers":[4,1,2,3,1,1],"barres":[10],"from":"tabsy-gr/chords-db","id":"guitar/G/m9_F/3"}
+            ]
+        },
+        {
+            "root": "G", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[3,0,0,0,3,1],"fingers":[2,0,0,0,3,1],"barres":[],"from":"unstrung"}
             ]
         },
         {
@@ -7385,6 +7469,12 @@
             ]
         },
         {
+            "root": "Ab", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,-1,6,8,7,6],"fingers":[0,0,1,3,2,1],"barres":[6],"from":"unstrung"}
+            ]
+        },
+        {
             "root": "A", "suffix": "(b5)",
             "voicings": [
                 {"frets":[-1,0,1,2,2,-1],"fingers":[0,0,1,2,3,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/A/alt/1"},
@@ -7407,6 +7497,12 @@
                 {"frets":[3,0,2,0,0,3],"fingers":[2,0,1,0,0,3],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/A/m9_G/2"},
                 {"frets":[3,0,2,2,0,0],"fingers":[3,0,1,2,0,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/A/m9_G/3"},
                 {"frets":[3,0,2,4,0,0],"fingers":[2,0,1,3,0,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/A/m9_G/4"}
+            ]
+        },
+        {
+            "root": "A", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,0,2,0,0,0],"fingers":[0,0,2,0,0,0],"barres":[],"from":"unstrung"}
             ]
         },
         {
@@ -7434,6 +7530,12 @@
             ]
         },
         {
+            "root": "Bb", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,1,3,1,1,1],"fingers":[0,1,3,1,1,1],"barres":[1],"from":"unstrung"}
+            ]
+        },
+        {
             "root": "B", "suffix": "(b5)",
             "voicings": [
                 {"frets":[-1,2,3,4,4,-1],"fingers":[0,1,2,3,4,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/B/alt/1"},
@@ -7457,6 +7559,12 @@
                 {"frets":[5,2,4,2,2,-1],"fingers":[4,1,3,1,1,0],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/B/m9_A/4"},
                 {"frets":[5,2,4,4,2,2],"fingers":[4,1,2,3,1,1],"barres":[2],"from":"tabsy-gr/chords-db","id":"guitar/B/m9_A/2"},
                 {"frets":[-1,12,9,11,10,9],"fingers":[0,4,1,3,2,1],"barres":[9],"from":"tabsy-gr/chords-db","id":"guitar/B/m9_A/3"}
+            ]
+        },
+        {
+            "root": "B", "suffix": "7sus2",
+            "voicings": [
+                {"frets":[-1,2,4,2,2,2],"fingers":[0,1,3,1,1,1],"barres":[2],"from":"unstrung"}
             ]
         }
     ]

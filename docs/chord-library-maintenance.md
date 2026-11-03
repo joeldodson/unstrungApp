@@ -237,8 +237,8 @@ Found on the way and fixed in `scripts/build-chord-library.mjs`:
 
   Joel asked that spoken names say "flat", never "b", and "fifth" rather than "five". So C(b5) is
   "C major flat fifth" (not "C flat fifth", which could be heard as a C flat chord), Bb7#11 is "B
-  flat 7 sharp eleventh", and C7sus2/Bb is "C 7 sus 2 slash B flat". The older names still say "7
-  flat 5", "9 sharp 11" and so on; whether to change them to match is open.
+  flat 7 sharp eleventh", and C7sus2/Bb is "C 7 sus 2 slash B flat". The older names said "7 flat
+  5", "9 sharp 11" and so on; later the same day they were changed to match (see below).
 
   The three are also names Frets to Chord can give. Checked against every shape in both files: 167
   that had no name now get one, and no shape's existing name changed. Because every name it can
@@ -263,9 +263,69 @@ Found on the way and fixed in `scripts/build-chord-library.mjs`:
   across the top three strings, where ours was the usual D fingering 1 3 2, and G/B x20033 with
   finger 2 on both strings at fret 3, where ours used 2 and 3.
 
-Still to decide: the 57 shapes chords-db changed between 0.5.1 and 0.6.0 with no reason recorded,
-45 changed or dropped and those 12 refingered, as one group. Then a few one by one: Cmaj7 332000,
-any of the 57 worth restoring, Absus2sus4, and the twelve plain 7sus2 chords.
+- **chords-db's own changes in 0.6.0, 57:** shapes chords-db changed between 0.5.1 and 0.6.0
+  with no reason recorded, compared one by one with the 0.6.0 data the fork keeps as a test fixture.
+  - 13 had the root put lowest, as the fork's change 51 does, such as C 335553 to x35553. Resolved
+    as the 346 were; six of our old shapes ship under their slash name, such as 335553 as C/G.
+  - 12 refingered. 0.6.0's ships for 7, where it is the usual fingering or ours was awkward: Dm7
+    xx0211 as 2 1 1, C/F xx3553, E/G xx5454, and E/B, E/F#, F/C and F/G, where ours put one
+    finger at fret 4 on both sides of a fret-5 note. Ours ships for 5, where 0.6.0 lays one finger
+    across two strings that the usual fingering plays with two: D/A x00232 and D/C x30232 with the
+    D fingering 1 3 2, and G/B x20033, G/E 020033 and G/F# 220033 with separate fingers on strings 2
+    and 1. These carry `forkId`, as the thumb substitutes do.
+  - 32 were slash-chord shapes 0.6.0 replaced. Every chord concerned still ships three voicings or
+    more, and many of ours were hard to play, such as C/G 33255x. Four common open shapes that no
+    chord in the library had were restored: D/F# 200232, D/B x20232 (the open Bm7), Am/F 102210
+    (an open Fmaj7) and G/F 120033. The other 28 are resolved as not shipped.
+
+- **Cmaj7 332000:** G is its lowest note, so it ships as Cmaj7/G, a chord of its own, fingered
+  3 4 2 as Joel plays it, the way he plays C/G 332010 as 3 4 2 0 1 0. The build lists it as
+  canonical, the taught shape "C maj7, G in the bass". The fork's x32000 stays the Cmaj7. Spoken
+  "C major 7 slash G", one new recording for each voice.
+
+Every entry in the review list is now resolved.
+
+## The chords with no fingering (2026-11-02)
+
+Thirteen chords were listed with no fingering: Absus2sus4 and the twelve plain 7sus2 chords.
+
+Two are common open shapes, and they ship: A7sus2 x02000, finger 2 on string 4 (A B E G), and
+D7sus2 xx0210, fingers 2 and 1 (D E A C). The same frets already shipped as Em/A and Am/D; they now
+have both names, as 332010 is C/G.
+
+For the other eleven, a search of standard tuning listed every shape with the root lowest, no
+note outside the chord, every note but the fifth, a span of four frets at most, no muted string
+between played ones, and a fingering of four fingers and one barre at most. Joel approved one each,
+mostly the two open shapes moved up the neck: the A7sus2 shape (barre on strings 5 to 1, ring
+finger two frets up on string 4) for C, C#, Bb and B; the D7sus2 shape (index across strings 4 to
+1, ring two frets up on 3, middle one up on 2) for Eb, F, F# and Ab; E7sus2 022432, the D shape
+with the open low E; G7sus2 300031, an open G7 with string 5 open, fingers 2 0 0 0 3 1; and
+Absus2sus4 446646, fingers 1 1 3 3 1 4, the most playable of the 11 shapes the search found. All
+thirteen carry `"from":"unstrung"`. Every chord in the library now has a fingering.
+
+## Joel's G chords, and spoken names in words (2026-11-02)
+
+The chords that started this work: in Take It Easy, between open G chords, Joel strums Gsus4add6
+3x2013, fingers 3x2014, and Gsus4add9 3x0213, fingers 3x0214. The first leaves out the fifth for
+the sixth; it is the voicing that sounds best there. Both ship under his names, with formulas for
+sus4add6 (1 4 5 6) and sus4add9 (1 4 5 9), and under their other names:
+
+- 3x2013 is also G6sus4, the more usual name for sus4add6, given its own formula, and C/G, the
+  chord its notes G, C and E spell.
+- 3x0213 is also Gsus2sus4, which has the same notes, G A C D. It could also be read as D7sus4 over
+  G; that name was not added.
+
+The new types are not names Frets to Chord gives, so it still calls 3x2013 C/G, now "in the chord
+library, C/G". Its check had used 3x2013 as a shape the library lacked; it now uses 3x2010.
+
+Spoken names now say a number after "flat" or "sharp" as an ordinal, as Joel asked: "7 flat
+fifth", "minor 7 flat fifth", "7 flat ninth", "7 sharp ninth", "9 flat fifth", "major 7 flat
+fifth", "major 7 sharp fifth", "9 sharp eleventh", "minor major 7 flat fifth". The chord's own
+number stays a number: "C 7", "C 9", "add 9". The new chords are "G sus 4 add 6", "G 6 sus 4" and
+"G sus 4 add 9". Against the last commit, 108 recordings per voice were renamed, 4 are new (with C
+major 7 slash G), and the other 806 are unchanged.
+
+The library is 854 chords and 3,316 voicings.
 
 ## Looked at: UCI "Guitar Chords finger positions" (2026-11-02)
 

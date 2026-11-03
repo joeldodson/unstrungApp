@@ -26,6 +26,7 @@ alphaTab is released under the Mozilla Public License 2.0.
 The fingerings in the chord library come from [tabsy-gr/chords-db](https://github.com/tabsy-gr/chords-db), which corrects and extends [chords-db](https://github.com/tombatossals/chords-db), a community collection of guitar chord shapes.
 unstrung still checks every shape against the notes its chord should have and leaves out any that are wrong.
 It leaves out fingerings that use the thumb, and adds chords the collection lacks, such as power chords.
+A few shapes keep the fingering the original chords-db gave them, where the fork's is less usual.
 Both are released under the MIT License.
 
 ## Audio Samples

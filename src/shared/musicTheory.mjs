@@ -37,7 +37,11 @@ export const CHORD_FORMULAS = {
     mmaj9: [0, 3, 7, 11, 2], mmaj11: [0, 3, 7, 11, 2, 5],
     // Added 2026-11-02 with the voicings tabsy-gr/chords-db files under them. "(b5)" is its name
     // for a major triad with a flat fifth; a suffix starting with b would read as a flat root.
-    '(b5)': [0, 4, 6], '7#11': [0, 4, 7, 10, 6], '7sus2': [0, 2, 7, 10]
+    '(b5)': [0, 4, 6], '7#11': [0, 4, 7, 10, 6], '7sus2': [0, 2, 7, 10],
+    // Added 2026-11-02 for Joel's G chords in Take It Easy, strummed between open G chords:
+    // Gsus4add6 3x2013 and Gsus4add9 3x0213. 6sus4 is the more usual name for sus4add6, and
+    // sus4add9 has the notes of sus2sus4; each is listed under both names.
+    sus4add6: [0, 5, 7, 9], '6sus4': [0, 5, 7, 9], sus4add9: [0, 5, 7, 2]
 };
 
 // Human-readable chord-quality names, for the structured text description a screen
@@ -64,7 +68,9 @@ export const QUALITY_LABELS = {
     'maj7b5': 'major 7th, flat 5th', 'maj7#5': 'major 7th, sharp 5th',
     mmaj9: 'minor major 9th', mmaj11: 'minor major 11th',
     'mmaj7b5': 'minor major 7th, flat 5th',
-    '(b5)': 'major, flat 5th', '7#11': 'dominant 7th, sharp 11th', '7sus2': 'dominant 7th, suspended 2nd'
+    '(b5)': 'major, flat 5th', '7#11': 'dominant 7th, sharp 11th', '7sus2': 'dominant 7th, suspended 2nd',
+    sus4add6: 'suspended 4th, added 6th', '6sus4': '6th, suspended 4th',
+    sus4add9: 'suspended 4th, added 9th'
 };
 
 // Which scale degree each interval usually is, so a note can be given the right letter name.

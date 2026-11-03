@@ -331,7 +331,6 @@ The Chord Practice dialog asks for:
 - **Experience level.** Beginner uses open chords only.
   Intermediate adds barre chords and seventh chords.
   Advanced adds extended chords and chords borrowed from other keys.
-  Some advanced chords have no fingering in the chord library; under Chords Used they say so.
 - **Key.** Only keys with enough chords playable at the chosen level are listed.
 - **Chords from outside the key:** none, occasional or frequent.
   These are mostly chords that lead into the next one, such as D7 before G in the key of C, and chords borrowed from the minor key.
@@ -627,6 +626,10 @@ tab also closes it and moves on.
 The Filtering Options section narrows the results by difficulty (standard shapes only, common alternatives, or advanced voicings), root note, chord type and genre.
 Difficulty starts on common alternatives, which include the standard shapes; a chord's standard shape is listed before its alternatives.
 
+Every chord in the library has at least one fingering.
+A shape can be listed under more than one name.
+3x2013 is Gsus4add6, its other name G6sus4, and C/G, the chord its notes spell.
+
 Under the Search Results heading, each matching chord has a checkbox, and so does each of its fingerings.
 The shortest matching name and its most common fingering start checked.
 Each chord also has a collapsed section with what is known about it.
@@ -673,6 +676,7 @@ The dialog has three tabs.
 ### General
 
 - **Voice for spoken chord names:** Zira or David.
+  Names are spoken in words: B flat 7 sharp eleventh, C 7 flat fifth, G sus 4 add 6.
 - **Spoken chord volume,** as a percentage, relative to the guitar.
 - **Folder for saved chord progressions.**
 

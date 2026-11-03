@@ -110,18 +110,20 @@ export function spokenRootName(root) {
 export const SPOKEN_QUALITY_LABELS = {
     major: '', minor: 'minor', m: 'minor', 5: 'power chord',
     sus: 'sus 4', sus2: 'sus 2', sus4: 'sus 4', sus2sus4: 'sus 2 4', dim: 'dim', aug: 'aug',
-    7: '7', maj7: 'major 7', m7: 'minor 7', 'm7b5': 'minor 7 flat 5', dim7: 'dim 7',
+    // A number after "flat" or "sharp" is said as an ordinal, "7 flat fifth", "9 sharp eleventh",
+    // as Joel asked on 2026-11-02. The chord's own number stays a plain number, "C 7", "add 9".
+    7: '7', maj7: 'major 7', m7: 'minor 7', 'm7b5': 'minor 7 flat fifth', dim7: 'dim 7',
     mmaj7: 'minor major 7', 6: '6', m6: 'minor 6', add9: 'add 9', madd9: 'minor add 9',
-    '7sus4': '7 sus 4', '7b5': '7 flat 5', aug7: 'aug 7',
+    '7sus4': '7 sus 4', '7b5': '7 flat fifth', aug7: 'aug 7',
     9: '9', maj9: 'major 9', m9: 'minor 9', 69: '6 9', m69: 'minor 6 9',
-    '7b9': '7 flat 9', '7#9': '7 sharp 9', '9b5': '9 flat 5', aug9: 'aug 9',
+    '7b9': '7 flat ninth', '7#9': '7 sharp ninth', '9b5': '9 flat fifth', aug9: 'aug 9',
     11: '11', m11: 'minor 11', maj11: 'major 11', add11: 'add 11',
     mmaj9: 'minor major 9', mmaj11: 'minor major 11',
-    'maj7b5': 'major 7 flat 5', 'maj7#5': 'major 7 sharp 5', maj7sus2: 'major 7 sus 2',
-    13: '13', maj13: 'major 13', '9#11': '9 sharp 11', 'mmaj7b5': 'minor major 7 flat 5',
-    // Added 2026-11-02. Joel asked for "flat", never "b", and for "fifth" rather than "five". "C
-    // major flat fifth" rather than "C flat fifth", which could be heard as a C flat chord.
-    '(b5)': 'major flat fifth', '7#11': '7 sharp eleventh', '7sus2': '7 sus 2'
+    'maj7b5': 'major 7 flat fifth', 'maj7#5': 'major 7 sharp fifth', maj7sus2: 'major 7 sus 2',
+    13: '13', maj13: 'major 13', '9#11': '9 sharp eleventh', 'mmaj7b5': 'minor major 7 flat fifth',
+    // "C major flat fifth" rather than "C flat fifth", which could be heard as a C flat chord.
+    '(b5)': 'major flat fifth', '7#11': '7 sharp eleventh', '7sus2': '7 sus 2',
+    sus4add6: 'sus 4 add 6', '6sus4': '6 sus 4', sus4add9: 'sus 4 add 9'
 };
 
 /**
