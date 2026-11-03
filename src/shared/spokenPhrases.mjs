@@ -118,7 +118,10 @@ export const SPOKEN_QUALITY_LABELS = {
     11: '11', m11: 'minor 11', maj11: 'major 11', add11: 'add 11',
     mmaj9: 'minor major 9', mmaj11: 'minor major 11',
     'maj7b5': 'major 7 flat 5', 'maj7#5': 'major 7 sharp 5', maj7sus2: 'major 7 sus 2',
-    13: '13', maj13: 'major 13', '9#11': '9 sharp 11', 'mmaj7b5': 'minor major 7 flat 5'
+    13: '13', maj13: 'major 13', '9#11': '9 sharp 11', 'mmaj7b5': 'minor major 7 flat 5',
+    // Added 2026-11-02. Joel asked for "flat", never "b", and for "fifth" rather than "five". "C
+    // major flat fifth" rather than "C flat fifth", which could be heard as a C flat chord.
+    '(b5)': 'major flat fifth', '7#11': '7 sharp eleventh', '7sus2': '7 sus 2'
 };
 
 /**

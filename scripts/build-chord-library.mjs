@@ -157,7 +157,8 @@ const GENRES_BY_SUFFIX = {
     6: ['jazz', 'swing', 'country'], m6: ['jazz', 'swing'], 69: ['jazz', 'swing'], m69: ['jazz'],
     dim: ['jazz', 'classical'], dim7: ['jazz', 'classical'], aug: ['jazz', 'classical'],
     mmaj7: ['jazz'], mmaj9: ['jazz'], 'mmaj7b5': ['jazz'], mmaj11: ['jazz'],
-    add11: ['rock', 'pop'], sus2sus4: ['rock', 'folk']
+    add11: ['rock', 'pop'], sus2sus4: ['rock', 'folk'],
+    '(b5)': ['jazz'], '7#11': ['jazz'], '7sus2': ['jazz', 'funk']
 };
 
 function genresFor(suffix) {

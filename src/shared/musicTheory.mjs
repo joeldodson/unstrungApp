@@ -34,7 +34,10 @@ export const CHORD_FORMULAS = {
     maj7sus2: [0, 2, 7, 11], maj9: [0, 4, 7, 11, 2], maj11: [0, 4, 7, 11, 2, 5],
     maj13: [0, 4, 7, 11, 2, 5, 9],
     mmaj7: [0, 3, 7, 11], 'mmaj7b5': [0, 3, 6, 11],
-    mmaj9: [0, 3, 7, 11, 2], mmaj11: [0, 3, 7, 11, 2, 5]
+    mmaj9: [0, 3, 7, 11, 2], mmaj11: [0, 3, 7, 11, 2, 5],
+    // Added 2026-11-02 with the voicings tabsy-gr/chords-db files under them. "(b5)" is its name
+    // for a major triad with a flat fifth; a suffix starting with b would read as a flat root.
+    '(b5)': [0, 4, 6], '7#11': [0, 4, 7, 10, 6], '7sus2': [0, 2, 7, 10]
 };
 
 // Human-readable chord-quality names, for the structured text description a screen
@@ -60,7 +63,8 @@ export const QUALITY_LABELS = {
     69: '6th with added 9th', m69: 'minor 6th with added 9th',
     'maj7b5': 'major 7th, flat 5th', 'maj7#5': 'major 7th, sharp 5th',
     mmaj9: 'minor major 9th', mmaj11: 'minor major 11th',
-    'mmaj7b5': 'minor major 7th, flat 5th'
+    'mmaj7b5': 'minor major 7th, flat 5th',
+    '(b5)': 'major, flat 5th', '7#11': 'dominant 7th, sharp 11th', '7sus2': 'dominant 7th, suspended 2nd'
 };
 
 // Which scale degree each interval usually is, so a note can be given the right letter name.
@@ -77,6 +81,7 @@ const INTERVAL_DEGREE_OVERRIDES = {
     '7#9': { 3: 2 },
     aug9: { 3: 2 },
     '9#11': { 6: 4 },
+    '7#11': { 6: 4 },
     dim7: { 9: 7 }
 };
 
@@ -320,7 +325,9 @@ export const IDENTIFY_SUFFIXES = [
     '7', 'maj7', 'm7', 'm7b5', 'dim7', 'mmaj7', '6', 'm6', 'add9', 'madd9',
     '7sus4', '7b5', 'aug7', '9', 'maj9', 'm9', '69', 'm69', '7b9', '7#9', '9b5', 'aug9',
     '11', 'm11', 'maj11', 'mmaj9', 'mmaj11', 'maj7b5', 'maj7#5', 'maj7sus2',
-    '13', 'maj13', '9#11', 'sus2sus4', 'add11', 'mmaj7b5'
+    '13', 'maj13', '9#11', 'sus2sus4', 'add11', 'mmaj7b5',
+    // Added 2026-11-02. Each names only note sets nothing above names.
+    '(b5)', '7sus2', '7#11'
 ];
 
 /**

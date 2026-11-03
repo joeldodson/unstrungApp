@@ -39,10 +39,11 @@ build; the source's own power chords are kept only where the generator does not 
 Shapes not shipped, each with `reason`. The build does not read this file. A shape moved to
 `voicings.json` is checked there like any other. An entry settled by a decision keeps its place and
 gains `resolved`, with the date and a note, so the reasoning is there for the next source compared
-with this one; an entry without it is still open. As of 2026-11-02, 723 voicings, 416 resolved:
+with this one; an entry without it is still open. As of 2026-11-02, 723 voicings, 584 resolved:
 
 - 43 of the fork's that use the thumb. Resolved: unstrung has no thumb fingerings.
-- 117 of the fork's whose type unstrung has no formula for: 7#11, (b5), and 7sus2 over a bass note.
+- 117 of the fork's whose type unstrung had no formula for: 7#11, (b5), and 7sus2 over a bass note.
+  Resolved: the three were given formulas and these ship.
 - 483 of chords-db 0.5.1's, the shapes unstrung shipped before 2026-11-02, that do not ship
   unchanged. Each has `forkId`, the fork voicing that replaced it, where there is one, and the fork's
   change number and reason: 345 changed, most of them by putting the root lowest (change 51); 65
@@ -51,7 +52,8 @@ with this one; an entry without it is still open. As of 2026-11-02, 723 voicings
   root lowest, its version shipping instead, except the taught shapes the build lists as canonical,
   such as Cmaj7 332000, which stay open. Also resolved: the 27 where the fork's only fingering
   used the thumb, shipped in voicings.json with ours, finger 1 across the barre.
-- 80 from chords-db 0.5.1 that failed the check or had no formula in 2026-11.
+- 80 from chords-db 0.5.1 that failed the check or had no formula in 2026-11. Resolved: its 48
+  alt, major flat-five triads the fork ships as (b5), and its 3 7sg, a name unstrung does not know.
 
 ## Where this came from
 

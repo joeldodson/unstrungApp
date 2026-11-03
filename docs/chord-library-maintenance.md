@@ -228,10 +228,27 @@ Found on the way and fixed in `scripts/build-chord-library.mjs`:
 - A muted string inside a barre is described as "not played, damped under the barre".
 - A fretted string with no finger stops the build.
 
-Still to decide, each as one group: the 168 of types with no formula (major flat five, 7#11, 7sus2
-over a bass note, and 7sg), the fork's 92 other documented corrections, and the 45 shapes chords-db
-changed between 0.5.1 and 0.6.0 with no reason recorded. Then a few one by one: Cmaj7 332000, any
-of the 45 worth restoring by name, and Absus2sus4, which no source fingers.
+- **Types with no formula, 168:** formulas added in `src/shared/musicTheory.mjs` for the three the
+  fork uses, and their 117 voicings ship: (b5), a major triad with a flat fifth, 1 3 b5, written
+  C(b5) as the fork writes it, since a suffix starting with b would read as a flat root; 7#11,
+  1 3 5 b7 #11; and 7sus2, 1 2 5 b7, which the fork has only over its flat seventh, such as
+  C7sus2/Bb. chords-db's 48 alt, the same triads the fork relabelled (b5), and its 3 7sg, a name
+  nobody could place, are resolved as not shipped.
+
+  Joel asked that spoken names say "flat", never "b", and "fifth" rather than "five". So C(b5) is
+  "C major flat fifth" (not "C flat fifth", which could be heard as a C flat chord), Bb7#11 is "B
+  flat 7 sharp eleventh", and C7sus2/Bb is "C 7 sus 2 slash B flat". The older names still say "7
+  flat 5", "9 sharp 11" and so on; whether to change them to match is open.
+
+  The three are also names Frets to Chord can give. Checked against every shape in both files: 167
+  that had no name now get one, and no shape's existing name changed. Because every name it can
+  give must be in the library, the twelve plain 7sus2 chords, C7sus2 to B7sus2, are listed with no
+  fingering, as Absus2sus4 is. Dropping the bass of the fork's C7sus2/Bb, x35333, would finger
+  C7sus2; that is the maintainer tool's kind of job.
+
+Still to decide, each as one group: the fork's 92 other documented corrections, and the 45 shapes
+chords-db changed between 0.5.1 and 0.6.0 with no reason recorded. Then a few one by one: Cmaj7
+332000, any of the 45 worth restoring by name, Absus2sus4, and the twelve plain 7sus2 chords.
 
 ## Looked at: UCI "Guitar Chords finger positions" (2026-11-02)
 
