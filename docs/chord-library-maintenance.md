@@ -62,6 +62,10 @@ on 2026-07-28 so Frets to Chord could name those sounds. The library lists every
 - add11, maj7sus2 and sus2sus4 in all 12 keys, 36 in all. chords-db has none of them.
 - C#11 and Emadd9, where every chords-db voicing sounds the wrong notes.
 
+That was true of the npm package we built from, 0.5.1 of 2022. chords-db's GitHub master,
+0.6.0 at df06fa7 (2025-10-14), was never published to npm and does have add11, maj7sus2 and
+sus2sus4. See the tabsy-gr/chords-db section.
+
 Many chord types are missing from the 43 altogether, such as sus4add6 (or 6sus4), add4, 7sus2,
 7#11, 7b13, 13sus4 and m7#5, because chords-db lacked them. A new type needs a formula in
 `musicTheory.mjs`.
@@ -125,6 +129,81 @@ collection.
 
 Joel agreed (2026-11-02): it is not a fully reliable source, and it was almost certainly generated
 by an algorithm.
+
+## Looked at: tabsy-gr/chords-db (2026-11-02)
+
+https://github.com/tabsy-gr/chords-db, found by Joel. A hard fork of chords-db 0.6.0 (df06fa7),
+MIT, keeping the original copyright. Begun 2026-09-25, last pushed 2026-10-13 (43f8b4a), 68 commits
+since September, one maintainer (Giorgos Ioannidis, for Tabsy). Marked pre-release, "nothing here
+is stable yet", and published only to GitHub Packages, which needs a token even to install.
+
+What it changed, in its words, in `UPSTREAM-DIFF.md` (every difference from 0.6.0, with the reason,
+checked by its tests) and `MIGRATING-FROM-CHORDS-DB.md`:
+
+- Absolute frets, a permanent id and a source on every voicing, `"T"` for a thumb.
+- A validator: every note in the chord, every required tone present (from `data/qualities.json`,
+  with a source cited for each formula), and a fingering that can be played: a finger for every
+  fretted string, no finger on two frets, no crossed fingers, barres that are declared and do not
+  sit over lower or open strings.
+- For guitar: 37 voicings removed, 26 added, 150 relabelled, 360 with frets fixed, 406 with fingers
+  fixed, and every chord's voicings ordered easiest first by a playability score.
+- Several fixes match our rejections: the Emadd9 copies of Fmadd9, the Gadd9 and Adim that spell
+  no such chord, alt relabelled as a major flat five, and 9#11 voicings with no 9th relabelled 7#11,
+  which our check accepted because it lets the 9th be left out.
+- Its own fixes are not signed off by a player. Only the bouzouki has a verifier.
+
+Checked 2026-11-02 against unstrung, with our check and with `voicings.json`:
+
+- 837 guitar chords, 3,272 voicings. Every voicing with a type we know passes our check; 120 have
+  types we have no formula for: 7#11, (b5) and 7sus2 over a bass note.
+- Of our 1,989: 1,506 are in it unchanged, fingers included; 65 have other fingers, often a thumb
+  where we have finger 1; 81 are filed under another chord; 337 are not in it.
+- Of those 337, 45 were already different in 0.6.0. 321 were changed by the fork's rule that the
+  root sounds lowest: 254 by muting the low strings, such as Cm 335543 to x35543 and Cmaj7 332000 to
+  x32000, which is the taught "C maj7, G in the bass" in our `CANONICAL_OPEN_SHAPES`; 67 by adding a
+  root on a low string; 32 by other edits. 20 were removed, most of them 9#11s.
+- It fills 37 of our 38 unfingered chords, all but Absus2sus4. The shapes are chords-db 0.6.0's own,
+  plus three C#11s the fork made by transposing C11.
+- 1,701 voicings we do not have, 488 of them on chords we have; 323 chords we do not have, most of
+  them slash chords.
+
+The root-in-bass rule is the opposite of how this note treats a shape: by what players do, checked
+only against the name it is given. A barre with its low string at the barre fret, or Cmaj7 with G in
+the bass, is played and taught. The fork keeps such a shape only where its root-position form was
+already a separate voicing.
+
+## Looked at: UCI "Guitar Chords finger positions" (2026-11-02)
+
+https://archive.ics.uci.edu/dataset/575/guitar+chords+finger+positions, DOI 10.24432/C5RG8K,
+donated 2020-06-04 by someone the page does not name, from a source it does not give: "double
+checked with software". CC BY 4.0, so a shape shipped from it needs credit in
+`user-docs/third-parties.md`. No newer version was found; this is the one checked.
+
+One file, `chord-fingers.csv`: root, type, intervals, the finger on each string (x, 0, or 1 to 4),
+and the notes sounded. No frets: they were worked out from the notes, each fretted note at the
+fret that gives it, moved up 12 where that closes the shape. Spellings such as C## for D suggest the
+names were generated.
+
+Checked 2026-11-02:
+
+- 2,632 rows; 383 repeat a shape because the file lists both spellings of a root (C# and Db), so
+  2,203 shapes. 34 types match ours; 8 do not: 7#11, 6#11, 13b9, +#11, 13#11, 7b13, 13#9 and m13.
+- Our check passes all but 9, which leave out the seventh, such as A13 with no G.
+- No finger at two frets. 13 cross fingers, most of them diminished shapes with the little finger a
+  fret behind the ring finger, where ours has them the other way round.
+- 163 sound fewer than three different notes, such as C major as C and E alone.
+- 393 shapes are ours; 335 of those have our fingers. 537 are the fork's; 463 have its fingers.
+- Nothing for add11, maj7sus2, sus2sus4 or Emadd9. Only C#11, which the fork has too.
+- 8 of the fork's 43 thumb voicings are in it with the same fingers as ours, finger 1 across the
+  barre over the muted string: F6 1x3231 as 1 0 3 2 4 1, and the same in C, C#, F#, C7b9, Bb7b9,
+  G7b9 and G13.
+- 1,643 shapes are in neither library; 1,497 of those have three notes or more, fingers that do not
+  cross, and stay within four frets. Among them are common shapes both lack: G 320033, the
+  four-finger G our build already lists as canonical; C 032010 with the open low E; C over G 332010.
+
+Not a source to take whole: no named author or method, and partial shapes mixed in with chords.
+Useful as a second opinion on fingers, where ours and the fork's differ, and as a list of candidate
+shapes for the maintainer tool to put to Joel.
 
 ## Proposed: your own items against new built-in ones
 
