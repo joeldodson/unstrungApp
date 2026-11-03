@@ -625,6 +625,7 @@ upArrow and downArrow move through the list, enter takes the highlighted name, a
 tab also closes it and moves on.
 
 The Filtering Options section narrows the results by difficulty (standard shapes only, common alternatives, or advanced voicings), root note, chord type and genre.
+Difficulty starts on common alternatives, which include the standard shapes; a chord's standard shape is listed before its alternatives.
 
 Under the Search Results heading, each matching chord has a checkbox, and so does each of its fingerings.
 The shortest matching name and its most common fingering start checked.

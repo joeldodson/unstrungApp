@@ -228,8 +228,11 @@ Checked 2026-11-02:
   barre over the muted string: F6 1x3231 as 1 0 3 2 4 1, and the same in C, C#, F#, C7b9, Bb7b9,
   G7b9 and G13.
 - 1,643 shapes are in neither library; 1,497 of those have three notes or more, fingers that do not
-  cross, and stay within four frets. Among them are common shapes both lack: G 320033, the
-  four-finger G our build already lists as canonical; C 032010 with the open low E; C over G 332010.
+  cross, and stay within four frets. The count is too high: the comparison was by chord name, and
+  UCI files an inversion under its root chord where the libraries file it as a slash chord. C
+  032010 and 332010, first given here as missing from both, are in both as C/E and C/G (corrected
+  2026-11-02, after Joel found C/G 332010 in the app). G 320033, the four-finger G our build
+  already lists as canonical, is the one common shape checked that both lack.
 
 Not a source to take whole: no named author or method, and partial shapes mixed in with chords.
 Useful as a second opinion on fingers, where ours and the fork's differ, and as a list of candidate

@@ -1149,7 +1149,7 @@ let chordsSuggestions = [];
 let chordsSuggestionIndex = -1;
 
 function allowedConfidences() {
-    return CONFIDENCE_TIERS[chordsUi.levelSelect.value] ?? CONFIDENCE_TIERS.canonical;
+    return CONFIDENCE_TIERS[chordsUi.levelSelect.value] ?? CONFIDENCE_TIERS.common;
 }
 
 /** Voicings of a chord that pass the current difficulty setting. */
