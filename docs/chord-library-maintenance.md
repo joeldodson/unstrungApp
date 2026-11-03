@@ -246,9 +246,26 @@ Found on the way and fixed in `scripts/build-chord-library.mjs`:
   fingering, as Absus2sus4 is. Dropping the bass of the fork's C7sus2/Bb, x35333, would finger
   C7sus2; that is the maintainer tool's kind of job.
 
-Still to decide, each as one group: the fork's 92 other documented corrections, and the 45 shapes
-chords-db changed between 0.5.1 and 0.6.0 with no reason recorded. Then a few one by one: Cmaj7
-332000, any of the 45 worth restoring by name, Absus2sus4, and the twelve plain 7sus2 chords.
+- **The fork's other corrections, 81:** resolved, the fork's version shipping where it has one.
+  - 25 that chords-db filed as 9#11, such as C9#11 x34353, have no 9th. The fork relabelled them
+    7#11, and they ship under that name.
+  - 29 sound a note outside their chord or leave out the seventh, and the fork dropped or replaced
+    them. Twelve are shapes of another chord and ship under that name: the four "C#11" are C#7#11,
+    and the four "Emadd9" are Fmadd9.
+  - C9 8 10 8 7 8 10 had the D string behind the barre. The fork's 8 10 8 9 8 10 ships.
+  - 26 refingered for a reason the fork records. 15 left a fretted string with no finger or put
+    one finger on two frets, 9 minor-major 7 flat 5 shapes ran a barre across a muted string, one
+    barre was not declared, and one rootless ninth was marked rootless.
+
+  Twelve more refingerings were moved to the 0.6.0 group. The fork made no change to them; chords-db
+  itself refingered them in 0.6.0, with no reason given. Some of the new fingerings are the usual
+  ones, like Dm7 xx0211 as 2 1 1 for our 3 1 2. Others are not: D/A x00232 as 1 2 1, finger 1
+  across the top three strings, where ours was the usual D fingering 1 3 2, and G/B x20033 with
+  finger 2 on both strings at fret 3, where ours used 2 and 3.
+
+Still to decide: the 57 shapes chords-db changed between 0.5.1 and 0.6.0 with no reason recorded,
+45 changed or dropped and those 12 refingered, as one group. Then a few one by one: Cmaj7 332000,
+any of the 57 worth restoring, Absus2sus4, and the twelve plain 7sus2 chords.
 
 ## Looked at: UCI "Guitar Chords finger positions" (2026-11-02)
 

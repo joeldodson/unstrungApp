@@ -37,7 +37,7 @@
             "root": "C", "suffix": "/F",
             "voicings": [
                 {"frets":[1,3,2,0,1,0],"fingers":[1,4,3,0,2,0],"barres":[],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"},
-                {"frets":[-1,-1,3,5,5,3],"fingers":[0,0,1,3,4,2],"barres":[],"from":"chords-db","forkId":"guitar/C/_F/2","reason":"the fork has these frets with fingers [0,0,1,3,4,1]. Fork no change recorded"}
+                {"frets":[-1,-1,3,5,5,3],"fingers":[0,0,1,3,4,2],"barres":[],"from":"chords-db","forkId":"guitar/C/_F/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,0,1,3,4,1], and the fork kept that"}
             ]
         },
         {
@@ -62,7 +62,7 @@
         {
             "root": "C", "suffix": "69",
             "voicings": [
-                {"frets":[-1,3,2,2,3,3],"fingers":[0,3,1,1,3,4],"barres":[2],"from":"chords-db","forkId":"guitar/C/69/1","reason":"the fork has these frets with fingers [0,2,1,1,3,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."},
+                {"frets":[-1,3,2,2,3,3],"fingers":[0,3,1,1,3,4],"barres":[2],"from":"chords-db","forkId":"guitar/C/69/1","reason":"the fork has these frets with fingers [0,2,1,1,3,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[-1,10,10,9,10,10],"fingers":[0,2,2,1,3,4],"barres":[10],"from":"chords-db","forkId":"guitar/C/69/4","reason":"the fork changed it to [-1,-1,10,9,10,10] fingers [0,0,2,1,3,4]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -121,15 +121,15 @@
             "root": "C", "suffix": "9",
             "voicings": [
                 {"frets":[3,3,2,3,3,3],"fingers":[2,2,1,3,3,4],"barres":[3],"from":"chords-db","forkId":"guitar/C/9/2","reason":"the fork changed it to [-1,3,2,3,3,3] fingers [0,2,1,3,3,4]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[8,10,8,7,8,10],"fingers":[1,3,1,2,1,4],"barres":[8],"from":"chords-db","forkId":"guitar/C/9/4","reason":"the fork changed it to [8,10,8,9,8,10] fingers [1,3,1,2,1,4]. Fork #11 The D string was fretted at 7, under the barre at 8; it is 9, the standard C9 barre shape."},
-                {"frets":[0,3,2,0,3,0],"fingers":[0,2,3,0,4,0],"barres":[],"from":"chords-db","reason":"has no seventh. Sounds C D E G; the chord is C D E G Bb"}
+                {"frets":[8,10,8,7,8,10],"fingers":[1,3,1,2,1,4],"barres":[8],"from":"chords-db","forkId":"guitar/C/9/4","reason":"the fork changed it to [8,10,8,9,8,10] fingers [1,3,1,2,1,4]. Fork #11 The D string was fretted at 7, under the barre at 8; it is 9, the standard C9 barre shape.","resolved":{"date":"2026-11-02","note":"Not shipped: the D string was fretted behind the barre. The fork's fix, 8 10 8 9 8 10, ships instead (Joel)."}},
+                {"frets":[0,3,2,0,3,0],"fingers":[0,2,3,0,4,0],"barres":[],"from":"chords-db","reason":"has no seventh. Sounds C D E G; the chord is C D E G Bb","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
             "root": "C", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,3,4,3,5,3],"fingers":[0,1,2,1,3,1],"barres":[3],"from":"chords-db","forkId":"guitar/C/9sharp11/2","reason":"the fork files it as C7#11 [-1,3,4,3,5,3]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,-1,10,11,11,12],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/C/9sharp11/4","reason":"the fork files it as C7#11 [-1,-1,10,11,11,12]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,3,4,3,5,3],"fingers":[0,1,2,1,3,1],"barres":[3],"from":"chords-db","forkId":"guitar/C/9sharp11/2","reason":"the fork files it as C7#11 [-1,3,4,3,5,3]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,-1,10,11,11,12],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/C/9sharp11/4","reason":"the fork files it as C7#11 [-1,-1,10,11,11,12]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -224,7 +224,7 @@
         {
             "root": "C", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[8,9,9,8,-1,8],"fingers":[1,2,3,1,0,1],"barres":[8],"from":"chords-db","forkId":"guitar/C/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."}
+                {"frets":[8,9,9,8,-1,8],"fingers":[1,2,3,1,0,1],"barres":[8],"from":"chords-db","forkId":"guitar/C/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -257,10 +257,10 @@
         {
             "root": "C#", "suffix": "11",
             "voicings": [
-                {"frets":[-1,4,3,0,0,4],"fingers":[0,2,1,0,0,3],"barres":[],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B"},
-                {"frets":[-1,4,5,4,6,4],"fingers":[0,1,2,1,3,1],"barres":[4],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B"},
-                {"frets":[9,8,9,8,8,9],"fingers":[2,1,3,1,1,4],"barres":[8],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# D# E# G B; the chord is C# D# E# F# G# B"},
-                {"frets":[9,10,9,10,9,9],"fingers":[1,2,1,3,1,1],"barres":[9],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B"}
+                {"frets":[-1,4,3,0,0,4],"fingers":[0,2,1,0,0,3],"barres":[],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as C#7#11."}},
+                {"frets":[-1,4,5,4,6,4],"fingers":[0,1,2,1,3,1],"barres":[4],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as C#7#11."}},
+                {"frets":[9,8,9,8,8,9],"fingers":[2,1,3,1,1,4],"barres":[8],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# D# E# G B; the chord is C# D# E# F# G# B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as C#9b5."}},
+                {"frets":[9,10,9,10,9,9],"fingers":[1,2,1,3,1,1],"barres":[9],"from":"chords-db","reason":"sounds G, not in the chord. Sounds C# E# G G# B; the chord is C# D# E# F# G# B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as C#7#11."}}
             ]
         },
         {
@@ -293,7 +293,7 @@
         {
             "root": "C#", "suffix": "7b5",
             "voicings": [
-                {"frets":[-1,-1,12,13,13,14],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","reason":"sounds D, Ab, C, F#, not in the chord; has no seventh. Sounds D F# Ab C; the chord is C# E# G B"}
+                {"frets":[-1,-1,12,13,13,14],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","reason":"sounds D, Ab, C, F#, not in the chord; has no seventh. Sounds D F# Ab C; the chord is C# E# G B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -320,9 +320,9 @@
         {
             "root": "C#", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,4,5,4,6,4],"fingers":[0,1,2,1,3,1],"barres":[4],"from":"chords-db","forkId":"guitar/Csharp/9sharp11/2","reason":"the fork files it as C#7#11 [-1,4,5,4,6,4]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[9,10,9,10,9,9],"fingers":[1,2,1,3,1,1],"barres":[9],"from":"chords-db","forkId":"guitar/Csharp/9sharp11/4","reason":"the fork files it as C#7#11 [9,10,9,10,9,9]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,3,2,0,0,3],"fingers":[0,2,1,0,0,3],"barres":[],"from":"chords-db","reason":"sounds C, E, not in the chord. Sounds E G B C; the chord is C# D# E# G G# B"}
+                {"frets":[-1,4,5,4,6,4],"fingers":[0,1,2,1,3,1],"barres":[4],"from":"chords-db","forkId":"guitar/Csharp/9sharp11/2","reason":"the fork files it as C#7#11 [-1,4,5,4,6,4]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[9,10,9,10,9,9],"fingers":[1,2,1,3,1,1],"barres":[9],"from":"chords-db","forkId":"guitar/Csharp/9sharp11/4","reason":"the fork files it as C#7#11 [9,10,9,10,9,9]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,3,2,0,0,3],"fingers":[0,2,1,0,0,3],"barres":[],"from":"chords-db","reason":"sounds C, E, not in the chord. Sounds E G B C; the chord is C# D# E# G G# B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as Em/C."}}
             ]
         },
         {
@@ -339,8 +339,8 @@
             "voicings": [
                 {"frets":[9,-1,11,10,10,9],"fingers":["T",0,4,2,3,1],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/Csharp/aug/4","reason":"uses the thumb, which unstrung does not ship. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: unstrung has no thumb fingerings (Joel)."}},
                 {"frets":[9,-1,11,10,10,9],"fingers":[1,0,4,2,3,1],"barres":[9],"from":"chords-db","forkId":"guitar/Csharp/aug/4","reason":"the fork has these frets with fingers [T,0,4,2,3,1]. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Shipped in voicings.json with this fingering, finger 1 across the barre and the muted string damped, in place of the fork's thumb fingering (Joel)."}},
-                {"frets":[-1,4,4,4,2,2],"fingers":[0,2,3,4,1,1],"barres":[2],"from":"chords-db","reason":"sounds F#, B, not in the chord. Sounds C# F# B; the chord is C# E# A"},
-                {"frets":[4,4,6,4,7,4],"fingers":[1,1,3,1,4,1],"barres":[4],"from":"chords-db","reason":"sounds Ab, B, F#, not in the chord. Sounds C# F# Ab B; the chord is C# E# A"}
+                {"frets":[-1,4,4,4,2,2],"fingers":[0,2,3,4,1,1],"barres":[2],"from":"chords-db","reason":"sounds F#, B, not in the chord. Sounds C# F# B; the chord is C# E# A","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as C#7sus4."}},
+                {"frets":[4,4,6,4,7,4],"fingers":[1,1,3,1,4,1],"barres":[4],"from":"chords-db","reason":"sounds Ab, B, F#, not in the chord. Sounds C# F# Ab B; the chord is C# E# A","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -390,7 +390,7 @@
         {
             "root": "C#", "suffix": "maj13",
             "voicings": [
-                {"frets":[-1,4,1,3,1,1],"fingers":[0,4,2,3,0,1],"barres":[],"from":"chords-db","forkId":"guitar/Csharp/maj13/1","reason":"the fork has these frets with fingers [0,3,1,2,1,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[-1,4,1,3,1,1],"fingers":[0,4,2,3,0,1],"barres":[],"from":"chords-db","forkId":"guitar/Csharp/maj13/1","reason":"the fork has these frets with fingers [0,3,1,2,1,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -420,7 +420,7 @@
         {
             "root": "C#", "suffix": "mmaj11",
             "voicings": [
-                {"frets":[-1,4,2,5,4,2],"fingers":[0,3,1,4,3,1],"barres":[2],"from":"chords-db","forkId":"guitar/Csharp/mmaj11/1","reason":"the fork has these frets with fingers [0,2,1,4,3,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."},
+                {"frets":[-1,4,2,5,4,2],"fingers":[0,3,1,4,3,1],"barres":[2],"from":"chords-db","forkId":"guitar/Csharp/mmaj11/1","reason":"the fork has these frets with fingers [0,2,1,4,3,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[4,4,4,5,5,4],"fingers":[1,1,1,2,3,1],"barres":[4],"from":"chords-db","forkId":"guitar/Csharp/mmaj11/2","reason":"the fork changed it to [-1,4,4,5,5,4] fingers [0,1,1,2,3,1]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -434,7 +434,7 @@
         {
             "root": "C#", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[9,10,10,9,-1,9],"fingers":[1,2,2,1,0,1],"barres":[9],"from":"chords-db","forkId":"guitar/Csharp/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #3 Declared the barres the fingerings already implied: one finger covers two or more strings on the same fret, but that fret was missing from barres. #57 The barre crossed a muted string, which it would have sounded."}
+                {"frets":[9,10,10,9,-1,9],"fingers":[1,2,2,1,0,1],"barres":[9],"from":"chords-db","forkId":"guitar/Csharp/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #3 Declared the barres the fingerings already implied: one finger covers two or more strings on the same fret, but that fret was missing from barres. #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -448,7 +448,7 @@
             "voicings": [
                 {"frets":[9,11,11,-1,9,11],"fingers":["T",2,3,0,1,4],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/Csharp/sus2/3","reason":"uses the thumb, which unstrung does not ship. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: unstrung has no thumb fingerings (Joel)."}},
                 {"frets":[4,4,6,6,4,4],"fingers":[1,1,3,4,1,1],"barres":[4],"from":"chords-db","forkId":"guitar/Csharp/sus2/1","reason":"the fork changed it to [-1,4,6,6,4,4] fingers [0,1,3,4,1,1]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[9,6,6,8,9,-1],"fingers":[0,1,0,0,2,3],"barres":[6],"from":"chords-db","forkId":"guitar/Csharp/sus2/2","reason":"the fork has these frets with fingers [3,1,1,2,4,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."},
+                {"frets":[9,6,6,8,9,-1],"fingers":[0,1,0,0,2,3],"barres":[6],"from":"chords-db","forkId":"guitar/Csharp/sus2/2","reason":"the fork has these frets with fingers [3,1,1,2,4,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[9,11,11,-1,9,11],"fingers":[1,2,3,0,1,4],"barres":[9],"from":"chords-db","forkId":"guitar/Csharp/sus2/3","reason":"the fork has these frets with fingers [T,2,3,0,1,4]. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Shipped in voicings.json with this fingering, finger 1 across the barre and the muted string damped, in place of the fork's thumb fingering (Joel)."}},
                 {"frets":[11,11,11,13,14,11],"fingers":[1,1,1,3,4,1],"barres":[11],"from":"chords-db","forkId":"guitar/Csharp/sus2/4","reason":"the fork changed it to [-1,-1,11,13,14,11] fingers [0,0,1,3,4,1]. Fork #55 Muted the two lowest strings: neither sounded the root and the third string up does, so the chord now has its root in the bass (e.g. A11 777789 -> xx7789).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
@@ -457,7 +457,7 @@
             "root": "C#", "suffix": "sus4",
             "voicings": [
                 {"frets":[4,4,6,6,7,4],"fingers":[1,1,2,3,4,1],"barres":[4],"from":"chords-db","forkId":"guitar/Csharp/sus4/2","reason":"the fork changed it to [-1,4,6,6,7,4] fingers [0,1,2,3,4,1]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[9,-1,6,6,7,9],"fingers":[2,3,0,0,1,4],"barres":[],"from":"chords-db","forkId":"guitar/Csharp/sus4/3","reason":"the fork has these frets with fingers [3,0,1,1,2,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[9,-1,6,6,7,9],"fingers":[2,3,0,0,1,4],"barres":[],"from":"chords-db","forkId":"guitar/Csharp/sus4/3","reason":"the fork has these frets with fingers [3,0,1,1,2,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -472,7 +472,7 @@
         {
             "root": "D", "suffix": "/A",
             "voicings": [
-                {"frets":[-1,0,0,2,3,2],"fingers":[0,0,0,1,3,2],"barres":[],"from":"chords-db","forkId":"guitar/D/_A/1","reason":"the fork has these frets with fingers [0,0,0,1,2,1]. Fork no change recorded"},
+                {"frets":[-1,0,0,2,3,2],"fingers":[0,0,0,1,3,2],"barres":[],"from":"chords-db","forkId":"guitar/D/_A/1","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,0,0,1,2,1], and the fork kept that"},
                 {"frets":[5,5,7,7,7,5],"fingers":[1,1,2,3,4,1],"barres":[5],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"},
                 {"frets":[5,5,4,7,7,-1],"fingers":[2,3,1,4,4,0],"barres":[7],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"}
             ]
@@ -493,7 +493,7 @@
         {
             "root": "D", "suffix": "/C",
             "voicings": [
-                {"frets":[-1,3,0,2,3,2],"fingers":[0,3,0,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/D/_C/1","reason":"the fork has these frets with fingers [0,2,0,1,3,1]. Fork no change recorded"},
+                {"frets":[-1,3,0,2,3,2],"fingers":[0,3,0,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/D/_C/1","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,2,0,1,3,1], and the fork kept that"},
                 {"frets":[8,5,7,7,7,-1],"fingers":[4,1,3,3,3,0],"barres":[7],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"}
             ]
         },
@@ -545,7 +545,7 @@
             "root": "D", "suffix": "7#9",
             "voicings": [
                 {"frets":[-1,8,7,7,7,8],"fingers":[0,2,1,1,1,3],"barres":[7],"from":"chords-db","forkId":"guitar/D/7sharp9/3","reason":"the fork changed it to [10,8,7,7,7,8] fingers [4,2,1,1,1,3]. Fork #58 Put the root in the bass by fretting it on the lowest string (or on a muted string below), keeping every other note of the voicing; fingers adjusted to match (e.g. A♭dim7 xx0101 -> 4x0101, Dm x8776x -> x5776x).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[0,0,0,10,7,8],"fingers":[0,0,0,4,1,2],"barres":[],"from":"chords-db","reason":"sounds E, not in the chord. Sounds D E E# F# A C; the chord is D E# F# A C"}
+                {"frets":[0,0,0,10,7,8],"fingers":[0,0,0,4,1,2],"barres":[],"from":"chords-db","reason":"sounds E, not in the chord. Sounds D E E# F# A C; the chord is D E# F# A C","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -578,8 +578,8 @@
         {
             "root": "D", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,-1,0,1,1,2],"fingers":[0,0,0,1,2,3],"barres":[],"from":"chords-db","forkId":"guitar/D/9sharp11/1","reason":"the fork files it as D7#11 [-1,-1,0,1,1,2]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,9,0,7,9,8],"fingers":[0,3,0,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/D/9sharp11/3","reason":"the fork files it as D7#11 [-1,9,0,7,9,8]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,-1,0,1,1,2],"fingers":[0,0,0,1,2,3],"barres":[],"from":"chords-db","forkId":"guitar/D/9sharp11/1","reason":"the fork files it as D7#11 [-1,-1,0,1,1,2]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,9,0,7,9,8],"fingers":[0,3,0,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/D/9sharp11/3","reason":"the fork files it as D7#11 [-1,9,0,7,9,8]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -600,7 +600,7 @@
         {
             "root": "D", "suffix": "m7",
             "voicings": [
-                {"frets":[-1,-1,0,2,1,1],"fingers":[0,0,0,3,1,2],"barres":[],"from":"chords-db","forkId":"guitar/D/m7/2","reason":"the fork has these frets with fingers [0,0,0,2,1,1]. Fork no change recorded"},
+                {"frets":[-1,-1,0,2,1,1],"fingers":[0,0,0,3,1,2],"barres":[],"from":"chords-db","forkId":"guitar/D/m7/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,0,0,2,1,1], and the fork kept that"},
                 {"frets":[5,5,7,5,6,5],"fingers":[1,1,3,1,2,1],"barres":[5],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"},
                 {"frets":[-1,-1,7,7,6,8],"fingers":[0,0,2,3,1,4],"barres":[],"from":"chords-db","forkId":"guitar/D/m7/4","reason":"the fork changed it to [-1,-1,-1,7,6,8] fingers [0,0,0,3,1,4]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
@@ -642,7 +642,7 @@
             "voicings": [
                 {"frets":[10,-1,11,11,10,12],"fingers":["T",0,2,3,1,4],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/D/maj9/4","reason":"uses the thumb, which unstrung does not ship. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: unstrung has no thumb fingerings (Joel)."}},
                 {"frets":[10,-1,11,11,10,12],"fingers":[1,0,2,3,1,4],"barres":[10],"from":"chords-db","forkId":"guitar/D/maj9/4","reason":"the fork has these frets with fingers [T,0,2,3,1,4]. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Shipped in voicings.json with this fingering, finger 1 across the barre and the muted string damped, in place of the fork's thumb fingering (Joel)."}},
-                {"frets":[-1,5,4,6,4,-1],"fingers":[0,2,1,4,3,0],"barres":[],"from":"chords-db","reason":"sounds Eb, not in the chord. Sounds D Eb F# C#; the chord is D E F# A C#"}
+                {"frets":[-1,5,4,6,4,-1],"fingers":[0,2,1,4,3,0],"barres":[],"from":"chords-db","reason":"sounds Eb, not in the chord. Sounds D Eb F# C#; the chord is D E F# A C#","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -662,21 +662,21 @@
         {
             "root": "D", "suffix": "mmaj11",
             "voicings": [
-                {"frets":[5,5,5,7,7,5],"fingers":[1,1,1,2,3,1],"barres":[5],"from":"chords-db","reason":"sounds F#, not in the chord; has no seventh. Sounds D F# G A; the chord is D E F G A C#"}
+                {"frets":[5,5,5,7,7,5],"fingers":[1,1,1,2,3,1],"barres":[5],"from":"chords-db","reason":"sounds F#, not in the chord; has no seventh. Sounds D F# G A; the chord is D E F G A C#","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
             "root": "D", "suffix": "mmaj7",
             "voicings": [
                 {"frets":[5,5,7,6,6,5],"fingers":[1,1,4,2,3,1],"barres":[5],"from":"chords-db","forkId":"guitar/D/mmaj7/3","reason":"the fork changed it to [-1,5,7,6,6,5] fingers [0,1,4,2,3,1]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[-1,5,3,2,2,0],"fingers":[0,4,2,1,1,0],"barres":[2],"from":"chords-db","reason":"sounds E, not in the chord. Sounds D E F A C#; the chord is D F A C#"}
+                {"frets":[-1,5,3,2,2,0],"fingers":[0,4,2,1,1,0],"barres":[2],"from":"chords-db","reason":"sounds E, not in the chord. Sounds D E F A C#; the chord is D F A C#","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
             "root": "D", "suffix": "mmaj7b5",
             "voicings": [
                 {"frets":[4,5,6,6,6,-1],"fingers":[1,2,3,3,3,0],"barres":[6],"from":"chords-db","forkId":"guitar/D/mmaj7b5/2","reason":"the fork changed it to [-1,5,6,6,6,4] fingers [0,2,3,3,3,1]. Fork #60 Put the root in the bass with a three-string edit in the same neck position (e.g. A♭m(maj7)♭5 abcccx -> xbccca, the mirrored shape with the root on the A string).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[10,11,11,10,-1,10],"fingers":[1,2,2,1,0,1],"barres":[10],"from":"chords-db","forkId":"guitar/D/mmaj7b5/4","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #3 Declared the barres the fingerings already implied: one finger covers two or more strings on the same fret, but that fret was missing from barres. #57 The barre crossed a muted string, which it would have sounded."}
+                {"frets":[10,11,11,10,-1,10],"fingers":[1,2,2,1,0,1],"barres":[10],"from":"chords-db","forkId":"guitar/D/mmaj7b5/4","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #3 Declared the barres the fingerings already implied: one finger covers two or more strings on the same fret, but that fret was missing from barres. #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -712,7 +712,7 @@
             "root": "Eb", "suffix": "11",
             "voicings": [
                 {"frets":[1,1,1,1,2,3],"fingers":[1,1,1,1,2,3],"barres":[1],"from":"chords-db","forkId":"guitar/Eb/11/1","reason":"the fork changed it to [-1,-1,1,1,2,3] fingers [0,0,1,1,2,3]. Fork #55 Muted the two lowest strings: neither sounded the root and the third string up does, so the chord now has its root in the bass (e.g. A11 777789 -> xx7789).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[0,6,6,6,8,6],"fingers":[0,1,1,1,3,1],"barres":[6],"from":"chords-db","reason":"sounds E, not in the chord. Sounds Eb E G Ab Bb Db; the chord is Eb F G Ab Bb Db"}
+                {"frets":[0,6,6,6,8,6],"fingers":[0,1,1,1,3,1],"barres":[6],"from":"chords-db","reason":"sounds E, not in the chord. Sounds Eb E G Ab Bb Db; the chord is Eb F G Ab Bb Db","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -750,7 +750,7 @@
             "root": "Eb", "suffix": "7b5",
             "voicings": [
                 {"frets":[-1,-1,5,6,4,5],"fingers":[0,0,2,4,1,3],"barres":[],"from":"chords-db","forkId":"guitar/Eb/7b5/2","reason":"the fork changed it to [-1,6,5,6,-1,5] fingers [0,3,2,4,0,1]. Fork #59 Put the root in the bass with a two-string edit: the root is added on a lower string and one note moves or is muted so the shape stays within the hand's span (e.g. A♭m xx9897 -> xx68x7, F6/9 x55565 -> x85765).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[-1,6,7,6,8,6],"fingers":[0,1,2,1,3,0],"barres":[6],"from":"chords-db","reason":"sounds Bb, not in the chord. Sounds Eb G A Bb Db; the chord is Eb G A Db"}
+                {"frets":[-1,6,7,6,8,6],"fingers":[0,1,2,1,3,0],"barres":[6],"from":"chords-db","reason":"sounds Bb, not in the chord. Sounds Eb G A Bb Db; the chord is Eb G A Db","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -771,14 +771,14 @@
         {
             "root": "Eb", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,-1,1,2,2,3],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Eb/9sharp11/1","reason":"the fork files it as Eb7#11 [-1,-1,1,2,2,3]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,6,7,6,8,-1],"fingers":[0,1,2,1,3,0],"barres":[6],"from":"chords-db","forkId":"guitar/Eb/9sharp11/3","reason":"the fork files it as Eb7#11 [-1,6,7,6,8,-1]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,-1,1,2,2,3],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Eb/9sharp11/1","reason":"the fork files it as Eb7#11 [-1,-1,1,2,2,3]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,6,7,6,8,-1],"fingers":[0,1,2,1,3,0],"barres":[6],"from":"chords-db","forkId":"guitar/Eb/9sharp11/3","reason":"the fork files it as Eb7#11 [-1,6,7,6,8,-1]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
             "root": "Eb", "suffix": "9b5",
             "voicings": [
-                {"frets":[11,10,11,10,10,11],"fingers":[1,2,0,3,0,4],"barres":[10],"from":"chords-db","forkId":"guitar/Eb/9b5/3","reason":"the fork has these frets with fingers [2,1,3,1,1,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[11,10,11,10,10,11],"fingers":[1,2,0,3,0,4],"barres":[10],"from":"chords-db","forkId":"guitar/Eb/9b5/3","reason":"the fork has these frets with fingers [2,1,3,1,1,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -812,7 +812,7 @@
         {
             "root": "Eb", "suffix": "m69",
             "voicings": [
-                {"frets":[11,9,10,10,9,9],"fingers":[4,1,2,3,0,0],"barres":[9],"from":"chords-db","reason":"sounds Ab, C#, not in the chord. Sounds Eb F Gb Ab C C#; the chord is Eb F Gb Bb C"}
+                {"frets":[11,9,10,10,9,9],"fingers":[4,1,2,3,0,0],"barres":[9],"from":"chords-db","reason":"sounds Ab, C#, not in the chord. Sounds Eb F Gb Ab C C#; the chord is Eb F Gb Bb C","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -874,7 +874,7 @@
             "voicings": [
                 {"frets":[11,12,12,12,-1,11],"fingers":["T",2,2,2,0,1],"barres":[12],"from":"tabsy-gr/chords-db","id":"guitar/Eb/maj7b5/4","reason":"uses the thumb, which unstrung does not ship. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: unstrung has no thumb fingerings (Joel)."}},
                 {"frets":[11,12,12,12,-1,11],"fingers":[1,2,2,2,0,1],"barres":[11,12],"from":"chords-db","forkId":"guitar/Eb/maj7b5/4","reason":"the fork has these frets with fingers [T,2,2,2,0,1]. Fork #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Shipped in voicings.json with this fingering, finger 1 across the barre and the muted string damped, in place of the fork's thumb fingering (Joel)."}},
-                {"frets":[-1,6,7,7,8,6],"fingers":[0,1,2,2,4,0],"barres":[6],"from":"chords-db","reason":"sounds Bb, not in the chord. Sounds Eb G A Bb D; the chord is Eb G A D"}
+                {"frets":[-1,6,7,7,8,6],"fingers":[0,1,2,2,4,0],"barres":[6],"from":"chords-db","reason":"sounds Bb, not in the chord. Sounds Eb G A Bb D; the chord is Eb G A D","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -900,7 +900,7 @@
             "root": "Eb", "suffix": "mmaj11",
             "voicings": [
                 {"frets":[-1,1,1,1,3,2],"fingers":[0,1,1,1,3,2],"barres":[1],"from":"chords-db","forkId":"guitar/Eb/mmaj11/1","reason":"the fork changed it to [-1,-1,1,1,3,2] fingers [0,0,1,1,3,2]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[-1,6,4,7,6,4],"fingers":[0,3,1,4,3,1],"barres":[4],"from":"chords-db","forkId":"guitar/Eb/mmaj11/2","reason":"the fork has these frets with fingers [0,2,1,4,3,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."},
+                {"frets":[-1,6,4,7,6,4],"fingers":[0,3,1,4,3,1],"barres":[4],"from":"chords-db","forkId":"guitar/Eb/mmaj11/2","reason":"the fork has these frets with fingers [0,2,1,4,3,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[6,6,6,7,7,6],"fingers":[1,1,1,2,3,1],"barres":[6],"from":"chords-db","forkId":"guitar/Eb/mmaj11/3","reason":"the fork changed it to [-1,6,6,7,7,6] fingers [0,1,1,2,3,1]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -908,7 +908,7 @@
             "root": "Eb", "suffix": "mmaj7b5",
             "voicings": [
                 {"frets":[5,6,7,7,7,-1],"fingers":[1,2,3,3,3,0],"barres":[7],"from":"chords-db","forkId":"guitar/Eb/mmaj7b5/2","reason":"the fork changed it to [-1,6,7,7,7,5] fingers [0,2,3,3,3,1]. Fork #60 Put the root in the bass with a three-string edit in the same neck position (e.g. A♭m(maj7)♭5 abcccx -> xbccca, the mirrored shape with the root on the A string).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[11,12,12,11,-1,11],"fingers":[1,2,2,1,0,1],"barres":[11,12],"from":"chords-db","forkId":"guitar/Eb/mmaj7b5/4","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."}
+                {"frets":[11,12,12,11,-1,11],"fingers":[1,2,2,1,0,1],"barres":[11,12],"from":"chords-db","forkId":"guitar/Eb/mmaj7b5/4","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -945,7 +945,7 @@
         {
             "root": "E", "suffix": "/B",
             "voicings": [
-                {"frets":[-1,2,2,4,5,4],"fingers":[0,1,1,3,4,3],"barres":[2],"from":"chords-db","forkId":"guitar/E/_B/2","reason":"the fork has these frets with fingers [0,1,1,2,4,3]. Fork no change recorded"}
+                {"frets":[-1,2,2,4,5,4],"fingers":[0,1,1,3,4,3],"barres":[2],"from":"chords-db","forkId":"guitar/E/_B/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,1,1,2,4,3], and the fork kept that"}
             ]
         },
         {
@@ -963,14 +963,14 @@
         {
             "root": "E", "suffix": "/F#",
             "voicings": [
-                {"frets":[2,2,2,4,5,4],"fingers":[1,1,1,3,4,3],"barres":[2],"from":"chords-db","forkId":"guitar/E/_Fsharp/3","reason":"the fork has these frets with fingers [1,1,1,2,4,3]. Fork no change recorded"}
+                {"frets":[2,2,2,4,5,4],"fingers":[1,1,1,3,4,3],"barres":[2],"from":"chords-db","forkId":"guitar/E/_Fsharp/3","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [1,1,1,2,4,3], and the fork kept that"}
             ]
         },
         {
             "root": "E", "suffix": "/G",
             "voicings": [
                 {"frets":[3,2,2,4,5,4],"fingers":[2,1,1,3,4,3],"barres":[2],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"},
-                {"frets":[-1,-1,5,4,5,4],"fingers":[0,0,3,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/E/_G/2","reason":"the fork has these frets with fingers [0,0,2,1,3,1]. Fork no change recorded"}
+                {"frets":[-1,-1,5,4,5,4],"fingers":[0,0,3,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/E/_G/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,0,2,1,3,1], and the fork kept that"}
             ]
         },
         {
@@ -1031,8 +1031,8 @@
         {
             "root": "E", "suffix": "9#11",
             "voicings": [
-                {"frets":[0,1,0,1,0,0],"fingers":[0,1,0,2,0,0],"barres":[],"from":"chords-db","forkId":"guitar/E/9sharp11/1","reason":"the fork files it as E7#11 [0,1,0,1,0,0]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[0,5,0,3,5,4],"fingers":[0,3,0,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/E/9sharp11/2","reason":"the fork files it as E7#11 [0,5,0,3,5,4]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[0,1,0,1,0,0],"fingers":[0,1,0,2,0,0],"barres":[],"from":"chords-db","forkId":"guitar/E/9sharp11/1","reason":"the fork files it as E7#11 [0,1,0,1,0,0]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[0,5,0,3,5,4],"fingers":[0,3,0,1,4,2],"barres":[],"from":"chords-db","forkId":"guitar/E/9sharp11/2","reason":"the fork files it as E7#11 [0,5,0,3,5,4]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -1047,7 +1047,7 @@
         {
             "root": "E", "suffix": "aug",
             "voicings": [
-                {"frets":[-1,7,10,9,9,-1],"fingers":[4,3,2,1,1,0],"barres":[],"from":"chords-db","forkId":"guitar/E/aug/3","reason":"the fork has these frets with fingers [0,1,4,2,3,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[-1,7,10,9,9,-1],"fingers":[4,3,2,1,1,0],"barres":[],"from":"chords-db","forkId":"guitar/E/aug/3","reason":"the fork has these frets with fingers [0,1,4,2,3,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -1097,10 +1097,10 @@
         {
             "root": "E", "suffix": "madd9",
             "voicings": [
-                {"frets":[-1,-1,3,1,1,3],"fingers":[0,0,3,1,1,4],"barres":[1],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B"},
-                {"frets":[-1,8,6,5,8,-1],"fingers":[0,3,2,1,4,0],"barres":[],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B"},
-                {"frets":[-1,8,6,0,6,8],"fingers":[0,3,1,0,2,4],"barres":[],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B"},
-                {"frets":[-1,8,10,0,9,8],"fingers":[0,1,4,0,3,2],"barres":[],"from":"chords-db","reason":"sounds F, C, Ab, not in the chord. Sounds F G Ab C; the chord is E F# G B"}
+                {"frets":[-1,-1,3,1,1,3],"fingers":[0,0,3,1,1,4],"barres":[1],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as Fmadd9."}},
+                {"frets":[-1,8,6,5,8,-1],"fingers":[0,3,2,1,4,0],"barres":[],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as Fmadd9."}},
+                {"frets":[-1,8,6,0,6,8],"fingers":[0,3,1,0,2,4],"barres":[],"from":"chords-db","reason":"sounds F, Ab, C, not in the chord. Sounds F G Ab C; the chord is E F# G B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as Fmadd9."}},
+                {"frets":[-1,8,10,0,9,8],"fingers":[0,1,4,0,3,2],"barres":[],"from":"chords-db","reason":"sounds F, C, Ab, not in the chord. Sounds F G Ab C; the chord is E F# G B","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as Fmadd9."}}
             ]
         },
         {
@@ -1187,20 +1187,20 @@
             "root": "F", "suffix": "/A",
             "voicings": [
                 {"frets":[5,3,3,2,-1,-1],"fingers":[4,2,3,1,0,0],"barres":[],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"},
-                {"frets":[5,3,3,5,6,0],"fingers":[2,1,1,3,4,0],"barres":[3],"from":"chords-db","reason":"sounds E, not in the chord. Sounds F A C E; the chord is F A C"}
+                {"frets":[5,3,3,5,6,0],"fingers":[2,1,1,3,4,0],"barres":[3],"from":"chords-db","reason":"sounds E, not in the chord. Sounds F A C E; the chord is F A C","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
             "root": "F", "suffix": "/C",
             "voicings": [
-                {"frets":[-1,3,3,5,6,5],"fingers":[0,1,1,3,4,3],"barres":[3],"from":"chords-db","forkId":"guitar/F/_C/2","reason":"the fork has these frets with fingers [0,1,1,2,4,3]. Fork no change recorded"}
+                {"frets":[-1,3,3,5,6,5],"fingers":[0,1,1,3,4,3],"barres":[3],"from":"chords-db","forkId":"guitar/F/_C/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,1,1,2,4,3], and the fork kept that"}
             ]
         },
         {
             "root": "F", "suffix": "/G",
             "voicings": [
                 {"frets":[3,3,3,2,-1,-1],"fingers":[2,3,4,1,0,0],"barres":[],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"},
-                {"frets":[3,3,3,5,6,5],"fingers":[1,1,1,3,4,3],"barres":[3],"from":"chords-db","forkId":"guitar/F/_G/2","reason":"the fork has these frets with fingers [1,1,1,2,4,3]. Fork no change recorded"}
+                {"frets":[3,3,3,5,6,5],"fingers":[1,1,1,3,4,3],"barres":[3],"from":"chords-db","forkId":"guitar/F/_G/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [1,1,1,2,4,3], and the fork kept that"}
             ]
         },
         {
@@ -1284,14 +1284,14 @@
         {
             "root": "F", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,-1,3,4,4,5],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/F/9sharp11/2","reason":"the fork files it as F7#11 [-1,-1,3,4,4,5]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,8,9,8,10,8],"fingers":[0,1,2,1,3,1],"barres":[8],"from":"chords-db","forkId":"guitar/F/9sharp11/4","reason":"the fork files it as F7#11 [-1,8,9,8,10,8]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,-1,3,4,4,5],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/F/9sharp11/2","reason":"the fork files it as F7#11 [-1,-1,3,4,4,5]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,8,9,8,10,8],"fingers":[0,1,2,1,3,1],"barres":[8],"from":"chords-db","forkId":"guitar/F/9sharp11/4","reason":"the fork files it as F7#11 [-1,8,9,8,10,8]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
             "root": "F", "suffix": "9b5",
             "voicings": [
-                {"frets":[13,12,13,0,0,13],"fingers":[2,1,2,0,0,3],"barres":[13],"from":"chords-db","forkId":"guitar/F/9b5/4","reason":"the fork has these frets with fingers [2,1,3,0,0,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[13,12,13,0,0,13],"fingers":[2,1,2,0,0,3],"barres":[13],"from":"chords-db","forkId":"guitar/F/9b5/4","reason":"the fork has these frets with fingers [2,1,3,0,0,4]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -1486,8 +1486,8 @@
         {
             "root": "F#", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,-1,4,5,5,6],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Fsharp/9sharp11/2","reason":"the fork files it as F#7#11 [-1,-1,4,5,5,6]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,9,10,9,11,9],"fingers":[0,1,2,1,3,1],"barres":[9],"from":"chords-db","forkId":"guitar/Fsharp/9sharp11/4","reason":"the fork files it as F#7#11 [-1,9,10,9,11,9]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,-1,4,5,5,6],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Fsharp/9sharp11/2","reason":"the fork files it as F#7#11 [-1,-1,4,5,5,6]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,9,10,9,11,9],"fingers":[0,1,2,1,3,1],"barres":[9],"from":"chords-db","forkId":"guitar/Fsharp/9sharp11/4","reason":"the fork files it as F#7#11 [-1,9,10,9,11,9]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -1604,7 +1604,7 @@
         {
             "root": "F#", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[2,3,3,2,-1,2],"fingers":[1,2,3,1,0,1],"barres":[2],"from":"chords-db","forkId":"guitar/Fsharp/mmaj7b5/1","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."},
+                {"frets":[2,3,3,2,-1,2],"fingers":[1,2,3,1,0,1],"barres":[2],"from":"chords-db","forkId":"guitar/Fsharp/mmaj7b5/1","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[8,9,10,10,10,-1],"fingers":[1,2,3,3,3,0],"barres":[10],"from":"chords-db","forkId":"guitar/Fsharp/mmaj7b5/3","reason":"the fork changed it to [-1,9,10,10,10,8] fingers [0,2,3,3,3,1]. Fork #60 Put the root in the bass with a three-string edit in the same neck position (e.g. A♭m(maj7)♭5 abcccx -> xbccca, the mirrored shape with the root on the A string).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -1635,7 +1635,7 @@
         {
             "root": "G", "suffix": "/B",
             "voicings": [
-                {"frets":[-1,2,0,0,3,3],"fingers":[0,1,0,0,2,3],"barres":[],"from":"chords-db","forkId":"guitar/G/_B/2","reason":"the fork has these frets with fingers [0,1,0,0,2,2]. Fork no change recorded"},
+                {"frets":[-1,2,0,0,3,3],"fingers":[0,1,0,0,2,3],"barres":[],"from":"chords-db","forkId":"guitar/G/_B/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,1,0,0,2,2], and the fork kept that"},
                 {"frets":[-1,2,5,4,3,3],"fingers":[0,1,4,3,2,2],"barres":[3],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"}
             ]
         },
@@ -1648,7 +1648,7 @@
         {
             "root": "G", "suffix": "/E",
             "voicings": [
-                {"frets":[0,2,0,0,3,3],"fingers":[0,1,0,0,2,3],"barres":[],"from":"chords-db","forkId":"guitar/G/_E/2","reason":"the fork has these frets with fingers [0,1,0,0,2,2]. Fork no change recorded"},
+                {"frets":[0,2,0,0,3,3],"fingers":[0,1,0,0,2,3],"barres":[],"from":"chords-db","forkId":"guitar/G/_E/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [0,1,0,0,2,2], and the fork kept that"},
                 {"frets":[-1,-1,2,4,3,3],"fingers":[0,0,1,4,2,3],"barres":[],"from":"chords-db","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded"}
             ]
         },
@@ -1661,7 +1661,7 @@
         {
             "root": "G", "suffix": "/F#",
             "voicings": [
-                {"frets":[2,2,0,0,3,3],"fingers":[1,2,0,0,3,4],"barres":[],"from":"chords-db","forkId":"guitar/G/_Fsharp/2","reason":"the fork has these frets with fingers [1,2,0,0,3,3]. Fork no change recorded"}
+                {"frets":[2,2,0,0,3,3],"fingers":[1,2,0,0,3,4],"barres":[],"from":"chords-db","forkId":"guitar/G/_Fsharp/2","reason":"chords-db changed or dropped it between 0.5.1 and 0.6.0; no reason recorded. 0.6.0 refingered these frets [1,2,0,0,3,3], and the fork kept that"}
             ]
         },
         {
@@ -1740,14 +1740,14 @@
         {
             "root": "G", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,-1,5,6,6,7],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/G/9sharp11/2","reason":"the fork files it as G7#11 [-1,-1,5,6,6,7]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,10,11,10,12,10],"fingers":[0,1,2,1,3,1],"barres":[10],"from":"chords-db","forkId":"guitar/G/9sharp11/4","reason":"the fork files it as G7#11 [-1,10,11,10,12,10]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,-1,5,6,6,7],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/G/9sharp11/2","reason":"the fork files it as G7#11 [-1,-1,5,6,6,7]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,10,11,10,12,10],"fingers":[0,1,2,1,3,1],"barres":[10],"from":"chords-db","forkId":"guitar/G/9sharp11/4","reason":"the fork files it as G7#11 [-1,10,11,10,12,10]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
             "root": "G", "suffix": "add9",
             "voicings": [
-                {"frets":[-1,-1,3,2,1,4],"fingers":[0,0,3,2,1,4],"barres":[],"from":"chords-db","reason":"sounds F, C, Ab, not in the chord. Sounds Ab A C F; the chord is G A B D"}
+                {"frets":[-1,-1,3,2,1,4],"fingers":[0,0,3,2,1,4],"barres":[],"from":"chords-db","reason":"sounds F, C, Ab, not in the chord. Sounds Ab A C F; the chord is G A B D","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -1762,13 +1762,13 @@
         {
             "root": "G", "suffix": "dim",
             "voicings": [
-                {"frets":[-1,10,8,-1,8,9],"fingers":[0,1,2,4,3,0],"barres":[],"from":"chords-db","forkId":"guitar/G/dim/3","reason":"the fork has these frets with fingers [0,4,2,0,1,3]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes). #57 The barre crossed a muted string, which it would have sounded."}
+                {"frets":[-1,10,8,-1,8,9],"fingers":[0,1,2,4,3,0],"barres":[],"from":"chords-db","forkId":"guitar/G/dim/3","reason":"the fork has these frets with fingers [0,4,2,0,1,3]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes). #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
             "root": "G", "suffix": "m11",
             "voicings": [
-                {"frets":[-1,-1,5,5,7,7],"fingers":[0,0,1,1,2,3],"barres":[5],"from":"chords-db","reason":"sounds F#, B, not in the chord; has no seventh. Sounds G B C F#; the chord is G A Bb C D F"}
+                {"frets":[-1,-1,5,5,7,7],"fingers":[0,0,1,1,2,3],"barres":[5],"from":"chords-db","reason":"sounds F#, B, not in the chord; has no seventh. Sounds G B C F#; the chord is G A Bb C D F","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as Gmaj11."}}
             ]
         },
         {
@@ -1800,7 +1800,7 @@
         {
             "root": "G", "suffix": "maj13",
             "voicings": [
-                {"frets":[3,2,2,2,3,2],"fingers":[3,1,1,1,3,1],"barres":[2,3],"from":"chords-db","forkId":"guitar/G/maj13/1","reason":"the fork has these frets with fingers [2,1,1,1,3,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[3,2,2,2,3,2],"fingers":[3,1,1,1,3,1],"barres":[2,3],"from":"chords-db","forkId":"guitar/G/maj13/1","reason":"the fork has these frets with fingers [2,1,1,1,3,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -1845,7 +1845,7 @@
         {
             "root": "G", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[3,4,4,3,-1,3],"fingers":[1,2,3,1,0,1],"barres":[3],"from":"chords-db","forkId":"guitar/G/mmaj7b5/1","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."},
+                {"frets":[3,4,4,3,-1,3],"fingers":[1,2,3,1,0,1],"barres":[3],"from":"chords-db","forkId":"guitar/G/mmaj7b5/1","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[9,10,11,11,11,-1],"fingers":[1,2,3,3,3,0],"barres":[11],"from":"chords-db","forkId":"guitar/G/mmaj7b5/3","reason":"the fork changed it to [-1,10,11,11,11,9] fingers [0,2,3,3,3,1]. Fork #60 Put the root in the bass with a three-string edit in the same neck position (e.g. A♭m(maj7)♭5 abcccx -> xbccca, the mirrored shape with the root on the A string).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -1923,7 +1923,7 @@
             "root": "Ab", "suffix": "7b9",
             "voicings": [
                 {"frets":[-1,0,1,1,1,2],"fingers":[0,0,1,1,1,2],"barres":[1],"from":"chords-db","forkId":"guitar/Ab/7b9/1","reason":"the fork changed it to [4,0,1,1,1,2] fingers [3,0,1,1,1,2]. Fork #58 Put the root in the bass by fretting it on the lowest string (or on a muted string below), keeping every other note of the voicing; fingers adjusted to match (e.g. A♭dim7 xx0101 -> 4x0101, Dm x8776x -> x5776x).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[-1,-1,4,5,4,5],"fingers":[1,0,1,2,1,3],"barres":[4],"from":"chords-db","forkId":"guitar/Ab/7b9/2","reason":"the fork has these frets with fingers [0,0,1,2,1,3]. Fork #9 Marked rootless: a guitar voicing of a ninth chord that leaves out the root on purpose (e.g. Fmaj9 xx2213, which sounds as Am7), as jazz voicings often do. #10 Removed the finger on the muted low E string (fingers were shifted by one string)."}
+                {"frets":[-1,-1,4,5,4,5],"fingers":[1,0,1,2,1,3],"barres":[4],"from":"chords-db","forkId":"guitar/Ab/7b9/2","reason":"the fork has these frets with fingers [0,0,1,2,1,3]. Fork #9 Marked rootless: a guitar voicing of a ninth chord that leaves out the root on purpose (e.g. Fmaj9 xx2213, which sounds as Am7), as jazz voicings often do. #10 Removed the finger on the muted low E string (fingers were shifted by one string).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -1951,9 +1951,9 @@
         {
             "root": "Ab", "suffix": "9#11",
             "voicings": [
-                {"frets":[4,-1,4,5,3,-1],"fingers":[2,0,3,4,1,0],"barres":[],"from":"chords-db","forkId":"guitar/Ab/9sharp11/1","reason":"the fork files it as Ab7#11 [4,-1,4,5,3,-1]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,-1,6,7,7,8],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Ab/9sharp11/2","reason":"the fork files it as Ab7#11 [-1,-1,6,7,7,8]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,11,12,11,13,11],"fingers":[0,1,2,1,3,1],"barres":[11],"from":"chords-db","forkId":"guitar/Ab/9sharp11/4","reason":"the fork files it as Ab7#11 [-1,11,12,11,13,11]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[4,-1,4,5,3,-1],"fingers":[2,0,3,4,1,0],"barres":[],"from":"chords-db","forkId":"guitar/Ab/9sharp11/1","reason":"the fork files it as Ab7#11 [4,-1,4,5,3,-1]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,-1,6,7,7,8],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Ab/9sharp11/2","reason":"the fork files it as Ab7#11 [-1,-1,6,7,7,8]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,11,12,11,13,11],"fingers":[0,1,2,1,3,1],"barres":[11],"from":"chords-db","forkId":"guitar/Ab/9sharp11/4","reason":"the fork files it as Ab7#11 [-1,11,12,11,13,11]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -1981,7 +1981,7 @@
         {
             "root": "Ab", "suffix": "m11",
             "voicings": [
-                {"frets":[-1,11,9,11,11,9],"fingers":[0,3,1,3,4,1],"barres":[9],"from":"chords-db","forkId":"guitar/Ab/m11/4","reason":"the fork has these frets with fingers [0,2,1,3,4,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[-1,11,9,11,11,9],"fingers":[0,3,1,3,4,1],"barres":[9],"from":"chords-db","forkId":"guitar/Ab/m11/4","reason":"the fork has these frets with fingers [0,2,1,3,4,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -2037,7 +2037,7 @@
         {
             "root": "Ab", "suffix": "maj7b5",
             "voicings": [
-                {"frets":[0,0,6,7,8,8],"fingers":[0,0,1,2,3,4],"barres":[8],"from":"chords-db","reason":"sounds E, A, not in the chord. Sounds Ab A C D E G; the chord is Ab C D G"}
+                {"frets":[0,0,6,7,8,8],"fingers":[0,0,1,2,3,4],"barres":[8],"from":"chords-db","reason":"sounds E, A, not in the chord. Sounds Ab A C D E G; the chord is Ab C D G","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -2079,7 +2079,7 @@
         {
             "root": "Ab", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[4,5,5,4,-1,4],"fingers":[1,2,3,1,0,1],"barres":[4],"from":"chords-db","forkId":"guitar/Ab/mmaj7b5/1","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."},
+                {"frets":[4,5,5,4,-1,4],"fingers":[1,2,3,1,0,1],"barres":[4],"from":"chords-db","forkId":"guitar/Ab/mmaj7b5/1","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[10,11,12,12,12,-1],"fingers":[1,2,3,3,3,0],"barres":[12],"from":"chords-db","forkId":"guitar/Ab/mmaj7b5/3","reason":"the fork changed it to [-1,11,12,12,12,10] fingers [0,2,3,3,3,1]. Fork #60 Put the root in the bass with a three-string edit in the same neck position (e.g. A♭m(maj7)♭5 abcccx -> xbccca, the mirrored shape with the root on the A string).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -2173,8 +2173,8 @@
         {
             "root": "A", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,0,1,0,2,0],"fingers":[0,0,1,0,3,0],"barres":[],"from":"chords-db","forkId":"guitar/A/9sharp11/1","reason":"the fork files it as A7#11 [-1,0,1,0,2,0]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,-1,7,8,8,9],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/A/9sharp11/3","reason":"the fork files it as A7#11 [-1,-1,7,8,8,9]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,0,1,0,2,0],"fingers":[0,0,1,0,3,0],"barres":[],"from":"chords-db","forkId":"guitar/A/9sharp11/1","reason":"the fork files it as A7#11 [-1,0,1,0,2,0]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,-1,7,8,8,9],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/A/9sharp11/3","reason":"the fork files it as A7#11 [-1,-1,7,8,8,9]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -2196,7 +2196,7 @@
         {
             "root": "A", "suffix": "dim",
             "voicings": [
-                {"frets":[5,3,-1,4,3,-1],"fingers":[3,1,0,4,2,0],"barres":[],"from":"chords-db","reason":"sounds B, D, not in the chord. Sounds A B C D; the chord is A C Eb"}
+                {"frets":[5,3,-1,4,3,-1],"fingers":[3,1,0,4,2,0],"barres":[],"from":"chords-db","reason":"sounds B, D, not in the chord. Sounds A B C D; the chord is A C Eb","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -2227,7 +2227,7 @@
         {
             "root": "A", "suffix": "m/G#",
             "voicings": [
-                {"frets":[-1,-1,4,5,5,5],"fingers":[0,0,2,1,1,1],"barres":[5],"from":"chords-db","reason":"sounds F#, not in the chord. Sounds A C E F#; the chord is A C E Ab"}
+                {"frets":[-1,-1,4,5,5,5],"fingers":[0,0,2,1,1,1],"barres":[5],"from":"chords-db","reason":"sounds F#, not in the chord. Sounds A C E F#; the chord is A C E Ab","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel). The same frets ship as F#m7b5."}}
             ]
         },
         {
@@ -2263,7 +2263,7 @@
         {
             "root": "A", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[5,6,6,5,-1,5],"fingers":[1,2,3,1,0,1],"barres":[5],"from":"chords-db","forkId":"guitar/A/mmaj7b5/2","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."},
+                {"frets":[5,6,6,5,-1,5],"fingers":[1,2,3,1,0,1],"barres":[5],"from":"chords-db","forkId":"guitar/A/mmaj7b5/2","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[11,12,13,13,13,-1],"fingers":[1,2,3,3,3,0],"barres":[13],"from":"chords-db","forkId":"guitar/A/mmaj7b5/4","reason":"the fork changed it to [-1,12,13,13,13,-1] fingers [0,2,3,3,3,0]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -2299,7 +2299,7 @@
             "voicings": [
                 {"frets":[6,8,-1,7,8,6],"fingers":["T",3,0,2,4,1],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/Bb/6/3","reason":"uses the thumb, which unstrung does not ship. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes). #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: unstrung has no thumb fingerings (Joel)."}},
                 {"frets":[6,8,-1,7,8,6],"fingers":[1,3,0,2,4,0],"barres":[6],"from":"chords-db","forkId":"guitar/Bb/6/3","reason":"the fork has these frets with fingers [T,3,0,2,4,1]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes). #56 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Shipped in voicings.json with this fingering, finger 1 across the barre and the muted string damped, in place of the fork's thumb fingering (Joel). String 1 had no finger here; shipped as 1 3 0 2 4 1, finger 1 across all six."}},
-                {"frets":[-1,13,11,11,10,-1],"fingers":[0,4,2,3,1,0],"barres":[],"from":"chords-db","reason":"sounds C#, F#, A, not in the chord. Sounds Bb C# F# A; the chord is Bb D F G"}
+                {"frets":[-1,13,11,11,10,-1],"fingers":[0,4,2,3,1,0],"barres":[],"from":"chords-db","reason":"sounds C#, F#, A, not in the chord. Sounds Bb C# F# A; the chord is Bb D F G","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
@@ -2345,7 +2345,7 @@
         {
             "root": "Bb", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,-1,8,9,9,10],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Bb/9sharp11/3","reason":"the fork files it as Bb7#11 [-1,-1,8,9,9,10]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,-1,8,9,9,10],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/Bb/9sharp11/3","reason":"the fork files it as Bb7#11 [-1,-1,8,9,9,10]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -2453,7 +2453,7 @@
         {
             "root": "Bb", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[6,7,7,6,-1,6],"fingers":[1,2,3,1,0,1],"barres":[6],"from":"chords-db","forkId":"guitar/Bb/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."}
+                {"frets":[6,7,7,6,-1,6],"fingers":[1,2,3,1,0,1],"barres":[6],"from":"chords-db","forkId":"guitar/Bb/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -2539,9 +2539,9 @@
         {
             "root": "B", "suffix": "9#11",
             "voicings": [
-                {"frets":[-1,2,3,2,4,2],"fingers":[0,1,2,1,3,1],"barres":[2],"from":"chords-db","forkId":"guitar/B/9sharp11/2","reason":"the fork files it as B7#11 [-1,2,3,2,4,2]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[7,-1,7,8,6,-1],"fingers":[2,0,3,4,1,0],"barres":[],"from":"chords-db","forkId":"guitar/B/9sharp11/3","reason":"the fork files it as B7#11 [7,-1,7,8,6,-1]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."},
-                {"frets":[-1,-1,9,10,10,11],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/B/9sharp11/4","reason":"the fork files it as B7#11 [-1,-1,9,10,10,11]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th."}
+                {"frets":[-1,2,3,2,4,2],"fingers":[0,1,2,1,3,1],"barres":[2],"from":"chords-db","forkId":"guitar/B/9sharp11/2","reason":"the fork files it as B7#11 [-1,2,3,2,4,2]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[7,-1,7,8,6,-1],"fingers":[2,0,3,4,1,0],"barres":[],"from":"chords-db","forkId":"guitar/B/9sharp11/3","reason":"the fork files it as B7#11 [7,-1,7,8,6,-1]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}},
+                {"frets":[-1,-1,9,10,10,11],"fingers":[0,0,1,2,3,4],"barres":[],"from":"chords-db","forkId":"guitar/B/9sharp11/4","reason":"the fork files it as B7#11 [-1,-1,9,10,10,11]. Fork #6 Relabelled from 9#11 to 7#11: these voicings have no 9th.","resolved":{"date":"2026-11-02","note":"Not shipped under this name: the fork relabelled it 7#11, since it has no 9th, and it ships under that name (Joel)."}}
             ]
         },
         {
@@ -2557,13 +2557,13 @@
             "root": "B", "suffix": "aug",
             "voicings": [
                 {"frets":[-1,-1,5,4,4,3],"fingers":[0,0,4,2,3,1],"barres":[],"from":"chords-db","forkId":"guitar/B/aug/2","reason":"the fork changed it to [-1,-1,-1,4,4,3] fingers [0,0,0,2,3,1]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}},
-                {"frets":[-1,14,13,12,12,0],"fingers":[0,3,2,1,1,0],"barres":[12],"from":"chords-db","reason":"sounds E, not in the chord. Sounds B D# E G; the chord is B D# G"}
+                {"frets":[-1,14,13,12,12,0],"fingers":[0,3,2,1,1,0],"barres":[12],"from":"chords-db","reason":"sounds E, not in the chord. Sounds B D# E G; the chord is B D# G","resolved":{"date":"2026-11-02","note":"Not shipped: it sounds a note outside the chord or leaves out the seventh, and the fork dropped or replaced it (Joel)."}}
             ]
         },
         {
             "root": "B", "suffix": "aug7",
             "voicings": [
-                {"frets":[-1,2,5,2,4,3],"fingers":[0,0,2,1,1,3],"barres":[2],"from":"chords-db","forkId":"guitar/B/aug7/2","reason":"the fork has these frets with fingers [0,1,4,1,3,2]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[-1,2,5,2,4,3],"fingers":[0,0,2,1,1,3],"barres":[2],"from":"chords-db","forkId":"guitar/B/aug7/2","reason":"the fork has these frets with fingers [0,1,4,1,3,2]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
@@ -2630,7 +2630,7 @@
         {
             "root": "B", "suffix": "maj7#5",
             "voicings": [
-                {"frets":[7,6,8,0,8,-1],"fingers":[2,1,3,0,3,0],"barres":[],"from":"chords-db","forkId":"guitar/B/maj7sharp5/3","reason":"the fork has these frets with fingers [2,1,3,0,4,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."},
+                {"frets":[7,6,8,0,8,-1],"fingers":[2,1,3,0,3,0],"barres":[],"from":"chords-db","forkId":"guitar/B/maj7sharp5/3","reason":"the fork has these frets with fingers [2,1,3,0,4,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}},
                 {"frets":[11,14,13,12,11,11],"fingers":[1,4,3,2,1,1],"barres":[11],"from":"chords-db","forkId":"guitar/B/maj7sharp5/4","reason":"the fork changed it to [-1,14,13,12,11,11] fingers [0,4,3,2,1,1]. Fork #51 Muted the lowest string: it sounded a chord tone other than the root, and the next string up plays the root, so the chord now has its root in the bass (e.g. Bm 224432 -> x24432).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's version, with the root lowest, ships instead (Joel accepted the fork's root-in-bass changes)."}}
             ]
         },
@@ -2672,13 +2672,13 @@
         {
             "root": "B", "suffix": "mmaj7b5",
             "voicings": [
-                {"frets":[7,8,8,7,-1,7],"fingers":[1,2,3,1,0,1],"barres":[7],"from":"chords-db","forkId":"guitar/B/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded."}
+                {"frets":[7,8,8,7,-1,7],"fingers":[1,2,3,1,0,1],"barres":[7],"from":"chords-db","forkId":"guitar/B/mmaj7b5/3","reason":"the fork has these frets with fingers [1,3,3,1,0,2]. Fork #57 The barre crossed a muted string, which it would have sounded.","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
             "root": "B", "suffix": "mmaj9",
             "voicings": [
-                {"frets":[-1,14,12,15,14,-1],"fingers":[0,3,1,4,3,0],"barres":[],"from":"chords-db","forkId":"guitar/B/mmaj9/4","reason":"the fork has these frets with fingers [0,2,1,4,3,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes)."}
+                {"frets":[-1,14,12,15,14,-1],"fingers":[0,3,1,4,3,0],"barres":[],"from":"chords-db","forkId":"guitar/B/mmaj9/4","reason":"the fork has these frets with fingers [0,2,1,4,3,0]. Fork #49 Refingered: the fingering was impossible (a fretted string with no finger, a finger on two frets, crossed fingers, or a barre over lower notes).","resolved":{"date":"2026-11-02","note":"Not shipped: the fork's fingering of these frets ships instead, for the reason it records (Joel)."}}
             ]
         },
         {
