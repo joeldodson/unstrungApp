@@ -52,9 +52,11 @@ eyesunstrung.vip.
   not to send them to chords-db, and carrying them in .atex progressions with alphaTex's `lf`
   finger marks so a reader can add them. Proposed 2026-11-01, not built.
 - `chord-library-maintenance.md` -- chords-db copied into unstrung's own source file and dropped as
-  a dependency (built 2026-11-02), what the check rejects and why the 38 chords have no fingering, a
-  shape checked against the name it is given, and, proposed, a maintainer tool for adding shipped
-  fingerings and how your own items are handled when a release ships the same thing.
+  a dependency, then the library re-seeded from the tabsy-gr/chords-db fork with no thumb
+  fingerings and our earlier shapes held for review (built 2026-11-02); what the check rejects, a
+  shape checked against the name it is given, two other sources looked at and not taken, and,
+  proposed, a maintainer tool for adding shipped fingerings and how your own items are handled
+  when a release ships the same thing.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.

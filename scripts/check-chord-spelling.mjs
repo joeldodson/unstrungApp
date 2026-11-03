@@ -158,8 +158,10 @@ check('every voicing lists its notes in ascending order from the root', outOfOrd
     `${outOfOrder} out of order`);
 
 console.log('\n=== Voicings whose bass is not the root are identifiable ===');
-// Not an error: an A shape barred across all six strings genuinely sounds an inversion. But it
-// has to be visible, or the chord name is quietly wrong.
+// Not an error: a shape can sound an inversion, as an A shape barred across all six strings does.
+// But it has to be visible, or the chord name is quietly wrong. Since the library was re-seeded
+// from tabsy-gr/chords-db on 2026-11-02, the fork's root-in-bass changes leave few: Bm's A-shape
+// barre, once 224432 with F# lowest, is now x24432.
 let inverted = 0, total = 0;
 for (const chord of library.chords) {
     if (chord.suffix.includes('/')) continue;
@@ -173,9 +175,9 @@ for (const chord of library.chords) {
 console.log(`  ${inverted} of ${total} voicings sound something other than the root lowest`);
 const bm = library.chords.find(c => c.name === 'Bm').voicings[0];
 console.log(`  Bm first voicing: lowest MIDI ${Math.min(...bm.midi)}, notes [${bm.notes.join(', ')}]`);
-check('the Bm A-shape barre is one of them',
-    ((Math.min(...bm.midi) % 12) + 12) % 12 !== PITCH_CLASSES.B);
-check('a fifth of voicings being inverted is worth reporting rather than hiding',
+check('the Bm A-shape barre has its root lowest',
+    ((Math.min(...bm.midi) % 12) + 12) % 12 === PITCH_CLASSES.B);
+check('some voicings being inverted is worth reporting rather than hiding',
     inverted > 0 && inverted < total);
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);

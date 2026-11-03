@@ -1,11 +1,13 @@
 // Generates src/assets/chords/chord-library.json from scripts/chord-library/voicings.json.
 //
-// voicings.json is unstrung's own record of chord shapes. It began on 2026-11-02 as a copy of
-// what passed this check from chords-db 0.5.1 (https://github.com/tombatossals/chords-db, MIT),
-// which is no longer a dependency; see scripts/chord-library/README.md. chords-db had real,
-// confirmed errors, including off-by-one transposition bugs, so every voicing, whoever added
-// it, is still re-derived from its frets and checked against its chord's interval formula
-// before it ships. Anything that fails is dropped and reported, never silently included.
+// voicings.json is unstrung's own record of chord shapes. Since 2026-11-02 it holds the guitar
+// voicings of tabsy-gr/chords-db (https://github.com/tabsy-gr/chords-db, MIT), a fork of
+// chords-db that corrects it, less the ones held for review; see scripts/chord-library/README.md.
+// Neither is a dependency. chords-db had real, confirmed errors, including off-by-one
+// transposition bugs, so every voicing, whoever added it, is still re-derived from its frets and
+// checked against its chord's interval formula before it ships. Anything that fails is dropped
+// and reported, never silently included. A finger other than 0 to 4, such as the fork's "T" for
+// the thumb, stops the build: unstrung ships no thumb fingerings.
 //
 // Run with: node scripts/build-chord-library.mjs
 
@@ -182,7 +184,14 @@ function qualityLabel(suffix) {
 // --- Convert a source voicing into the library's voicing shape ----------------------
 // The source gives frets string 6 first, -1 for not played and 0 for open, fingers in the
 // same order with 0 for none, and the frets held by a barre.
+const ALLOWED_FINGERS = new Set([0, 1, 2, 3, 4]);
+
 function buildVoicing(source) {
+    const unknownFinger = source.fingers.find(f => !ALLOWED_FINGERS.has(f));
+    if (unknownFinger !== undefined) {
+        throw new Error(`voicings.json: frets [${source.frets.join(',')}] have finger ${JSON.stringify(unknownFinger)}; ` +
+            'fingers are 0 for none and 1 to 4, index to little. Thumb fingerings belong in voicings-to-review.json.');
+    }
     const absolute = source.frets;
     const barreFrets = source.barres ?? [];
 
@@ -366,7 +375,18 @@ for (const rootName of PITCH_CLASS_NAMES) {
         };
     });
 
-    voicings.sort((a, b) => a.lowestFret - b.lowestFret);
+    // The source may list power chords too, as tabsy-gr/chords-db does. Shapes the generator
+    // already makes are dropped from it, and any others are kept beside the generated ones.
+    const listed = chords.findIndex(c => c.root === rootName && c.suffix === '5');
+    if (listed !== -1) {
+        const fretsOf = v => v.strings.map(s => (s.play === 'muted' ? -1 : s.fret)).join(',');
+        const generated = new Set(voicings.map(fretsOf));
+        voicings.push(...chords[listed].voicings.filter(v => !generated.has(fretsOf(v))));
+        chords.splice(listed, 1);
+    }
+
+    const powerRank = { canonical: 0, common: 1, advanced: 2 };
+    voicings.sort((a, b) => powerRank[a.confidence] - powerRank[b.confidence] || a.lowestFret - b.lowestFret);
     chords.push({
         name: `${rootName}5`,
         root: rootName,
@@ -435,12 +455,7 @@ const library = {
     source: {
         name: 'unstrung',
         file: 'scripts/chord-library/voicings.json',
-        startedFrom: {
-            name: '@tombatossals/chords-db',
-            version: source.origin['chords-db'].version,
-            url: source.origin['chords-db'].url,
-            license: source.origin['chords-db'].license
-        },
+        origins: source.origin,
         note: 'Every voicing re-verified against its interval formula; failures excluded. ' +
             'Power chords and coverage entries are generated here, not kept in the source file.'
     },
@@ -462,7 +477,7 @@ fs.writeFileSync(OUT_PATH, JSON.stringify(library), 'utf8');
 
 // --- Report -------------------------------------------------------------------------
 console.log('=== chord library build ===');
-console.log(`source: ${library.source.file} (started from chords-db v${library.source.startedFrom.version})`);
+console.log(`source: ${library.source.file} (from ${Object.keys(library.source.origins).join(', ')})`);
 console.log(`\nvoicings by confidence:`);
 for (const [level, count] of Object.entries(counts)) console.log(`  ${level.padEnd(10)} ${count}`);
 console.log(`\nchords written:   ${chords.length}`);

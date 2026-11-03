@@ -172,6 +172,36 @@ only against the name it is given. A barre with its low string at the barre fret
 the bass, is played and taught. The fork keeps such a shape only where its root-position form was
 already a separate voicing.
 
+## Decided and built: re-seeded from tabsy-gr/chords-db (2026-11-02)
+
+Joel's decisions:
+
+- Ship what is in the fork, and hold our earlier shapes for review rather than ship them beside it.
+  He agrees with its root-in-bass rule where he knows the shape: Cm is x35543, as he learned it.
+- No fingering with the thumb ships. The fork's 43 are held for review; every chord they belong to
+  has other voicings, C#aug the fewest with one.
+
+What was done:
+
+- `scripts/chord-library/voicings.json` re-seeded from the fork at 43f8b4a: 3,112 voicings in 801
+  chords, each with `"from": "tabsy-gr/chords-db"` and its fork `id`.
+- `voicings-to-review.json` holds 723: the 43 thumb voicings; 117 whose types we have no formula for
+  (7#11, (b5), 7sus2 over a bass note); the 483 chords-db 0.5.1 shapes that do not ship unchanged,
+  each with the fork voicing that replaced it and the fork's change number and reason; and the 80
+  kept from the first conversion. C minor 335543 is there with change 51.
+- The build stops on any finger other than 0 to 4, so a thumb cannot get in. The source's power
+  chords are merged with the generated ones instead of listed twice.
+- The library is 802 chords and 3,149 voicings, from 564 and 2,061. Only Absus2sus4 has no
+  fingering.
+- 238 new chord names, mostly slash chords, were recorded for both voices; the 628 recordings already
+  there came out byte for byte the same. The speech assets went from 25 MB to about 32 MB.
+- `scripts/check-chord-spelling.mjs` asserted that Bm's first shape, 224432, has F# lowest. It is
+  x24432 now, the fork's own example for change 51, so the check asserts the root is lowest.
+- `user-docs/third-parties.md` credits the fork and chords-db.
+
+Not yet checked: the app with NVDA, in particular the Chord Library with the many new slash chords
+in its search and the new spoken names.
+
 ## Looked at: UCI "Guitar Chords finger positions" (2026-11-02)
 
 https://archive.ics.uci.edu/dataset/575/guitar+chords+finger+positions, DOI 10.24432/C5RG8K,
