@@ -22,6 +22,14 @@ import {
 const SOURCE_PATH = path.join(import.meta.dirname, 'chord-library', 'voicings.json');
 const source = JSON.parse(fs.readFileSync(SOURCE_PATH, 'utf8'));
 
+// The origins' licenses ask for their notices to go with every copy, so a source without them,
+// such as one re-seeded from a new version, stops the build rather than shipping without them.
+const unnoticed = Object.entries(source.origin ?? {}).filter(([, origin]) => !origin.copyright?.length);
+if (unnoticed.length > 0 || !source.license?.text) {
+    throw new Error(`voicings.json must carry each origin's copyright and the license text; missing: ${
+        [...unnoticed.map(([name]) => `${name} copyright`), ...(source.license?.text ? [] : ['license text'])].join(', ')}`);
+}
+
 const OUT_PATH = path.join(import.meta.dirname, '..', 'src', 'assets', 'chords', 'chord-library.json');
 
 // --- Canonical shapes ---------------------------------------------------------------
@@ -474,6 +482,9 @@ const library = {
         name: 'unstrung',
         file: 'scripts/chord-library/voicings.json',
         origins: source.origin,
+        // The origins' copyright notices and their license travel with the library, as the
+        // license asks of a copy, since the library can be downloaded on its own from the site.
+        license: source.license,
         note: 'Every voicing re-verified against its interval formula; failures excluded. ' +
             'Power chords and coverage entries are generated here, not kept in the source file.'
     },
