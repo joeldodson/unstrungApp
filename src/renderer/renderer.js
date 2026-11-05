@@ -2659,34 +2659,54 @@ function metronomeToneBuffer(kind) {
  *
  * Separate from the metronome since 2026-10-27: a count-in with no clicks during the music is
  * worth having when learning a passage. Before that the metronome decided it outright.
+ *
+ * `lastTwoBeats` shortens it to the measure's last two beats, for a repeat at a slow tempo, where
+ * a whole measure of clicks is a long wait and two are enough to hear the top coming round. A
+ * measure of two beats or fewer is counted in whole either way.
  */
-function audioTrackLeadInSeconds(state, fromSeconds, countIn) {
-    if (!countIn) return 0;
+function audioTrackCountInClicks(state, fromSeconds, countIn, lastTwoBeats = false) {
+    if (!countIn) return null;
     const bar = state.audioTrack.bars[measureIndexAt(state, fromSeconds)];
-    return bar ? bar.endSeconds - bar.startSeconds : 0;
+    if (!bar) return null;
+    if (lastTwoBeats && bar.beats.length > 2) {
+        const beatSeconds = bar.beats[1] - bar.beats[0];
+        return {
+            seconds: 2 * beatSeconds,
+            clicks: [{ offset: 0, accent: false }, { offset: beatSeconds, accent: false }]
+        };
+    }
+    return {
+        seconds: bar.endSeconds - bar.startSeconds,
+        clicks: bar.beats.map(beatSeconds => {
+            const offset = beatSeconds - bar.startSeconds;
+            return { offset, accent: offset === 0 };
+        })
+    };
+}
+
+function audioTrackLeadInSeconds(state, fromSeconds, countIn, lastTwoBeats = false) {
+    return audioTrackCountInClicks(state, fromSeconds, countIn, lastTwoBeats)?.seconds ?? 0;
 }
 
 /**
- * Schedules the clicks of one count-in measure, shaped like the measure about to be played, and
- * returns how long it lasts.
+ * Schedules the clicks of one count-in, shaped like the measure about to be played, and returns
+ * how long it lasts.
  *
  * Returns 0 without scheduling anything when there should be no count-in, so a caller can add the
  * result to its cursor either way.
  */
-function scheduleAudioTrackCountIn(state, destination, atContextTime, forSeconds, wanted) {
-    const seconds = audioTrackLeadInSeconds(state, forSeconds, wanted);
-    if (seconds <= 0) return 0;
+function scheduleAudioTrackCountIn(state, destination, atContextTime, forSeconds, wanted, lastTwoBeats = false) {
+    const countIn = audioTrackCountInClicks(state, forSeconds, wanted, lastTwoBeats);
+    if (!countIn || countIn.seconds <= 0) return 0;
 
     const context = getSharedAudioContext();
-    const bar = state.audioTrack.bars[measureIndexAt(state, forSeconds)];
-    for (const beatSeconds of bar.beats) {
-        const offset = beatSeconds - bar.startSeconds;
+    for (const { offset, accent } of countIn.clicks) {
         audioTrackSources.push({
-            source: scheduleMetronomeClick(context, destination, atContextTime + offset, offset === 0),
+            source: scheduleMetronomeClick(context, destination, atContextTime + offset, accent),
             endsAt: atContextTime + offset + METRONOME_CLICK_SECONDS
         });
     }
-    return seconds;
+    return countIn.seconds;
 }
 
 function scheduleMetronomeClick(context, destination, when, accent) {
@@ -2797,7 +2817,8 @@ function audioTrackTimeline(state) {
         return { position: state.anchorSeconds + elapsed, pass: state.anchorPass };
     }
 
-    const lead = audioTrackLeadInSeconds(state, range.startSeconds, state.countInEachPass);
+    const lead = audioTrackLeadInSeconds(state, range.startSeconds, state.countInEachPass,
+        state.countInLastTwoBeats);
     const cycle = passDuration + lead;
     const since = elapsed - firstLeg;
     const wraps = 1 + Math.floor(since / cycle);
@@ -3046,7 +3067,7 @@ function audioTrackTopUp(state, myToken) {
         // next repeat instead of needing the track rebuilt.
         onWrap: cursorContext => scheduleAudioTrackCountIn(
             state, audioTrackMasterGain, cursorContext, audioTrackRange(state).startSeconds,
-            state.countInEachPass),
+            state.countInEachPass, state.countInLastTwoBeats),
         onEnd: endsAt => {
             const remainingMs = (endsAt - getSharedAudioContext().currentTime) * 1000;
             audioTrackEndTimer = setTimeout(() => {
@@ -3276,6 +3297,16 @@ function replayFromHere(state) {
 }
 
 /**
+ * Count In Before Every Repeat is there only while Repeat is checked, and Last Two Beats Only only
+ * while that is checked too: each is about the one before it and means nothing without it.
+ */
+function showAudioTrackRepeatCountIn(state) {
+    const repeat = state.repeatCount === 0;
+    state.ui.countInEachPassParagraph.hidden = !repeat;
+    state.ui.countInLastTwoBeatsParagraph.hidden = !repeat || !state.countInEachPass;
+}
+
+/**
  * Repeat until stopped, or play once.
  *
  * Once or continuously is all a learner needs, so the 0 to 50 count this replaced is gone; inside,
@@ -3288,7 +3319,7 @@ function replayFromHere(state) {
 function setAudioTrackRepeat(state, repeat, { announce = false } = {}) {
     state.repeatCount = repeat ? 0 : 1;
     state.ui.repeatCheckbox.checked = repeat;
-    state.ui.countInEachPassParagraph.hidden = !repeat;
+    showAudioTrackRepeatCountIn(state);
     replayFromHere(state);
     if (announce) announceAudioTrack(state, repeat ? 'Repeat on' : 'Repeat off');
 }
@@ -3868,8 +3899,10 @@ function buildAudioTrackPanel(state) {
     // after it.
     const countInEachPass = buildCheckboxParagraph('audio-track-count-in-each-pass-checkbox',
         'Count in before every repeat', state.countInEachPass);
-    countInEachPass.paragraph.hidden = state.repeatCount !== 0;
-    container.append(metronome.paragraph, countIn.paragraph, repeat.paragraph, countInEachPass.paragraph);
+    const countInLastTwoBeats = buildCheckboxParagraph('audio-track-count-in-last-two-beats-checkbox',
+        'Count in the repeats with the last two beats only', state.countInLastTwoBeats);
+    container.append(metronome.paragraph, countIn.paragraph, repeat.paragraph, countInEachPass.paragraph,
+        countInLastTwoBeats.paragraph);
 
     // Which measures play, collapsed behind a summary that reads out the selection.
     const measuresDetails = document.createElement('details');
@@ -3973,10 +4006,12 @@ function buildAudioTrackPanel(state) {
     state.ui = {
         tempoInput: tempo.input, metronomeCheckbox: metronome.checkbox, countInCheckbox: countIn.checkbox,
         repeatCheckbox: repeat.checkbox, countInEachPassCheckbox: countInEachPass.checkbox,
-        countInEachPassParagraph: countInEachPass.paragraph, sectionSelect,
+        countInEachPassParagraph: countInEachPass.paragraph,
+        countInLastTwoBeatsParagraph: countInLastTwoBeats.paragraph, sectionSelect,
         firstInput: first.input, lastInput: last.input, measuresSummary,
         playButton, error, status, announce, summary
     };
+    showAudioTrackRepeatCountIn(state);
     refreshAudioTrackSummary(state);
     showAudioTrackSelection(state);
 
@@ -3989,6 +4024,11 @@ function buildAudioTrackPanel(state) {
     // old schedule running under the new setting would put the two out of step.
     countInEachPass.checkbox.addEventListener('change', () => {
         state.countInEachPass = countInEachPass.checkbox.checked;
+        showAudioTrackRepeatCountIn(state);
+        replayFromHere(state);
+    });
+    countInLastTwoBeats.checkbox.addEventListener('change', () => {
+        state.countInLastTwoBeats = countInLastTwoBeats.checkbox.checked;
         replayFromHere(state);
     });
 
@@ -4175,6 +4215,9 @@ function buildAudioTrackContent(score, track, songItemId, details) {
         // Off by default: a count-in before every repeat is occasionally wanted, but it interrupts
         // a loop being used to drill a phrase, which is the usual reason for looping at all.
         countInEachPass: false,
+        // A repeat's count-in as the measure's last two beats rather than all of it. Off by
+        // default; for a slow tempo, where a whole measure of clicks is a long wait.
+        countInLastTwoBeats: false,
         // Which measures play, whether they repeat (0 for until stopped, 1 for once), and which
         // play-through we are on. A measure played on its own plays in place of the selection, and
         // trackPlace holds where the track was meanwhile.
@@ -4255,6 +4298,13 @@ const chordPracticeRepeatInput = document.getElementById('chord-practice-repeat-
 const chordPracticeMetronomeCheckbox = document.getElementById('chord-practice-metronome-checkbox');
 const chordPracticeCountInEachPassCheckbox =
     document.getElementById('chord-practice-count-in-each-pass-checkbox');
+const chordPracticeCountInLastTwoBeatsCheckbox =
+    document.getElementById('chord-practice-count-in-last-two-beats-checkbox');
+// Only about counting in every repeat, so it is there only while that is checked, as in a tab.
+chordPracticeCountInEachPassCheckbox.addEventListener('change', () => {
+    document.getElementById('chord-practice-count-in-last-two-beats-paragraph').hidden =
+        !chordPracticeCountInEachPassCheckbox.checked;
+});
 const chordPracticeSpeakCheckbox = document.getElementById('chord-practice-speak-checkbox');
 const chordPracticeSpeechNote = document.getElementById('chord-practice-speech-note');
 const chordPracticeStatus = document.getElementById('chord-practice-status');
@@ -4853,18 +4903,22 @@ function chordPracticeSpeechPlan(state) {
  * For the first time through if Count In is checked, and for later repeats if Count In Before
  * Every Repeat is. Separate from the metronome since 2026-10-28, as a track's has been since the
  * day before: a count-in with no clicks during the music is worth having.
+ *
+ * `lastTwoBeats` keeps only the measure's last two beats, as a track's does; see
+ * audioTrackCountInClicks.
  */
-function scheduleChordPracticeCountIn(state, contextStart) {
+function scheduleChordPracticeCountIn(state, contextStart, { lastTwoBeats = false } = {}) {
     const context = getSharedAudioContext();
     const secondsPerBeat = 60 / state.tempo;
-    for (let beat = 0; beat < state.beatsPerBar; beat++) {
-        const at = contextStart + beat * secondsPerBeat;
+    const firstBeat = lastTwoBeats && state.beatsPerBar > 2 ? state.beatsPerBar - 2 : 0;
+    for (let beat = firstBeat; beat < state.beatsPerBar; beat++) {
+        const at = contextStart + (beat - firstBeat) * secondsPerBeat;
         chordPracticeSources.push({
             source: scheduleMetronomeClick(context, chordPracticeMasterGain, at, beat === 0),
             endsAt: at + METRONOME_CLICK_SECONDS
         });
     }
-    return state.beatsPerBar * secondsPerBeat;
+    return (state.beatsPerBar - firstBeat) * secondsPerBeat;
 }
 
 /** Fills the schedule up to the horizon, wrapping into repeats, and arms the next top-up. */
@@ -4889,7 +4943,9 @@ function chordPracticeTopUp(state, myToken) {
         // music was, and pinned the reported measure at the first one. Both are worked out from
         // elapsed time instead.
         onWrap: cursorContext => (state.countInEachPass
-            ? scheduleChordPracticeCountIn(state, cursorContext) : 0),
+            ? scheduleChordPracticeCountIn(state, cursorContext,
+                { lastTwoBeats: state.countInLastTwoBeats })
+            : 0),
         onEnd: endsAt => {
             const remainingMs = Math.max(0, (endsAt - getSharedAudioContext().currentTime) * 1000);
             chordPracticeTimers.push(setTimeout(() => {
@@ -5373,10 +5429,17 @@ function buildChordPracticeTab(progression, options, file = {}) {
     const countInEachPass = buildCheckboxParagraph('chord-practice-tab-count-in-each-pass',
         'Count in before every repeat', options.countInEachPass);
     const countInEachPassCheckbox = countInEachPass.checkbox;
-    countInEachPass.paragraph.hidden = options.repeatCount === 1;
+    // And this only while that is checked, straight after it.
+    const countInLastTwoBeats = buildCheckboxParagraph('chord-practice-tab-count-in-last-two-beats',
+        'Count in the repeats with the last two beats only', options.countInLastTwoBeats);
+    const countInLastTwoBeatsCheckbox = countInLastTwoBeats.checkbox;
+    const showRepeatCountIn = () => {
+        countInEachPass.paragraph.hidden = state.repeatCount === 1;
+        countInLastTwoBeats.paragraph.hidden = state.repeatCount === 1 || !state.countInEachPass;
+    };
 
     container.append(tempo.paragraph, patternParagraph, speak.paragraph, metronome.paragraph,
-        countIn.paragraph, repeat.paragraph, countInEachPass.paragraph);
+        countIn.paragraph, repeat.paragraph, countInEachPass.paragraph, countInLastTwoBeats.paragraph);
 
     const controlsHeading = document.createElement('h3');
     controlsHeading.textContent = 'Playback Controls';
@@ -5450,6 +5513,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         metronome: options.metronome,
         countIn: options.countIn,
         countInEachPass: options.countInEachPass,
+        countInLastTwoBeats: options.countInLastTwoBeats === true,
         repeatCount: options.repeatCount,
         pass: 1,
         playing: false,
@@ -5469,6 +5533,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         }
     };
 
+    showRepeatCountIn();
     refreshChordPracticeNames(state);
     editButton.addEventListener('click', () => openProgressionEditor({ state }));
     saveButton.addEventListener('click', () => saveChordPractice(state));
@@ -5484,8 +5549,12 @@ function buildChordPracticeTab(progression, options, file = {}) {
         () => setChordPracticePattern(state, selectedPattern(patternSelect)));
     // Read at each wrap rather than when playback starts, so ticking it mid-loop takes effect from
     // the next repeat instead of needing playback restarted.
-    countInEachPassCheckbox.addEventListener('change',
-        () => { state.countInEachPass = countInEachPassCheckbox.checked; });
+    countInEachPassCheckbox.addEventListener('change', () => {
+        state.countInEachPass = countInEachPassCheckbox.checked;
+        showRepeatCountIn();
+    });
+    countInLastTwoBeatsCheckbox.addEventListener('change',
+        () => { state.countInLastTwoBeats = countInLastTwoBeatsCheckbox.checked; });
     // A new repeat count starts the tally again from the play in progress. Carrying the old tally
     // over broke the obvious sequence: set 0 to play until stopped, go round a dozen times, then
     // ask for 10 -- the run was already past 10, so it stopped at the end of the current play.
@@ -5499,7 +5568,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
             ? Math.max(0, Math.min(50, Math.trunc(wanted)))
             : state.repeatCount;
         repeatInput.value = String(state.repeatCount);
-        countInEachPass.paragraph.hidden = state.repeatCount === 1;
+        showRepeatCountIn();
         state.pass = 1;
         state.anchorSeconds = position;
         state.anchorContextTime = null;
@@ -5540,6 +5609,7 @@ function chordPracticePlaybackOptions({ fromDialog = true } = {}) {
         // start is what it is for.
         countIn: true,
         countInEachPass: checked(chordPracticeCountInEachPassCheckbox),
+        countInLastTwoBeats: checked(chordPracticeCountInLastTwoBeatsCheckbox),
         repeatCount: Number.isFinite(repeatWanted) ? Math.max(0, Math.min(50, Math.trunc(repeatWanted))) : 0
     };
 }
@@ -5706,7 +5776,8 @@ function replaceChordPracticeProgression(entry, progression, { dirty }) {
     clearMediaSession(old);
     const options = {
         tempo: old.tempo, defaultTempo: old.defaultTempo, speak: old.speak, speechVolume: old.speechVolume, voice: old.voice,
-        metronome: old.metronome, countIn: old.countIn, countInEachPass: old.countInEachPass, repeatCount: old.repeatCount
+        metronome: old.metronome, countIn: old.countIn, countInEachPass: old.countInEachPass,
+        countInLastTwoBeats: old.countInLastTwoBeats, repeatCount: old.repeatCount
     };
     const { container, state } = buildChordPracticeTab(progression, options,
         { filePath: old.filePath, fileName: old.fileName, dirty });
