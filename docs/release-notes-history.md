@@ -10,6 +10,24 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.10.2 - Shorter count-ins
+
+Published 2026-11-04.
+
+0.10.2 lets a passage that repeats be counted in with fewer beats, and publishes the chord library for anyone to use.
+
+### Counting In Repeats
+
+Number of beats to count in sets how many clicks come before each repeat, from 1 to the beats in a measure. It is in a track's Playback Settings, the chord practice dialog and a chord practice tab, shown while Count in before every repeat is checked. It starts at a whole measure.
+
+Fewer beats counts in with the end of the measure, so 2 in 4/4 clicks on beats 3 and 4. At a slow tempo a whole measure is a long wait, and a beat or two is enough to hear the top coming round. The count-in before the first time through is still a whole measure.
+
+The chord practice dialog no longer says counting in every repeat needs the metronome on, which has not been so for some time.
+
+### The Chord Library
+
+Third Party Components links to the chord library, chord-library.json, so anyone can download every chord unstrung uses, with its fingerings and notes. The document and the file both carry the copyright notices and license of chords-db and tabsy-gr/chords-db, where its shapes come from.
+
 ## unstrung 0.10.1 - More chords
 
 Published 2026-11-02.
