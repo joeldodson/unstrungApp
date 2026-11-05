@@ -282,7 +282,7 @@ const controls = await page.evaluate(() => {
         controlRows: controlsAfter.filter(el => el.classList.contains('button-row'))
             .map(row => [...row.querySelectorAll('button')].map(b => b.textContent).join(', ')),
         plainLists: controlsAfter.filter(el => el.tagName === 'UL').length,
-        countIn: panel.querySelector('input[id^="chord-practice-tab-count-in-"]:not([id*="each-pass"]):not([id*="last-two-beats"])')?.checked ?? null,
+        countIn: panel.querySelector('input[id^="chord-practice-tab-count-in-"]:not([id*="each-pass"]):not([id*="count-in-beats"])')?.checked ?? null,
         eachPassHidden: panel.querySelector('input[id^="chord-practice-tab-count-in-each-pass"]')?.closest('p').hidden ?? null
     };
 });
@@ -290,12 +290,12 @@ check('the chord list carries no bullet or number', controls.listStyle === 'none
     controls.listStyle);
 check('the panel has tempo, repeats and metronome, all labelled', controls.labelled);
 console.log(`  settings: ${controls.settings.join(' | ')}`);
-check('Playback Settings: tempo, pattern, names, metronome, count in, times to play, count in each repeat, last two beats',
+check('Playback Settings: tempo, pattern, names, metronome, count in, times to play, count in each repeat, beats to count in',
     controls.settings.join(' | ') === 'Tempo in beats per minute, 30 to 240 | Strumming pattern | ' +
     'Speak the next measure; changing it starts again from the first measure | Metronome | ' +
     'Count in, one measure of clicks before playing starts | ' +
     'Times to play the progression, up to 50; 0 repeats until stopped | Count in before every repeat | ' +
-    'Count in the repeats with the last two beats only',
+    'Number of beats to count in',
     controls.settings.join(' | '));
 check('Count in starts checked', controls.countIn === true, String(controls.countIn));
 check('Count in before every repeat is shown while it repeats until stopped', controls.eachPassHidden === false);

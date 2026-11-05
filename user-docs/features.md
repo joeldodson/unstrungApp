@@ -236,9 +236,10 @@ To collapse the section, go to Playback Settings and then up one line.
   Unchecked, the measures play once.
   Turning it off while they repeat lets the time through under way finish, then stops.
 - **Count in before every repeat,** shown only while Repeat is checked.
-- **Count in the repeats with the last two beats only,** shown only while Count in before every repeat is checked.
-  Each repeat then starts after two clicks instead of a whole measure, which is a shorter wait at a slow tempo.
-  The first count-in is still a whole measure.
+- **Number of beats to count in,** shown only while Count in before every repeat is checked.
+  It runs from 1 to the beats in the first measure of the selection, and starts at all of them.
+  Fewer counts in each repeat with the measure's last beats only, which is a shorter wait at a slow tempo: 2 in 4/4 clicks on beats 3 and 4.
+  The count-in before the first time through is always a whole measure.
 - **Measures to Play,** a collapsed section saying which measures will play.
   Inside it is a Section dropdown, starting with Entire Song, then one entry for each section the file marks, such as Intro or Verse 2.
   A file that marks no sections has no dropdown.
@@ -348,7 +349,8 @@ The Chord Practice dialog asks for:
   Chords with the same root count as the same chord, so G7 never follows G.
   Unchecked, a chord is sometimes held for two measures, as in most real progressions.
 - **Times to play the progression,** up to 50, or 0 to repeat until you stop, and whether to count in before every repeat.
-  Once that is checked, a further checkbox counts in the repeats with the last two beats only.
+  Once that is checked, Number of beats to count in sets how many beats each repeat is counted in with, from 1 to the beats per measure.
+  It starts at the beats per measure, and goes back to it when Beats per measure changes.
 - **Metronome.**
   Each strum is timed so that its attack sounds with the click, and the pick noise recorded before it comes just ahead.
 - **Speak the next measure,** checked to begin with.
@@ -391,7 +393,7 @@ Playback Settings has:
 - **Times to play the progression,** up to 50, with 0 for until stopped.
   Playing it a set number of times is a way to practice for a set time.
 - **Count in before every repeat,** shown only when the progression plays more than once.
-- **Count in the repeats with the last two beats only,** shown only while Count in before every repeat is checked, as for a track.
+- **Number of beats to count in,** from 1 to the beats per measure, shown only while Count in before every repeat is checked, as for a track.
 
 Playback Controls has the same buttons as a track: Play and Where Am I; Slower, Faster and Default Tempo; Restart Progression, Previous Measure, Next Measure and Start of Measure.
 Where Am I says the measure, its chords, the beat, and which time through it is: "Measure 5 of 8, G C@3, beat 2, play 1".
