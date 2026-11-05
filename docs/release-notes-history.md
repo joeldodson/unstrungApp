@@ -12,7 +12,7 @@ heading with the release's title and the date it was published.
 
 ## unstrung 0.10.2 - Shorter count-ins
 
-Published 2026-11-04.
+Published 2026-11-05.
 
 0.10.2 lets a passage that repeats be counted in with fewer beats, and publishes the chord library for anyone to use.
 
