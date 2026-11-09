@@ -104,6 +104,38 @@ expect. If it still sounds wrong after the settings above, the next step is to n
 (thin, muddy, hissy, doubled or distorted) and what it is heard through, since each has a
 different cause.
 
+## Listening through Bluetooth headphones
+
+Raised 2026-11-09. When the Solo is plugged in, Windows makes it the default playback device, so
+NVDA and everything else move to the Solo's outputs and away from Joel's Bluetooth headphones (Bose
+QC 45; he also has Shokz OpenFit). He wants to keep the Bluetooth headphones, hear the guitar in
+them, and not have to redo anything each time the Solo is plugged in. Proposed, not yet tried:
+
+1. In the classic Sound dialog (`mmsys.cpl`), Playback tab: make "Headphones (Bose QC 45)" both the
+   Default Device and the Default Communication Device. "Headphones" is the stereo profile;
+   "Headset (... Hands-Free)" is the low-quality call profile.
+2. Disable "Speakers (Focusrite USB Audio)" on the Playback tab, so Windows can never move sound to
+   the Solo. Direct Monitor to the Solo's own headphone jack still works, since it never passes
+   through Windows. Re-enable it to use wired headphones or speakers on the Solo with computer
+   sound.
+3. Recording tab: make "Analogue 1 + 2 (Focusrite USB Audio)" the Default Device and Default
+   Communication Device, so no app opens the Bose microphone, which would switch the headphones to
+   the hands-free profile. Optionally disable the Bose "Headset" endpoints to rule that out.
+4. Properties of "Analogue 1 + 2", Listen tab: tick "Listen to this device" and play it back
+   through "Headphones (Bose QC 45)". This is Windows passing the input to the headphones.
+5. Turn on "Combine Input 1 and Input 2" on the Solo (hold Direct for three seconds, or Control 2,
+   Preferences, Device). Without it, input 1 is the left channel only, and the guitar would be in
+   the left ear only. Keep input 2 gain down so the microphone input adds no hiss.
+
+Why it should survive replugging: Windows keeps defaults, disabled endpoints and the Listen setting
+per endpoint, and the Solo reports a serial number, so it is the same device in any USB port. To be
+confirmed by unplugging and replugging.
+
+The catch is delay. Bluetooth adds roughly 150 to 250 ms, plus Windows's own listening path, and
+an archtop is also heard acoustically, so the headphone sound will trail the strings like an echo.
+Fine for checking tone and levels; poor for playing in time. Wired headphones in the Solo with
+Direct Monitor have no delay.
+
 ## Could unstrung talk to the Solo?
 
 ### No official interface to the hardware
