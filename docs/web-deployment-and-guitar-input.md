@@ -246,3 +246,7 @@ has the standard 1/4 inch (6.35 mm) mono jack. Options discussed:
 All appear to Windows as standard USB audio devices, with no driver needed. An interface needs a
 separate 1/4 inch instrument cable. Plugging in is better than a microphone: the backing track
 from the speakers never reaches the input.
+
+As of 2026-11-08 Joel owns the Scarlett Solo 4th Gen. Windows chose it as the audio device when
+it was plugged in. `scarlett-solo-and-archtop.md` covers its controls and the guitar's, setting
+the gain by ear, and an announced input level as a piece of the input work.

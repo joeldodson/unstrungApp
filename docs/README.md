@@ -57,6 +57,10 @@ eyesunstrung.vip.
   shape checked against the name it is given, two other sources looked at and not taken, and,
   proposed, a maintainer tool for adding shipped fingerings and how your own items are handled
   when a release ships the same thing.
+- `scarlett-solo-and-archtop.md` -- what every control on the Scarlett Solo 4th Gen and the
+  Eastman AR905CE does and how to set them for a guitar, gain by ear without the halo, and why
+  unstrung should not control the Solo but could announce the input level itself. Notes from
+  2026-11-08, nothing built.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
