@@ -152,6 +152,43 @@ and left, so not reading them from software costs little.
 
 Not decided or built: Joel asked for notes only, not code, in this session.
 
+### If Focusrite offered a bridge for browsers
+
+Asked on 2026-11-09: assuming Focusrite's Windows driver is installed, could Focusrite install
+something alongside it, in user space, that passes commands from a web page to the driver? Yes.
+Focusrite owns both the driver and the protocol, so the hard part (talking to the device) is
+already solved on their side; the bridge is ordinary software. A page has three ways to reach
+local software:
+
+- **A local WebSocket or HTTP server.** A background program listens on localhost and the page
+  connects to it. Browsers treat localhost as secure, so an https page may connect to it. This
+  works in every desktop browser with no extension. Two costs: Chrome now asks the user's
+  permission before a public website may reach localhost or the local network; and the server
+  must check which website is calling and pair with it, or any page on the internet could switch
+  48V on. Zoom's localhost server, found in 2019 to let any website turn on a Mac's camera, is the
+  warning example.
+- **Web MIDI.** The bridge, or the device's own firmware, presents a MIDI port, and the page sends
+  System Exclusive messages to it. Novation, Focusrite's sister company, already does this: its
+  Components web app edits settings and updates firmware on Novation controllers through Web MIDI.
+  Works in Chrome, Edge and Firefox, not Safari; SysEx asks permission once. On Windows a virtual
+  MIDI port needs Windows MIDI Services or a third-party loopback driver; a firmware change that
+  gave the Solo a real MIDI interface would avoid that.
+- **A browser extension with native messaging.** The extension talks to an installed program over
+  standard input and output. Reliable and well contained, but needs an extension for each browser,
+  and the user has to install it.
+
+What none of them reaches: phones. On an iPhone the Solo is a class-compliant device with no
+Focusrite software, so there is nothing to bridge to. Joel tests releases on his phone.
+
+Whether Focusrite would build such a thing is unknown; nothing found says they plan to. Novation's
+use of Web MIDI shows the company has done it before. Someone other than Focusrite could build the
+same bridge only if it could reach the device, which on Windows comes back to the open question
+above about Windows's own driver, or to Focusrite's undocumented driver interface.
+
+For unstrung the payoff is still small. Inst, Air, 48V and Direct Monitor are set once, and the
+gain, the one control worth reading, is analogue and could not be reached anyway. The announced
+input level needs no bridge.
+
 ## Sources
 
 - Focusrite, Scarlett Solo 4th Gen hardware features (above).
