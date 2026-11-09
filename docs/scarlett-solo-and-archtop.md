@@ -160,6 +160,17 @@ Test proposed: with the gain as it is now, plug wired headphones into the Solo a
 leaving the Bose setup running, and compare the two at once. Distortion in the wired headphones
 only means the plug or headphones; distortion in both means the gain.
 
+Result, 2026-11-09: with the same headphones (Bose QC 45 on the cable that came with them, 2.5 mm
+at the headphone end and 3.5 mm into a 1/4 inch adapter, seated fully) Direct Monitor sounds
+better. Most likely the first session had too much gain and too little headphone level.
+
+TRS, tip-ring-sleeve, is the standard stereo headphone plug and is what the Solo wants: tip is
+left, ring is right, sleeve is ground. A plug without the ring is TS, which is mono, and would give
+one channel or a wrong sound; TRRS, with an extra ring for a microphone, is what to avoid. By touch,
+TRS has two thin insulating bands between three metal sections, TRRS has three. The Bose cable has
+no microphone, so it is TRS. A 2.5 mm to 1/4 inch cable is rare; the cable plus a stereo 3.5 mm to
+1/4 inch adapter, as Focusrite itself recommends, is fine. Nothing to buy.
+
 ## Could unstrung talk to the Solo?
 
 ### No official interface to the hardware
