@@ -109,7 +109,9 @@ different cause.
 Raised 2026-11-09. When the Solo is plugged in, Windows makes it the default playback device, so
 NVDA and everything else move to the Solo's outputs and away from Joel's Bluetooth headphones (Bose
 QC 45; he also has Shokz OpenFit). He wants to keep the Bluetooth headphones, hear the guitar in
-them, and not have to redo anything each time the Solo is plugged in. Proposed, not yet tried:
+them, and not have to redo anything each time the Solo is plugged in. Tried 2026-11-09 and it
+works, including after moving the Solo to a different USB port. The delay is very noticeable, but
+it is good for experimenting with tone. The steps:
 
 1. In the classic Sound dialog (`mmsys.cpl`), Playback tab: make "Headphones (Bose QC 45)" both the
    Default Device and the Default Communication Device. "Headphones" is the stereo profile;
@@ -135,6 +137,28 @@ The catch is delay. Bluetooth adds roughly 150 to 250 ms, plus Windows's own lis
 an archtop is also heard acoustically, so the headphone sound will trail the strings like an echo.
 Fine for checking tone and levels; poor for playing in time. Wired headphones in the Solo with
 Direct Monitor have no delay.
+
+### Distortion with Direct Monitor, clean through the laptop
+
+Reported 2026-11-09: in the first session, with Direct on and wired headphones in the Solo, there
+was a lot of distortion even at low volume, and no knob on the Solo or the guitar fixed it. Through
+the laptop to the Bose it sounds much cleaner and nicer.
+
+Both paths share the gain stage, so if the gain were clipping, both would distort. That points to
+one of:
+
+- **The gain was higher then.** In the first session the gain was turned up to get any sound, and
+  the headphone knob down to make it quieter. Clipping happens before the headphone knob, so a
+  quieter headphone level is still distorted. Likely, if the gain has since come down.
+- **The headphone plug.** The Solo's jack is 1/4 inch TRS. Headphones with an inline microphone or
+  remote are TRRS, and Focusrite says they are unlikely to work properly; a plug not fully home in
+  an adapter does similar damage.
+- **The headphones themselves.** The Bose QC 45 applies its own equalisation, which flatters a
+  guitar compared with plainer headphones.
+
+Test proposed: with the gain as it is now, plug wired headphones into the Solo and turn Direct on,
+leaving the Bose setup running, and compare the two at once. Distortion in the wired headphones
+only means the plug or headphones; distortion in both means the gain.
 
 ## Could unstrung talk to the Solo?
 
