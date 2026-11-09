@@ -106,10 +106,28 @@ different cause.
 
 ## Could unstrung talk to the Solo?
 
-### No official interface
+### No official interface to the hardware
 
 Focusrite publishes no SDK or API for the Scarlett range. Focusrite Control 2 is the only official
-way to change settings from a computer.
+way to change settings from a computer. Control 2 itself does have two ways in; see "Two ways into
+Focusrite Control 2" below.
+
+### Is the Solo's gain really analogue?
+
+Questioned on 2026-11-09, since Control 2 shows levels and other 4th Gen models let it set the
+gain. For the Solo, three sources agree that the gain cannot be read or set digitally:
+
+- Focusrite's hardware guide calls them "two analogue gain controls".
+- Control 2's documented MIDI parameters for the Solo (below) cover 48V, Air, Air mode, Inst and
+  the mixer, and no gain.
+- The Linux driver's configuration for the Solo Gen 4 has switches for phantom power, Inst
+  (`LEVEL_SWITCH`), Air and Direct Monitor, a direct monitor gain, and no `INPUT_GAIN`. The 2i2 Gen
+  4 has `INPUT_GAIN`, a 0 to 69 dB range, and Auto Gain with its targets.
+
+So the intuition is right for the 2i2 Gen 4 and larger models, whose knobs drive digitally
+controlled preamps, and not for the Solo. What Control 2 shows for the Solo is the meter: the
+level the gain produces, in dBFS, not the knob's position. The audio stream gives unstrung the
+same measurement.
 
 ### The protocol is already reverse engineered
 
@@ -126,12 +144,14 @@ source, but Focusrite can change it with any firmware update.
 
 - **What could be controlled is small:** Inst, Air, 48V, Direct Monitor and the monitor mix. The
   gain knobs are analogue.
-- **Windows:** a driver already holds the device, Focusrite's if it is installed, otherwise
-  Windows's own USB audio driver. unstrung would need either Focusrite's private, undocumented
-  driver interface or a way to send USB control messages alongside whichever driver has the
-  device. Neither is supported and either could break with an update. Not checked: whether, under
-  Windows's own driver, the Solo's vendor-specific control interface is left unclaimed and could be
-  reached through WinUSB or libusb.
+- **Windows:** a driver already holds the device. On Joel's laptop, checked 2026-11-09, it is
+  Focusrite's: Focusrite Audio Drivers 4.150.0.432 are installed, the Solo (USB `VID_1235`,
+  `PID_8218`) uses the `FocusriteUsb` service, and Focusrite Control 2 1.1210 and Focusrite
+  Notifier run in the background. unstrung would need either Focusrite's private, undocumented
+  driver interface or a way to send USB control messages alongside the driver. Neither is
+  supported and either could break with an update. Still not checked: whether, on a machine
+  without Focusrite's driver, Windows's own driver leaves the Solo's vendor-specific control
+  interface unclaimed.
 - **Web:** browsers do not let a page claim a USB device that the operating system's audio driver
   holds, so a web unstrung could not do it. That cuts against keeping unstrung web-portable.
 - **Reverse engineering it again:** possible without disassembling Focusrite's software, by
@@ -188,6 +208,69 @@ above about Windows's own driver, or to Focusrite's undocumented driver interfac
 For unstrung the payoff is still small. Inst, Air, 48V and Direct Monitor are set once, and the
 gain, the one control worth reading, is analogue and could not be reached anyway. The announced
 input level needs no bridge.
+
+### Two ways into Focusrite Control 2
+
+From Focusrite's guide "Using Focusrite Control 2 with your Scarlett Solo 4th Gen",
+<https://userguides.focusrite.com/hc/en-gb/articles/17505474549906-Using-Focusrite-Control-2-with-your-Scarlett-Solo-4th-Gen>,
+read 2026-11-09. Both need Control 2 running.
+
+- **MIDI control, documented.** Under Preferences, Application, MIDI Control, Control 2 listens to
+  a chosen MIDI device and channel. For the Solo the documented parameters are: 48V on CC 101,
+  Air on CC 110 and Air mode on NRPN 1:38, Inst on CC 126 (cycling), and for Mix A the level of
+  Analogue 1, Analogue 2, Playback 1 and 2 on CCs 20, 21, 28 and 29, mute on 41, 42, 49 and 50,
+  and solo on 51, 52, 59 and 60. Toggles are 0 off, 127 on. Nothing says Control 2 sends MIDI
+  back, so this appears to be one-way: it can set things but not report them. A program sending
+  to it needs a MIDI port Control 2 can listen on; on Windows that is a loopback port from
+  Windows MIDI Services or a tool such as loopMIDI. Web MIDI could send to such a port, so this
+  even works from a browser.
+- **The mobile remote, undocumented.** The Focusrite Control 2 mobile app, for iOS and Android,
+  connects over Wi-Fi to Control 2 on the computer and controls and views it; Preferences, Remote
+  Devices lists paired phones. So Control 2 already runs a network service built for a remote
+  client, which presumably carries state and meters both ways. Its protocol is not published.
+  Learning it would mean capturing the traffic between the phone app and Control 2, which is
+  reverse engineering again, but of a protocol designed for remote use and less likely to move
+  with firmware than the USB one.
+
+Other facts from that guide: the Solo keeps its settings in the device when moved to another
+computer; Control 2 presets hold channel name, 48V, Inst and Air mode; holding Inst for two
+seconds turns the front panel lights off; holding Direct for three seconds toggles "Combine Input 1
+and Input 2", which sums both inputs for apps that only take the first channel or pan the two
+apart.
+
+### What limiting it to the Electron app opens up
+
+Joel's view, 2026-11-09: someone who has bought a Scarlett is committed enough to install the
+desktop app, so hardware features may be Electron-only. Under the project's rule they still go
+through `window.unstrung`, with the web build reporting them as unavailable.
+
+What Electron's main process can do that a page cannot:
+
+- **Raw network sockets and local discovery.** A page can only use HTTP, WebSocket and WebRTC. The
+  main process can open any TCP or UDP connection, which is what speaking Control 2's mobile
+  remote protocol would need. This is the most promising route to two-way control and state,
+  including meters, if the protocol were learned.
+- **Native code and helper programs.** Native Node addons, or a small helper program, can call
+  Windows APIs directly: `DeviceIoControl` on Focusrite's driver (undocumented), libusb or WinUSB
+  where a device is free, and the Windows audio APIs.
+- **Low-latency audio.** Chromium records through Windows's shared audio path, which adds tens of
+  milliseconds. A native addon could use ASIO, which Focusrite's driver provides, or WASAPI
+  exclusive mode. That matters only for hearing the guitar through unstrung's own processing, an
+  amplifier sound for example, not for analysis. Direct Monitor covers hearing yourself.
+- **Knowing exactly what is plugged in.** A page sees a device label. The main process can read the
+  USB vendor and product IDs (1235 and 8218 for the Solo) and the driver in use, so unstrung could
+  tell which model it has and what it supports.
+- **MIDI ports of its own.** A page can only use MIDI ports that already exist. A native addon or
+  Windows MIDI Services could create a port for Control 2 to listen to, so the user would not
+  need loopMIDI.
+
+What it does not open up: the Solo's gain stays analogue. A 2i2 Gen 4 or larger would be
+different, since their gain and Auto Gain are digital.
+
+For the Solo, the order of value is probably: the announced input level from the audio, which needs
+none of this and works on the web; then Control 2's MIDI control for Inst, Air and 48V, which is
+documented but one-way; then the mobile remote protocol for two-way state, which needs reverse
+engineering; then ASIO, only if unstrung ever processes the guitar sound live.
 
 ## Sources
 
