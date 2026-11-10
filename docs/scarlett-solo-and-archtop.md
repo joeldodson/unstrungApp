@@ -171,6 +171,72 @@ TRS has two thin insulating bands between three metal sections, TRRS has three. 
 no microphone, so it is TRS. A 2.5 mm to 1/4 inch cable is rare; the cable plus a stereo 3.5 mm to
 1/4 inch adapter, as Focusrite itself recommends, is fine. Nothing to buy.
 
+## Focusrite Control 2
+
+Read on 2026-11-09 from Control 2 1.1210's UI Automation tree (what NVDA sees) on Joel's laptop,
+and from Focusrite's "Scarlett Solo 4th Gen and Screen Readers in Depth",
+<https://support.focusrite.com/hc/en-gb/articles/19056805254674-Scarlett-Solo-4th-Gen-and-Screen-Readers-in-Depth>.
+Focusrite says it tested with VoiceOver and Narrator; NVDA is not named. Every control is in the
+tab order and has a name and state.
+
+### Layout, in tab order
+
+- **Navigation bar:** Inputs and Mixer, toggle buttons that switch the page.
+- **Presets** button. Its name starts with the loaded preset's name, or a dash when none is loaded.
+- **More options:** About (app and firmware versions, serial number), Preferences, Check for
+  updates, and help links.
+- The page's name as text, then the page.
+- At the bottom, a combo box naming the device and sample rate: "Scarlett Solo, 48 kHz".
+
+### Inputs page
+
+- **Analogue 1** group, named with its state: "Analogue 1, line input" or instrument input.
+  - **Peak** button. Its name is the highest level since it was last reset, "Peak, -18.5dB" for
+    example, or "Signal has clipped". While it has focus it announces each new peak. It reads
+    "we didn't detect any useable signal" when there is none. Pressing it resets it. This is the
+    accessible replacement for the gain halo.
+  - **Meter**: "Signal present" or "No signal".
+  - **Inst** toggle.
+- **Analogue 2, fixed microphone input** group: Peak, Meter, **+48V** toggle, **Air** toggle
+  (named with its mode, "Air, Presence & Drive"), and an **Air mode** combo box.
+
+There is no gain control: the Solo's gain is analogue.
+
+### Mixer page
+
+- **Mix navigation bar:** two mixes, **Direct** and **Loopback**, each with a More options menu
+  (rename, copy, paste). Direct is what Direct Monitor sends to the headphone and speaker outputs;
+  Loopback is a mix sent back to the computer as extra recording inputs, for streaming or recording
+  computer sound.
+- **Mix Routings:** where the selected mix goes, "Outputs 1 - 2" for Direct.
+- A group for each channel: **Analogue 1**, **Analogue 2** and **Playback 1 - 2** (sound from the
+  computer). Each has **Pan** (-100 to 100), **Level** (-128 to +6 dB), a meter, **Mute** and
+  **Solo**. Solo silences every channel that is not soloed. With both on, the one pressed last
+  wins, and Mute's name then says "Overridden by Solo".
+- **Direct** group: left and right meters for the whole mix, and the **Direct Monitor** toggle.
+
+### Preferences
+
+- **Sample rate:** 44.1 to 192 kHz. Other audio programs can force their own.
+- **Device:** Combine Input 1 and Input 2; Send Direct Monitor mix to Loopback; Loopback mode
+  (audio capture, video call, stream); front panel light brightness and sleep; Reset to default
+  settings.
+- **Application:** mixer metering before or after the fader; MIDI control; usage data.
+- **Remote devices:** paired phones running the Focusrite Control 2 mobile app.
+
+### What it showed on 2026-11-09
+
+- Analogue 1 was a **line input: Inst off.** The guitar was going in at line level, which Focusrite
+  says sounds muddy and quiet. Inst should be on. The gain then has to be set again, since Inst
+  raises the minimum gain to +7 dB.
+- Analogue 1's Peak read "Signal has clipped", from some time since it was last reset.
+- Analogue 2 had **Air on, Presence & Drive**, with nothing plugged in. With Combine Input 1 and
+  Input 2 on, input 2 is summed into the guitar, so its hiss and Air's drive are too. Air should be
+  off and input 2's gain down.
+- In the Direct mix, Analogue 1 had **Solo on and Mute on**, Mute overridden. Solo silences
+  Playback 1 - 2 in the wired headphones. To clear it, turn Mute off first, then Solo; the other way
+  round leaves the guitar muted. Playback 1 - 2 was at -5 dB.
+
 ## Could unstrung talk to the Solo?
 
 ### No official interface to the hardware
