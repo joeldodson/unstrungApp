@@ -77,7 +77,10 @@ XLR microphone input, which is input 2.
   headphone jack, separately. Neither changes what is recorded. With headphones on, Output does
   nothing audible, which can make the knobs seem random.
 - **Direct** (Direct Monitor) sends the inputs straight to the outputs, without going through the
-  computer: no delay, and no software effects. Green is on, white is off. If Direct is on and
+  computer: no delay, and no software effects. Green is on, white is off. It adds a path; it does
+  not take one away. The inputs always go to the computer over USB as well, whether Direct is on
+  or off, so the Bluetooth setup below hears the guitar either way. Direct only changes what the
+  Solo's own headphone jack and speaker outputs play. If Direct is on and
   something on the computer also plays the input back (Windows's "Listen to this device", or a
   recording program), the guitar is heard twice, slightly apart in time, which sounds hollow or
   phasey. Have only one path on. The simplest is Direct on and nothing on the computer playing the
