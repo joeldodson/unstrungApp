@@ -4121,8 +4121,9 @@ function fillTrackMeasures(container, track, state) {
         // clearest landmark a measure has, and they are shown on every track, since the part being
         // read is rarely the one carrying them. Kept as separate items rather than run together: a
         // duet's two lines are two thoughts, and one long line is harder to follow than two short
-        // ones.
-        appendTextItems(measureList, [...(measure.lyrics ?? []), ...measure.beats]);
+        // ones. A second voice, where the file has one, comes next as a line of its own, then the
+        // first voice beat by beat.
+        appendTextItems(measureList, [...(measure.lyrics ?? []), ...(measure.voices ?? []), ...measure.beats]);
         container.append(measureList);
     });
 }

@@ -812,8 +812,35 @@ function sectionBeatPosition(beat, masterBar) {
         : ` during beat ${Math.floor(beatNumber)}`;
 }
 
-// Only the primary voice is described; secondary voices (used for genuinely
-// polyphonic parts, e.g. independent piano hands) are not yet covered.
+/**
+ * A measure's voices after the first, as one line each: "Voice 2: half note, string 6, fret 3, at
+ * beat 1; half note, string 6, fret 3, at beat 3". Rests are left out, and a voice with no notes in
+ * the measure gets no line.
+ *
+ * A voice is a second rhythm on the same staff, most often a bass held under a moving melody in a
+ * fingerstyle arrangement. Voice 1 is the main voice by Guitar Pro's convention and is read beat by
+ * beat; the others are summarised, each note placed by its beat, because a voice 2 note often
+ * falls where voice 1 strikes nothing. They are named by number, as the file has them, and never
+ * called the bass: in Brothers In Arms Solo voice 2 is not always the lowest part. Until
+ * 2026-11-11 these voices were played but not described at all. Decided with Joel; see
+ * docs/project-review-2026-11-assessment.md, finding 3.
+ */
+function describeOtherVoices(bar, masterBar, stringCount, terse, capo, percussion) {
+    const lines = [];
+    (bar.voices || []).forEach((voice, index) => {
+        if (index === 0) return;
+        const notes = (voice.beats || [])
+            .filter(beat => !beat.isRest && beat.notes && beat.notes.length > 0)
+            .map(beat => {
+                const text = describeBeat(beat, stringCount, terse, capo, percussion, null, false);
+                return `${text},${sectionBeatPosition(beat, masterBar) || ' at beat 1'}`;
+            });
+        if (notes.length > 0) lines.push(`Voice ${index + 1}: ${notes.join('; ')}`);
+    });
+    return lines;
+}
+
+// Voice 1 is described beat by beat; the others are summarised by `describeOtherVoices`.
 function extractMeasures(track, terse, masterBars, songLyrics, promotedSections) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     if (!staff) return [];
@@ -845,6 +872,7 @@ function extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
             repeat: describeRepeat(masterBars[index]),
             chords: chords.text,
             lyrics: songLyrics[index] ?? [],
+            voices: describeOtherVoices(bar, masterBars[index], stringCount, terse, capo, percussion),
             beats: beats.map((beat, i) =>
                 describeBeat(beat, stringCount, terse, capo, percussion, marks[offset + i],
                     promotedSections.beats.has(beat)))

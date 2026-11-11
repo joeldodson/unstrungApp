@@ -193,6 +193,35 @@ console.log('\n=== A vocal track is not listed ===');
     check('a vocal track alone lists nothing', extractScoreMetadata(score).tracks.length, 0);
 }
 
+console.log('\n=== Voices after the first are summarised, a line each ===');
+{
+    // Two half notes on the low E in voice 2 under four quarter notes on the top string in voice 1,
+    // as Vincent writes a bass under its picking; voice 3 has an off-beat note and a rest.
+    const low = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
+    const top = { isStringed: true, string: 6, fret: 0, realValue: 64, isDead: false };
+    const twoVoices = {
+        voices: [
+            { beats: [0, 960, 1920, 2880].map(start => beat([top], { playbackStart: start })) },
+            { beats: [0, 1920].map(start => beat([low], { duration: 2, playbackStart: start })) },
+            { beats: [beat([], { isRest: true, playbackStart: 0 }), beat([top], { duration: 8, playbackStart: 1440 })] },
+            { beats: [beat([], { isRest: true, duration: 1, playbackStart: 0 })] }
+        ]
+    };
+    const guitar = {
+        name: 'Guitar', isPercussion: false, playbackInfo: { program: 25 },
+        staves: [{ isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '', bars: [twoVoices, bar([beat([top])])] }]
+    };
+    const measures = extractScoreMetadata({ title: 'Synthetic', tempo: 120, masterBars: [masterBar(), masterBar()], tracks: [guitar] })
+        .tracks[0].measures;
+    check('voice 2 is one line, each note placed by its beat', measures[0].voices[0],
+        'Voice 2: half note, string 6, fret 3, at beat 1; half note, string 6, fret 3, at beat 3');
+    check('voice 3 leaves its rest out and places an off-beat note during its beat', measures[0].voices[1],
+        'Voice 3: eighth note, string 1, open, during beat 2');
+    check('a voice holding only a rest gets no line', measures[0].voices.length, 2);
+    check('voice 1 is still read beat by beat', measures[0].beats.length, 4);
+    check('a measure with one voice has no voice lines', measures[1].voices.length, 0);
+}
+
 console.log('\n=== A guitar track carrying words still reads strings and frets ===');
 {
     // A single-track tab with the words typed under the guitar part. Until 2026-11-11 it was read

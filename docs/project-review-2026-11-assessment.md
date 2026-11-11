@@ -19,11 +19,14 @@ Last updated 2026-11-11.
 - Done: finding 4, 2026-11-11.
   A pickup clicks only on its own beats, counted from its end, and is counted in with a whole measure and then the beats before it (Joel's choice).
   Recorded in `measure-practice.md`, Pickup measures, and checked by `scripts/songs/check-pickup-clicks.mjs`.
-- Not started, High: 3 (second voice not described, and its printed chords missed).
+- Done: finding 3, 2026-11-11.
+  Each voice after the first is one line after the words, "Voice 2: half note, string 6, fret 3, at beat 1; ...", and voice 1 is read beat by beat as before.
+  Printed chords in voice 2 were left alone: no file has one.
+  Decided with Joel; the outcome is under finding 3 below.
 - Not started, Medium: 5 (swing played straight), 6 (spaceBar outside the item's panel), 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
-- features.md still needs changes that go with findings 2, 3, 5 and 6, and the two wording fixes in finding 17.
+- features.md still needs changes that go with findings 5 and 6, and the two wording fixes in finding 17.
 
 ## Verdict
 
@@ -113,6 +116,23 @@ The comment at `scoreMetadata.mjs:814-815` says secondary voices "are not yet co
 
 Not in the review: `scoreMetadata.mjs:492`, which collects a measure's printed chords, also reads only the first voice.
 A chord printed on a beat in voice 2 is missing from the measure heading and from the track's Chord Symbols.
+
+Outcome, 2026-11-11, decided with Joel:
+
+- Only two of the 31 distinct files use voices.
+  Vincent's voice 2 is a plain bass line, mostly half notes on strings 4 to 6.
+  Brothers In Arms Solo's is busier, includes muted thumb notes and inner notes on strings 1 to 3, is not always the lowest part, and has a voice 3 in 43 measures.
+  Over half its voice 2 notes fall where voice 1 strikes nothing.
+- Each voice after the first is summarised as one list item after the measure's words: "Voice 2: half note, string 6, fret 3, at beat 1; half note, string 6, fret 3, at beat 3".
+  Each note is described as a beat is, with "at beat N", or "during beat N" off the beat, as chord symbols are placed.
+  Rests are left out, and a voice with no notes in the measure gets no line.
+- Voice 1 is read beat by beat as before.
+  By Guitar Pro's convention it is the main voice, and both files follow that.
+- The voices are named by number, never "bass", since that would be judging the notes.
+- A heading for each voice was considered and set aside: it would add two headings to each of 107 measures for what a line covers.
+- Chords printed in voice 2 were left alone, since no file has one.
+- Checked in `scripts/gp-experiment/verify-synthetic-score.mjs` and by reading Vincent and Brothers In Arms Solo in the app.
+- A voice note in a pickup measure is placed from the measure's start, as chord symbols and section labels are, not from where the full measure would begin.
 
 ### 4. A pickup measure gets a full measure of clicks
 

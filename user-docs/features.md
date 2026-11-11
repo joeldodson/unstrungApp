@@ -155,6 +155,11 @@ Each measure is a level 4 heading with its number, the section it starts if any,
 Under the heading are two buttons, Play and Add, described under Practicing Measure by Measure.
 Then come the lyrics sung over the measure, then a description of each beat: the strings and frets played, how the strings are struck, and techniques such as slides, bends, vibrato, harmonics and let ring.
 
+Some files write a second part with its own rhythm on the same staff, called a voice, such as a bass held under the picking in a fingerstyle arrangement.
+Each voice after the first is one line, after the lyrics and before the beats.
+It starts "Voice 2" and gives each note with the beat it falls on, for example "Voice 2: half note, string 6, fret 3, at beat 1; half note, string 6, fret 3, at beat 3".
+The beats that follow are the first voice.
+
 ### Chords in Measure Headings
 
 A measure heading gives the chords the file prints over it, as sheet music does.
