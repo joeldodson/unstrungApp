@@ -33,7 +33,8 @@ eyesunstrung.vip.
   set aside; the branch was deleted 2026-10-19.
 - `chord-forms-in-scores.md` -- chords in measure headings. Since 2026-10-26 only the chords the
   file prints, a beat named as a chord only at three different notes or more, and a Chord Symbols
-  list with the file's own diagrams. Before that, from 2026-10-20: chord forms, the shape the left
+  list with the file's own diagrams. Since 2026-11-10 playback plays exactly the notes written,
+  never filling a chord in from its name. Before that, from 2026-10-20: chord forms, the shape the left
   hand holds, worked out from the notes with exceptions and anomalies, and why it was dropped.
   Also listing only guitar and bass tracks.
 - `chord-forms-workflow.md` -- retired 2026-10-26 with chord forms: how songs were checked
@@ -62,6 +63,11 @@ eyesunstrung.vip.
   Solo's gain is analogue, Focusrite Control 2's MIDI control and mobile remote, what an
   Electron-only feature could reach, and announcing the input level from the audio. Notes from
   2026-11-08 and 2026-11-09, nothing built.
+- `project-review-2026-11.md` -- a full review of 0.10.2 by Fable 5.2 on 2026-11-10: nineteen
+  findings by severity, then architecture, security, build and code quality, nothing changed.
+- `project-review-2026-11-assessment.md` -- each of those findings checked against the code and
+  the song files the same day: all accurate, two with their intent or effect overstated, and one
+  related gap in reading second voices.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
