@@ -192,12 +192,14 @@ function describePercussionNote(note, articulations) {
  * AlphaTab numbers strings low-to-high (1 = low E). Guitarists and tab notation conventionally
  * number high-to-low (1 = high E), so we flip for display.
  *
- * A sung note is given as a pitch instead. Guitar Pro models a vocal line on a six-string staff
- * like everything else, so the notes carry a string and a fret, but nobody sings fret 3 of string
- * 2. The pitch is the note, and it is what the words are hung on.
+ * Every listed track is a guitar or a bass, so a stringed note is always given as its string and
+ * fret, words or no words. Until 2026-11-11 a track carrying lyrics was read as pitches, for vocal
+ * parts Guitar Pro models on a six-string staff. Only guitar and bass tracks have been listed since
+ * 2026-10-21, so that branch fired only on guitar parts with the words typed under them, such as a
+ * single-track tab of a song: their notes lost their strings and frets.
  */
-function describeNotePitch(note, stringCount, percussion, sung) {
-    if (note.isStringed && !sung) {
+function describeNotePitch(note, stringCount, percussion) {
+    if (note.isStringed) {
         const conventionalString = stringCount - note.string + 1;
         if (note.isDead) return `string ${conventionalString}, muted (X)`;
         if (note.fret === 0) return `string ${conventionalString}, open`;
@@ -364,16 +366,15 @@ function describeChordedBeat(beat, stringCount, terse, capo) {
  * measure rather than to the beat it happens to be anchored to -- see `describeMeasureChords`. So
  * nothing about it appears here: this describes what the beat plays, and only that.
  */
-function describeBeat(beat, stringCount, terse, capo, percussion, sung, letRing, textPromoted) {
+function describeBeat(beat, stringCount, terse, capo, percussion, letRing, textPromoted) {
     let pitchText;
     if (beat.isRest) {
         pitchText = 'rest';
     } else {
         // Only a beat that names a chord can be shortened. A beat listed string by string has no
-        // name to fall back on, so terse descriptions leave it exactly as it was. A sung beat is
-        // never named as a chord: notes sung together are a vocal harmony.
-        const named = sung ? null : describeChordedBeat(beat, stringCount, terse, capo)?.text;
-        pitchText = named ?? beat.notes.map(note => describeNotePitch(note, stringCount, percussion, sung)).join('; ');
+        // name to fall back on, so terse descriptions leave it exactly as it was.
+        const named = describeChordedBeat(beat, stringCount, terse, capo)?.text;
+        pitchText = named ?? beat.notes.map(note => describeNotePitch(note, stringCount, percussion)).join('; ');
         // A stroke the file states is said with a named chord; listed string by string, the beat
         // still says it, since nothing else does.
         const stroke = named ? null : statedStroke(beat);
@@ -819,7 +820,6 @@ function extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
     const stringCount = staff.tuning ? staff.tuning.length : 0;
     const capo = staffCapo(staff);
     const percussion = track.isPercussion ? (track.percussionArticulations ?? []) : null;
-    const sung = trackSings(track);
 
     // Let ring runs across bar lines, so the marks are worked out over the whole track at once and
     // handed back to each bar by position.
@@ -846,7 +846,7 @@ function extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
             chords: chords.text,
             lyrics: songLyrics[index] ?? [],
             beats: beats.map((beat, i) =>
-                describeBeat(beat, stringCount, terse, capo, percussion, sung, marks[offset + i],
+                describeBeat(beat, stringCount, terse, capo, percussion, marks[offset + i],
                     promotedSections.beats.has(beat)))
         };
     });

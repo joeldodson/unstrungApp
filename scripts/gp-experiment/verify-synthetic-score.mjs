@@ -193,6 +193,27 @@ console.log('\n=== A vocal track is not listed ===');
     check('a vocal track alone lists nothing', extractScoreMetadata(score).tracks.length, 0);
 }
 
+console.log('\n=== A guitar track carrying words still reads strings and frets ===');
+{
+    // A single-track tab with the words typed under the guitar part. Until 2026-11-11 it was read
+    // as a sung part: pitches, with no strings or frets.
+    const note = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
+    const score = {
+        title: 'Synthetic', tempo: 120, masterBars: [masterBar()],
+        tracks: [{
+            name: 'Guitar', isPercussion: false, playbackInfo: { program: 25 },
+            staves: [{
+                isStringed: true, tuning: [64, 59, 55, 50, 45, 40], capo: 0, tuningName: '',
+                bars: [bar([beat([note], { lyrics: ['sil-'] }), beat([note], { lyrics: ['ver'] })])]
+            }]
+        }]
+    };
+    const measure = extractScoreMetadata(score).tracks[0].measures[0];
+    check('its beat reads string and fret', measure.beats[0].includes('string 6, fret 3'), true);
+    check('and not a pitch', /\bG2\b/.test(measure.beats[0]), false);
+    check('its words are still read with the measure', measure.lyrics.join(' / '), 'Words: silver');
+}
+
 console.log('\n=== Tuplets change the duration, so they are named ===');
 {
     const note = { isStringed: true, string: 1, fret: 3, realValue: 43, isDead: false };
