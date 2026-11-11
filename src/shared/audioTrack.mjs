@@ -48,6 +48,9 @@ export const TICKS_PER_QUARTER = 960;
 //
 // 5. A tied note is not struck again: the note it continues is simply still ringing, which
 //    rule 4 already provides.
+//
+// 6. A bar's triplet feel is played as alphaTab's own MIDI generator plays it: each even pair of
+//    eighths, or of sixteenths, becomes long then short. See tripletFeelTimes.
 export const STRUM_STRING_DELAY_SECONDS = 0.020;
 
 // alphaTab's DynamicValue enum is not a simple soft-to-loud ordering: it starts PPP=0..FFF=7 but
@@ -116,6 +119,60 @@ function strumStepSeconds(beat, noteCount, beatTempo) {
     // Integer ticks per gap, matching alphaTab rather than being fractionally more exact than it.
     const ticks = Math.floor(beat.brushDuration / (noteCount - 1));
     return ticks * (60 / (beatTempo * TICKS_PER_QUARTER));
+}
+
+// alphaTab's TripletFeel, with the long and short halves of a pair in ticks. A feel pairs notes of
+// `interval` ticks: Triplet8th plays two eighths as a triplet quarter and eighth, 640 and 320;
+// Dotted8th as a dotted eighth and sixteenth; Scottish8th the other way round. The 16th feels do
+// the same to sixteenths. These are the durations alphaTab's MidiFileGenerator gives them.
+const TRIPLET_FEEL_PAIRS = {
+    2: { interval: 480, first: 640, second: 320 },   // Triplet8th
+    4: { interval: 480, first: 720, second: 240 },   // Dotted8th
+    6: { interval: 480, first: 240, second: 720 },   // Scottish8th
+    1: { interval: 240, first: 320, second: 160 },   // Triplet16th
+    3: { interval: 240, first: 360, second: 120 },   // Dotted16th
+    5: { interval: 240, first: 120, second: 360 }    // Scottish16th
+};
+
+/**
+ * Where each beat of a voice sounds and for how long, in ticks from its bar's start, once the
+ * bar's triplet feel is applied: [{ start, duration }], one for each of `voice.beats`.
+ *
+ * alphaTab's `playbackStart` and `playbackDuration` are the written, straight values; it swings
+ * only when it makes MIDI (`MidiFileGenerator._generateBeat` and `_calculateTripletFeelInfo`),
+ * which unstrung does not use. This follows that code exactly. A beat of exactly the feel's note
+ * value, starting on an even pair boundary, and followed directly in the same voice by another of
+ * the same value, is the long half of a pair, and the beat after it the short half. Anything else
+ * -- a dotted note, a triplet, a quarter, an off-beat start -- is played as written, and so is the
+ * beat after it. Rests take part, as in alphaTab, so a rest can be the long half of a pair.
+ *
+ * Until 2026-11-11 every beat was played straight, though Song Summary announced the feel.
+ * Finding 5 of the November review.
+ */
+export function tripletFeelTimes(voice) {
+    const beats = voice.beats || [];
+    const times = beats.map(beat => ({ start: beat.playbackStart, duration: beat.playbackDuration }));
+    // alphaTab's own exception, ahead of the feel: an empty bar's single rest lasts the whole bar.
+    // It sounds nothing, so this only keeps the times the same as alphaTab's.
+    if (voice.bar?.isEmpty && beats.length === 1) {
+        if (voice.bar.masterBar) times[0].duration = masterBarDurationTicks(voice.bar.masterBar);
+        return times;
+    }
+    const feel = TRIPLET_FEEL_PAIRS[voice.bar?.masterBar?.tripletFeel];
+    if (!feel) return times;
+
+    for (let index = 0; index + 1 < beats.length; index++) {
+        const beat = beats[index];
+        const next = beats[index + 1];
+        if (beat.playbackDuration !== feel.interval) continue;
+        if (beat.playbackStart % (feel.interval * 2) !== 0) continue;
+        if (next.playbackDuration !== feel.interval || next.playbackStart !== beat.playbackStart + feel.interval) continue;
+
+        times[index] = { start: beat.playbackStart, duration: feel.first };
+        times[index + 1] = { start: beat.playbackStart + feel.first, duration: feel.second };
+        index++;
+    }
+    return times;
 }
 
 function masterBarDurationTicks(masterBar) {
@@ -287,13 +344,15 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
             const barStartTick = bar.masterBar ? bar.masterBar.start : 0;
 
             for (const voice of bar.voices || []) {
-                for (const beat of voice.beats || []) {
+                // The bar's triplet feel, if it states one, moves the second of each swung pair.
+                const times = tripletFeelTimes(voice);
+                for (const [beatIndex, beat] of (voice.beats || []).entries()) {
                     if (beat.isRest || beat.notes.length === 0) continue;
-                    const startTick = barStartTick + beat.playbackStart;
+                    const startTick = barStartTick + times[beatIndex].start;
                     const beatStartSeconds = tickToSeconds(tempoMap, startTick);
                     const beatTempo = tempoMap.segments.find(s =>
                         startTick >= s.startTick && startTick < s.endTick)?.tempo ?? scoreTempo(score);
-                    const notatedSeconds = beat.playbackDuration * (60 / (beatTempo * TICKS_PER_QUARTER));
+                    const notatedSeconds = times[beatIndex].duration * (60 / (beatTempo * TICKS_PER_QUARTER));
 
                     const isStrum = beat.notes.length > 1;
 

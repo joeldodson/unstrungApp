@@ -132,6 +132,7 @@ The file opens as a new item in the list of open items, and you are moved to the
 
 The first heading is Song Summary.
 It lists what the file says about the song: title, artist and album where the file has them, tempo, feel if the song is swung or shuffled, number of bars, time signature, key signature and number of tracks.
+A swung or shuffled song is played with that feel, as described under Playing a Track.
 Where the tempo, time signature or key signature changes later in the song, the summary says so.
 
 ### Tracks
@@ -269,6 +270,12 @@ Below the buttons, unstrung says what it has done when you ask, and a collapsed 
 unstrung plays exactly the notes the file writes.
 Tab often prints a chord over a single bass note and leaves the rest to the player, and unstrung plays that bass note alone.
 The chord is in the measure heading and the track's Chord Symbols, so you can strum it yourself if that is what the tab means.
+
+A song the file marks as swung or shuffled is played that way, measure by measure, wherever the file marks it.
+With triplet eighths, the feel Song Summary calls "triplet eighths (swung)", each pair of eighth notes is played long then short: the second comes two thirds of the way through the beat instead of halfway.
+Triplet sixteenths do the same to each pair of sixteenth notes, and the dotted and Scottish feels play their pairs as a dotted note and a short one, or the other way round.
+Notes written as triplets, and eighth notes that do not fall in pairs on the beat, are played as written.
+The metronome and the count-in still click on the beats.
 
 Collapsing the Measures and Playback section stops playback.
 Expanding it again does not restart it; press Play to carry on from where it stopped.

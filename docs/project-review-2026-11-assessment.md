@@ -23,10 +23,14 @@ Last updated 2026-11-11.
   Each voice after the first is one line after the words, "Voice 2: half note, string 6, fret 3, at beat 1; ...", and voice 1 is read beat by beat as before.
   Printed chords in voice 2 were left alone: no file has one.
   Decided with Joel; the outcome is under finding 3 below.
-- Not started, Medium: 5 (swing played straight), 6 (spaceBar outside the item's panel), 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Done: finding 5, 2026-11-11.
+  Playback swings a bar whose file states a triplet feel, every feel alphaTab has, exactly as alphaTab's MIDI generator does.
+  Checked by `scripts/songs/check-triplet-feel.mjs`; the outcome is under finding 5 below.
+- Not started, Medium: 6 (spaceBar outside the item's panel), 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
-- features.md still needs changes that go with findings 5 and 6, and the two wording fixes in finding 17.
+- features.md still needs the change that goes with finding 6, and the two wording fixes in finding 17.
+  The swing it lacked, finding 17's lines 134 and 260, was added with finding 5.
 
 ## Verdict
 
@@ -153,6 +157,24 @@ The count-in is on by default and is heard in both files.
 Confirmed.
 alphaTab applies triplet feel only in `MidiFileGenerator` (alphaTab.core.mjs line 43301), not in `playbackStart`, and `audioTrack.mjs` reads `playbackStart`.
 9 of the 37 files carry triplet eighths, every Ripple file among them and Blue Eyes Crying In The Rain (2009).
+
+Outcome, 2026-11-11:
+
+- `tripletFeelTimes` in `audioTrack.mjs` gives each beat of a voice its start and length with the bar's feel applied, and `buildAudioTrack` places notes from it instead of `playbackStart`.
+- It follows `MidiFileGenerator._generateBeat` and `_calculateTripletFeelInfo` exactly.
+  A beat of exactly the feel's value, an eighth or a sixteenth, starting on an even pair boundary and followed directly in the same voice by another of that value, is the long half of a pair.
+  Triplet8th gives 640 and 320 ticks, Dotted8th 720 and 240, Scottish8th 240 and 720, and the 16th feels half those.
+  Rests take part, so an eighth rest can be the long half.
+  Written triplets, dotted notes and off-beat eighths are left as written.
+- All six feels are handled, though the song files carry only Triplet8th.
+- The metronome and count-in are unchanged: they come from bar and beat positions, which the feel does not move.
+- `scripts/songs/check-triplet-feel.mjs` builds scores from alphaTex for every feel and checks the seconds played.
+  It also runs each through alphaTab's MidiFileGenerator and compares every beat's start and end with alphaTab's tick lookup.
+  Over the 37 song files, all 65,803 beats alphaTab plays match; 1,082 beats in 410 bars of 9 files are moved by a feel.
+- Ripple (.gp) measure 35 now sounds at 0, 0.667, 1, 1.667 and so on, in beats.
+- `features.md` says, under Playing a Track, that a swung or shuffled song is played that way.
+- Not changed: `readSongFromScore` in `songScore.mjs`, which reads a song into chords and strumming patterns, still reads the written, straight rhythm.
+  It is not playback.
 
 ### 6. spaceBar on the Menu button plays the track
 
