@@ -16,8 +16,11 @@ Last updated 2026-11-11.
   The sung branch was removed from the beat descriptions, so a guitar track carrying words reads strings and frets, and names chords, like any other.
   Its words are still read with each measure.
   Checked in `scripts/gp-experiment/verify-synthetic-score.mjs`.
+- Done: finding 4, 2026-11-11.
+  A pickup clicks only on its own beats, counted from its end, and is counted in with a whole measure and then the beats before it (Joel's choice).
+  Recorded in `measure-practice.md`, Pickup measures, and checked by `scripts/songs/check-pickup-clicks.mjs`.
 - Not started, High: 3 (second voice not described, and its printed chords missed).
-- Not started, Medium: 4 (pickup measure clicks), 5 (swing played straight), 6 (spaceBar outside the item's panel), 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Not started, Medium: 5 (swing played straight), 6 (spaceBar outside the item's panel), 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs changes that go with findings 2, 3, 5 and 6, and the two wording fixes in finding 17.

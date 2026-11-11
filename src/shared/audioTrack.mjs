@@ -171,23 +171,85 @@ function buildTempoMap(score, targetTempo) {
  * beat unit comes from the time signature's lower number, so 4/4 gives four quarter-note beats
  * and 6/8 gives six eighth-note beats. Compound meters are conventionally counted in dotted
  * beats rather than in eighths, so 6/8 will click six times per bar rather than twice.
+ *
+ * A bar shorter than its time signature has only the beats that fall inside it. A pickup, which
+ * alphaTab marks `isAnacrusis`, is the end of a measure, so its beats are counted back from its
+ * end: a two-beat pickup in 4/4 holds beats 3 and 4, and one of a beat and a half holds the and of
+ * 3, with a click only on 4. Any other short bar is the start of a measure and is counted from its
+ * start. Until 2026-11-11 every bar was given its whole time signature's beats, so a pickup's
+ * clicks ran on into the next measure and landed on top of its own.
+ *
+ * `firstBeat` is the place in the full measure of the first beat listed, 0 for a downbeat, so a
+ * click knows whether it is the accented one. `beatSeconds` is one beat's length at this bar's
+ * tempo, which a count-in needs where the bar itself is too short to show it.
  */
 function buildBarMap(score, tempoMap) {
     return (score.masterBars || []).map((masterBar, index) => {
         const numerator = masterBar.timeSignatureNumerator || 4;
         const denominator = masterBar.timeSignatureDenominator || 4;
         const beatTicks = (4 / denominator) * TICKS_PER_QUARTER;
+        const durationTicks = masterBarDurationTicks(masterBar);
+        const fullTicks = numerator * beatTicks;
+        // Where the full measure would begin, relative to this bar's start: before it, for a pickup.
+        const measureStartTick = masterBar.isAnacrusis && durationTicks < fullTicks
+            ? durationTicks - fullTicks
+            : 0;
 
         const beats = [];
+        let firstBeat = null;
         for (let beat = 0; beat < numerator; beat++) {
-            beats.push(tickToSeconds(tempoMap, masterBar.start + beat * beatTicks));
+            const tick = measureStartTick + beat * beatTicks;
+            if (tick < 0 || tick >= durationTicks) continue;
+            firstBeat ??= beat;
+            beats.push(tickToSeconds(tempoMap, masterBar.start + tick));
         }
+        const secondsPerTick = tempoMap.segments[index]?.secondsPerTick ?? 0;
         const startSeconds = tickToSeconds(tempoMap, masterBar.start);
-        const endSeconds = startSeconds + masterBarDurationTicks(masterBar) *
-            (tempoMap.segments[index]?.secondsPerTick ?? 0);
+        const endSeconds = startSeconds + durationTicks * secondsPerTick;
 
-        return { index, startSeconds, endSeconds, beatsPerBar: numerator, beats };
+        return {
+            index, startSeconds, endSeconds, beatsPerBar: numerator, beats,
+            firstBeat: firstBeat ?? 0,
+            beatSeconds: beatTicks * secondsPerTick,
+            pickup: measureStartTick < 0
+        };
     });
+}
+
+/**
+ * The clicks of a count-in before `bar`, from one of `buildAudioTrack`'s bars: { seconds, clicks },
+ * each click { offset, accent } in seconds from the count-in's start, and `seconds` from its start
+ * to the bar's.
+ *
+ * One measure of the bar's time signature, at its tempo. A pickup is counted in with a whole
+ * measure and then the beats of its own measure that come before it, so a two-beat pickup in 4/4
+ * hears 1 2 3 4 1 2 and comes in on 3. Joel chose this on 2026-11-11 over counting only the 1 2,
+ * which leaves a long pickup a single click. Before then the count-in lasted as long as the pickup
+ * but clicked a whole measure, so its last clicks fell on the music.
+ *
+ * `beats` keeps only the last few clicks, for a repeat at a slow tempo, where a whole measure of
+ * clicks is a long wait and one or two are enough to hear the top coming round. Null, or as many
+ * as the time signature's beats or more, keeps them all.
+ */
+export function countInClicks(bar, beats = null) {
+    const count = bar.beatsPerBar;
+    const step = bar.beatSeconds;
+    // Where the bar's own measure has its beat 1: before the bar begins, for a pickup.
+    const downbeat = bar.pickup ? bar.endSeconds - count * step : bar.startSeconds;
+
+    const clicks = [];
+    for (let beat = 0; beat < count; beat++) clicks.push({ at: downbeat - (count - beat) * step, accent: beat === 0 });
+    for (let beat = 0; beat < count; beat++) {
+        const at = downbeat + beat * step;
+        if (at < bar.startSeconds - 1e-6) clicks.push({ at, accent: beat === 0 });
+    }
+
+    const kept = beats !== null && beats < count ? clicks.slice(-Math.max(1, beats)) : clicks;
+    const start = kept[0].at;
+    return {
+        seconds: bar.startSeconds - start,
+        clicks: kept.map(({ at, accent }) => ({ offset: at - start, accent }))
+    };
 }
 
 function tickToSeconds(tempoMap, tick) {

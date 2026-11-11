@@ -230,15 +230,17 @@ To collapse the section, go to Playback Settings and then up one line.
   A tempo you set stays until the song is closed.
 - **Metronome,** clicks while the music plays.
   Each note is timed so that its attack sounds with the click, and the pick noise recorded before it comes just ahead.
+  A song that starts with a pickup, a short first measure, clicks only on the beats the pickup holds: a two-beat pickup in 4/4 clicks on 3 and 4.
 - **Count in,** one measure of clicks before playing starts.
   It is on to begin with, and works whether or not the metronome is on.
+  Before a pickup it counts a whole measure, then the beats before the pickup comes in: 1 2 3 4 1 2, and a two-beat pickup comes in on 3.
 - **Repeat until stopped.**
   Unchecked, the measures play once.
   Turning it off while they repeat lets the time through under way finish, then stops.
 - **Count in before every repeat,** shown only while Repeat is checked.
 - **Number of beats to count in,** shown only while Count in before every repeat is checked.
-  It runs from 1 to the beats in the first measure of the selection, and starts at all of them.
-  Fewer counts in each repeat with the measure's last beats only, which is a shorter wait at a slow tempo: 2 in 4/4 clicks on beats 3 and 4.
+  It runs from 1 to the beats per measure of the first measure of the selection, and starts at all of them.
+  Fewer counts in each repeat with the last clicks of the count-in only, which is a shorter wait at a slow tempo: 2 in 4/4 clicks on beats 3 and 4, or on 1 and 2 before a two-beat pickup.
   The count-in before the first time through is always a whole measure.
 - **Measures to Play,** a collapsed section saying which measures will play.
   Inside it is a Section dropdown, starting with Entire Song, then one entry for each section the file marks, such as Intro or Verse 2.

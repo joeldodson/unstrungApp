@@ -281,6 +281,28 @@ Kept different, on purpose:
 
 The Metronome tool keeps its own Keyboard Control list for now.
 
+## Pickup measures, 2026-11-11
+
+Until 2026-11-11 every measure clicked its time signature's whole count, a pickup included. A
+two-beat pickup in 4/4 (Vincent.gpx) clicked four times, so its last two clicks landed with the
+next measure's first two, and the count-in, as long as the pickup, ran two clicks into the music.
+Finding 4 of the November review.
+
+- A pickup, which alphaTab marks `isAnacrusis`, is the end of a measure. It clicks only on the
+  beats it holds, counted back from its end: beats 3 and 4 for two beats in 4/4, and only beat 4
+  for Brothers In Arms Solo's beat and a half, which starts on the and of 3. Neither is the
+  accented downbeat. A short bar that is not marked a pickup is counted from its start.
+- The count-in before a pickup is a whole measure, then the beats of the pickup's own measure that
+  come before it: 1 2 3 4 1 2, and the pickup comes in on 3. Joel chose this over counting only the
+  1 2, which would give a pickup of three and a half beats a single click.
+- Number of Beats to Count In keeps the last few clicks of that, so 2 before a two-beat pickup is
+  the 1 2. Its range is the time signature's beats, as for any measure.
+
+The count-in is worked out in `countInClicks` in `src/shared/audioTrack.mjs`, and checked by
+`scripts/songs/check-pickup-clicks.mjs`. `scripts/progressions/verify-count-in-beats.mjs` assumes
+a full first measure, so run against Vincent it reports the six-click count-in and the pickup's
+shorter pass as failures; the timings it measures are the ones above.
+
 ## Set aside for later
 
 - A tempo that rises a few BPM each repeat, up to the song's tempo.

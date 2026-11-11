@@ -4,7 +4,7 @@ import {
     FINGER_NAMES, PITCH_CLASSES, QUALITY_LABELS, STANDARD_TUNING_MIDI, STRING_NUMBERS, TUNINGS,
     fretToMidi, identifyChordFromNotes, midiToPitchClassName, midiToPitchName, describeVoicingOmissions
 } from '../shared/musicTheory.mjs';
-import { buildAudioTrack, resolveRingLengths } from '../shared/audioTrack.mjs';
+import { buildAudioTrack, countInClicks, resolveRingLengths } from '../shared/audioTrack.mjs';
 import { silentWav } from '../shared/silentWav.mjs';
 import helpContent from '../assets/help/help-content.json';
 import progressionModel from '../assets/progressions/progression-model.json';
@@ -2655,29 +2655,13 @@ function metronomeToneBuffer(kind) {
  * Separate from the metronome since 2026-10-27: a count-in with no clicks during the music is
  * worth having when learning a passage. Before that the metronome decided it outright.
  *
- * `beats` shortens it to the measure's last few beats, for a repeat at a slow tempo, where a whole
- * measure of clicks is a long wait and one or two are enough to hear the top coming round. Null,
- * or as many beats as the measure has or more, is the whole measure.
+ * `beats` shortens it to the last few clicks; see `countInClicks` in audioTrack.mjs, which also
+ * says how a pickup is counted in.
  */
 function audioTrackCountInClicks(state, fromSeconds, countIn, beats = null) {
     if (!countIn) return null;
     const bar = state.audioTrack.bars[measureIndexAt(state, fromSeconds)];
-    if (!bar) return null;
-    if (beats !== null && beats < bar.beats.length) {
-        const beatSeconds = bar.beats[1] - bar.beats[0];
-        const first = bar.beats.length - beats;
-        return {
-            seconds: beats * beatSeconds,
-            clicks: Array.from({ length: beats }, (_, i) => ({ offset: i * beatSeconds, accent: first + i === 0 }))
-        };
-    }
-    return {
-        seconds: bar.endSeconds - bar.startSeconds,
-        clicks: bar.beats.map(beatSeconds => {
-            const offset = beatSeconds - bar.startSeconds;
-            return { offset, accent: offset === 0 };
-        })
-    };
+    return bar ? countInClicks(bar, beats) : null;
 }
 
 function audioTrackLeadInSeconds(state, fromSeconds, countIn, beats = null) {
@@ -2913,7 +2897,8 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
                 if (beatSeconds < fromSeconds - 1e-6 || beatSeconds >= toSeconds - 1e-6) continue;
                 const when = baseContext + (beatSeconds - fromSeconds);
                 audioTrackSources.push({
-                    source: scheduleMetronomeClick(context, audioTrackMasterGain, when, beatInBar === 0),
+                    // A pickup's first beat is not the downbeat; see buildBarMap.
+                    source: scheduleMetronomeClick(context, audioTrackMasterGain, when, bar.firstBeat + beatInBar === 0),
                     endsAt: when + METRONOME_CLICK_SECONDS
                 });
             }
@@ -3302,9 +3287,12 @@ function showAudioTrackRepeatCountIn(state) {
     state.ui.countInBeatsParagraph.hidden = !repeat || !state.countInEachPass;
 }
 
-/** The beats in the first measure of the selection, which a repeat is counted in on. */
+/**
+ * The beats in the first measure of the selection, which a repeat is counted in on: its time
+ * signature's, even for a pickup, whose count-in starts with a whole measure.
+ */
 function audioTrackSelectionBeats(state) {
-    return state.audioTrack.bars[audioTrackRange(state).firstIndex]?.beats.length ?? 4;
+    return state.audioTrack.bars[audioTrackRange(state).firstIndex]?.beatsPerBar ?? 4;
 }
 
 /**
