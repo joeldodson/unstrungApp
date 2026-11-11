@@ -5,6 +5,7 @@
 // written to disk and reaches the next progression generated.
 
 import { runMenuCommand } from '../lib/app-ui.mjs';
+import { spokenChordName } from '../../src/shared/spokenPhrases.mjs';
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
 const { _electron } = await import(`file:///${APP_DIR}/node_modules/playwright-core/index.mjs`);
@@ -137,6 +138,64 @@ const reloaded = await page.evaluate(() => window.unstrung.getSettings());
 console.log(`  after restart: ${reloaded.chordVoice} at ${reloaded.chordVoicePercent}%`);
 check('the voice was remembered', reloaded.chordVoice === 'david', reloaded.chordVoice);
 check('the volume was remembered', reloaded.chordVoicePercent === 40, String(reloaded.chordVoicePercent));
+
+// Before Settings or Chord Practice is opened, which until 2026-11-11 were the only places the
+// saved voice was read: the Chord Library spoke in Zira at 75 percent whatever had been saved.
+// Finding 7 of the November review. The spoken name's gain gives the volume, and its recording,
+// compared sample for sample with each voice's, gives the voice.
+console.log('\n=== The Chord Library speaks in the saved voice from the start ===');
+await page.waitForTimeout(800);
+await runMenuCommand(page, 'chord-library');
+await page.waitForSelector('#chords-search-input', { timeout: 10000 });
+await page.waitForTimeout(800);
+await page.evaluate(() => {
+    window.__spoken = [];
+    const realStart = AudioBufferSourceNode.prototype.start;
+    const realConnect = AudioBufferSourceNode.prototype.connect;
+    const destinations = new WeakMap();
+    AudioBufferSourceNode.prototype.connect = function (destination) {
+        destinations.set(this, destination);
+        return realConnect.call(this, destination);
+    };
+    AudioBufferSourceNode.prototype.start = function (...args) {
+        const gain = destinations.get(this)?.gain;
+        // A spoken name's gain is set outright; a string's is automated, and reads 1 until it starts.
+        if (gain && gain.value !== 1) window.__spoken.push({ gain: gain.value, length: this.buffer.length });
+        return realStart.apply(this, args);
+    };
+});
+const ticked = await page.evaluate(() => {
+    const input = document.getElementById('chords-search-input');
+    input.value = 'C';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const label = [...document.querySelectorAll('#chords-results-list label')].find(l => l.textContent.startsWith('C - '));
+    if (!label) return null;
+    document.getElementById(label.htmlFor).click();
+    document.getElementById('chords-speak-names-checkbox').checked = true;
+    document.getElementById('chords-play-button').click();
+    return label.textContent;
+});
+await page.waitForTimeout(2500);
+const spoken = await page.evaluate(() => window.__spoken);
+// The same name's recording in each voice, decoded the way the page decodes it.
+const lengths = await page.evaluate(async name => {
+    const context = new AudioContext();
+    const out = {};
+    for (const voice of ['zira', 'david']) {
+        const [entry] = await window.unstrung.getSpokenPhrases(voice, [name]);
+        const bytes = entry.bytes;
+        const buffer = await context.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+        out[voice] = buffer.length;
+    }
+    await context.close();
+    return out;
+}, spokenChordName('C', 'major'));
+console.log(`  played ${ticked}; spoken names: ${JSON.stringify(spoken)}; C major is ${lengths.zira} samples in Zira, ${lengths.david} in David`);
+check('a name was spoken', spoken.length === 1, JSON.stringify(spoken));
+check('at the saved volume, 40 percent', spoken.length === 1 && Math.abs(spoken[0].gain - 0.4) < 1e-6, JSON.stringify(spoken));
+check('in the saved voice, David', lengths.zira !== lengths.david && spoken[0]?.length === lengths.david,
+    `${spoken[0]?.length} samples`);
+await page.evaluate(() => document.getElementById('chords-clear-button').click());
 
 await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(1500);

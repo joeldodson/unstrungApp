@@ -705,6 +705,8 @@ The dialog has three tabs.
 - **Voice for spoken chord names:** Zira or David.
   Names are spoken in words: B flat 7 sharp eleventh, C 7 flat fifth, G sus 4 add 6.
 - **Spoken chord volume,** as a percentage, relative to the guitar.
+  It starts at 50.
+  The voice and volume are used everywhere names are spoken, the Chord Library as well as Chord Practice, from the moment unstrung starts.
 - **Folder for saved chord progressions.**
 
 ### Files

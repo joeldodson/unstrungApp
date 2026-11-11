@@ -1014,8 +1014,23 @@ settingsAutoCollapseCheckbox.addEventListener('change', saveScreenReaderSettings
  * where everything in that dialog describes the progression being made. A progression already
  * generated keeps whatever was in force when it was made, so changing this does not reach back
  * into a tab that is open.
+ *
+ * Read from the stored settings at startup, with the screen reader settings. Until 2026-11-11 it
+ * was read only when Settings or Chord Practice was opened, so the Chord Library spoke in Zira at
+ * 75 percent whatever had been saved. Finding 7 of the November review.
  */
-let chordVoiceSettings = { chordVoice: 'zira', chordVoicePercent: 75 };
+// The same default as DEFAULT_CHORD_VOICE_SETTINGS in src/main/main.js and DEFAULT_SETTINGS in
+// src/web/platform.js: 50 percent since 2026-08-14. The renderer's own copies had stayed at 75.
+const DEFAULT_CHORD_VOICE = { chordVoice: 'zira', chordVoicePercent: 50 };
+let chordVoiceSettings = { ...DEFAULT_CHORD_VOICE };
+
+/** The voice and volume from `getSettings`, with the default for anything missing. */
+function readChordVoiceSettings(settings) {
+    return {
+        chordVoice: settings.chordVoice ?? DEFAULT_CHORD_VOICE.chordVoice,
+        chordVoicePercent: settings.chordVoicePercent ?? DEFAULT_CHORD_VOICE.chordVoicePercent
+    };
+}
 
 async function saveChordVoiceSettings() {
     chordVoiceSettings = await window.unstrung.saveChordVoiceSettings({
@@ -1052,10 +1067,7 @@ async function openSettingsDialog() {
     settingsGeneralStatusElement.textContent = '';
     settingsTerseBeatsCheckbox.checked = settings.terseBeatDescriptions === true;
     settingsAutoCollapseCheckbox.checked = settings.autoCollapseOnTabChange !== false;
-    chordVoiceSettings = {
-        chordVoice: settings.chordVoice ?? 'zira',
-        chordVoicePercent: settings.chordVoicePercent ?? 75
-    };
+    chordVoiceSettings = readChordVoiceSettings(settings);
     settingsChordVoiceSelect.value = chordVoiceSettings.chordVoice;
     settingsChordVolumeInput.value = String(chordVoiceSettings.chordVoicePercent);
     settingsFilesStatusElement.textContent = '';
@@ -1109,13 +1121,15 @@ function requireFileAccess(element) {
 })();
 
 // Loaded once at startup so the first file opened is described according to the saved setting,
-// rather than needing the Settings dialog to have been visited first.
+// and the Chord Library speaks in the saved voice, rather than needing the Settings dialog to have
+// been visited first.
 (async () => {
     const settings = await window.unstrung.getSettings();
     screenReaderSettings = {
         terseBeatDescriptions: settings.terseBeatDescriptions === true,
         autoCollapseOnTabChange: settings.autoCollapseOnTabChange !== false
     };
+    chordVoiceSettings = readChordVoiceSettings(settings);
 })();
 // --- end Settings dialog ---
 // --- Chord library (Tools menu) ---
@@ -5672,10 +5686,7 @@ async function ensureChordPracticeReady() {
         chordPracticeSpeechSupported = result.supported && result.voices.length > 0;
     }
     const settings = await window.unstrung.getSettings();
-    chordVoiceSettings = {
-        chordVoice: settings.chordVoice ?? 'zira',
-        chordVoicePercent: settings.chordVoicePercent ?? 75
-    };
+    chordVoiceSettings = readChordVoiceSettings(settings);
     ownStrummingPatterns = Array.isArray(settings.strummingPatterns) ? settings.strummingPatterns : [];
 }
 

@@ -133,7 +133,7 @@ async function dbSet(key, value) {
 
 const SETTINGS_KEY = 'unstrung-settings';
 const DEFAULT_SETTINGS = {
-    terseBeatDescriptions: false, autoCollapseOnTabChange: true, chordVoice: 'zira', chordVoicePercent: 75,
+    terseBeatDescriptions: false, autoCollapseOnTabChange: true, chordVoice: 'zira', chordVoicePercent: 50,
     // The player's own strumming patterns, { name, timeSignature, text } each.
     strummingPatterns: []
 };

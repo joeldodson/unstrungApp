@@ -29,7 +29,10 @@ Last updated 2026-11-11.
 - Done: finding 6, 2026-11-11.
   A track's and a progression's playback keys act only while focus is in that item, as the metronome's always have, so the Menu button and the list of open items keep their own keys.
   Checked by `scripts/songs/verify-keys-stay-in-item.mjs`; the outcome is under finding 6 below.
-- Not started, Medium: 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Done: finding 7, 2026-11-11.
+  The voice and volume are read at startup with the screen reader settings, and the default is 50 everywhere.
+  Checked in `scripts/speech/verify-chord-voice-settings.mjs`; the outcome is under finding 7 below.
+- Not started, Medium: 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
@@ -208,6 +211,18 @@ On a fresh desktop install the Chord Library speaks at 75 until Settings is open
 
 It affects only someone who has changed the setting, or the desktop default, and only until one of those two is opened.
 Low rather than Medium.
+
+Outcome, 2026-11-11:
+
+- The startup read in `renderer.js` now loads the voice and volume along with the screen reader settings, through `readChordVoiceSettings`, which the Settings dialog and the Chord Practice setup use as well.
+- The default is 50 everywhere.
+  It was set to 50 on 2026-08-14 (commit d1f49ff) in `main.js` and the Settings form, but the renderer's three fallbacks stayed at 75, and the web version copied 75 in October.
+  The renderer now has one default, `DEFAULT_CHORD_VOICE`, and `src/web/platform.js` says 50.
+  A web visitor who has never saved the setting gets 50; one who has keeps what they saved.
+- `scripts/speech/verify-chord-voice-settings.mjs` now plays a chord in the Chord Library after a restart, before Settings or Chord Practice is opened.
+  It checks the spoken name's gain is the saved 40 percent, and that its recording is David's, by comparing its length in samples with each voice's recording of the same name.
+  Without the startup read it fails both, with Zira at 50.
+- `features.md`, Settings, says the volume starts at 50 and that both apply from startup.
 
 ### 8. A minor key is named as its relative major
 
