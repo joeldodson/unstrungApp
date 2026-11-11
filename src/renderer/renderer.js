@@ -2511,11 +2511,6 @@ function describeAudioTrack(state) {
         rows.push(`Tied notes held over - ${audioTrack.skipped.tiedContinuations}` +
             ' (not struck again, left ringing)');
     }
-    if (audioTrack.completedChords.length > 0) {
-        const names = [...new Set(audioTrack.completedChords.map(c => c.chord))].join(', ');
-        rows.push(`Named chords strummed in full - ${audioTrack.completedChords.length} (${names}),` +
-            ' voiced as the song writes them elsewhere');
-    }
     return rows;
 }
 

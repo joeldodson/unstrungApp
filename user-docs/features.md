@@ -259,6 +259,10 @@ The heading is followed by a reminder that ? lists the keys.
 
 Below the buttons, unstrung says what it has done when you ask, and a collapsed section, About the Audio Track, gives how many notes the track has, how long it is, and its tempo.
 
+unstrung plays exactly the notes the file writes.
+Tab often prints a chord over a single bass note and leaves the rest to the player, and unstrung plays that bass note alone.
+The chord is in the measure heading and the track's Chord Symbols, so you can strum it yourself if that is what the tab means.
+
 Collapsing the Measures and Playback section stops playback.
 Expanding it again does not restart it; press Play to carry on from where it stopped.
 Showing another open item collapses the section, and so stops playback, unless you turn that setting off.

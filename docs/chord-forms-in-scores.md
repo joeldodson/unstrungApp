@@ -113,6 +113,33 @@ the file shows it and it sounds three different notes or more, the same as a bea
   the American Pie chart, Ripple.gp5 and Wish You Were Here. The Brothers In Arms Solo and the Wish
   You Were Here chord solo mark one or two melody notes as a chord's diagram.
 
+### Playing what is written
+
+Decided by Joel, 2026-11-10: playback plays exactly the notes a track writes. A printed chord
+changes nothing that is heard. A G printed over string 6, fret 3 plays G2 alone.
+
+Until then a printed chord over one or two notes was filled in to the whole chord, on the reasoning
+that tab often writes only the bass note and leaves the strum to the player. The voicing came from
+the chord's diagram in the file, or from the fullest beat the song played under that chord name.
+
+The November review (`project-review-2026-11.md`, finding 1) found that it used diagrams the file
+hides. Songsterr's placeholder, Am7, was played under every D, G#m or F#m in their files: 213 beats
+across the test set. Fixing that left the larger question, and the answer was to stop filling in:
+
+- There is no way to tell a bass note meant as shorthand from a note meant alone. Both are the same
+  string and fret. Filling in was a guess that the written notes did not mean what they said, and
+  it was sometimes wrong. Ripple Chord Solo measure 16 opens with an open D then an E on string 4
+  under a printed C; the D became a C strum.
+- If the sound fills a chord in, a reader hearing it cannot tell that the file wrote one note. If
+  the sound plays the one note, the reader has the note and the printed chord, and can decide what
+  the tab means.
+- It matches the rule for headings: the printed chord is the harmony, and the notes need not spell
+  it.
+
+Generated chord progressions were never affected: they write every note they strum. Checked by
+`scripts/songs/check-plays-as-written.mjs`, which with the Guitar folder confirms that all 73
+guitar and bass tracks play exactly their written notes.
+
 A printed name is matched against the library as written, then without its bass, so D/F# is found
 as D where the library has no slash chord.
 

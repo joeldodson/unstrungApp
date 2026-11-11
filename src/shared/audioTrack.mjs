@@ -13,7 +13,7 @@ export const TICKS_PER_QUARTER = 960;
 // These rules apply to every supported file format, not just one song.
 //
 // THE FILE ALWAYS WINS. Everything below is a choice of last resort, used only where the score
-// is silent about how something should be played. Where a file states a chord's fingering, a
+// is silent about how something should be played. Where a file states the notes, a
 // strum direction, a dynamic or a tempo, that is what gets played, and no guideline here
 // overrides it. As support for more of what these formats can express is added, each new piece
 // of real information should take its place ahead of the corresponding fallback.
@@ -24,8 +24,7 @@ export const TICKS_PER_QUARTER = 960;
 //
 // 2. The direction of the strum comes from brushType or pickStroke, and from nothing else. Where
 //    the file states neither, the strum sweeps from the lowest-pitched string upward: the
-//    downstroke, which is what an unmarked strum means in notation, and what rule 3 below already
-//    does for a chord filled in from its name.
+//    downstroke, which is what an unmarked strum means in notation.
 //
 //    The order the notes happen to appear in the beat is NOT used, though it once was. It is not
 //    a signal: GP3-5 store a beat's notes as a bitmask of strings, which cannot express an order
@@ -33,72 +32,23 @@ export const TICKS_PER_QUARTER = 960;
 //    twice put 30 of its beats in opposite order, and the one beat in our files that does state a
 //    brush has its notes listed the other way round. See scripts/gp-experiment/gpParsingFindings.md.
 //
-// 3. A beat that carries a chord name sounds the whole chord. Tablature often writes only the
-//    bass note under a chord symbol and leaves the rest to the player, so where a named beat
-//    sounds fewer than CHORD_COMPLETION_MAX_NOTES notes the remaining strings are filled in and
-//    the beat is strummed. Filling the chord in says nothing about which way the pick went, so
-//    the direction is settled by rule 2 like any other strum.
+// 3. Every beat sounds exactly the notes it writes, whether or not a chord name is printed over
+//    it. A chord name over a single bass note is played as that bass note.
 //
-//    The voicing comes from the song, not from a chord dictionary: for each chord name we take
-//    the fullest voicing the piece itself ever writes out. A song may deliberately play a chord
-//    somewhere other than open position, and picking a textbook shape instead would move it to
-//    the wrong octave. If a song never spells a chord out, its sparse beats are left as written
-//    rather than guessing a shape.
+//    Until 2026-11-10 a printed chord over one or two notes was filled in to the whole chord,
+//    from the file's diagram or from the fullest beat the song played under that name. It was
+//    dropped because it guessed that the written notes did not mean what they said, and the guess
+//    was sometimes wrong: a melody note under a printed chord was replaced by a strum. Playing
+//    what is written keeps the sound and the description in agreement; the printed chord is still
+//    read in the measure heading and the track's Chord Symbols, so a player has what they need to
+//    strum it if they want to. See docs/chord-forms-in-scores.md, Playing what is written.
 //
-// 4. A beat with no chord name sounds exactly what it notates. Tablature routinely splits a
-//    chord across beats, plucking the bass on one and strumming the upper strings on the next,
-//    and that is a deliberate rhythm rather than an incomplete chord.
-//
-// 5. A note rings until that same string is struck again, then decays on its own. Notated
+// 4. A note rings until that same string is struck again, then decays on its own. Notated
 //    duration says when the next attack falls, not when the string stops sounding.
 //
-// 6. A tied note is not struck again: the note it continues is simply still ringing, which
-//    rule 5 already provides.
+// 5. A tied note is not struck again: the note it continues is simply still ringing, which
+//    rule 4 already provides.
 export const STRUM_STRING_DELAY_SECONDS = 0.020;
-
-// A named beat writing this many notes or fewer is treated as shorthand for the whole chord.
-// Above it, the notation is being specific -- a five-note G that omits the top string means to
-// leave that string out -- and is left alone.
-export const CHORD_COMPLETION_MAX_NOTES = 2;
-
-/**
- * Learns how this song voices each chord it names, by taking the fullest set of strings any beat
- * under that chord ever sounds. The chord name is carried forward from the beat that declares it
- * until the next one, the way a player reads the harmony along the staff.
- */
-function learnChordVoicings(track) {
-    const fullest = new Map();
-
-    for (const staff of track.staves || []) {
-        const staffStringCount = staff.tuning ? staff.tuning.length : 0;
-        let currentChord = null;
-
-        for (const bar of staff.bars || []) {
-            for (const voice of bar.voices || []) {
-                for (const beat of voice.beats || []) {
-                    if (beat.hasChord && beat.chord && beat.chord.name) currentChord = beat.chord.name;
-                    if (!currentChord || beat.isRest || beat.notes.length === 0) continue;
-
-                    const shape = beat.notes
-                        .filter(note => note.isStringed && typeof note.realValue === 'number' && !note.isDead)
-                        .map(note => ({
-                            string: staffStringCount - note.string + 1,
-                            fret: note.fret,
-                            midi: note.realValue
-                        }));
-                    if (shape.length === 0) continue;
-
-                    const existing = fullest.get(currentChord);
-                    if (!existing || shape.length > existing.length) {
-                        // Strum order is string 6 down to string 1: a downstroke.
-                        fullest.set(currentChord, [...shape].sort((a, b) => b.string - a.string));
-                    }
-                }
-            }
-        }
-    }
-    return fullest;
-}
 
 // alphaTab's DynamicValue enum is not a simple soft-to-loud ordering: it starts PPP=0..FFF=7 but
 // then continues with PPPP=8..PPPPPP=10 and FFFF=11 onwards, plus accents like SF and SFZ. So the
@@ -166,32 +116,6 @@ function strumStepSeconds(beat, noteCount, beatTempo) {
     // Integer ticks per gap, matching alphaTab rather than being fractionally more exact than it.
     const ticks = Math.floor(beat.brushDuration / (noteCount - 1));
     return ticks * (60 / (beatTempo * TICKS_PER_QUARTER));
-}
-
-/**
- * A chord's fingering as stated by the file, or null if it does not give one.
- *
- * alphaTab's `Chord.strings` holds one fret per string with -1 for unplayed, ordered the same way
- * as the staff tuning array: highest-pitched string first. Files often carry a chord name with no
- * fingering at all, in which case every entry is -1 and there is nothing to use.
- */
-function statedChordVoicing(chord, tuning) {
-    if (!chord || !Array.isArray(chord.strings) || !Array.isArray(tuning)) return null;
-    const stringCount = tuning.length;
-    if (chord.strings.length !== stringCount) return null;
-
-    const shape = [];
-    for (const [index, fret] of chord.strings.entries()) {
-        if (typeof fret !== 'number' || fret < 0) continue;
-        shape.push({
-            // Index 0 is the highest-pitched string, which is string 1 in tab numbering.
-            string: index + 1,
-            fret,
-            midi: tuning[index] + fret
-        });
-    }
-    if (shape.length === 0) return null;
-    return shape.sort((a, b) => b.string - a.string); // string 6 first: a downstroke
 }
 
 function masterBarDurationTicks(masterBar) {
@@ -289,10 +213,8 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
     if (!track) return null;
 
     const tempoMap = buildTempoMap(score, targetTempo);
-    const chordVoicings = learnChordVoicings(track);
     const notes = [];
     const skipped = { tiedContinuations: 0, deadNotes: 0, unpitched: 0 };
-    const completedChords = [];
     let stringCount = 0;
 
     for (const staff of track.staves || []) {
@@ -310,41 +232,6 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
                     const beatTempo = tempoMap.segments.find(s =>
                         startTick >= s.startTick && startTick < s.endTick)?.tempo ?? scoreTempo(score);
                     const notatedSeconds = beat.playbackDuration * (60 / (beatTempo * TICKS_PER_QUARTER));
-
-                    // A named beat writing only a bass note is shorthand for the whole chord.
-                    // A fingering stated by the file is used ahead of one inferred from the song.
-                    const chordName = beat.hasChord && beat.chord ? beat.chord.name : null;
-                    const voicing = chordName
-                        ? (statedChordVoicing(beat.chord, staff.tuning) ?? chordVoicings.get(chordName))
-                        : undefined;
-                    if (voicing && beat.notes.length <= CHORD_COMPLETION_MAX_NOTES
-                        && voicing.length > beat.notes.length) {
-                        const velocity = velocityLayerFor(beat.notes[0]?.dynamics);
-                        // The voicing is stored lowest-pitched string first, which is a
-                        // downstroke; a stated upstroke turns it round. This beat is being filled
-                        // in from a chord name, but that is no reason to ignore a brush the file
-                        // marked on it.
-                        const sweep = statedStrumDirection(beat) === 'highToLow'
-                            ? [...voicing].reverse()
-                            : voicing;
-                        const step = strumStepSeconds(beat, sweep.length, beatTempo);
-                        for (const [indexInBeat, string] of sweep.entries()) {
-                            notes.push({
-                                startSeconds: beatStartSeconds + indexInBeat * step,
-                                notatedSeconds,
-                                midi: string.midi,
-                                string: string.string,
-                                fret: string.fret,
-                                velocity,
-                                bar: bar.index,
-                                indexInBeat,
-                                strumSize: sweep.length,
-                                completedFromChord: chordName
-                            });
-                        }
-                        completedChords.push({ bar: bar.index, chord: chordName, notes: voicing.length });
-                        continue;
-                    }
 
                     const isStrum = beat.notes.length > 1;
 
@@ -411,8 +298,7 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
         // Bars with their beat positions, for the metronome and the count-in.
         bars: buildBarMap(score, tempoMap),
         notes,
-        skipped,
-        completedChords
+        skipped
     };
 }
 

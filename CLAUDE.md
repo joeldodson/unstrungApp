@@ -60,6 +60,11 @@ and dropped on 2026-10-26, because the printed chord is the harmony and
 the notes need not spell it. Read `docs/chord-forms-in-scores.md` before
 reopening any of it.
 
+Playback plays exactly the notes a track writes. A printed chord never
+fills a beat in: a G over string 6, fret 3 plays G2 alone, and the reader
+has the printed chord to decide what the tab means. Decided 2026-11-10, in
+the same document under Playing what is written.
+
 # User documentation
 
 `user-docs/` holds documentation for people using unstrung, as opposed to
