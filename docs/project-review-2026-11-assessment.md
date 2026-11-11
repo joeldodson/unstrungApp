@@ -32,7 +32,10 @@ Last updated 2026-11-11.
 - Done: finding 7, 2026-11-11.
   The voice and volume are read at startup with the screen reader settings, and the default is 50 everywhere.
   Checked in `scripts/speech/verify-chord-voice-settings.mjs`; the outcome is under finding 7 below.
-- Not started, Medium: 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Done: finding 8, 2026-11-11.
+  Song Summary names a key the file marks minor as "A minor"; a major key still reads "C".
+  Checked by `scripts/songs/check-key-names.mjs`; the outcome is under finding 8 below.
+- Not started, Medium: 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
@@ -230,6 +233,17 @@ Confirmed by tracing.
 `keySignatureName` uses only the count of sharps and flats.
 `songScore.mjs` writes `\ks aminor` for a progression in A minor, so unstrung's own file reads "Key signature - C" through Open File.
 The fix is small: `songScore.mjs` already has `keyFromSignature` with the mode.
+
+Outcome, 2026-11-11:
+
+- `keySignatureName` in `scoreMetadata.mjs` reads the bar's `keySignatureType` as well, and names a minor key "A minor", for every signature from 7 flats to 7 sharps.
+  `keyFromSignature` was not reused, since it knows only the twelve keys unstrung offers and returns nothing for G#, D# or A# minor.
+- A major key is still named alone, "C", not "C major".
+  None of the 37 song files is marked minor, and 30 are the default C, so "major" would state a mode most files hold only by default; "minor" is always someone's choice.
+- A change of mode on the same signature, C major to A minor, now counts as a key change for "changes later in the song".
+- `scripts/songs/check-key-names.mjs` saves a progression in each of the 24 keys unstrung offers and reads it back as a song, and reads alphaTex and MusicXML written in the script, minor keys outside unstrung's list among them.
+  Given the song files, it checks that every file marked major is named exactly as before; all 37 are.
+- `features.md`, Song Summary, says how the key is named.
 
 ### 9. Closing the window discards chords typed in the progression editor
 

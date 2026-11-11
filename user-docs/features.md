@@ -133,6 +133,8 @@ The file opens as a new item in the list of open items, and you are moved to the
 The first heading is Song Summary.
 It lists what the file says about the song: title, artist and album where the file has them, tempo, feel if the song is swung or shuffled, number of bars, time signature, key signature and number of tracks.
 A swung or shuffled song is played with that feel, as described under Playing a Track.
+The key signature is given as a key: "A minor" where the file marks the key as minor, and the major key alone, such as "C", where it does not.
+Most files are marked major whatever the song is, so "C" names the signature, no sharps or flats, more than the key.
 Where the tempo, time signature or key signature changes later in the song, the summary says so.
 
 ### Tracks

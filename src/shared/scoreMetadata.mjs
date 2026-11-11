@@ -43,8 +43,28 @@ const GENERAL_MIDI_INSTRUMENTS = [
     'Telephone Ring', 'Helicopter', 'Applause', 'Gunshot'
 ];
 
-function keySignatureName(value) {
+// The minor key with each signature, from 7 flats to 7 sharps, as KEY_SIGNATURE_NAMES has the major.
+const MINOR_KEY_SIGNATURE_NAMES = ['Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#'];
+// alphaTab's KeySignatureType.
+const KEY_TYPE_MINOR = 1;
+
+/**
+ * The key a signature names: "A minor" where the file marks it minor, and the major key, "C", where
+ * it does not.
+ *
+ * A major key is not called "C major". Guitar Pro files are marked major unless someone changed it:
+ * none of the 37 song files tested is marked minor, and 30 are the default C. So "major" would state
+ * a mode most files hold only by default, where "minor" is always a choice someone made.
+ *
+ * Until 2026-11-11 the mode was not read at all, so a progression unstrung saved in A minor, opened
+ * as a song, read "Key signature - C". Finding 8 of the November review.
+ */
+function keySignatureName(value, type) {
     const index = value + 7;
+    if (type === KEY_TYPE_MINOR) {
+        const minor = MINOR_KEY_SIGNATURE_NAMES[index];
+        return minor ? `${minor} minor` : `Unknown (${value}, minor)`;
+    }
     return KEY_SIGNATURE_NAMES[index] ?? `Unknown (${value})`;
 }
 
@@ -1030,7 +1050,9 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         bar => bar.timeSignatureNumerator !== firstBar.timeSignatureNumerator ||
             bar.timeSignatureDenominator !== firstBar.timeSignatureDenominator
     );
-    const keySignatureVaries = masterBars.some(bar => bar.keySignature !== firstBar.keySignature);
+    // A change of mode on the same signature, C major to A minor, is a change of key too.
+    const keySignatureVaries = masterBars.some(bar => bar.keySignature !== firstBar.keySignature ||
+        bar.keySignatureType !== firstBar.keySignatureType);
 
     // A tempo automation sits on the bar it takes effect from, and there is normally one on bar 1
     // stating the tempo the song already reports. Only a different value is a change: Sister
@@ -1071,7 +1093,7 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         barCount: masterBars.length,
         timeSignature: firstBar ? `${firstBar.timeSignatureNumerator}/${firstBar.timeSignatureDenominator}` : null,
         timeSignatureVaries,
-        keySignature: firstBar ? keySignatureName(firstBar.keySignature) : null,
+        keySignature: firstBar ? keySignatureName(firstBar.keySignature, firstBar.keySignatureType) : null,
         keySignatureVaries,
         tracks: (score.tracks || [])
             .map((track, index) => ({ track, index }))
