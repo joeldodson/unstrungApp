@@ -324,6 +324,7 @@ The tempo stays as you set it.
 ### Keys
 
 While your screen reader is in focus mode, these keys control playback.
+They work while focus is anywhere in the song, on a button as well, but not on the Menu button or in the list of open items, where spaceBar and the arrows do what they do there.
 ? lists them in the Playback Keys dialog.
 The dialog has a link to this document, which closes the dialog and opens this document.
 
@@ -418,6 +419,7 @@ Where Am I says the measure, its chords, the beat, and which time through it is:
 Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.
 
 The keys are the same as a track's, except l, since a progression has a number of times to play rather than Repeat.
+Like a track's, they work while focus is in the progression, and not on the Menu button or in the list of open items.
 ? lists them in the Playback Keys dialog.
 
 The media keys on your keyboard and headphone buttons control a progression as they do an audio track; see Media Controls Integration, before Playing a Track.

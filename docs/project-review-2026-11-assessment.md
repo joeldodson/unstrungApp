@@ -26,11 +26,14 @@ Last updated 2026-11-11.
 - Done: finding 5, 2026-11-11.
   Playback swings a bar whose file states a triplet feel, every feel alphaTab has, exactly as alphaTab's MIDI generator does.
   Checked by `scripts/songs/check-triplet-feel.mjs`; the outcome is under finding 5 below.
-- Not started, Medium: 6 (spaceBar outside the item's panel), 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Done: finding 6, 2026-11-11.
+  A track's and a progression's playback keys act only while focus is in that item, as the metronome's always have, so the Menu button and the list of open items keep their own keys.
+  Checked by `scripts/songs/verify-keys-stay-in-item.mjs`; the outcome is under finding 6 below.
+- Not started, Medium: 7 (voice settings at startup), 8 (minor key named as major), 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
-- features.md still needs the change that goes with finding 6, and the two wording fixes in finding 17.
-  The swing it lacked, finding 17's lines 134 and 260, was added with finding 5.
+- features.md still needs the two wording fixes in finding 17.
+  The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
 
 ## Verdict
 
@@ -182,6 +185,19 @@ Confirmed by tracing, with the correction set out under the verdict.
 The Menu button handles only the up and down arrows itself (`menu.js:154`), so it relies on the click that spaceBar would send, and the document handler's `preventDefault` cancels that click.
 `features.md:98` says spaceBar opens the menu, which holds only while no track or progression is the active item.
 The review's suggestion, playback keys only while focus is inside the item's own panel, keeps the August rule where it was meant and fixes the rest.
+
+Outcome, 2026-11-11:
+
+- `keyIsForCurrentItem` in `renderer.js` lets the track and progression keys act only while focus is in the panel of the item in front, or on the page or the main area itself, where focus rests when nothing in particular has it.
+  The metronome's handler already kept to its own panel, and this is the same rule.
+- The Menu button and the list of open items, with each item's button and its Close button, are outside every panel, so spaceBar opens the menu and closes an item again.
+- Found while fixing it: upArrow and downArrow on the Menu button opened the menu and also restarted the selection or went back to the start of the measure, since the button does not stop them reaching the page.
+  The same rule fixes that.
+- The August rule is kept inside the item: spaceBar on a button there plays and pauses, and enter presses the button.
+  That includes the Measures to Play summary, the review's third case, which enter expands.
+- `scripts/songs/verify-keys-stay-in-item.mjs` drives the app with a short alphaTex song and a generated progression.
+  With the new rule switched off it fails 8 of its 16 checks, and with it on all pass.
+- `features.md` says where the keys work, under Keys and The Progression.
 
 ### 7. Voice and volume settings ignored until Settings or Chord Practice is opened
 

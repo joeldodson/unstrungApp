@@ -42,6 +42,7 @@ const emptyStateElement = document.getElementById('empty-state');
 const openItemsElement = document.getElementById('open-items');
 const openItemsListElement = document.getElementById('open-items-list');
 const itemPanelsElement = document.getElementById('item-panels');
+const contentElement = document.getElementById('content');
 const aboutDialog = document.getElementById('about-dialog');
 const aboutVersionElement = document.getElementById('about-version');
 const aboutYearElement = document.getElementById('about-year');
@@ -3555,16 +3556,34 @@ function eventTargetSwallowsKey(target, key) {
     return key === ' ';
 }
 
+/**
+ * Whether a key pressed with focus on `target` may go to the playback keys of the item in front:
+ * focus is inside that item's panel, or on nothing in particular, the page or the main area itself.
+ *
+ * The Menu button and the list of open items are outside every panel, so their keys are their own.
+ * Until 2026-11-11 the track and progression keys were taken anywhere outside a dialog, so spaceBar
+ * on the Menu button played the track instead of opening the menu, spaceBar on a Close button
+ * played instead of closing, and downArrow on the Menu button both opened the menu and jumped back
+ * to the start of the measure. Finding 6 of the November review. The metronome has always kept to
+ * its own panel.
+ */
+function keyIsForCurrentItem(target) {
+    if (target === document.body || target === document.documentElement || target === contentElement) return true;
+    const item = openItems.find(i => i.id === currentItemId);
+    return Boolean(item && item.panelEl.contains(target));
+}
+
 document.addEventListener('keydown', event => {
     if (event.ctrlKey || event.altKey || event.metaKey) return;
     if (event.shiftKey && event.key !== '?') return;
     const shortcut = AUDIO_TRACK_SHORTCUTS[event.key];
     if (!shortcut) return;
     if (document.querySelector('dialog[open]')) return;
+    if (!keyIsForCurrentItem(event.target)) return;
 
-    // Typing in a field always wins; everywhere else these keys belong to playback. That includes
-    // space while a button has focus: pausing has to be dependable, and Enter still presses the
-    // button.
+    // Typing in a field always wins; everywhere else in the item these keys belong to playback.
+    // That includes space while a button has focus: pausing has to be dependable, and Enter still
+    // presses the button.
     if (eventTargetSwallowsKey(event.target, event.key)) return;
 
     const state = activeAudioTrackState();
@@ -5300,6 +5319,7 @@ document.addEventListener('keydown', event => {
     if (!shortcut || event.ctrlKey || event.altKey || event.metaKey) return;
     if (event.shiftKey && event.key !== '?') return;
     if (document.querySelector('dialog[open]')) return;
+    if (!keyIsForCurrentItem(event.target)) return;
     if (eventTargetSwallowsKey(event.target, event.key)) return;
 
     const state = activeChordPracticeState();
