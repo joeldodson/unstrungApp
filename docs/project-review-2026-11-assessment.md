@@ -333,7 +333,9 @@ Outcome, 2026-11-11:
 - A track's Chord Symbols list, where the library is needed for fingerings, says the library could not be loaded and to open the song again.
 - Frets to Chord, Chord Practice and the samples already tried again on their next use once nothing kept the failure.
 - `scripts/web/verify-failed-fetch-retry.mjs` runs the web build in Edge and fails the first request for the chord library, the voice list and the sample map, then lets the next through.
-  Against the committed code before the fix, the Chord Library checks fail and Frets to Chord never opens; with the fix all seven checks pass.
+  Against the web code as it was before the fix (commit f4be479), five of the seven fail: the Chord Library stays at "loading chord library…" even when chosen again, Frets to Chord has no library, and the voice list and the sample map stay failed.
+  With the fix all seven pass.
+  The first record of this run, made on 2026-11-11, described a build broken by the way the old files were written back, and was corrected the same day.
 
 ### 12. A MusicXML part with no MIDI instrument is not listed
 
