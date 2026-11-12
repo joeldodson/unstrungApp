@@ -24,6 +24,8 @@ const VERSION = typeof __UNSTRUNG_VERSION__ === 'string' ? __UNSTRUNG_VERSION__ 
 const MAX_RECENT_FILES = 10;
 const MAX_PROGRESSION_FILE_BYTES = 1024 * 1024;
 const MAX_PROGRESSION_FOLDER_DEPTH = 12;
+// Files and folders looked at in one listing, at most, as in src/main/main.js.
+const MAX_PROGRESSION_FOLDER_ENTRIES = 2000;
 const VELOCITY_LABELS = ['p', 'mf', 'f'];
 const NOTE_LETTER_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
@@ -371,7 +373,7 @@ async function idForProgressionFile(handle) {
 
 const baseName = name => name.replace(/\.[^.]*$/, '');
 
-async function scanProgressionFolder(folder, relative, depth) {
+async function scanProgressionFolder(folder, relative, depth, budget) {
     const entries = [];
     for await (const entry of folder.values()) entries.push(entry);
     const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
@@ -381,12 +383,18 @@ async function scanProgressionFolder(folder, relative, depth) {
     const files = [];
     for (const entry of entries) {
         if (entry.name.startsWith('.')) continue;
+        // As in the desktop app: a folder that holds far more than progressions is listed in part.
+        if (budget.left <= 0) {
+            budget.cut = true;
+            break;
+        }
+        budget.left--;
         const entryRelative = relative ? `${relative}/${entry.name}` : entry.name;
         if (entry.kind === 'directory') {
             if (depth >= MAX_PROGRESSION_FOLDER_DEPTH) continue;
             folders.push({
                 type: 'folder', name: entry.name, path: entryRelative,
-                children: await scanProgressionFolder(entry, entryRelative, depth + 1)
+                children: await scanProgressionFolder(entry, entryRelative, depth + 1, budget)
             });
         } else if (entry.name.toLowerCase().endsWith(PROGRESSION_EXTENSION)) {
             const file = { type: 'file', name: baseName(entry.name), path: entryRelative };
@@ -537,7 +545,9 @@ window.unstrung = {
             return { directory: error.folderName, exists: false, denied: true, tree: [] };
         }
         if (!folder) return { directory: null, exists: false, tree: [] };
-        return { directory: folder.name, exists: true, tree: await scanProgressionFolder(folder, '', 0) };
+        const budget = { left: MAX_PROGRESSION_FOLDER_ENTRIES, cut: false };
+        const tree = await scanProgressionFolder(folder, '', 0, budget);
+        return { directory: folder.name, exists: true, tree, incomplete: budget.cut };
     },
     readProgression: async relativePath => {
         const folder = await progressionsFolder({ ask: false });

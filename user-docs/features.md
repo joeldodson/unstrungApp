@@ -446,6 +446,8 @@ The folder is shown as a tree.
 upArrow and downArrow move, rightArrow and leftArrow open and close a folder, a letter moves to the next name starting with that letter, and enter opens the progression.
 Any file that cannot be opened is listed after the tree with the reason.
 That includes music chord practice cannot show, such as single notes rather than chords, or more than one strumming pattern.
+A folder that holds a great deal besides progressions, such as Documents itself, is listed only in part, and the dialog says so.
+Choose a folder just for saved progressions.
 
 If you close a progression with unsaved changes, or quit the desktop app with one open, unstrung asks whether to save first.
 A progression that has just been generated and never saved is not asked about.

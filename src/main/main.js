@@ -323,6 +323,9 @@ ipcMain.handle('settings:validate-and-save-directory', async (_event, dirPath) =
 const PROGRESSION_EXTENSION = '.atex';
 const MAX_PROGRESSION_FILE_BYTES = 1024 * 1024;
 const MAX_PROGRESSION_FOLDER_DEPTH = 12;
+// Files and folders looked at in one listing, at most. Far more than a folder of progressions
+// holds; a folder that holds more is listed in part and the dialog says so.
+const MAX_PROGRESSION_FOLDER_ENTRIES = 2000;
 
 function defaultProgressionsDirectory() {
     return path.join(app.getPath('documents'), 'Unstrung', 'Progressions');
@@ -379,7 +382,7 @@ function isInside(root, candidate) {
  * the chord library and say which it had to skip. They are small, and reading them now is what
  * lets the open dialog list only the ones that will actually open.
  */
-async function scanProgressionFolder(root, relative, depth) {
+async function scanProgressionFolder(root, relative, depth, budget) {
     let entries;
     try {
         entries = await fs.readdir(path.join(root, relative), { withFileTypes: true });
@@ -394,13 +397,21 @@ async function scanProgressionFolder(root, relative, depth) {
     for (const entry of entries) {
         // Hidden entries are the system's, not the player's: .git, .DS_Store and the like.
         if (entry.name.startsWith('.')) continue;
+        // A folder chosen for progressions should hold little else. One that holds far more, such
+        // as Documents itself, is listed only in part rather than walked to the bottom while the
+        // dialog waits. Finding 13 of the November review.
+        if (budget.left <= 0) {
+            budget.cut = true;
+            break;
+        }
+        budget.left--;
         const entryRelative = relative ? path.join(relative, entry.name) : entry.name;
 
         if (entry.isDirectory()) {
             if (depth >= MAX_PROGRESSION_FOLDER_DEPTH) continue;
             folders.push({
                 type: 'folder', name: entry.name, path: entryRelative,
-                children: await scanProgressionFolder(root, entryRelative, depth + 1)
+                children: await scanProgressionFolder(root, entryRelative, depth + 1, budget)
             });
         } else if (entry.isFile() && path.extname(entry.name).toLowerCase() === PROGRESSION_EXTENSION) {
             const file = {
@@ -423,7 +434,9 @@ async function scanProgressionFolder(root, relative, depth) {
 ipcMain.handle('progressions:list', async () => {
     const directory = progressionsDirectory();
     const exists = await isExistingDirectory(directory);
-    return { directory, exists, tree: exists ? await scanProgressionFolder(directory, '', 0) : [] };
+    const budget = { left: MAX_PROGRESSION_FOLDER_ENTRIES, cut: false };
+    const tree = exists ? await scanProgressionFolder(directory, '', 0, budget) : [];
+    return { directory, exists, tree, incomplete: budget.cut };
 });
 
 /** One file from the folder, read again at the moment it is opened so it is never stale. */

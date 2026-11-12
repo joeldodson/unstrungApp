@@ -53,7 +53,9 @@ Last updated 2026-11-11.
   A sample fetched is played even when the browser refuses to keep a copy; the outcome is under finding 18 below.
 - Done: finding 15, 2026-11-11.
   The Default folder field checks the folder when it is changed, not on every blur; the outcome is under finding 15 below.
-- Not started, Low: 13, 14, 17, 19.
+- Done: finding 13, 2026-11-11.
+  Open Saved Progression stops after 2,000 entries and says the folder was listed only in part; the outcome is under finding 13 below.
+- Not started, Low: 14, 17, 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
   The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
@@ -356,6 +358,17 @@ Outcome, 2026-11-11:
 
 Confirmed by tracing: any existing folder is accepted, and `scanProgressionFolder` goes twelve levels deep each time the dialog opens.
 Low is right.
+
+Outcome, 2026-11-11, a judgement made without asking Joel:
+
+- `scanProgressionFolder`, in `main.js` and in `src/web/platform.js`, looks at no more than 2,000 files and folders in one listing (`MAX_PROGRESSION_FOLDER_ENTRIES`), far more than a folder of progressions holds.
+  Past that it stops, and the listing is marked `incomplete`.
+- The dialog's folder line then adds "It holds too much to read in full, so only part of it is listed. Choose a folder just for saved progressions in Settings.", and the dialog is described by that line, so it is heard as focus goes to the tree.
+- If the listing takes more than half a second, the status bar says "Reading the folder of saved progressions…", so a slow folder is not silence.
+- Choosing such a folder is still allowed: refusing Documents outright would be a surprise, and a large folder is slow, not wrong.
+- `scripts/progressions/verify-big-progressions-folder.mjs` puts two progressions and 2,100 other files in the scratch profile's folder, checks the two are listed with the note and the description, then removes the clutter and checks both are gone.
+  The web version's copy of the limit was not run in a browser, since its folder comes from a picker a script cannot answer.
+- `features.md`, under Saving and Opening Progressions, says a crowded folder is listed in part.
 
 ### 14. Four dialogs take focus on the dialog with a lot of text
 

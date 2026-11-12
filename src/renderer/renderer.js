@@ -7495,11 +7495,21 @@ async function openProgressionOpenDialog({ opener = document.activeElement, opti
     progressionOpenOptions = options ?? chordPracticePlaybackOptions({ fromDialog: false });
     progressionOpenStatus.textContent = '';
 
-    const listing = await window.unstrung.listProgressions();
+    // Said only if the folder takes a moment to read, so opening a small one is not announced.
+    const reading = setTimeout(() => setStatus('Reading the folder of saved progressions…'), 500);
+    let listing;
+    try {
+        listing = await window.unstrung.listProgressions();
+    } finally {
+        clearTimeout(reading);
+    }
     progressionOpenFolderText.textContent = listing.denied
         ? `Permission to use the folder ${listing.directory} was not given, so nothing can be listed.`
         : listing.directory
-            ? `From the folder ${listing.directory}.`
+            ? `From the folder ${listing.directory}.` + (listing.incomplete
+                ? ' It holds too much to read in full, so only part of it is listed. ' +
+                    'Choose a folder just for saved progressions in Settings.'
+                : '')
             : 'No folder for saved progressions has been chosen. Choose one in Settings.';
 
     const skipped = [];
@@ -7516,9 +7526,11 @@ async function openProgressionOpenDialog({ opener = document.activeElement, opti
     progressionOpenSkippedList.replaceChildren();
     appendTextItems(progressionOpenSkippedList, skipped);
 
-    // With nothing to arrow through, the dialog itself takes focus and reads why.
-    if (hasItems) progressionOpenDialog.removeAttribute('aria-describedby');
-    else progressionOpenDialog.setAttribute('aria-describedby', 'progression-open-empty');
+    // With nothing to arrow through, the dialog itself takes focus and reads why. A folder listed
+    // only in part says so as the dialog opens, since focus goes past that line to the tree.
+    if (!hasItems) progressionOpenDialog.setAttribute('aria-describedby', 'progression-open-empty');
+    else if (listing.incomplete) progressionOpenDialog.setAttribute('aria-describedby', 'progression-open-folder');
+    else progressionOpenDialog.removeAttribute('aria-describedby');
 
     progressionOpenDialog.showModal();
     const items = visibleProgressionTreeItems();
