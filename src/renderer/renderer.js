@@ -2041,8 +2041,9 @@ async function openChordLibraryTab() {
     if (existing) {
         showItem(existing.id);
         // A library that could not be loaded is tried again, which is what choosing Chord Library
-        // once more is for when it says so.
-        if (!chordLibrary) await fillChordLibrary();
+        // once more is for when it says so. Asked of the item, not of the library: Frets to Chord
+        // can load the library meanwhile, and the item would still be showing that it could not.
+        if (!chordsUi?.filled) await fillChordLibrary();
         // Same landing as when it was first opened: the search field is the first thing you use
         // here, so returning to it puts you straight back on it.
         chordsUi?.searchInput.focus();
@@ -2103,8 +2104,10 @@ async function fillChordLibrary() {
             }
             return;
         }
-        if (!chordsUi) return;
     }
+    // Closed while the library was on its way, or filled by another call waiting on the same fetch.
+    if (!chordsUi || chordsUi.filled) return;
+    chordsUi.filled = true;
     populateFilterOptions();
     rebuildChordResults();
 }

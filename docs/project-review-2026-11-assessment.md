@@ -67,7 +67,15 @@ Last updated 2026-11-11.
   It ran 13 and skipped the 2 that need song files, all passing, in 5.5 seconds.
   `npm run test:songs -- <folder>` gives song folders to the seven checks that read them; over `musicfiles` all 15 passed in 6.9 seconds.
   The app and browser drivers stay out of it and are listed in `checks.md`.
-- Not started: the corpus test of `buildAudioTrack` the review describes, and the other hardening and code-quality notes.
+- Done in part: the review's tests over the song files.
+  Given song folders, `check-plays-as-written.mjs` and `check-pickup-clicks.mjs` are its test of `buildAudioTrack`: every track plays the notes it writes, and every click falls inside its bar.
+  Not written: the golden text of each song's reading from `extractScoreMetadata`, which would show any change in how a song is read.
+- Not started: the hardening and code-quality notes.
+- Fable's check of the fixes, 2026-11-11, found three leftovers, all fixed the same day.
+  `features.md` still called a progression's settings its "Playback section" in one place.
+  This list said the test of `buildAudioTrack` was not started.
+  And on the web, a Chord Library that failed to load stayed empty if Frets to Chord loaded the library before it was chosen again: `openChordLibraryTab` asked whether the library was loaded, not whether the item had been filled.
+  It now asks the item (`chordsUi.filled`).
 - features.md: the swing it lacked was added with finding 5, its line on spaceBar opening the menu is true again since finding 6, its description of beats since findings 2 and 3, and the rest of finding 17 is fixed.
 
 ## Verdict
@@ -500,6 +508,6 @@ The order suggested here differs slightly:
 3. Finding 2, a one-line condition now that only guitar and bass are listed.
 4. Finding 3, saying a measure has a second voice, including the printed chords in it.
 5. `npm test` over the existing Node checks, with the corpus test the review describes.
-   `npm test` was added on 2026-11-11 and is described in `checks.md`; the corpus test is not written yet.
+   `npm test` was added on 2026-11-11 and is described in `checks.md`; the test of `buildAudioTrack` over song files is written, and the golden text of each song's reading is not.
 
 Then finding 8, which is small, and finding 6 scoped to the item's panel.

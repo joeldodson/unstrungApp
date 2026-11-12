@@ -528,7 +528,7 @@ The strokes are typed as described under Strumming Patterns, and the line after 
 Play plays them the same way, until you press Pause or close the dialog, and Save Pattern keeps the pattern.
 A name has to be new in its time signature, and so do the strokes: strokes that are already a pattern are refused, with that pattern's name.
 
-Your patterns are listed in the Chord Practice dialog, the progression editor and a progression's Playback section, after the ones that come with unstrung.
+Your patterns are listed in the Chord Practice dialog, the progression editor and a progression's Playback Settings, after the ones that come with unstrung.
 They are kept with your settings.
 
 Under Export and Import:
