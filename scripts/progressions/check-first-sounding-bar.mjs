@@ -4,7 +4,9 @@
 // agree by different routes: one walks the built audio track's note times, the other looks for
 // the first measure of the parsed score whose beats are not all rests.
 //
-// Run: node scripts/progressions/check-first-sounding-bar.mjs <file.gp> [more files...]
+// Run: node scripts/progressions/check-first-sounding-bar.mjs <file.gp or folder> [more...]
+// A folder is read for every Guitar Pro file under it. With nothing given there is nothing to
+// check, so npm test skips it and npm run test:songs -- <folder> runs it.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as alphaTab from '@coderline/alphatab';
@@ -32,9 +34,28 @@ function firstBarWithANote(track) {
     return null;
 }
 
+function songFiles(target, out = []) {
+    if (!fs.statSync(target).isDirectory()) {
+        out.push(target);
+        return out;
+    }
+    for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
+        const full = path.join(target, entry.name);
+        if (entry.isDirectory()) songFiles(full, out);
+        else if (/\.(gp|gp3|gp4|gp5|gpx)$/i.test(entry.name)) out.push(full);
+    }
+    return out;
+}
+
+const targets = process.argv.slice(2);
+if (targets.length === 0) {
+    console.error('Give one or more song files or folders of them.');
+    process.exit(1);
+}
+
 let mismatches = 0;
 
-for (const file of process.argv.slice(2)) {
+for (const file of targets.flatMap(target => songFiles(target))) {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(
         new Uint8Array(fs.readFileSync(file)));
     console.log(`\n=== ${path.basename(file)}  bars=${score.masterBars.length}`);

@@ -1,5 +1,7 @@
 // Every beat text in a corpus, with the verdict the promotion rule reaches on it.
-// Run: node scripts/gp-experiment/check-section-promotion.mjs <dir>
+// Run: node scripts/gp-experiment/check-section-promotion.mjs <folder> [more folders...]
+// It is a report with nothing to check without song files, so npm test skips it and
+// npm run test:songs -- <folder> runs it.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as alphaTab from '@coderline/alphatab';
@@ -13,10 +15,16 @@ function* files(dir) {
     }
 }
 
+const folders = process.argv.slice(2);
+if (folders.length === 0) {
+    console.error('Give one or more folders of song files.');
+    process.exit(1);
+}
+
 let promotedTotal = 0;
 let keptTotal = 0;
 
-for (const file of files(process.argv[2])) {
+for (const file of folders.flatMap(folder => [...files(folder)])) {
     const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(
         new Uint8Array(fs.readFileSync(file)));
     const meta = extractScoreMetadata(score, { terseBeats: true });

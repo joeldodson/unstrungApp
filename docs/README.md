@@ -68,6 +68,8 @@ eyesunstrung.vip.
 - `project-review-2026-11-assessment.md` -- each of those findings checked against the code and
   the song files the same day: all accurate, two with their intent or effect overstated, and one
   related gap in reading second voices.
+- `checks.md` -- `npm test` and `npm run test:songs`, which run the Node checks, and the app and
+  browser drivers they leave out. Added 2026-11-11.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.

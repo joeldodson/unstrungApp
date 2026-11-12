@@ -16,6 +16,8 @@
     "build:web": "node scripts/build-web-audio.mjs && node scripts/build-web.mjs",
     "serve:web": "node scripts/serve-web.mjs",
     "postinstall": "npm run build:renderer",
+    "test": "node scripts/run-checks.mjs",
+    "test:songs": "node scripts/run-checks.mjs --songs",
     "dist": "npm run build:help && npm run build:renderer && electron-builder --win nsis portable"
   },
   "devDependencies": {

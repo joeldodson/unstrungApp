@@ -62,7 +62,12 @@ Last updated 2026-11-11.
 - Done: finding 17, 2026-11-11.
   The out-of-date lines in `features.md` are fixed, and the app's own text writes keys as `features.md` does; the outcome is under finding 17 below.
 - All 19 findings are dealt with. The dialog descriptions of finding 14 and the keys of finding 6 still need Joel's check with NVDA.
-- Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
+- Done: `npm test` over the Node checks, 2026-11-11.
+  `scripts/run-checks.mjs` runs every `check-*.mjs` and `verify-synthetic-score.mjs`, one line each and a total, and exits with 1 if any fails.
+  It ran 13 and skipped the 2 that need song files, all passing, in 5.5 seconds.
+  `npm run test:songs -- <folder>` gives song folders to the seven checks that read them; over `musicfiles` all 15 passed in 6.9 seconds.
+  The app and browser drivers stay out of it and are listed in `checks.md`.
+- Not started: the corpus test of `buildAudioTrack` the review describes, and the other hardening and code-quality notes.
 - features.md: the swing it lacked was added with finding 5, its line on spaceBar opening the menu is true again since finding 6, its description of beats since findings 2 and 3, and the rest of finding 17 is fixed.
 
 ## Verdict
@@ -495,5 +500,6 @@ The order suggested here differs slightly:
 3. Finding 2, a one-line condition now that only guitar and bass are listed.
 4. Finding 3, saying a measure has a second voice, including the printed chords in it.
 5. `npm test` over the existing Node checks, with the corpus test the review describes.
+   `npm test` was added on 2026-11-11 and is described in `checks.md`; the corpus test is not written yet.
 
 Then finding 8, which is small, and finding 6 scoped to the item's panel.
