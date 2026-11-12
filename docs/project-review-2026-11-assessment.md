@@ -38,7 +38,10 @@ Last updated 2026-11-11.
 - Done: finding 9, 2026-11-11.
   Closing the window with changes in the progression editor asks Save, Don't Save or Cancel, as a tab's unsaved changes do (Joel's choice).
   Checked by `scripts/progressions/verify-editor-quit.mjs`; the outcome is under finding 9 below.
-- Not started, Medium: 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Done: finding 10, 2026-11-11.
+  On the web the Chord Library decodes each recording once per pitch and loudness, as an audio track does, instead of once per length wanted.
+  Checked by `scripts/audio/verify-chord-sample-cache.mjs`; the outcome is under finding 10 below.
+- Not started, Medium: 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
@@ -279,6 +282,22 @@ The mechanism is confirmed by tracing.
 The effect is overstated, as set out under the verdict.
 The desktop app has the same cache that never lets go, but its trimmed buffers are smaller.
 The smallest fix is to leave the length out of the key when the platform returns whole recordings.
+
+Outcome, 2026-11-11:
+
+- The platform now says whether it trims samples: `capabilities.trimsSamples`, true in `preload.js` and false in `src/web/platform.js`.
+- Where it does not, `chordSampleRequestSeconds` asks for the whole recording, so `chordSampleKey` is pitch, loudness and "full".
+  That is the key `loadFullSample` uses for an audio track, so the Chord Library and a track now share decoded recordings on the web.
+- The desktop app is unchanged: it still asks for trimmed WAVs and keys them by length.
+  Its cache also never lets go, but each entry is only as long as the note needed.
+- `scripts/audio/verify-chord-sample-cache.mjs` counts decodeAudioData calls while playing C major's first voicing, again, the first two voicings together, the second alone, and the first alone once more.
+  On the web build, run in Edge, they decode 9, 0, 3, 0 and 0.
+  Before the fix the first play decoded 10 there, and the desktop app, which keys by length as the web did, decodes 10, 0, 11, 3 and 0.
+- Nine is right for the first play: each stroke plays its last two strings at mf and the rest at f (`buildStrokePlan`), so five strings down then up sound nine pitch and loudness pairs.
+- One side effect: the web Chord Library now plays one round-robin take of each pitch and loudness for the visit, where the length in the key used to fetch a different take now and then.
+  An audio track has always worked this way.
+- The cache still keeps everything decoded for the visit, but that is now bounded by the recordings themselves, two loudnesses of each pitch played, rather than growing with every new chord sequence.
+- Nothing user-facing changed, so `features.md` is unchanged.
 
 ### 11. Web version: one failed download remembered for the visit
 

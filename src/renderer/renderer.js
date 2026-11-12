@@ -1746,8 +1746,18 @@ function buildStrumSequence(voicings, leadSeconds = []) {
     return notes;
 }
 
-/** Only fetch the audio a note will actually use; a ringing note needs the whole recording. */
+/**
+ * Only fetch the audio a note will actually use; a ringing note needs the whole recording.
+ *
+ * Only where the platform trims a recording to the length asked, which the desktop app does with
+ * its WAVs. The web version returns the whole recording whatever is asked, since Opus cannot be cut
+ * by bytes, so there every note asks for the whole recording and one decoded copy per pitch and
+ * loudness serves them all, as an audio track's notes are served. Until 2026-11-11 the web version
+ * kept a whole copy for each length asked: a chord down then up decoded each recording twice, and
+ * every copy stayed for the visit. Finding 10 of the November review.
+ */
 function chordSampleRequestSeconds(note) {
+    if (window.unstrung.capabilities.trimsSamples !== true) return undefined;
     return note.ringSeconds === null
         ? undefined
         : note.ringSeconds + CHORD_DECAY_FADE_SECONDS;
