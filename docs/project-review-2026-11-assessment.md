@@ -49,7 +49,9 @@ Last updated 2026-11-11.
   Checked by `scripts/songs/check-track-listing.mjs`; the outcome is under finding 12 below.
 - Done: finding 16, 2026-11-11.
   The Metronome's Tempo and Volume fields have `inputmode="numeric"`; the outcome is under finding 16 below.
-- Not started, Low: 13 to 15, 17 to 19.
+- Done: finding 18, 2026-11-11.
+  A sample fetched is played even when the browser refuses to keep a copy; the outcome is under finding 18 below.
+- Not started, Low: 13 to 15, 17, 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
   The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
@@ -390,6 +392,10 @@ The point about keys written three ways in the app's own text was not checked li
 ### 18. Web version: a full cache stops a fetched sample from playing
 
 Confirmed: `await cache?.put(...)` at `platform.js:273` throws on a quota error before the bytes are returned.
+
+Outcome, 2026-11-11: `fetchAudio` catches a refused `cache.put` and returns the bytes it fetched; the sample is fetched again next time instead.
+`scripts/web/verify-failed-fetch-retry.mjs` refuses every cache write in Edge and plays a chord in the Chord Library.
+Before the fix it said "Could not load samples: The quota has been exceeded."; after, it plays.
 
 ### 19. A hung page cannot be closed while a progression is unsaved
 

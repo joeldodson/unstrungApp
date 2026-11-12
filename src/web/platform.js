@@ -270,7 +270,14 @@ async function fetchAudio(relativePath) {
     if (!response) {
         response = await fetch(url);
         if (!response.ok) throw new Error(`Could not fetch ${relativePath}: ${response.status}`);
-        await cache?.put(url, response.clone());
+        // Keeping a copy is a saving for next time, not a condition of playing it now. A browser
+        // that refuses, for want of space, still leaves the bytes in hand. Until 2026-11-11 the
+        // refusal was thrown and the sample went unplayed. Finding 18 of the November review.
+        try {
+            await cache?.put(url, response.clone());
+        } catch {
+            // Fetched again next time instead.
+        }
     }
     return new Uint8Array(await response.arrayBuffer());
 }

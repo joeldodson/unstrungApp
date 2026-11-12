@@ -4,7 +4,8 @@
 //
 // Runs the web build in Edge and fails each file's first request, as a phone losing its connection
 // would, then lets the next one through: the chord library, the list of voices, and the guitar
-// sample map. Judged from the DOM, never pixels.
+// sample map. Then it refuses every write to the browser's cache, as a full one would, and checks
+// that a sample fetched is still played (finding 18). Judged from the DOM, never pixels.
 //
 //   npm run build:web
 //   npm run serve:web
@@ -113,6 +114,32 @@ try {
         check('the first Play does not play', !/^Playing/.test(first), first);
         const second = await playC();
         check('the second plays', /^Playing/.test(second), second);
+        await page.close();
+    }
+    // Finding 18: a browser that refuses to keep a copy, for want of space, still plays what it
+    // fetched. Every write to the cache is refused here.
+    console.log('\nA full cache');
+    {
+        const page = await browser.newPage();
+        await page.addInitScript(() => {
+            Cache.prototype.put = () => Promise.reject(new DOMException('The quota has been exceeded.', 'QuotaExceededError'));
+        });
+        await page.goto(url);
+        await page.waitForSelector('#app-menu-button');
+        // A fresh context has nothing cached, so every sample is fetched and then refused a place.
+        await runMenuCommand(page, 'chord-library');
+        await page.waitForFunction(() => document.querySelectorAll('#chords-results-list li').length > 0, null, { timeout: 15000 });
+        await page.evaluate(() => {
+            const input = document.getElementById('chords-search-input');
+            input.value = 'C';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            const label = [...document.querySelectorAll('#chords-results-list label')].find(l => l.textContent.startsWith('C - '));
+            document.getElementById(label.htmlFor).click();
+            document.getElementById('chords-play-button').click();
+        });
+        await page.waitForTimeout(3000);
+        const status = await page.evaluate(() => document.getElementById('chords-status').textContent);
+        check('a chord still plays when the cache refuses every copy', /^Playing/.test(status), status);
         await page.close();
     }
 } finally {
