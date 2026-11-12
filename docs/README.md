@@ -68,6 +68,9 @@ eyesunstrung.vip.
 - `project-review-2026-11-assessment.md` -- each of those findings checked against the code and
   the song files the same day: all accurate, two with their intent or effect overstated, and one
   related gap in reading second voices.
+- `removing-musicfiles.md` -- which scripts and documents depend on the ignored `musicfiles`
+  folder, and a way to point them at a song folder outside the repository. Notes from 2026-11-11,
+  nothing changed.
 - `checks.md` -- `npm test` and `npm run test:songs`, which run the Node checks, and the app and
   browser drivers they leave out. Added 2026-11-11.
 
