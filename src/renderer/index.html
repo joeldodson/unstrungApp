@@ -133,8 +133,12 @@
         <button type="button" id="about-ok-button">OK</button>
     </dialog>
 
-    <dialog id="guitar-samples-dialog" aria-labelledby="guitar-samples-dialog-heading-name" tabindex="-1">
+    <!-- A one-line description, as the progression editor has: without one NVDA reads every line of
+         the dialog when focus enters it. Finding 14 of the November review. -->
+    <dialog id="guitar-samples-dialog" aria-labelledby="guitar-samples-dialog-heading-name"
+        aria-describedby="guitar-samples-dialog-description" tabindex="-1">
         <h1 id="guitar-samples-dialog-heading"><span id="guitar-samples-dialog-heading-name">Guitar Samples</span> Dialog Box</h1>
+        <p id="guitar-samples-dialog-description" hidden>Plays the recorded notes from low to high. Velocity layer, round robins and time between notes, then Play.</p>
 
         <p>
             Plays real recorded notes ascending in pitch, using the samples bundled with unstrung.
@@ -203,8 +207,10 @@
         </div>
     </dialog>
 
-    <dialog id="chord-practice-dialog" aria-labelledby="chord-practice-dialog-heading-name" tabindex="-1">
+    <dialog id="chord-practice-dialog" aria-labelledby="chord-practice-dialog-heading-name"
+        aria-describedby="chord-practice-dialog-description" tabindex="-1">
         <h1 id="chord-practice-dialog-heading"><span id="chord-practice-dialog-heading-name">Chord Practice</span> Dialog Box</h1>
+        <p id="chord-practice-dialog-description" hidden>Level, key, time signature, strumming pattern, tempo and length, then Generate Progression.</p>
 
         <p>
             <label for="chord-practice-level-select">Experience level</label>
@@ -544,8 +550,10 @@
         </div>
     </template>
 
-    <dialog id="frets-dialog" aria-labelledby="frets-dialog-heading-name" tabindex="-1">
+    <dialog id="frets-dialog" aria-labelledby="frets-dialog-heading-name"
+        aria-describedby="frets-dialog-description" tabindex="-1">
         <h1 id="frets-dialog-heading"><span id="frets-dialog-heading-name">Frets to Chord</span> Dialog Box</h1>
+        <p id="frets-dialog-description" hidden>Tuning, then what each string plays. The chord is named under Identified Chord.</p>
 
         <p>
             Set what each string is doing and unstrung works backwards to the chord name. The

@@ -57,7 +57,9 @@ Last updated 2026-11-11.
   Open Saved Progression stops after 2,000 entries and says the folder was listed only in part; the outcome is under finding 13 below.
 - Done: finding 19, 2026-11-11.
   A hung page with an unsaved progression closes on a second close after five seconds; the outcome is under finding 19 below.
-- Not started, Low: 14, 17.
+- Done: finding 14, 2026-11-11, pending Joel's check with NVDA.
+  Guitar Samples, Chord Practice and Frets to Chord have a one-line description; About is still read in full. The outcome is under finding 14 below.
+- Not started, Low: 17.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
   The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
@@ -380,6 +382,17 @@ Confirmed by tracing the markup.
 This is the follow-up `docs/chords-within-a-measure.md` already suggests: "If that works, other dialogs may want the same."
 About may be better read in full, since reading it is why it is opened.
 Guitar Samples, at 267 words, is the one most worth a description.
+
+Outcome, 2026-11-11, a judgement made without asking Joel:
+
+- Guitar Samples, Chord Practice and Frets to Chord each have a hidden paragraph named by `aria-describedby`, as the progression editor has, naming what the dialog holds in order:
+  - "Plays the recorded notes from low to high. Velocity layer, round robins and time between notes, then Play."
+  - "Level, key, time signature, strumming pattern, tempo and length, then Generate Progression."
+  - "Tuning, then what each string plays. The chord is named under Identified Chord."
+- Their visible text is unchanged and is still there to read in browse mode.
+- About is left as it was: it is opened to be read.
+- `scripts/accessibility/verify-dialog-descriptions.mjs` opens each dialog and reads its description from Chromium's accessibility tree, which is what NVDA is given.
+- Not yet heard with NVDA. If it reads the one line on opening, as it does for the editor, record that in `screen-reader-findings.md`.
 
 ### 15. The Default folder field checks itself on every blur
 
