@@ -51,7 +51,9 @@ Last updated 2026-11-11.
   The Metronome's Tempo and Volume fields have `inputmode="numeric"`; the outcome is under finding 16 below.
 - Done: finding 18, 2026-11-11.
   A sample fetched is played even when the browser refuses to keep a copy; the outcome is under finding 18 below.
-- Not started, Low: 13 to 15, 17, 19.
+- Done: finding 15, 2026-11-11.
+  The Default folder field checks the folder when it is changed, not on every blur; the outcome is under finding 15 below.
+- Not started, Low: 13, 14, 17, 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
   The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
@@ -370,6 +372,11 @@ In Chromium a field also loses focus when the window does, so alt+tab with a bad
 The second point, that the field and its Browse button share a paragraph, is not a breach of the button-row rule.
 That rule is for groups of buttons.
 A label, a field and its Browse button read as one line in browse mode is reasonable, and is a matter of taste.
+
+Outcome, 2026-11-11: the field validates on `change`, as the progressions folder field does, so a mistyped folder is reported once, when the field is left after changing it.
+The paragraph holding the field and Browse was left as it is, for the reason above.
+`scripts/settings/verify-default-folder-field.mjs` types a folder that does not exist and tabs away, presses OK, tabs away again, and blurs the field as switching windows does, then saves a real folder.
+With the old blur listener it fails three of its five checks; with the change it passes all five.
 
 ### 16. The Metronome's Tempo and Volume fields have no inputmode
 

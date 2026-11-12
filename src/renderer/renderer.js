@@ -935,7 +935,11 @@ async function validateAndSaveSettingsDirectory() {
     return valid;
 }
 
-settingsDirectoryInput.addEventListener('blur', () => validateAndSaveSettingsDirectory());
+// On 'change', as the progressions folder field is, rather than on every blur. Until 2026-11-11 it
+// was blur, so with a mistyped path every way of leaving the field brought the Invalid Directory
+// dialog back: Tab, clicking OK, even switching to another window and back, since the field loses
+// focus when the window does. Finding 15 of the November review.
+settingsDirectoryInput.addEventListener('change', () => validateAndSaveSettingsDirectory());
 
 settingsBrowseButton.addEventListener('click', async () => {
     const chosen = await window.unstrung.chooseSettingsDirectory();
