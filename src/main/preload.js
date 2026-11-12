@@ -39,6 +39,8 @@ contextBridge.exposeInMainWorld('unstrung', {
     setUnsavedProgressions: (value) => ipcRenderer.send('progressions:set-unsaved', value),
     onConfirmQuit: (callback) => ipcRenderer.on('app:confirm-quit', () => callback()),
     confirmQuit: () => ipcRenderer.send('app:quit-confirmed'),
+    // Says the page has the question, so the main process knows it is still responding.
+    acknowledgeConfirmQuit: () => ipcRenderer.send('app:confirm-quit-received'),
 
     // Chord library.
     getChordLibrary: () => ipcRenderer.invoke('chords:get-library'),

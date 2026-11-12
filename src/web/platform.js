@@ -614,6 +614,7 @@ window.unstrung = {
     // Nothing to confirm: the browser's own prompt covers leaving.
     onConfirmQuit: () => {},
     confirmQuit: () => {},
+    acknowledgeConfirmQuit: () => {},
 
     // Chord library.
     getChordLibrary: () => chordLibrary(),

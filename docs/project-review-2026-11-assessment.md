@@ -55,7 +55,9 @@ Last updated 2026-11-11.
   The Default folder field checks the folder when it is changed, not on every blur; the outcome is under finding 15 below.
 - Done: finding 13, 2026-11-11.
   Open Saved Progression stops after 2,000 entries and says the folder was listed only in part; the outcome is under finding 13 below.
-- Not started, Low: 14, 17, 19.
+- Done: finding 19, 2026-11-11.
+  A hung page with an unsaved progression closes on a second close after five seconds; the outcome is under finding 19 below.
+- Not started, Low: 14, 17.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
   The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
@@ -421,6 +423,18 @@ Before the fix it said "Could not load samples: The quota has been exceeded."; a
 
 Confirmed by tracing.
 Windows can still end the process from Task Manager, so this is rare and Low.
+
+Outcome, 2026-11-11, a judgement made without asking Joel:
+
+- The page now acknowledges the question as soon as it arrives (`acknowledgeConfirmQuit`), before anything that can wait.
+- `main.js` remembers when it last asked and whether the page acknowledged.
+  A close that comes once the page has gone five seconds (`QUIT_ANSWER_MS`) without acknowledging the last ask is let through.
+  Closes before then do not restart the wait.
+- So a hung page closes on a second alt+f4 after five seconds, and nothing is closed by a timer alone: a page that is merely slow still gets its question if it answers in time.
+- A page that acknowledged, and kept the window open with Cancel, is asked afresh on every close.
+- Considered and not used: Electron's `unresponsive` event, since when Chromium reports a hang is its own choice and not documented.
+- `scripts/progressions/verify-hung-page-quit.mjs` makes an unsaved progression, hangs the page with a busy loop, and closes the window twice, five seconds apart; then, with a page that answers, checks that Cancel and a close five seconds later asks again.
+  With the committed `main.js` the hung window stays open; with the change it closes.
 
 ## Architecture, security, build and code quality
 

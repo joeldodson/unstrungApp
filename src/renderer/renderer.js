@@ -7222,6 +7222,9 @@ async function confirmDiscardChordPractice(state, reason) {
 // asked about in turn; Cancel on any of them, or cancelling its Save dialog, keeps the app open.
 // The editor is asked about first, since it is in front and its changes may become a tab's.
 window.unstrung.onConfirmQuit(async () => {
+    // First, before anything can wait: the main process lets a close through if a page never
+    // says it has the question, which is how a hung page can still be closed.
+    window.unstrung.acknowledgeConfirmQuit();
     if (unsavedDialog.open) return;
     if (editorHasChanges() && !await confirmDiscardEditor()) return;
     for (const entry of [...chordPracticeStates]) {

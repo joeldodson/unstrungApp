@@ -528,6 +528,18 @@ ipcMain.on('app:quit-confirmed', event => {
     quitConfirmed = true;
     BrowserWindow.fromWebContents(event.sender)?.close();
 });
+
+// When the page was last asked about closing, and whether it said it had the question. A page that
+// has stopped responding never says so, and the window would wait on it for good: until 2026-11-11
+// only Task Manager could end it. Now a close that comes once the page has gone QUIT_ANSWER_MS
+// without acknowledging the last one is let through. Finding 19 of the November review.
+const QUIT_ANSWER_MS = 5000;
+let quitAskedAt = null;
+let quitAcknowledged = false;
+
+ipcMain.on('app:confirm-quit-received', () => {
+    quitAcknowledged = true;
+});
 // --- end saved chord progressions ---
 
 // --- Opening song files ---
@@ -845,8 +857,17 @@ async function createWindow() {
 
     // A chord practice tab with unsaved changes gets a chance to say so before the window goes.
     // The renderer answers with app:quit-confirmed, which closes it for real.
+    // A page that has not acknowledged the last ask after QUIT_ANSWER_MS has stopped, so a close
+    // after that goes through; until then the same ask stands, so closing again does not restart
+    // the wait. A page that did acknowledge, and kept the window open, is asked afresh each time.
     window.on('close', event => {
         if (!unsavedProgressions || quitConfirmed) return;
+        if (quitAskedAt !== null && !quitAcknowledged) {
+            if (Date.now() - quitAskedAt >= QUIT_ANSWER_MS) return;
+        } else {
+            quitAskedAt = Date.now();
+            quitAcknowledged = false;
+        }
         event.preventDefault();
         window.webContents.send('app:confirm-quit');
     });
