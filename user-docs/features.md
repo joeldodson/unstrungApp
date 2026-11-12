@@ -439,6 +439,7 @@ The first time, unstrung suggests a name such as Am-60-intermediate-occasional: 
 Save Progression As, or ctrl+shift+s, saves a copy under a new name.
 The key, time signature, chords, strumming pattern, swing and tempo are saved, the pattern, swing and tempo as they are set under Playback Settings.
 Swing is saved only where it has an effect, so a progression with a pattern in sixteenths opens with Swing unchecked.
+The same goes for a file from elsewhere that is swung in 6/8 or over sixteenths.
 The metronome and the number of repeats are not.
 Opening a progression sets the tempo to the one it was saved with.
 
@@ -549,6 +550,7 @@ The buttons after it:
 The dialog asks for a name, the time signature and the strokes.
 The strokes are typed as described under Strumming Patterns, and the line after the field reads them back in words as you type, or says what is wrong.
 Play plays them the same way, until you press Pause or close the dialog, and Save Pattern keeps the pattern.
+Play is swung when the Swing checkbox in the Strumming Patterns item is checked.
 A name has to be new in its time signature, and so do the strokes: strokes that are already a pattern are refused, with that pattern's name.
 
 Your patterns are listed in the Chord Practice dialog, the progression editor and a progression's Playback Settings, after the ones that come with unstrung.

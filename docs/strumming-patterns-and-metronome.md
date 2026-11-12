@@ -645,7 +645,9 @@ Joel asked for it in chord practice, saved with the progression as the tempo and
   Settings, the editor, the Strumming Patterns item and the Metronome. In Playback Settings it is
   tried out like the pattern, not an unsaved change; in the editor it is a change to apply. In the
   Strumming Patterns item and the Metronome it is not part of a pattern and lasts until unstrung
-  closes. The pattern dialog's own Play is straight.
+  closes. The pattern dialog opens only from the Strumming Patterns item, and its Play follows
+  the item's checkbox, so a pattern can be heard swung before it is saved (changed 2026-11-12;
+  at first the dialog's Play was always straight).
 - **Chord practice times its own strums** (`slotBeats`), so every "and" moves, whatever rings
   into it. The beat clicks and the count-in do not move. A chord's beat is still written straight:
   C@2.5 is the and of 2, played late.
@@ -661,9 +663,12 @@ Joel asked for it in chord practice, saved with the progression as the tempo and
   in the file. Chord practice swings it all the same.
 - **Swing is saved only where it applies,** so the file never states a feel chord practice did
   not play. A sixteenth pattern saved with Swing checked reopens unchecked.
-- **Reading.** Every bar stating triplet eighths is a swung progression. A file swung in only
-  some measures, or with another feel, is refused with the reason, like the other things chord
-  practice cannot show.
+- **Reading.** Every bar stating triplet eighths is a swung progression, where swing applies:
+  a file stating it in 6/8, or over a pattern in sixteenths, opens with Swing unchecked, as it
+  would be saved again (`progressionFromSong`, since 2026-11-12). A file swung in only some
+  measures, or with another feel, is refused with the reason, like the other things chord
+  practice cannot show. Before swing was built such a file opened and played straight; it comes
+  only from outside unstrung, which never writes those feels.
 - **Checked** by `scripts/songs/check-swung-progressions.mjs`, which writes every built-in pattern
   that can swing, plays the file as a track and compares each strum with `slotBeats`, and by
   `scripts/songs/verify-swing.mjs` in the app, which reads strum and click times from the Web

@@ -671,7 +671,9 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
             beatsPerBar: song.beatsPerBar,
             beatUnit: song.beatUnit,
             tempo: song.tempo,
-            swing: !!song.swing,
+            // Kept only where it is played, as songFromProgression keeps it: a file stating triplet
+            // eighths in 6/8, or over sixteenths, opens straight, as it would be saved again.
+            swing: !!song.swing && swingApplies(song.beatUnit, pattern.slotsPerBeat),
             chords,
             pattern: { slotsPerBeat: pattern.slotsPerBeat, slots: pattern.slots },
             origin: { made: 'hand' }

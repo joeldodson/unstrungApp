@@ -249,6 +249,38 @@ try {
         near(previewSwung[0] - previewStraight[0], (previewStraight[0] + previewStraight[1]) / 6) &&
         near(previewSwung[0] + previewSwung[1], previewStraight[0] + previewStraight[1]), `${previewSwung[0]} against ${previewStraight[0]}`);
 
+    // The New Strumming Pattern dialog opens from the item, and its Play follows the item's Swing.
+    const dialogGaps = async () => {
+        await page.evaluate(() => { window.__starts = []; });
+        await page.click('#pattern-play-button');
+        await page.waitForTimeout(2500);
+        await page.click('#pattern-play-button');
+        const starts = await page.evaluate(() => window.__starts);
+        const counts = new Map();
+        for (const { buffer } of starts) counts.set(buffer, (counts.get(buffer) ?? 0) + 1);
+        const most = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+        const whens = [...new Set(starts.filter(s => s.buffer === most).map(s => Math.round(s.when * 1000) / 1000))].sort((a, b) => a - b);
+        return whens.slice(1).map((when, index) => Math.round((when - whens[index]) * 1000) / 1000);
+    };
+    await clickInPanel('New Pattern');
+    await page.waitForTimeout(300);
+    await page.fill('#pattern-strokes-input', 'D U D U D U D U');
+    const dialogSwung = await dialogGaps();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await setCheckbox('Swing', false);
+    await clickInPanel('New Pattern');
+    await page.waitForTimeout(300);
+    await page.fill('#pattern-strokes-input', 'D U D U D U D U');
+    const dialogStraight = await dialogGaps();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    console.log(`  dialog straight: ${dialogStraight.slice(0, 4).join(' ')}; swung: ${dialogSwung.slice(0, 4).join(' ')}`);
+    check('the New Strumming Pattern dialog\'s Play is swung when the item\'s Swing is checked, and straight when not',
+        dialogStraight.length >= 2 && dialogSwung.length >= 2 &&
+        near(dialogSwung[0] - dialogStraight[0], (dialogStraight[0] + dialogStraight[1]) / 6) &&
+        near(dialogStraight[0], previewStraight[0]), `${dialogSwung.slice(0, 2).join(' ')} against ${dialogStraight.slice(0, 2).join(' ')}`);
+
     console.log('\n=== The Metronome item ===');
     const clickGaps = async () => {
         await page.evaluate(() => { window.__starts = []; });

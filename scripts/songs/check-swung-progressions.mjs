@@ -121,6 +121,18 @@ console.log('\nStraight, and where swing has nothing to move');
     check('a pattern in sixteenths is saved straight though Swing is set', !write(4, 4, sixteenths, true).written.text.includes('\\tf'));
     const six = patternsFor(6, 8).find(p => p.name === 'All Down-Up');
     check('and so is 6/8', !write(6, 8, six, true).written.text.includes('\\tf'));
+
+    // A file from elsewhere can state the feel where it has nothing to move. Written here by
+    // setting swing on the song after songFromProgression has left it off.
+    const forced = (beatsPerBar, beatUnit, pattern) => {
+        const song = songFromProgression({ key: 'G', mode: 'major', beatsPerBar, beatUnit, chords: CHORDS }, { library, tempo: 60, pattern });
+        const written = songToAlphaTex({ ...song, swing: true });
+        return progressionFromSong(readSongFromScore(scoreFromTex(written.text), { library }), { library });
+    };
+    const swungSix = forced(6, 8, six);
+    check('a file swung in 6/8 opens with Swing off', swungSix.progression?.swing === false, swungSix.error ?? 'swing is set');
+    const swungSixteenths = forced(4, 4, sixteenths);
+    check('and so does one swung over sixteenths', swungSixteenths.progression?.swing === false, swungSixteenths.error ?? 'swing is set');
 }
 
 console.log('\nFiles chord practice cannot show');

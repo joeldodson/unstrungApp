@@ -6406,7 +6406,7 @@ async function startPatternPreview(button, pattern, beatsPerBar, { beatUnit = nu
     chordMasterGain = master;
 
     // Swung only where the caller gives the time signature and asks for it: the Strumming Patterns
-    // item does, the pattern dialog does not.
+    // item and the pattern dialog both follow the item's Swing checkbox.
     const player = { tempo: PATTERN_PREVIEW_TEMPO, buffers, strokes: chordPracticeStrokes({ beatsPerBar, beatUnit, pattern, swing }) };
     const secondsPerBeat = 60 / PATTERN_PREVIEW_TEMPO;
     const measureSeconds = beatsPerBar * secondsPerBeat;
@@ -6800,7 +6800,9 @@ patternPlayButton.addEventListener('click', () => {
         patternStrokesInput.focus();
         return;
     }
-    startPatternPreview(patternPlayButton, result.pattern, result.beatsPerBar);
+    // Swung as the Strumming Patterns item's Swing checkbox is set, since the dialog opens from it.
+    startPatternPreview(patternPlayButton, result.pattern, result.beatsPerBar,
+        { beatUnit: Number(patternBeatUnitInput.value), swing: strummingPatternsSwing });
 });
 
 document.getElementById('pattern-save-button').addEventListener('click', async () => {
