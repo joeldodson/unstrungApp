@@ -5765,9 +5765,14 @@ function chordPracticeMetadataRows(progression) {
     return rows;
 }
 
-/** Tells the main process whether closing the window would lose anything. */
+/**
+ * Tells the main process whether closing the window would lose anything: a tab with unsaved
+ * changes, or the progression editor being open. The editor counts whenever it is open, rather than
+ * once something is typed, so this need not follow every keystroke; whether it holds changes is
+ * worked out when the window is closing, by `editorHasChanges`.
+ */
 function syncUnsavedProgressions() {
-    window.unstrung.setUnsavedProgressions(chordPracticeStates.some(entry => entry.state.dirty));
+    window.unstrung.setUnsavedProgressions(chordPracticeStates.some(entry => entry.state.dirty) || editorDialog.open);
 }
 
 /**
@@ -7164,8 +7169,10 @@ async function confirmDiscardChordPractice(state, reason) {
 
 // The window is closing and at least one tab has unsaved changes. Each is brought to the front and
 // asked about in turn; Cancel on any of them, or cancelling its Save dialog, keeps the app open.
+// The editor is asked about first, since it is in front and its changes may become a tab's.
 window.unstrung.onConfirmQuit(async () => {
     if (unsavedDialog.open) return;
+    if (editorHasChanges() && !await confirmDiscardEditor()) return;
     for (const entry of [...chordPracticeStates]) {
         if (!entry.state.dirty) continue;
         showItem(entry.itemId, { focusContent: true });
@@ -7996,17 +8003,24 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
     syncEditorChordField();
 
     editorDialog.showModal();
+    syncUnsavedProgressions();
     // Editing starts in the measures, which is what is being changed. A new progression starts at
     // the key, which is the first thing to decide.
     if (editor.entry) editorMeasures.children[0]?.focus();
     else editorKeySelect.focus();
 }
 
+/**
+ * Applies the editor: makes the progression, or changes the tab's, and closes the dialog.
+ *
+ * Returns the tab's state, or null where something has to be put right first, which it says and
+ * leaves focus on.
+ */
 function applyProgressionEditor() {
     // What was typed and not yet taken counts, as if the field had been left.
     if (!commitEditorTypedChord({ revert: false })) {
         editorChordInput.focus();
-        return;
+        return null;
     }
     const verb = editor.entry ? 'applied' : 'created';
     const empty = editor.measures.findIndex(chord => !chord);
@@ -8014,7 +8028,7 @@ function applyProgressionEditor() {
         focusEditorMeasure(empty);
         editorAnnounce(`Measure ${empty + 1} has no chord. Every measure needs one before the ` +
             `progression can be ${verb}.`);
-        return;
+        return null;
     }
     const beatsPerBar = Number(editorBeatsInput.value);
     const beatUnit = Number(editorBeatUnitInput.value);
@@ -8022,7 +8036,7 @@ function applyProgressionEditor() {
         if (!Number.isInteger(value) || value < 1 || value > MAX_BEATS) {
             input.focus();
             editorAnnounce(`The time signature needs whole numbers from 1 to ${MAX_BEATS}.`);
-            return;
+            return null;
         }
     }
     // A shorter measure can leave a chord past its end.
@@ -8032,13 +8046,14 @@ function applyProgressionEditor() {
         focusEditorMeasure(overlong);
         editorAnnounce(`Measure ${overlong + 1} has ${chordDisplayName(chord)} on beat ${formatBeat(chord.beat)}, ` +
             `past the end of a measure of ${beatsPerBar} beats.`);
-        return;
+        return null;
     }
 
     // Nothing changed: close as Cancel would, rather than marking the tab as having changes.
     if (editor.entry && editorSnapshot() === editor.original) {
+        const { state } = editor.entry;
         editorDialog.close();
-        return;
+        return state;
     }
 
     const { key, mode } = editorKey();
@@ -8064,11 +8079,43 @@ function applyProgressionEditor() {
         const state = replaceChordPracticeProgression(editor.entry, progression, { dirty: true });
         state.ui.editButton.focus();
         state.announce(`Changes applied. ${progression.chords.length} measures, not saved yet.`);
-    } else {
-        openChordPracticeTab(progression, editor.options, { dirty: true });
-        setStatus(`Created a progression of ${progression.chords.length} measures in ${key} ${mode}. ` +
-            'It is not saved yet.');
+        return state;
     }
+    const { state } = openChordPracticeTab(progression, editor.options, { dirty: true });
+    setStatus(`Created a progression of ${progression.chords.length} measures in ${key} ${mode}. ` +
+        'It is not saved yet.');
+    return state;
+}
+
+/**
+ * Whether the editor is open with something that would be lost if it closed: a measure given or
+ * changed, the key, time signature or pattern changed, or chords typed into the field and not yet
+ * taken.
+ */
+function editorHasChanges() {
+    if (!editorDialog.open) return false;
+    if (editorChordInput.value.trim() !== '') return true;
+    return editor.entry ? editorSnapshot() !== editor.original : editor.measures.some(Boolean);
+}
+
+/**
+ * The window is closing with changes in the editor. Asked as a tab's unsaved changes are: Save
+ * applies them and saves the progression they make, Don't Save lets them go, and Cancel goes back
+ * to the editor. Until 2026-11-11 they were lost without a word, since only an applied change
+ * marked a progression unsaved. Finding 9 of the November review.
+ */
+async function confirmDiscardEditor() {
+    const choice = await askAboutUnsavedChanges(
+        'The progression editor has changes that are not applied. Save them before quitting?');
+    if (choice === 'cancel') return false;
+    if (choice === 'discard') {
+        editorDialog.close();
+        return true;
+    }
+    // Where the editor cannot apply them yet, it has said why, and the window stays.
+    const state = applyProgressionEditor();
+    if (!state) return false;
+    return !state.dirty || saveChordPractice(state);
 }
 
 editorApplyButton.addEventListener('click', applyProgressionEditor);
@@ -8091,6 +8138,7 @@ editorDialog.addEventListener('close', () => {
     if (editor.opener?.isConnected) editor.opener.focus();
     editor.opener = null;
     editor.entry = null;
+    syncUnsavedProgressions();
 });
 
 

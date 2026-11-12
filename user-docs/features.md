@@ -565,6 +565,8 @@ enter takes the chord and goes back to the measure in the list.
 
 Apply Changes, or Create Progression for a new one, puts the progression in its item.
 With changes made, escape does not close the dialog; press Cancel to discard them.
+If you quit the desktop app with changes in the dialog, unstrung asks whether to save them first.
+Save applies them and then saves the progression, Don't Save quits without them, and Cancel goes back to the dialog.
 
 #### More Than One Chord in a Measure
 

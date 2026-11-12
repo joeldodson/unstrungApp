@@ -35,7 +35,10 @@ Last updated 2026-11-11.
 - Done: finding 8, 2026-11-11.
   Song Summary names a key the file marks minor as "A minor"; a major key still reads "C".
   Checked by `scripts/songs/check-key-names.mjs`; the outcome is under finding 8 below.
-- Not started, Medium: 9 (window close loses editor contents), 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Done: finding 9, 2026-11-11.
+  Closing the window with changes in the progression editor asks Save, Don't Save or Cancel, as a tab's unsaved changes do (Joel's choice).
+  Checked by `scripts/progressions/verify-editor-quit.mjs`; the outcome is under finding 9 below.
+- Not started, Medium: 10 (web sample cache), 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
@@ -250,6 +253,23 @@ Outcome, 2026-11-11:
 Confirmed by tracing.
 The close guard at `main.js:835-839` asks only when a progression tab is marked dirty, and the editor's contents count only once applied.
 escape is guarded at `renderer.js:8065-8072`; closing the window is not.
+
+Outcome, 2026-11-11, decided with Joel:
+
+- `syncUnsavedProgressions` tells the main process there is something to lose whenever the editor is open, as well as when a tab has unsaved changes.
+  So closing the window always asks the page while the editor is open, and the page need not report every keystroke.
+- On closing, `editorHasChanges` decides: a measure given or changed, the key, time signature or pattern changed, or chords typed and not yet taken.
+  With none, the window closes without a question.
+- With changes, the Unsaved Changes dialog asks "The progression editor has changes that are not applied. Save them before quitting?"
+  Save applies them, as Apply Changes or Create Progression would, and then saves that progression; Don't Save quits; Cancel goes back to the editor.
+  Joel chose this over keeping the window open with escape's message.
+- Where Save cannot apply them, such as a measure with no chord, the editor says why as Apply would, and the window stays open.
+- The editor is asked about before any tab, since its changes may become a tab's.
+- `applyProgressionEditor` now returns the tab's state, or null where it stopped.
+- `scripts/progressions/verify-editor-quit.mjs` closes the window through the main process, as alt+f4 does, in four cases: nothing typed, Cancel then Don't Save, Save to a chosen file, and Save with an empty measure.
+  With the editor left out of the unsaved report, every case with changes closes the window unasked, as the review found.
+- The web version is unchanged in effect: it already asks the browser to confirm leaving whenever an item is open.
+- `features.md`, under Editing a Progression, says what quitting asks.
 
 ### 10. Web version: whole samples cached once per requested length
 
