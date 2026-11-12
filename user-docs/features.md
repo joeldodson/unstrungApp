@@ -141,6 +141,7 @@ Where the tempo, time signature or key signature changes later in the song, the 
 
 unstrung lists only the guitar and bass tracks of a song, since those are the only instruments it has recordings of.
 Voice, keyboards, drums and other parts are left out, and the summary says how many.
+A MusicXML part that names no instrument is listed if it is written as tablature, and its instrument is given as none named in the file.
 The words of a vocal part are still read, and shown with every listed track's measures.
 
 After the Song Summary, each track has a level 2 heading with its number and name, and a list of its instrument, tuning, capo and chord symbols.

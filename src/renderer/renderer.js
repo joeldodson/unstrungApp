@@ -393,9 +393,12 @@ async function requestCloseItem(id) {
     closeItem(id);
 }
 
-function buildSongMetadata(score) {
-    return extractScoreMetadata(score, { terseBeats: screenReaderSettings.terseBeatDescriptions });
+/** `musicXml` is whether the file was MusicXML, which changes what a part with no instrument means. */
+function buildSongMetadata(score, musicXml) {
+    return extractScoreMetadata(score, { terseBeats: screenReaderSettings.terseBeatDescriptions, musicXml });
 }
+
+const isMusicXmlFileName = fileName => /\.(xml|musicxml|mxl)$/i.test(fileName);
 
 /**
  * Rebuilds the summary of every open song. Called when the beat-description setting changes, so
@@ -408,7 +411,7 @@ function buildSongMetadata(score) {
 function rebuildOpenSongPanels() {
     for (const item of openItems) {
         if (!item.score) continue;
-        const meta = buildSongMetadata(item.score);
+        const meta = buildSongMetadata(item.score, item.musicXml);
         const content = buildSummaryPanel(meta, { trackRegionFor: item.trackRegionFor });
         item.panelEl.replaceChildren(content);
     }
@@ -459,7 +462,7 @@ function handleFileOpened({ fileName, data }) {
     try {
         score = /\.atex$/i.test(fileName) ? importAlphaTexSong(fileName, data)
             : alphaTab.importer.ScoreLoader.loadScoreFromBytes(data);
-        const meta = buildSongMetadata(score);
+        const meta = buildSongMetadata(score, isMusicXmlFileName(fileName));
         contentEl = buildSummaryPanel(meta, { trackRegionFor });
         setStatus(`Opened "${fileName}". Found ${meta.tracks.length} guitar and bass track${meta.tracks.length === 1 ? '' : 's'}.`);
     } catch (error) {
@@ -474,6 +477,7 @@ function handleFileOpened({ fileName, data }) {
         onClose: () => closeAudioTracksOf(item.id)
     });
     item.trackRegionFor = trackRegionFor;
+    item.musicXml = isMusicXmlFileName(fileName);
     songItemId = item.id;
     showItem(item.id, { focusContent: true });
 }

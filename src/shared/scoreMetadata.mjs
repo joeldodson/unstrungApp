@@ -1011,12 +1011,33 @@ function describeTuning(staff) {
  * the only instruments it has samples for. Voice, keyboards, drums and the rest are left out,
  * though the words of a vocal part are still read and hung on every listed track's measures.
  */
-function isGuitarOrBass(track) {
+function isGuitarOrBass(track, musicXml) {
     const program = track.playbackInfo ? track.playbackInfo.program : -1;
-    return track.isPercussion !== true && program >= 24 && program <= 39;
+    return track.isPercussion !== true && ((program >= 24 && program <= 39) || isUnnamedTablature(track, musicXml));
 }
 
-function describeTrack(track, index, terse, masterBars, songLyrics, promotedSections) {
+/**
+ * A MusicXML part that names no instrument but is written as tablature. alphaTab gives such a part
+ * program 0, Acoustic Grand Piano. Listed as a guitar, since tablature with a string tuning is what
+ * a guitar part is written in.
+ *
+ * MusicXML only. In a Guitar Pro file program 0 is a piano someone chose, and Songsterr's exports
+ * give their pianos and vocal parts tablature too: nine such tracks in four of the 37 song files
+ * tested, none of them a guitar. A banjo or a sitar names its own program in either format, and
+ * stays out rather than being played on guitar samples.
+ *
+ * Until 2026-11-11 such a part was left out, so a MusicXML file whose parts name no instruments
+ * said "This file has no guitar or bass tracks" over six-string tablature. Finding 12 of the
+ * November review.
+ */
+function isUnnamedTablature(track, musicXml) {
+    if (!musicXml) return false;
+    const program = track.playbackInfo ? track.playbackInfo.program : 0;
+    const staff = track.staves?.[0];
+    return program === 0 && staff?.showTablature === true && (staff.tuning?.length ?? 0) > 0;
+}
+
+function describeTrack(track, index, terse, masterBars, songLyrics, promotedSections, musicXml) {
     const staff = track.staves && track.staves.length > 0 ? track.staves[0] : null;
     const isPercussion = track.isPercussion === true;
 
@@ -1025,7 +1046,9 @@ function describeTrack(track, index, terse, masterBars, songLyrics, promotedSect
         // building its audio track. The tracks listed are numbered by their place in the list.
         index,
         name: track.name || '(untitled track)',
-        instrument: isPercussion ? 'Percussion' : instrumentName(track.playbackInfo ? track.playbackInfo.program : 0),
+        instrument: isPercussion ? 'Percussion'
+            : isUnnamedTablature(track, musicXml) ? 'none named in the file; listed as a guitar for its tablature'
+            : instrumentName(track.playbackInfo ? track.playbackInfo.program : 0),
         staffCount: track.staves ? track.staves.length : 0,
         isStringed: !!(staff && staff.isStringed),
         tuningName: staff && staff.isStringed ? staff.tuningName : null,
@@ -1041,8 +1064,10 @@ function describeTrack(track, index, terse, masterBars, songLyrics, promotedSect
  * @param options.terseBeats  Shorten named strums to the chord and the stroke direction, leaving
  *   out the string range and any muted strings. For a player who already knows the shapes those
  *   are recoverable from the name, and every beat is one line a screen reader has to read.
+ * @param options.musicXml  The score was read from MusicXML, where program 0 means a part names no
+ *   instrument, so a tablature part with it is listed as a guitar. See isUnnamedTablature.
  */
-export function extractScoreMetadata(score, { terseBeats = false } = {}) {
+export function extractScoreMetadata(score, { terseBeats = false, musicXml = false } = {}) {
     const masterBars = score.masterBars || [];
     const firstBar = masterBars.length > 0 ? masterBars[0] : null;
 
@@ -1097,8 +1122,8 @@ export function extractScoreMetadata(score, { terseBeats = false } = {}) {
         keySignatureVaries,
         tracks: (score.tracks || [])
             .map((track, index) => ({ track, index }))
-            .filter(({ track }) => isGuitarOrBass(track))
-            .map(({ track, index }) => describeTrack(track, index, terseBeats, masterBars, songLyrics, promotedSections)),
-        otherTrackCount: (score.tracks || []).filter(track => !isGuitarOrBass(track)).length
+            .filter(({ track }) => isGuitarOrBass(track, musicXml))
+            .map(({ track, index }) => describeTrack(track, index, terseBeats, masterBars, songLyrics, promotedSections, musicXml)),
+        otherTrackCount: (score.tracks || []).filter(track => !isGuitarOrBass(track, musicXml)).length
     };
 }

@@ -44,7 +44,9 @@ Last updated 2026-11-11.
 - Done: finding 11, 2026-11-11.
   The web version forgets a failed download, so the next request tries again, and the Chord Library says when it could not load and tries again when chosen from the menu.
   Checked by `scripts/web/verify-failed-fetch-retry.mjs`; the outcome is under finding 11 below.
-- Not started, Medium: 12 (MusicXML part with no instrument).
+- Done: finding 12, 2026-11-11.
+  A MusicXML part that names no instrument but is written as tablature is listed as a guitar.
+  Checked by `scripts/songs/check-track-listing.mjs`; the outcome is under finding 12 below.
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
@@ -330,6 +332,19 @@ The code agrees: `isGuitarOrBass` goes by program alone.
 Listing any staff with a string tuning would also list a banjo or a sitar, which would then play guitar samples.
 Better is to list a part with tablature and no program, which is the case the review describes.
 There is no MusicXML file in either corpus, so this has not been met in use.
+
+Outcome, 2026-11-11:
+
+- `isUnnamedTablature` in `scoreMetadata.mjs` lists a part with program 0, which is what alphaTab gives a MusicXML part naming no instrument, whose staff is tablature with a string tuning.
+  Its Instrument line reads "none named in the file; listed as a guitar for its tablature", not "Acoustic Grand Piano".
+- MusicXML only, through a new `musicXml` option to `extractScoreMetadata`, which the page sets from the file's extension.
+  The first try applied it to every format and listed nine more tracks in four Guitar Pro files: pianos and vocal parts at program 0 that Songsterr's exports give tablature.
+  In a Guitar Pro file program 0 is a piano someone chose.
+- A banjo or sitar names its own program and stays out, as the assessment preferred.
+- `scripts/songs/check-track-listing.mjs` reads MusicXML written in the script: a voice, six-string tablature and a piano with no instruments named list the tablature part alone, and it plays E2 on string 6.
+  The same part not marked as MusicXML is not listed, and every one of the 37 song files lists exactly the tracks it did by program alone.
+- Opened in the app as a `.musicxml` file: "Tracks - 1 guitar and bass; 1 other is not listed" and a heading for the guitar track.
+- `features.md`, under Tracks, says such a part is listed.
 
 ### 13. Open Saved Progression walks the whole folder tree
 
