@@ -79,8 +79,8 @@ const item = () => page.evaluate(selector => {
         pattern: pattern?.selectedOptions[0]?.textContent,
         patterns: [...(pattern?.options ?? [])].map(o => o.textContent),
         about: pattern?.closest('p').nextElementSibling.textContent,
-        tempo: tempo?.value, tempoMin: tempo?.min, tempoMax: tempo?.max, tempoType: tempo?.type,
-        volume: volume?.value, volumeMin: volume?.min, volumeMax: volume?.max, volumeType: volume?.type,
+        tempo: tempo?.value, tempoMin: tempo?.min, tempoMax: tempo?.max, tempoType: tempo?.type, tempoInputMode: tempo?.inputMode,
+        volume: volume?.value, volumeMin: volume?.min, volumeMax: volume?.max, volumeType: volume?.type, volumeInputMode: volume?.inputMode,
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
         rows: [...panel.querySelectorAll('.button-row')].map(row => [...row.querySelectorAll('button')].map(b => b.textContent)),
         startText: start?.textContent, pressed: start?.getAttribute('aria-pressed'),
@@ -190,6 +190,9 @@ check('Tempo is a number field from 30 to 240, at 60', state.tempoType === 'numb
     state.tempoMax === '240' && state.tempo === '60', `${state.tempoMin}-${state.tempoMax} at ${state.tempo}`);
 check('Volume is a number field from 1 to 5, at 3', state.volumeType === 'number' && state.volumeMin === '1' &&
     state.volumeMax === '5' && state.volume === '3', `${state.volumeMin}-${state.volumeMax} at ${state.volume}`);
+// A phone shows the number pad only with inputmode. Finding 16 of the November review.
+check('both ask a phone for the number pad', state.tempoInputMode === 'numeric' && state.volumeInputMode === 'numeric',
+    `${state.tempoInputMode}, ${state.volumeInputMode}`);
 check('the buttons are Start; Slower, Faster, Default Tempo; Quieter, Louder',
     JSON.stringify(state.rows) === JSON.stringify([['Start'], ['Slower', 'Faster', 'Default Tempo'], ['Quieter', 'Louder']]),
     JSON.stringify(state.rows));
@@ -507,8 +510,7 @@ await wait(1500);
 const practiceTempo = () => page.evaluate(selector => {
     const panel = document.querySelector(selector);
     const label = [...panel.querySelectorAll('label')].find(l => /tempo/i.test(l.textContent));
-    return { tempo: document.getElementById(label?.htmlFor)?.value, live: panel.querySelector('[aria-live][aria-atomic]')?.textContent,
-        keys: [...panel.querySelectorAll('ul li')].map(li => li.textContent).filter(t => t.startsWith('D - ')) };
+    return { tempo: document.getElementById(label?.htmlFor)?.value, live: panel.querySelector('[aria-live][aria-atomic]')?.textContent };
 }, PANEL);
 await page.locator(PANEL).focus();
 await key('f');
@@ -518,7 +520,13 @@ await key('d');
 const practice = await practiceTempo();
 check('d takes it back to 70 and says so', practice.tempo === '70' && practice.live === 'Default tempo, 70 BPM',
     `${practice.tempo}, "${practice.live}"`);
-check('its key list has D', practice.keys.length === 1, practice.keys.join(' | '));
+// The keys are listed in the Playback Keys dialog, which ? opens, not in the progression itself.
+await key('?');
+await wait(300);
+const playbackKeys = await page.evaluate(() => [...document.querySelectorAll('#playback-keys-list li')].map(li => li.textContent));
+check('its key list, opened with ?, has d', playbackKeys.some(text => text.startsWith('d: back to the default tempo')),
+    playbackKeys.join(' | '));
+await page.keyboard.press('Escape');
 
 // --- Default tempo in an audio track, given a song file -----------------------------------------
 // Song files are kept outside the repository, so this runs only when one is named:

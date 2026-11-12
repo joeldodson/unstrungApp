@@ -7042,6 +7042,8 @@ function openMetronomeItem() {
     const numberField = (min, max, value) => {
         const input = document.createElement('input');
         input.type = 'number';
+        // So a phone shows the number pad, as for every other number field. Whole numbers only.
+        input.inputMode = 'numeric';
         input.min = String(min);
         input.max = String(max);
         input.step = '1';

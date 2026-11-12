@@ -47,7 +47,9 @@ Last updated 2026-11-11.
 - Done: finding 12, 2026-11-11.
   A MusicXML part that names no instrument but is written as tablature is listed as a guitar.
   Checked by `scripts/songs/check-track-listing.mjs`; the outcome is under finding 12 below.
-- Not started, Low: 13 to 19.
+- Done: finding 16, 2026-11-11.
+  The Metronome's Tempo and Volume fields have `inputmode="numeric"`; the outcome is under finding 16 below.
+- Not started, Low: 13 to 15, 17 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
   The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
@@ -370,6 +372,10 @@ A label, a field and its Browse button read as one line in browse mode is reason
 ### 16. The Metronome's Tempo and Volume fields have no inputmode
 
 Confirmed: `numberField` at `renderer.js:6977-6985` sets none, and `docs/eyesunstrung-site-and-web-app.md:228` asks for one on every number field.
+
+Outcome, 2026-11-11: `numberField` sets `inputMode = 'numeric'`, since both fields take whole numbers.
+`scripts/metronome/verify-metronome.mjs` checks it on both.
+Its check that the progression's key list has d was out of date, looking for a list in the progression that moved to the Playback Keys dialog; it now opens that dialog with ? and passes.
 
 ### 17. features.md against the app
 
