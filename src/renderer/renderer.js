@@ -2032,6 +2032,9 @@ async function openChordLibraryTab() {
     const existing = openItems.find(item => item.id === chordsItemId);
     if (existing) {
         showItem(existing.id);
+        // A library that could not be loaded is tried again, which is what choosing Chord Library
+        // once more is for when it says so.
+        if (!chordLibrary) await fillChordLibrary();
         // Same landing as when it was first opened: the search field is the first thing you use
         // here, so returning to it puts you straight back on it.
         chordsUi?.searchInput.focus();
@@ -2068,15 +2071,34 @@ async function openChordLibraryTab() {
     wireChordLibrary();
     showItem(item.id);
 
+    await fillChordLibrary();
+    setStatus('Opened the Chord Library.');
+    // Land on the search field: it is the first thing you do here every time.
+    chordsUi?.searchInput.focus();
+}
+
+/**
+ * Fills the open Chord Library, fetching the library first if it has not been. Where it cannot be
+ * fetched, which in a browser means the connection, the results heading says so and how to try
+ * again. Until 2026-11-11 it said "loading chord library…" for the rest of the visit.
+ */
+async function fillChordLibrary() {
+    if (!chordsUi) return;
     if (!chordLibrary) {
         chordsUi.resultsHeading.textContent = 'Search Results: loading chord library…';
-        chordLibrary = await window.unstrung.getChordLibrary();
+        try {
+            chordLibrary = await window.unstrung.getChordLibrary();
+        } catch {
+            if (chordsUi) {
+                chordsUi.resultsHeading.textContent = 'Search Results: the chord library could not be loaded. ' +
+                    'Check the connection, then choose Chord Library from the menu again.';
+            }
+            return;
+        }
+        if (!chordsUi) return;
     }
     populateFilterOptions();
     rebuildChordResults();
-    setStatus('Opened the Chord Library.');
-    // Land on the search field: it is the first thing you do here every time.
-    chordsUi.searchInput.focus();
 }
 
 /**
@@ -4582,6 +4604,13 @@ function appendTrackChordSymbols(trackList, track) {
     window.unstrung.getChordLibrary().then(library => {
         chordPracticeLibrary ??= library;
         fill();
+    }, () => {
+        // In a browser, a dropped connection. Opening the song again tries again, since a failed
+        // fetch is not kept (finding 11 of the November review).
+        const note = document.createElement('li');
+        note.textContent = 'The chord library could not be loaded, so these chords cannot be listed. ' +
+            'Check the connection, then open the song again.';
+        list.append(note);
     });
 }
 
@@ -5691,7 +5720,9 @@ function chordPracticePlaybackOptions({ fromDialog = true } = {}) {
  */
 async function ensureChordPracticeReady() {
     if (!chordPracticeLibrary) chordPracticeLibrary = await window.unstrung.getChordLibrary();
-    if (chordPracticeSpeechSupported === null) {
+    // Asked again until the answer is yes: in a browser, "no voices" can be a download that failed,
+    // which the next try may get. Asking again costs nothing once the list has been fetched.
+    if (chordPracticeSpeechSupported !== true) {
         const result = await window.unstrung.listSpokenVoices();
         chordPracticeSpeechSupported = result.supported && result.voices.length > 0;
     }

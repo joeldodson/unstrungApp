@@ -275,27 +275,45 @@ async function fetchAudio(relativePath) {
     return new Uint8Array(await response.arrayBuffer());
 }
 
-let sampleMapPromise = null;
-const sampleMap = () => (sampleMapPromise ??= fetch('audio/sample-map.json').then(r => r.json()));
+/**
+ * A JSON file fetched once and kept for the visit: the same promise is handed to every caller, so
+ * it is fetched only once however many ask at the same moment.
+ *
+ * A failed fetch is not kept. Until 2026-11-11 the first promise was kept whatever became of it,
+ * and an error status was read as JSON, so a phone that lost its connection as the chord library
+ * was first asked for had no Chord Library, Frets to Chord or Chord Practice until the page was
+ * reloaded. Now the next request tries again. Finding 11 of the November review.
+ */
+function fetchJsonOnce(url, notFound = () => `Could not fetch ${url}`) {
+    let promise = null;
+    return () => (promise ??= fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error(`${notFound()}: ${response.status}`);
+            return response.json();
+        })
+        .catch(error => {
+            promise = null;
+            throw error;
+        }));
+}
+
+const sampleMap = fetchJsonOnce('audio/sample-map.json');
 
 // Where each note and velocity has reached in its round-robin cycle, as in the desktop app.
 const roundRobinCursors = new Map();
 
-let voicesPromise = null;
-const voices = () => (voicesPromise ??= fetch('audio/speech/voices.json').then(r => r.json()));
+const voices = fetchJsonOnce('audio/speech/voices.json');
 const speechManifests = new Map();
 
 function speechManifest(voice) {
     if (!speechManifests.has(voice)) {
-        speechManifests.set(voice, fetch(`audio/speech/${voice}/manifest.json`).then(r => {
-            if (!r.ok) throw new Error(`No speech assets for voice "${voice}"`);
-            return r.json();
-        }));
+        speechManifests.set(voice, fetchJsonOnce(`audio/speech/${voice}/manifest.json`,
+            () => `No speech assets for voice "${voice}"`));
     }
-    return speechManifests.get(voice);
+    return speechManifests.get(voice)();
 }
 
-let chordLibraryPromise = null;
+const chordLibrary = fetchJsonOnce('chord-library.json');
 
 // --- Saved progressions ---------------------------------------------------------------------
 // The folder is a directory handle the player chose, kept in IndexedDB. Files opened from it or
@@ -581,7 +599,7 @@ window.unstrung = {
     confirmQuit: () => {},
 
     // Chord library.
-    getChordLibrary: () => (chordLibraryPromise ??= fetch('chord-library.json').then(r => r.json())),
+    getChordLibrary: () => chordLibrary(),
 
     // Settings.
     getSettings: async () => {

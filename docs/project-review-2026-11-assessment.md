@@ -41,7 +41,10 @@ Last updated 2026-11-11.
 - Done: finding 10, 2026-11-11.
   On the web the Chord Library decodes each recording once per pitch and loudness, as an audio track does, instead of once per length wanted.
   Checked by `scripts/audio/verify-chord-sample-cache.mjs`; the outcome is under finding 10 below.
-- Not started, Medium: 11 (web failed fetch remembered), 12 (MusicXML part with no instrument).
+- Done: finding 11, 2026-11-11.
+  The web version forgets a failed download, so the next request tries again, and the Chord Library says when it could not load and tries again when chosen from the menu.
+  Checked by `scripts/web/verify-failed-fetch-retry.mjs`; the outcome is under finding 11 below.
+- Not started, Medium: 12 (MusicXML part with no instrument).
 - Not started, Low: 13 to 19.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
 - features.md still needs the two wording fixes in finding 17.
@@ -304,6 +307,21 @@ Outcome, 2026-11-11:
 Confirmed by tracing.
 `sampleMap`, `voices`, `speechManifest` and `getChordLibrary` keep their first promise, failed or not, and three of them do not check `response.ok`.
 `fetchAudio`, for the samples themselves, does check and does not keep a failed promise.
+
+Outcome, 2026-11-11:
+
+- `fetchJsonOnce` in `src/web/platform.js` now fetches the sample map, the voice list, each voice's speech manifest and the chord library.
+  It keeps a successful promise for the visit, so callers asking at the same moment share one fetch, but drops a failed one, so the next request tries again.
+  It checks `response.ok`, where three of the four read an error page as JSON.
+- Two places in the page also held on to a failure, and were fixed with it:
+  - The Chord Library said "loading chord library…" for good, and choosing it again only showed it.
+    `fillChordLibrary` now says "the chord library could not be loaded. Check the connection, then choose Chord Library from the menu again", and choosing it again tries again.
+  - Chord Practice took a failed voice list as "no voices" and kept that for the visit.
+    `ensureChordPracticeReady` now asks again until the answer is yes.
+- A track's Chord Symbols list, where the library is needed for fingerings, says the library could not be loaded and to open the song again.
+- Frets to Chord, Chord Practice and the samples already tried again on their next use once nothing kept the failure.
+- `scripts/web/verify-failed-fetch-retry.mjs` runs the web build in Edge and fails the first request for the chord library, the voice list and the sample map, then lets the next through.
+  Against the committed code before the fix, the Chord Library checks fail and Frets to Chord never opens; with the fix all seven checks pass.
 
 ### 12. A MusicXML part with no MIDI instrument is not listed
 
