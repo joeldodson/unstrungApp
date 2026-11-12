@@ -432,7 +432,7 @@ The media keys on your keyboard and headphone buttons control a progression as t
 Save Progression, or ctrl+s, saves the progression.
 The first time, unstrung suggests a name such as Am-60-intermediate-occasional: the key, the number of measures, the level and the setting for chords from outside the key.
 Save Progression As, or ctrl+shift+s, saves a copy under a new name.
-The key, time signature, chords, strumming pattern and tempo are saved, the pattern and tempo as they are set under Playback.
+The key, time signature, chords, strumming pattern and tempo are saved, the pattern and tempo as they are set under Playback Settings.
 The metronome and the number of repeats are not.
 Opening a progression sets the tempo to the one it was saved with.
 
@@ -612,7 +612,7 @@ Its first stroke is still the higher one, so beat 1 stands out from the other ac
 Under Settings:
 
 - **Time signature** and **Strumming pattern,** the same patterns as in the Strumming Patterns item, the ones that come with unstrung and yours.
-  After them, a line says where the clicks fall, such as "Clicks on 1 strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up".
+  After them, a line says where the clicks fall, such as "Clicks on 1 high strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up".
 - **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
   The tempo you type here is the default tempo.
 - **Volume,** from 1 to 5, 3 to begin with.

@@ -59,10 +59,11 @@ Last updated 2026-11-11.
   A hung page with an unsaved progression closes on a second close after five seconds; the outcome is under finding 19 below.
 - Done: finding 14, 2026-11-11, pending Joel's check with NVDA.
   Guitar Samples, Chord Practice and Frets to Chord have a one-line description; About is still read in full. The outcome is under finding 14 below.
-- Not started, Low: 17.
+- Done: finding 17, 2026-11-11.
+  The out-of-date lines in `features.md` are fixed, and the app's own text writes keys as `features.md` does; the outcome is under finding 17 below.
+- All 19 findings are dealt with. The dialog descriptions of finding 14 and the keys of finding 6 still need Joel's check with NVDA.
 - Not started: `npm test` over the Node checks, and the other hardening and code-quality notes.
-- features.md still needs the two wording fixes in finding 17.
-  The swing it lacked, finding 17's lines 134 and 260, was added with finding 5, and its line 98 on spaceBar opening the menu is true again since finding 6.
+- features.md: the swing it lacked was added with finding 5, its line on spaceBar opening the menu is true again since finding 6, its description of beats since findings 2 and 3, and the rest of finding 17 is fixed.
 
 ## Verdict
 
@@ -425,6 +426,18 @@ Each point checked is correct:
   The Chord Library template still has an h3 "Playback" (`index.html:530`), which is a different item.
 
 The point about keys written three ways in the app's own text was not checked line by line.
+
+Outcome, 2026-11-11:
+
+- `features.md`: the metronome example now reads "1 high strong down", as the app says, and the progression's settings are "Playback Settings".
+  The Chord Library's own heading is still Playback, which is right for that item.
+- The review's other `features.md` lines were settled by earlier findings: 98 by 6, 134 and 260 by 5, 156 by 2 and 3.
+- The quotation at its line 214, two sentences inside one quote, was left: it is one sentence of the document.
+- The app's own text now writes keys the way `features.md` does, lowercase and joined with plus, multi-word keys in camel case, and lists them as "key: what it does.":
+  "Press ctrl+o" where nothing is open; the editor's list (enter, delete, ctrl+i, ctrl+d, alt+upArrow and alt+downArrow) and its chord field's help (downArrow, enter); the Metronome's Keyboard Control list (spaceBar, f, s, d, upArrow, downArrow) and its note; and "Press ctrl+s to save instead" in the web version.
+  The Playback Keys dialog already wrote them this way.
+- `aria-keyshortcuts` keeps "Control+O" and the like, since that attribute's spelling is set by the ARIA standard and is not read as text.
+- `scripts/metronome/verify-metronome.mjs` checks the Metronome's list and note in the new wording.
 
 ### 18. Web version: a full cache stops a fetched sample from playing
 

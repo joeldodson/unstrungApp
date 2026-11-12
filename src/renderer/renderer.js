@@ -6035,7 +6035,7 @@ async function saveChordPractice(state, { saveAs = false } = {}) {
         // A browser opens its Save dialog only straight from a key press or click. If it refused,
         // Control+S is the way in: it always reaches the page as a real key press.
         state.announce(error?.name === 'SecurityError'
-            ? 'The browser would not open its Save dialog. Press Control+S to save instead.'
+            ? 'The browser would not open its Save dialog. Press ctrl+s to save instead.'
             : `Could not save: ${error.message}`);
         return false;
     }
@@ -7103,17 +7103,17 @@ function openMetronomeItem() {
     keysNote.textContent =
         'These keys work while focus is in the metronome and your screen reader is passing keystrokes' +
         ' straight through to unstrung, which is focus mode in NVDA. Outside that, use the buttons' +
-        ' above, which do the same things. In the Time signature and Strumming pattern lists, F, S' +
-        ' and D still work, and the other keys move through the list.';
+        ' above, which do the same things. In the Time signature and Strumming pattern lists, f, s' +
+        ' and d still work, and the other keys move through the list.';
     container.append(keysNote);
     const keysList = document.createElement('ul');
     appendTextItems(keysList, [
-        'Space - start and stop',
-        `F - faster by ${METRONOME_TEMPO_STEP} BPM`,
-        `S - slower by ${METRONOME_TEMPO_STEP} BPM`,
-        'D - back to the default tempo, the one last typed into the Tempo field',
-        'Up arrow - louder',
-        'Down arrow - quieter'
+        'spaceBar: start and stop.',
+        `f: faster by ${METRONOME_TEMPO_STEP} BPM.`,
+        `s: slower by ${METRONOME_TEMPO_STEP} BPM.`,
+        'd: back to the default tempo, the one last typed into the Tempo field.',
+        'upArrow: louder.',
+        'downArrow: quieter.'
     ]);
     container.append(keysList);
 

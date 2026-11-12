@@ -198,10 +198,11 @@ check('the buttons are Start; Slower, Faster, Default Tempo; Quieter, Louder',
     JSON.stringify(state.rows));
 check('Start is a toggle, not pressed', state.pressed === 'false');
 check('the live region is polite and atomic', state.live === '' && state.liveAtomic === 'true');
-check('the keys are listed', state.keys.join('|') === 'Space - start and stop|F - faster by 5 BPM|S - slower by 5 BPM|' +
-    'D - back to the default tempo, the one last typed into the Tempo field|Up arrow - louder|Down arrow - quieter',
+// Written as features.md writes keys (finding 17 of the November review).
+check('the keys are listed', state.keys.join('|') === 'spaceBar: start and stop.|f: faster by 5 BPM.|s: slower by 5 BPM.|' +
+    'd: back to the default tempo, the one last typed into the Tempo field.|upArrow: louder.|downArrow: quieter.',
     state.keys.join('|'));
-check('the key note says f, s and d work in the lists', /lists, F, S and D still work/.test(state.keysNote), state.keysNote);
+check('the key note says f, s and d work in the lists', /lists, f, s and d still work/.test(state.keysNote), state.keysNote);
 
 // --- Starting, and the clicks -------------------------------------------------------------------
 console.log('\nStarting, and the clicks of Old Faithful at 80');
