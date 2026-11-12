@@ -24,7 +24,9 @@ import {
     identifyChordFromNotes, spellChordNotes, IDENTIFY_SUFFIXES, PITCH_CLASS_NAMES, PITCH_CLASSES,
     STANDARD_TUNING_MIDI
 } from './musicTheory.mjs';
-import { coarsestPattern, everyBeatDown, finerPattern, formatStrummingPattern, SLOTS_PER_BEAT_CHOICES } from './strummingPatterns.mjs';
+import {
+    coarsestPattern, everyBeatDown, finerPattern, formatStrummingPattern, SLOTS_PER_BEAT_CHOICES, swingApplies
+} from './strummingPatterns.mjs';
 import { DEFAULT_TEMPO, scoreTempo } from './tempo.mjs';
 
 export const TICKS_PER_QUARTER = 960;
@@ -49,6 +51,7 @@ const BRUSH_UP = 1, BRUSH_DOWN = 2, ARPEGGIO_UP = 3, ARPEGGIO_DOWN = 4;
 const PICK_UP = 1, PICK_DOWN = 2;
 const ACCENT_NONE = 0, ACCENT_NORMAL = 1;
 const KEY_TYPE_MINOR = 1;
+const TRIPLET_FEEL_8TH = 2;
 
 // Sharps (positive) or flats (negative) for each key unstrung offers, as alphaTab counts them.
 const KEY_SIGNATURES = {
@@ -112,10 +115,12 @@ export function spelledFrets(chord) {
  * A generated or edited progression as a song, with one pattern throughout. Each measure is its
  * chord, and the `laterChords` after it, each with the beat it starts on.
  */
-export function songFromProgression(progression, { library, tempo = DEFAULT_TEMPO, pattern = null, title = '' }) {
+export function songFromProgression(progression, { library, tempo = DEFAULT_TEMPO, pattern = null, title = '', swing = false }) {
     const songPattern = pattern ?? everyBeatDown(progression.beatsPerBar);
     return {
         title,
+        // Kept only where it is played: see swingApplies.
+        swing: !!swing && swingApplies(progression.beatUnit, songPattern.slotsPerBeat),
         key: progression.key,
         mode: progression.mode,
         beatsPerBar: progression.beatsPerBar,
@@ -202,6 +207,7 @@ export function expandMeasure(measure, song, context = { ringing: null, named: n
     }
 
     let { ringing, named } = context;
+    const swung = !!song.swing && beatUnit === 4;
     const beats = [];
     for (const span of spans) {
         let chordName = null;
@@ -214,7 +220,7 @@ export function expandMeasure(measure, song, context = { ringing: null, named: n
         let remaining = span.slots * slotLength;
         let first = true;
         while (remaining > 0) {
-            const piece = NOTE_VALUES.find(v => v.ticks <= remaining);
+            const piece = swung ? swungPiece(tick, remaining) : NOTE_VALUES.find(v => v.ticks <= remaining);
             if (!piece) return { error: 'A span is shorter than a thirty-second note.' };
             const kind = first ? span.kind
                 : span.kind === 'strike' || span.kind === 'tie' ? 'tie' : 'rest';
@@ -236,6 +242,30 @@ export function expandMeasure(measure, song, context = { ringing: null, named: n
         ringing = span.kind === 'strike' || span.kind === 'tie' ? span.frets : null;
     }
     return { beats, context: { ringing, named } };
+}
+
+/**
+ * The next note value of a span in a swung song.
+ *
+ * A file's triplet feel moves only an eighth note that directly follows another eighth on the
+ * beat (see tripletFeelTimes in audioTrack.mjs, which follows alphaTab). Written the usual way,
+ * the longest note first, some "ands" would not be such a pair: in D - D U - U D U the up on the
+ * and of 2 rings through beat 3, a quarter note starting off the beat, and it would be played
+ * straight while the and of 4 swung. So in a swung song a span is cut at the beat: whole beats
+ * from a beat, and never more than an eighth from an "and", the rest tied on. Every "and" is then
+ * the second eighth of a pair, and the file plays as chord practice does, here and in any program
+ * that swings as alphaTab does.
+ *
+ * A measure that needs sixteenths, for a chord starting on a quarter beat, can still leave an
+ * "and" unpaired. Chord practice swings it all the same; only the file played elsewhere differs.
+ */
+function swungPiece(tick, remaining) {
+    const within = tick % TICKS_PER_QUARTER;
+    if (within === 0 && remaining >= TICKS_PER_QUARTER) {
+        return NOTE_VALUES.find(v => v.ticks <= remaining && v.ticks % TICKS_PER_QUARTER === 0);
+    }
+    const most = within === TICKS_PER_QUARTER / 2 ? Math.min(remaining, TICKS_PER_QUARTER / 2) : remaining;
+    return NOTE_VALUES.find(v => v.ticks <= most);
 }
 
 function alphaTexBeat(beat) {
@@ -292,6 +322,8 @@ export function songToAlphaTex(song) {
         if (measureSignature !== timeSignature) parts.push(`\\ts (${measureSignature})`);
         timeSignature = measureSignature;
         if (index === 0 && song.key) parts.push(`\\ks ${song.key.toLowerCase()}${song.mode}`);
+        // Written once: alphaTab carries a bar's triplet feel forward, as it does the time signature.
+        if (index === 0 && song.swing) parts.push('\\tf triplet8th');
         if (measure.section) parts.push(`\\section (${quoted(measure.section)})`);
         parts.push(...expanded.beats.map(alphaTexBeat));
         lines.push(`${parts.join(' ')} |`);
@@ -520,6 +552,14 @@ function readBar(bar, song, stringCount, context) {
     return { measure, context: { ringing: actualRinging, named: actualNamed } };
 }
 
+function readFeel(masterBars) {
+    const feels = new Set(masterBars.map(bar => bar.tripletFeel ?? 0));
+    const feel = feels.size > 1 ? 'mixed'
+        : feels.has(TRIPLET_FEEL_8TH) ? 'swing'
+            : feels.has(0) || feels.size === 0 ? 'straight' : 'other';
+    return { swing: feel === 'swing', feel };
+}
+
 function keyFromSignature(signature, type) {
     const mode = type === KEY_TYPE_MINOR ? 'minor' : 'major';
     const key = Object.entries(KEY_SIGNATURES[mode]).find(([, count]) => count === signature)?.[0];
@@ -544,6 +584,9 @@ export function readSongFromScore(score, { library, trackIndex = 0 }) {
         beatsPerBar: firstMaster?.timeSignatureNumerator ?? 4,
         beatUnit: firstMaster?.timeSignatureDenominator ?? 4,
         tempo: scoreTempo(score),
+        // Swung when every bar states triplet eighths. `feel` says what else the bars state, for
+        // progressionFromSong: "straight", "swing", "mixed" or "other".
+        ...readFeel(score.masterBars ?? []),
         measures: []
     };
     const stringCount = staff?.tuning?.length ?? 6;
@@ -595,6 +638,8 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
     if (!song.key) return { error: 'its key signature is not one of the keys unstrung offers' };
     if (song.measures.length === 0) return { error: 'it has no measures' };
     if (song.measures.length > maxMeasures) return { error: `it has more than ${maxMeasures} measures` };
+    if (song.feel === 'mixed') return { error: 'it is swung in some measures and not others, which chord practice cannot show yet' };
+    if (song.feel === 'other') return { error: 'it has a feel other than triplet eighths, which chord practice cannot play yet' };
 
     const chords = [];
     let pattern = null;
@@ -626,6 +671,7 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
             beatsPerBar: song.beatsPerBar,
             beatUnit: song.beatUnit,
             tempo: song.tempo,
+            swing: !!song.swing,
             chords,
             pattern: { slotsPerBeat: pattern.slotsPerBeat, slots: pattern.slots },
             origin: { made: 'hand' }

@@ -626,6 +626,53 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   closing. It tells a strong down by the roughness of its first two milliseconds, which a pure
   tone does not have. Playwright's WebKit for Windows has no Web Audio, so Safari is unchecked.
 
+## Swing
+
+Built 2026-11-11, after the November review made track playback swing a file that states a feel.
+Joel asked for it in chord practice, saved with the progression as the tempo and pattern are.
+
+- **One amount, on or off.** Joel chose a single setting over a choice of amounts. Swung, each
+  "and" falls two thirds of the way through the beat, the triplet eighths feel (alphaTab's
+  `Triplet8th`), which is what song files state and the only amount alphaTex can carry besides
+  dotted.
+- **Where it applies.** It moves eighth notes, so it applies where the beat is a quarter note and
+  the pattern is no finer than eighths (`swingApplies` in `strummingPatterns.mjs`). A pattern in
+  sixteenths, and 6/8 or 12/8, play straight; the checkbox's description says so ("Swing has no
+  effect in 6/8."). Sixteenth swing was left out: alphaTab would swing only those sixteenth-pattern
+  notes that happen to be written as eighth pairs, so a file could not say it.
+- **It belongs to the progression,** as `progression.swing`. The checkbox, "Swing, each and
+  played late", follows every Strumming pattern list: the Chord Practice dialog, the tab's Playback
+  Settings, the editor, the Strumming Patterns item and the Metronome. In Playback Settings it is
+  tried out like the pattern, not an unsaved change; in the editor it is a change to apply. In the
+  Strumming Patterns item and the Metronome it is not part of a pattern and lasts until unstrung
+  closes. The pattern dialog's own Play is straight.
+- **Chord practice times its own strums** (`slotBeats`), so every "and" moves, whatever rings
+  into it. The beat clicks and the count-in do not move. A chord's beat is still written straight:
+  C@2.5 is the and of 2, played late.
+- **The Metronome** keeps its slots evenly spaced and delays a swung click by a third of a slot
+  (`metronomeSwingDelay`), so the anchor arithmetic for tempo and pattern changes is untouched.
+- **The file** states `\tf triplet8th` on the first bar; alphaTab carries it forward. A file's
+  feel moves only an eighth that directly follows another on the beat (`tripletFeelTimes`), and
+  written longest note first some "ands" would not be such a pair: in `D - D U - U D U` the up on
+  the and of 2 would be a quarter note off the beat. So a swung song's notes are cut at the beat
+  and tied (`swungPiece` in `songScore.mjs`), and the file then plays as chord practice does, as a
+  track here or in another program that swings as alphaTab does. One case still differs: a chord
+  starting on a quarter of a beat puts sixteenths in its measure and can leave an "and" unpaired
+  in the file. Chord practice swings it all the same.
+- **Swing is saved only where it applies,** so the file never states a feel chord practice did
+  not play. A sixteenth pattern saved with Swing checked reopens unchecked.
+- **Reading.** Every bar stating triplet eighths is a swung progression. A file swung in only
+  some measures, or with another feel, is refused with the reason, like the other things chord
+  practice cannot show.
+- **Checked** by `scripts/songs/check-swung-progressions.mjs`, which writes every built-in pattern
+  that can swing, plays the file as a track and compares each strum with `slotBeats`, and by
+  `scripts/songs/verify-swing.mjs` in the app, which reads strum and click times from the Web
+  Audio calls in a progression, the Strumming Patterns item and the Metronome.
+
+Other ideas raised the same day and not built: a choice of swing amounts, sixteenth swing, a
+triplet grid of three slots a beat, pushed chord changes, bass-strum and fingerpicking patterns,
+palm muting, and humanized timing.
+
 ## Open questions
 
 - A stop symbol for strumming patterns, so a chord that stops partway through a measure can be a
@@ -639,4 +686,4 @@ presets, and the metronome choice in chord practice and audio tracks are still t
 - A written-out measure is described only by its reason. Describing its beats, as audio tracks
   do, is the next step for a song view.
 - A chord name written inside a written-out measure does not yet carry into the next measure.- Which metronome extras to build, once the core has been used.
-- Triplets and swing, and with them counting compound time by the felt beat.
+- Triplets, and with them counting compound time by the felt beat. Swing is built; see Swing.

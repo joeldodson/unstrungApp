@@ -176,7 +176,7 @@ check('its heading is Metronome', state.heading === 'Metronome', state.heading);
 check('its sections are Settings, Controls and Keyboard Control',
     state.headings.join('|') === 'Settings|Controls|Keyboard Control', state.headings.join('|'));
 check('every control has a label', state.labels.join('|') ===
-    'Time signature -> select|Strumming pattern -> select|Tempo, 30 to 240 BPM -> input|Volume, 1 to 5 -> input',
+    'Time signature -> select|Strumming pattern -> select|Swing, each and played late -> input|Tempo, 30 to 240 BPM -> input|Volume, 1 to 5 -> input',
     state.labels.join('|'));
 check('focus starts on Time signature', state.focusedOn === 'time signature', state.focusedOn);
 check('it starts on 4/4, Down Only', state.signature === '4/4' && state.pattern === 'Down Only: D D D D', `${state.signature} ${state.pattern}`);

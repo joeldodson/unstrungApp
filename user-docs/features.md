@@ -364,6 +364,7 @@ The Chord Practice dialog asks for:
   The tempo counts beats, so the lower number does not change the speed: 6/8 at 90 is ninety eighth notes a minute.
 - **Strumming pattern,** from the patterns for the time signature, described under Strumming Patterns.
   It starts on Down Only, and the list changes when the time signature does.
+- **Swing, each and played late,** unchecked to begin with, described under Swing.
 - **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
 - **Number of measures,** from 2 to 256.
 - **No chord held over into the next measure,** checked to begin with.
@@ -389,6 +390,7 @@ A progression's item has:
 - **Metadata:** the key, level, time signature, strumming pattern, length, the cadence it ends with, how many chords come from outside the key, and whether it has been saved.
   The strumming pattern is given by its name and its strokes, such as Old Faithful: D - D U - U D U.
   A pattern unstrung does not have a name for is given by its strokes alone.
+  A swung progression says so after the strokes: Old Faithful: D - D U - U D U, swung.
 - **Chords Used:** each different chord once, collapsed, with its fingering and notes.
   A chord from outside the key says which key it comes from and why.
 - **Progression:** the measures in order, each as its chords are written in the editor, such as G D C@4.
@@ -402,6 +404,9 @@ Playback Settings has:
 - **Strumming pattern.**
   Changing it carries on from where the progression is, so you can try patterns while it plays.
   Like the tempo, it is not counted as an unsaved change, but saving keeps the pattern you are on.
+- **Swing, each and played late.**
+  Checked, the progression is swung, as described under Swing.
+  Like the pattern, it changes while the progression plays, is not counted as an unsaved change, and is saved with the progression.
 - **Speak the next measure.**
   Changing it starts the progression again from the first measure.
   A measure with one chord has its name said one beat before it.
@@ -432,7 +437,8 @@ The media keys on your keyboard and headphone buttons control a progression as t
 Save Progression, or ctrl+s, saves the progression.
 The first time, unstrung suggests a name such as Am-60-intermediate-occasional: the key, the number of measures, the level and the setting for chords from outside the key.
 Save Progression As, or ctrl+shift+s, saves a copy under a new name.
-The key, time signature, chords, strumming pattern and tempo are saved, the pattern and tempo as they are set under Playback Settings.
+The key, time signature, chords, strumming pattern, swing and tempo are saved, the pattern, swing and tempo as they are set under Playback Settings.
+Swing is saved only where it has an effect, so a progression with a pattern in sixteenths opens with Swing unchecked.
 The metronome and the number of repeats are not.
 Opening a progression sets the tempo to the one it was saved with.
 
@@ -445,7 +451,7 @@ To open one, choose Open Saved Progression from the Chord Progressions submenu, 
 The folder is shown as a tree.
 upArrow and downArrow move, rightArrow and leftArrow open and close a folder, a letter moves to the next name starting with that letter, and enter opens the progression.
 Any file that cannot be opened is listed after the tree with the reason.
-That includes music chord practice cannot show, such as single notes rather than chords, or more than one strumming pattern.
+That includes music chord practice cannot show, such as single notes rather than chords, more than one strumming pattern, or swing in only some of its measures.
 A folder that holds a great deal besides progressions, such as Documents itself, is listed only in part, and the dialog says so.
 Choose a folder just for saved progressions.
 
@@ -506,17 +512,34 @@ Any other time signature has those two.
 - On the Pulse: D - - D - - D - - D - -.
 - Slow Blues: every eighth down, strong on each beat.
 
+### Swing
+
+Played straight, the and falls halfway between two beats.
+Swung, it comes late, two thirds of the way through the beat, so each beat is a long stroke and a short one.
+This is the feel Song Summary calls "triplet eighths (swung)", and it is also called a shuffle.
+Only the ands move; the strokes on the beat stay where they are, and so does the metronome.
+
+Each place a strumming pattern is chosen has a checkbox after it, Swing, each and played late: the Chord Practice dialog, a progression's Playback Settings, the progression editor, the Strumming Patterns item and the Metronome.
+A chord that starts on an and, such as C@2.5, is still written that way, and is played late with the rest.
+
+Swing moves eighth notes, so it has no effect on a pattern in sixteenths, or in a time signature counted in eighths such as 6/8 or 12/8, which is in threes already.
+The checkbox then says so in its description, such as "Swing has no effect in 6/8."
+
+A swung progression is saved as a swung song, so it is played the same way when the file is opened as a track.
+
 ### Your Own Strumming Patterns
 
 Choose Strumming Patterns from the menu.
 It opens as an item in the list of open items, with you on the Time signature list.
 The Pattern list after it has that time signature's patterns, the ones that come with unstrung first and yours after them, each of yours ending in "yours".
 After them, a line says what the chosen pattern is and reads its strokes out in words, such as "1 down, and miss, 2 down, and up".
+After that is the Swing checkbox, described under Swing.
+It is for hearing a pattern swung with Play, and is not part of the pattern; it stays as you set it until unstrung is closed.
 
 The buttons after it:
 
 - **Play:** plays the pattern on G, C, D and F, two measures each, with the metronome on the beats, round and round until you press it again; while playing it reads Pause.
-  Choosing another pattern while it plays switches to that one.
+  Choosing another pattern while it plays switches to that one, and so does checking or unchecking Swing.
 - **New Pattern:** opens the New Strumming Pattern dialog.
 - **Copy to My Patterns:** opens the same dialog with the chosen pattern's strokes, to make one of your own from it.
 - **Edit:** changes one of yours.
@@ -545,8 +568,9 @@ Under Export and Import:
 Edit Progression opens the Editing Chord Progression dialog.
 Manually Create Chord Progression, in the Chord Progressions submenu, opens the same dialog as Creating Chord Progression, with one empty measure.
 
-The dialog sets the key, time signature and strumming pattern, and lists the measures with their chords.
-The strumming pattern starts on the progression's own.
+The dialog sets the key, time signature, strumming pattern and swing, and lists the measures with their chords.
+The strumming pattern starts on the progression's own, and Swing as the progression has it.
+Changing Swing here is a change to apply, unlike in Playback Settings.
 A progression opened from a file whose pattern unstrung has no name for keeps it, listed as this progression's own.
 The list of measures is used in focus mode.
 In browse mode it is one line, Measures, and enter on it goes into the list at the current measure.
@@ -613,6 +637,8 @@ Under Settings:
 
 - **Time signature** and **Strumming pattern,** the same patterns as in the Strumming Patterns item, the ones that come with unstrung and yours.
   After them, a line says where the clicks fall, such as "Clicks on 1 high strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up".
+- **Swing, each and played late.**
+  Checked, each click on an and comes late, as described under Swing.
 - **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
   The tempo you type here is the default tempo.
 - **Volume,** from 1 to 5, 3 to begin with.
@@ -626,7 +652,7 @@ Under Controls:
   Slower and Faster do not change it.
 - **Quieter** and **Louder:** change the volume by one.
 
-Changing the tempo, the volume or the pattern while it plays carries on without starting the measure again.
+Changing the tempo, the volume, the pattern or Swing while it plays carries on without starting the measure again.
 Each button says what it did, such as "85 BPM" or "Volume 4", and says so when the tempo or volume is already as far as it goes.
 The metronome keeps playing while you look at another open item.
 Closing the item stops it, and opening it again keeps your settings until unstrung is closed.

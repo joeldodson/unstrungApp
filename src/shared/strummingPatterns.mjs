@@ -68,6 +68,29 @@ export function fitPattern(slots, beatsPerBar) {
     return { error: `The pattern has ${slots.length} slots; a measure of ${beatsPerBar} beats needs ${counts}.` };
 }
 
+// --- Swing ---------------------------------------------------------------------------------------
+//
+// A swung progression plays each "and" late: two thirds of the way through the beat instead of
+// halfway, where the third note of a triplet would fall. This is the triplet eighths feel of a
+// song file (alphaTab's Triplet8th), and the only amount offered. It moves eighth notes, so it
+// applies where the beat is a quarter note and the pattern is no finer than eighths: a pattern in
+// sixteenths, or a time signature counted in eighths such as 6/8, is played straight. Decided
+// 2026-11-11; see docs/strumming-patterns-and-metronome.md, Swing.
+
+/** Where a swung "and" falls in its beat. */
+export const SWING_AND = 2 / 3;
+
+/** Whether swing changes anything for this time signature and pattern grid. */
+export function swingApplies(beatUnit, slotsPerBeat) {
+    return beatUnit === 4 && slotsPerBeat <= 2;
+}
+
+/** Where a slot falls in its measure, in beats from 0, with each "and" late when `swing`. */
+export function slotBeats(slot, slotsPerBeat, swing = false) {
+    if (swing && slotsPerBeat === 2 && slot % 2 === 1) return (slot - 1) / 2 + SWING_AND;
+    return slot / slotsPerBeat;
+}
+
 /** Down Only: a downstroke on every beat, which is what chord practice played before patterns. */
 export function everyBeatDown(beatsPerBar) {
     return { name: 'Down Only', slotsPerBeat: 1, slots: Array.from({ length: beatsPerBar }, () => ({ stroke: 'down', accent: false })) };

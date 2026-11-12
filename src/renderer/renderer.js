@@ -19,7 +19,8 @@ import {
 } from '../shared/songScore.mjs';
 import {
     everyBeatDown, formatStrummingPattern, patternsFor, namedPatternLike, parseStrummingPattern, fitPattern,
-    checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS
+    checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS,
+    swingApplies, slotBeats
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import {
@@ -33,6 +34,7 @@ import {
     METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, METRONOME_DEFAULT_VOLUME,
     clampMetronomeTempo, clampMetronomeVolume, metronomeVolumeGain,
     metronomeClicks, metronomeClickGain, metronomeSlotSeconds, metronomeSlotTime, retimeMetronome, regridMetronome,
+    metronomeSwingDelay,
     metronomeSlotInMeasure, describeMetronomeClicks
 } from '../shared/metronome.mjs';
 import { createMenuButton } from './menu.js';
@@ -4790,11 +4792,16 @@ const CHORD_PRACTICE_RING_FACTOR = 1.8;
 /**
  * The strokes of one measure of the progression's pattern, worked out once per tab.
  *
- * Each is { slot, direction, accent, mute, ringSlots }: ringSlots is how many slots it rings
- * before the next stroke, counted round into the next measure, since the pattern repeats.
+ * Each is { slot, beats, direction, accent, mute, ringBeats }: `beats` is where it falls in the
+ * measure, in beats from 0, and ringBeats how many beats it rings before the next stroke, counted
+ * round into the next measure, since the pattern repeats. In a swung progression each "and" falls
+ * late (slotBeats), and the ring lengths follow.
  */
 function chordPracticeStrokes(progression) {
     const { slots, slotsPerBeat } = progressionPattern(progression);
+    const swing = progressionSwings(progression);
+    const at = index => slotBeats(index, slotsPerBeat, swing);
+    const measureBeats = slots.length / slotsPerBeat;
     const struck = slots
         .map((slot, index) => ({ ...slot, index }))
         .filter(slot => slot.stroke !== 'miss');
@@ -4803,15 +4810,16 @@ function chordPracticeStrokes(progression) {
         slotsPerBeat,
         strokes: struck.map((slot, n) => {
             const next = struck[(n + 1) % struck.length];
-            const gap = next.index > slot.index ? next.index - slot.index : next.index + slots.length - slot.index;
+            const gap = at(next.index) - at(slot.index) + (next.index > slot.index ? 0 : measureBeats);
             return {
                 slot: slot.index,
+                beats: at(slot.index),
                 direction: slot.stroke === 'up' ? 'up' : 'down',
                 mute: slot.stroke === 'mute',
                 gain: accented
                     ? (slot.accent ? CHORD_PRACTICE_ACCENT_GAIN : CHORD_PRACTICE_UNACCENTED_GAIN)
                     : (slot.index === 0 ? CHORD_PRACTICE_DOWNBEAT_GAIN : 1),
-                ringSlots: gap,
+                ringBeats: gap,
                 ringFactor: next.stroke === 'mute' ? 1 : CHORD_PRACTICE_RING_FACTOR
             };
         })
@@ -4820,8 +4828,7 @@ function chordPracticeStrokes(progression) {
 
 /** How long a stroke rings, in seconds, at the tab's tempo. */
 function chordPracticeStrokeRing(state, stroke) {
-    const slotSeconds = 60 / state.tempo / state.strokes.slotsPerBeat;
-    return stroke.ringSlots * slotSeconds * stroke.ringFactor;
+    return stroke.ringBeats * (60 / state.tempo) * stroke.ringFactor;
 }
 
 /**
@@ -4933,9 +4940,10 @@ function scheduleChordPracticeChunk(state, fromSeconds, toSeconds, baseContext, 
             });
         }
 
-        const slotSeconds = secondsPerBeat / state.strokes.slotsPerBeat;
         for (const stroke of state.strokes.strokes) {
-            const strokeSeconds = measureStart + stroke.slot * slotSeconds;
+            // Where the stroke sounds, late on a swung "and". Which chord it plays goes by where
+            // it is written, since a chord's beat is written straight.
+            const strokeSeconds = measureStart + stroke.beats * secondsPerBeat;
             const midi = midiAt(1 + stroke.slot / state.strokes.slotsPerBeat);
 
             // A strum that began before this window and has not finished ringing. Only on the
@@ -5272,12 +5280,65 @@ function setChordPracticeMetronome(state, enabled) {
 function setChordPracticePattern(state, pattern) {
     state.progression.pattern = pattern;
     state.strokes = chordPracticeStrokes(state.progression);
-    state.ui.strummingItem.textContent = `Strumming - ${progressionPatternLabel(state.progression)}`;
+    refreshChordPracticeStrumming(state);
     if (!state.playing) return;
     const position = chordPracticePosition(state);
     state.pass = chordPracticeCurrentPass(state);
     stopChordPracticePlayback();
     startChordPracticePlayback(state, position, { countIn: false });
+}
+
+/**
+ * Swings the progression or plays it straight, in place.
+ *
+ * Like the pattern, it is something a player tries out: not an unsaved change, and saving writes
+ * it. The note under the checkbox says when the pattern or time signature leaves it nothing to do.
+ */
+function setChordPracticeSwing(state, enabled) {
+    state.progression.swing = enabled;
+    state.ui.swingCheckbox.checked = enabled;
+    state.strokes = chordPracticeStrokes(state.progression);
+    refreshChordPracticeStrumming(state);
+    if (!state.playing) return;
+    const position = chordPracticePosition(state);
+    state.pass = chordPracticeCurrentPass(state);
+    stopChordPracticePlayback();
+    startChordPracticePlayback(state, position, { countIn: false });
+}
+
+/** The Strumming line of the Metadata list, and the note saying whether Swing has any effect. */
+function refreshChordPracticeStrumming(state) {
+    const { progression } = state;
+    state.ui.strummingItem.textContent = `Strumming - ${progressionPatternLabel(progression)}`;
+    showSwingNote(state.ui.swingNote, progression.beatsPerBar, progression.beatUnit,
+        progressionPattern(progression).slotsPerBeat);
+}
+
+const SWING_LABEL = 'Swing, each and played late';
+
+/**
+ * A Swing checkbox in a paragraph, with a note after it in the same paragraph that is the
+ * checkbox's description. The note is filled by showSwingNote, and is empty and hidden unless
+ * swing has nothing to move.
+ */
+function buildSwingParagraph(idPrefix, checked) {
+    const { paragraph, checkbox } = buildCheckboxParagraph(idPrefix, SWING_LABEL, checked);
+    const note = document.createElement('span');
+    note.id = uniqueControlId(`${idPrefix}-note`);
+    note.hidden = true;
+    checkbox.setAttribute('aria-describedby', note.id);
+    paragraph.append(' ', note);
+    return { paragraph, checkbox, note };
+}
+
+/** Says in a Swing checkbox's note when the time signature or the pattern leaves it no effect. */
+function showSwingNote(note, beatsPerBar, beatUnit, slotsPerBeat) {
+    const applies = swingApplies(beatUnit, slotsPerBeat);
+    note.textContent = applies ? ''
+        : beatUnit !== 4
+            ? `Swing has no effect in ${beatsPerBar}/${beatUnit}.`
+            : 'Swing has no effect on a pattern in sixteenths.';
+    note.hidden = applies;
 }
 
 /**
@@ -5504,6 +5565,12 @@ function buildChordPracticeTab(progression, options, file = {}) {
     patternLabel.textContent = 'Strumming pattern';
     patternParagraph.append(patternLabel, patternSelect);
 
+    // Straight after the pattern, since it is about how the pattern is played. The note is the
+    // checkbox's description, and is there only when swing has nothing to move.
+    const swing = buildSwingParagraph('chord-practice-tab-swing', progression.swing === true);
+    const swingCheckbox = swing.checkbox;
+    const swingNote = swing.note;
+
     // The one setting that cannot be changed in place: the names have to be fetched and the whole
     // run laid out again around them, so it costs a restart, and the label says so.
     const speak = buildCheckboxParagraph('chord-practice-tab-speak',
@@ -5537,7 +5604,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         countInBeats.paragraph.hidden = state.repeatCount === 1 || !state.countInEachPass;
     };
 
-    container.append(tempo.paragraph, patternParagraph, speak.paragraph, metronome.paragraph,
+    container.append(tempo.paragraph, patternParagraph, swing.paragraph, speak.paragraph, metronome.paragraph,
         countIn.paragraph, repeat.paragraph, countInEachPass.paragraph, countInBeats.paragraph);
 
     const controlsHeading = document.createElement('h3');
@@ -5622,7 +5689,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
         anchorSeconds: 0,
         anchorContextTime: null,
         ui: { tempoInput, metronomeCheckbox, repeatInput, countInEachPassCheckbox,
-            speakCheckbox, patternSelect, playButton, heading, savedAsItem, strummingItem, editButton, progressionHeading },
+            speakCheckbox, patternSelect, swingCheckbox, swingNote, playButton, heading, savedAsItem, strummingItem,
+            editButton, progressionHeading },
         announce: text => announceLiveRegion(announcement, text),
         setPlaying: playing => {
             state.playing = playing;
@@ -5634,6 +5702,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
 
     showRepeatCountIn();
     refreshChordPracticeNames(state);
+    refreshChordPracticeStrumming(state);
+    swingCheckbox.addEventListener('change', () => setChordPracticeSwing(state, swingCheckbox.checked));
     editButton.addEventListener('click', () => openProgressionEditor({ state }));
     saveButton.addEventListener('click', () => saveChordPractice(state));
     saveAsButton.addEventListener('click', () => saveChordPractice(state, { saveAs: true }));
@@ -5751,10 +5821,11 @@ async function ensureChordPracticeReady() {
  */
 function prepareProgression({
     key, mode, beatsPerBar, beatUnit, chords, origin, fresh = false,
-    level = null, cadence = null, borrowing = null, borrowedCount = 0, pattern = null
+    level = null, cadence = null, borrowing = null, borrowedCount = 0, pattern = null, swing = false
 }) {
     const prepared = {
-        key, mode, beatsPerBar, beatUnit, origin, fresh, level, cadence, borrowing, borrowedCount
+        key, mode, beatsPerBar, beatUnit, origin, fresh, level, cadence, borrowing, borrowedCount,
+        swing: swing === true
     };
     // The strumming pattern, kept only where it fits the time signature.
     prepared.pattern = progressionPattern({ beatsPerBar, pattern });
@@ -5926,7 +5997,14 @@ function strummingPatternLabel(pattern, beatsPerBar, beatUnit) {
 }
 
 function progressionPatternLabel(progression) {
-    return strummingPatternLabel(progressionPattern(progression), progression.beatsPerBar, progression.beatUnit);
+    const label = strummingPatternLabel(progressionPattern(progression), progression.beatsPerBar, progression.beatUnit);
+    return progressionSwings(progression) ? `${label}, swung` : label;
+}
+
+/** Whether the progression is played swung: Swing is checked, and its pattern has "ands" to move. */
+function progressionSwings(progression) {
+    return progression.swing === true &&
+        swingApplies(progression.beatUnit, progressionPattern(progression).slotsPerBeat);
 }
 
 /**
@@ -5968,7 +6046,8 @@ function selectedPattern(select) {
 /** The alphaTex a saved file holds. Throws only on a program error. */
 function progressionFileText(progression, tempo) {
     const song = songFromProgression(progression, {
-        library: chordPracticeLibrary, tempo, pattern: progressionPattern(progression)
+        library: chordPracticeLibrary, tempo, pattern: progressionPattern(progression),
+        swing: progression.swing === true
     });
     const written = songToAlphaTex(song);
     if (written.error) throw new Error(`measure ${written.measure}: ${written.error}`);
@@ -6103,7 +6182,8 @@ async function generateChordPractice() {
     const progression = prepareProgression({
         ...generated, beatsPerBar, beatUnit, fresh: true,
         origin: { made: 'generated', levelId, borrowingId },
-        pattern: selectedPattern(chordPracticePatternSelect)
+        pattern: selectedPattern(chordPracticePatternSelect),
+        swing: chordPracticeSwingCheckbox.checked
     });
 
     // Focus goes to the new tab, not back to whatever opened the dialog.
@@ -6161,7 +6241,19 @@ function chordPracticeRefreshPatterns() {
     const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
     const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
     fillPatternSelect(chordPracticePatternSelect, beatsPerBar, beatUnit);
+    chordPracticeShowSwing();
 }
+
+const chordPracticeSwingCheckbox = document.getElementById('chord-practice-swing-checkbox');
+
+/** Says beside the dialog's Swing checkbox when the time signature or pattern leaves it no effect. */
+function chordPracticeShowSwing() {
+    const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
+    const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
+    const pattern = selectedPattern(chordPracticePatternSelect);
+    if (pattern) showSwingNote(document.getElementById('chord-practice-swing-note'), beatsPerBar, beatUnit, pattern.slotsPerBeat);
+}
+chordPracticePatternSelect.addEventListener('change', chordPracticeShowSwing);
 
 /**
  * Number of Beats to Count In runs from 1 to the beats in a measure. A new time signature counts
@@ -6268,6 +6360,8 @@ function allListedPatterns() {
 // The Play button that is playing, if any, its timer and what it has scheduled. Only one plays at
 // a time, the item's or the dialog's.
 const patternPreview = { button: null, timer: null, sources: [] };
+// Whether the Strumming Patterns item plays its patterns swung, kept while the item is closed.
+let strummingPatternsSwing = false;
 
 function setPreviewButton(button, playing) {
     button.textContent = playing ? 'Pause' : 'Play';
@@ -6293,7 +6387,7 @@ function stopPatternPreview() {
  * leaves a progression's playback alone. Each time round is laid out a couple of seconds before it
  * is due, on the audio clock, so the loop joins without a gap.
  */
-async function startPatternPreview(button, pattern, beatsPerBar) {
+async function startPatternPreview(button, pattern, beatsPerBar, { beatUnit = null, swing = false } = {}) {
     stopPatternPreview();
     patternPreview.button = button;
     setPreviewButton(button, true);
@@ -6311,9 +6405,10 @@ async function startPatternPreview(button, pattern, beatsPerBar) {
     master.connect(context.destination);
     chordMasterGain = master;
 
-    const player = { tempo: PATTERN_PREVIEW_TEMPO, buffers, strokes: chordPracticeStrokes({ beatsPerBar, pattern }) };
+    // Swung only where the caller gives the time signature and asks for it: the Strumming Patterns
+    // item does, the pattern dialog does not.
+    const player = { tempo: PATTERN_PREVIEW_TEMPO, buffers, strokes: chordPracticeStrokes({ beatsPerBar, beatUnit, pattern, swing }) };
     const secondsPerBeat = 60 / PATTERN_PREVIEW_TEMPO;
-    const slotSeconds = secondsPerBeat / player.strokes.slotsPerBeat;
     const measureSeconds = beatsPerBar * secondsPerBeat;
     const roundSeconds = PATTERN_PREVIEW_CHORDS.length * PATTERN_PREVIEW_MEASURES_EACH * measureSeconds;
 
@@ -6337,7 +6432,7 @@ async function startPatternPreview(button, pattern, beatsPerBar) {
                     output.sources.push({ source: scheduleMetronomeClick(context, master, at, beat === 0), endsAt: at + METRONOME_CLICK_SECONDS });
                 }
                 for (const stroke of player.strokes.strokes) {
-                    scheduleChordPracticeStrum(player, midi, stroke, measureStart + stroke.slot * slotSeconds, 0, output);
+                    scheduleChordPracticeStrum(player, midi, stroke, measureStart + stroke.beats * secondsPerBeat, 0, output);
                 }
             }
         }
@@ -6351,12 +6446,12 @@ async function startPatternPreview(button, pattern, beatsPerBar) {
 }
 
 /** Play and Pause in one button: starts the preview from this button, or stops it. */
-function togglePatternPreview(button, pattern, beatsPerBar) {
+function togglePatternPreview(button, pattern, beatsPerBar, options = {}) {
     if (patternPreview.button === button) {
         stopPatternPreview();
         return false;
     }
-    startPatternPreview(button, pattern, beatsPerBar);
+    startPatternPreview(button, pattern, beatsPerBar, options);
     return true;
 }
 
@@ -6366,7 +6461,7 @@ async function saveOwnStrummingPatterns(patterns) {
     for (const { state } of chordPracticeStates) {
         fillPatternSelect(state.ui.patternSelect, state.progression.beatsPerBar, state.progression.beatUnit,
             progressionPattern(state.progression));
-        state.ui.strummingItem.textContent = `Strumming - ${progressionPatternLabel(state.progression)}`;
+        refreshChordPracticeStrumming(state);
     }
     refreshMetronomePatterns();
 }
@@ -6419,6 +6514,7 @@ function fillListedPatterns(name = null) {
     const found = name ? ui.patterns.findIndex(p => p.name === name) : -1;
     ui.list.value = String(Math.max(0, found));
     ui.about.textContent = describeListedPattern(ui.patterns[Number(ui.list.value)]);
+    ui.showSwing?.();
 }
 
 function chosenListedPattern() {
@@ -6468,6 +6564,16 @@ async function openStrummingPatternsItem() {
     const about = document.createElement('p');
     container.append(about);
 
+    // For hearing a pattern swung. It is not part of a pattern: a progression says whether it is
+    // swung, so this is kept only while unstrung is open.
+    const swing = buildSwingParagraph('strumming-patterns-swing', strummingPatternsSwing);
+    container.append(swing.paragraph);
+    const previewOptions = pattern => ({ beatUnit: pattern.beatUnit, swing: swing.checkbox.checked });
+    const showSwing = () => {
+        const pattern = chosenListedPattern();
+        if (pattern) showSwingNote(swing.note, pattern.beatsPerBar, pattern.beatUnit, pattern.slotsPerBeat);
+    };
+
     const actions = createButtonRow();
     const makeButton = (row, label) => {
         const button = document.createElement('button');
@@ -6507,14 +6613,16 @@ async function openStrummingPatternsItem() {
     });
     strummingPatternsItemId = item.id;
     const announce = text => announceLiveRegion(status, text);
-    strummingPatternsUi = { signatureSelect, list, about, status, problems, announce, all: [], patterns: null };
+    strummingPatternsUi = { signatureSelect, list, about, status, problems, announce, showSwing, all: [], patterns: null };
     renderStrummingPatternList();
 
     // Choosing another pattern while it plays switches to that one, so patterns can be compared
     // by ear without pressing Play each time.
     const playChosenIfPlaying = () => {
         const pattern = chosenListedPattern();
-        if (pattern && patternPreview.button === playButton) startPatternPreview(playButton, pattern, pattern.beatsPerBar);
+        if (pattern && patternPreview.button === playButton) {
+            startPatternPreview(playButton, pattern, pattern.beatsPerBar, previewOptions(pattern));
+        }
     };
     signatureSelect.addEventListener('change', () => {
         fillListedPatterns();
@@ -6523,13 +6631,18 @@ async function openStrummingPatternsItem() {
     list.addEventListener('change', () => {
         const pattern = chosenListedPattern();
         if (pattern) about.textContent = describeListedPattern(pattern);
+        showSwing();
+        playChosenIfPlaying();
+    });
+    swing.checkbox.addEventListener('change', () => {
+        strummingPatternsSwing = swing.checkbox.checked;
         playChosenIfPlaying();
     });
     playButton.setAttribute('aria-pressed', 'false');
     playButton.addEventListener('click', () => {
         const pattern = chosenListedPattern();
         if (!pattern) return;
-        if (togglePatternPreview(playButton, pattern, pattern.beatsPerBar)) announce(`Playing ${pattern.name}.`);
+        if (togglePatternPreview(playButton, pattern, pattern.beatsPerBar, previewOptions(pattern))) announce(`Playing ${pattern.name}.`);
     });
     newButton.addEventListener('click', () => {
         const pattern = chosenListedPattern();
@@ -6754,6 +6867,8 @@ const metronome = {
     volume: METRONOME_DEFAULT_VOLUME,
     // The chosen pattern, as { timeSignature, name }, kept while the item is closed.
     chosen: { timeSignature: '4/4', name: 'Down Only' },
+    // Whether each "and" clicks late, kept while the item is closed.
+    swing: false,
     // The pattern being played: its clicks and grid.
     grid: null,
     anchor: null,
@@ -6773,7 +6888,7 @@ function chosenMetronomePattern() {
 function metronomeGrid(pattern) {
     const clicks = metronomeClicks(pattern);
     return {
-        clicks, timeSignature: pattern.timeSignature,
+        clicks, timeSignature: pattern.timeSignature, beatsPerBar: pattern.beatsPerBar, beatUnit: pattern.beatUnit,
         slotsPerBeat: pattern.slotsPerBeat, slotsPerMeasure: clicks.length
     };
 }
@@ -6819,6 +6934,7 @@ function metronomePatternChosen() {
     metronome.chosen = { timeSignature: pattern.timeSignature, name: pattern.name };
     const grid = metronomeGrid(pattern);
     metronome.ui.about.textContent = describeMetronomeClicks(grid.clicks, grid.slotsPerBeat);
+    showSwingNote(metronome.ui.swingNote, grid.beatsPerBar, grid.beatUnit, grid.slotsPerBeat);
     const before = metronome.grid;
     metronome.grid = grid;
     if (!metronome.playing || !before) return;
@@ -6846,13 +6962,17 @@ function scheduleMetronomeAhead() {
     const context = getSharedAudioContext();
     const now = context.currentTime;
     const until = now + METRONOME_LEAD_SECONDS;
-    const { clicks, slotsPerMeasure } = metronome.grid;
+    const { clicks, slotsPerMeasure, slotsPerBeat, beatUnit } = metronome.grid;
+    const swung = metronome.swing && swingApplies(beatUnit, slotsPerBeat);
     // Only what is still to sound is kept, so a long session does not pile up finished sources.
     metronome.sources = metronome.sources.filter(entry => entry.endsAt > now);
     for (;;) {
-        const at = metronomeSlotTime(metronome.anchor, metronome.nextSlot);
-        if (at >= until) break;
-        const click = clicks[metronomeSlotInMeasure(metronome.nextSlot, slotsPerMeasure)];
+        const slotAt = metronomeSlotTime(metronome.anchor, metronome.nextSlot);
+        if (slotAt >= until) break;
+        const slotInMeasure = metronomeSlotInMeasure(metronome.nextSlot, slotsPerMeasure);
+        const click = clicks[slotInMeasure];
+        // A swung "and" clicks later than its slot; the slots stay even.
+        const at = slotAt + (swung ? metronomeSwingDelay(slotInMeasure, slotsPerBeat, metronome.anchor.slotSeconds) : 0);
         // A slot already past, after a stalled timer, is skipped rather than played late.
         if (click && at >= now) metronome.sources.push(scheduleMetronomeStrokeClick(context, at, click));
         metronome.nextSlot++;
@@ -6943,6 +7063,15 @@ function setMetronomeTempo(tempo) {
     const context = getSharedAudioContext();
     reanchorMetronome(retimeMetronome(metronome.anchor, context.currentTime + METRONOME_CHANGE_MARGIN_SECONDS,
         metronomeSlotSeconds(tempo, metronome.grid.slotsPerBeat)));
+}
+
+/** Swings the clicks or plays them straight, carrying on from the next slot when playing. */
+function setMetronomeSwing(swing) {
+    metronome.swing = swing;
+    if (!metronome.playing) return;
+    const context = getSharedAudioContext();
+    reanchorMetronome(retimeMetronome(metronome.anchor, context.currentTime + METRONOME_CHANGE_MARGIN_SECONDS,
+        metronome.anchor.slotSeconds));
 }
 
 /** Faster or Slower: one step, saying the new tempo, or that it is already as far as it goes. */
@@ -7065,6 +7194,8 @@ function openMetronomeItem() {
     // wanted rather than on every visit.
     const about = document.createElement('p');
     container.append(about);
+    const swing = buildSwingParagraph('metronome-swing', metronome.swing);
+    container.append(swing.paragraph);
     const tempoInput = labelled(numberField(METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, metronome.tempo),
         'metronome-tempo', `Tempo, ${METRONOME_MIN_TEMPO} to ${METRONOME_MAX_TEMPO} BPM`);
     const volumeInput = labelled(numberField(METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, metronome.volume),
@@ -7130,11 +7261,12 @@ function openMetronomeItem() {
     });
     metronome.itemId = item.id;
     metronome.ui = {
-        signatureSelect, patternSelect, about, tempoInput, volumeInput, startButton, announce,
+        signatureSelect, patternSelect, about, swingNote: swing.note, tempoInput, volumeInput, startButton, announce,
         all: [], patterns: null
     };
     metronome.grid = null;
     fillMetronomeLists();
+    swing.checkbox.addEventListener('change', () => setMetronomeSwing(swing.checkbox.checked));
 
     signatureSelect.addEventListener('change', () => fillMetronomePatterns());
     patternSelect.addEventListener('change', () => metronomePatternChosen());
@@ -7570,7 +7702,19 @@ function refreshEditorPatterns() {
     const beatsPerBar = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatsInput.value) || 4));
     const beatUnit = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatUnitInput.value) || 4));
     fillPatternSelect(editorPatternSelect, beatsPerBar, beatUnit);
+    editorShowSwing();
 }
+
+const editorSwingCheckbox = document.getElementById('progression-editor-swing-checkbox');
+
+/** Says beside the editor's Swing checkbox when the time signature or pattern leaves it no effect. */
+function editorShowSwing() {
+    const beatsPerBar = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatsInput.value) || 4));
+    const beatUnit = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatUnitInput.value) || 4));
+    const pattern = selectedPattern(editorPatternSelect);
+    if (pattern) showSwingNote(document.getElementById('progression-editor-swing-note'), beatsPerBar, beatUnit, pattern.slotsPerBeat);
+}
+editorPatternSelect.addEventListener('change', editorShowSwing);
 editorBeatsInput.addEventListener('change', refreshEditorPatterns);
 editorBeatUnitInput.addEventListener('change', refreshEditorPatterns);
 const editorMeasures = document.getElementById('progression-editor-measures');
@@ -7600,7 +7744,7 @@ function editorKey() {
 function editorSnapshot() {
     return JSON.stringify([editorKeySelect.value, editorBeatsInput.value, editorBeatUnitInput.value,
         editor.measures.map(measure => (measure ? formatMeasureChords(measure) : null)),
-        editorPatternSelect.value]);
+        editorPatternSelect.value, editorSwingCheckbox.checked]);
 }
 
 function editorKeyClasses() {
@@ -8066,6 +8210,9 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorApplyButton.textContent = 'Create Progression';
     }
 
+    editorSwingCheckbox.checked = editor.entry?.state.progression.swing === true;
+    editorShowSwing();
+
     editor.original = editor.entry ? editorSnapshot() : '';
     editorStatus.textContent = '';
     renderEditorMeasures();
@@ -8137,7 +8284,8 @@ function applyProgressionEditor() {
         chords: editor.measures.map(([first, ...later]) => ({
             root: first.root, suffix: first.suffix, laterChords: later
         })),
-        pattern: selectedPattern(editorPatternSelect)
+        pattern: selectedPattern(editorPatternSelect),
+        swing: editorSwingCheckbox.checked
     });
 
     // Focus goes to the tab, not back to whatever opened the dialog.

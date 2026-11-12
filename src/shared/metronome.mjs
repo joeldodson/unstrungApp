@@ -125,6 +125,16 @@ export function metronomeSlotSeconds(tempo, slotsPerBeat) {
     return 60 / tempo / slotsPerBeat;
 }
 
+/**
+ * How much later than its slot a swung click sounds, in seconds. Only an "and" on an eighth-note
+ * grid moves: from halfway through its beat to two thirds, a third of a slot. The slots themselves
+ * stay evenly spaced, so the anchor arithmetic below is the same swung or straight. Whether a
+ * pattern can be swung at all is swingApplies, in strummingPatterns.mjs.
+ */
+export function metronomeSwingDelay(slotInMeasure, slotsPerBeat, slotSeconds) {
+    return slotsPerBeat === 2 && slotInMeasure % 2 === 1 ? slotSeconds / 3 : 0;
+}
+
 /** When slot `n` sounds, by the anchor. */
 export function metronomeSlotTime(anchor, n) {
     return anchor.time + (n - anchor.slot) * anchor.slotSeconds;

@@ -290,8 +290,8 @@ check('the chord list carries no bullet or number', controls.listStyle === 'none
     controls.listStyle);
 check('the panel has tempo, repeats and metronome, all labelled', controls.labelled);
 console.log(`  settings: ${controls.settings.join(' | ')}`);
-check('Playback Settings: tempo, pattern, names, metronome, count in, times to play, count in each repeat, beats to count in',
-    controls.settings.join(' | ') === 'Tempo in beats per minute, 30 to 240 | Strumming pattern | ' +
+check('Playback Settings: tempo, pattern, swing, names, metronome, count in, times to play, count in each repeat, beats to count in',
+    controls.settings.join(' | ') === 'Tempo in beats per minute, 30 to 240 | Strumming pattern | Swing, each and played late | ' +
     'Speak the next measure; changing it starts again from the first measure | Metronome | ' +
     'Count in, one measure of clicks before playing starts | ' +
     'Times to play the progression, up to 50; 0 repeats until stopped | Count in before every repeat | ' +

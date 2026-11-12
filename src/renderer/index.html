@@ -243,6 +243,13 @@
             <select id="chord-practice-pattern-select"></select>
         </p>
 
+        <!-- The note is filled only when the time signature or pattern leaves swing no effect. -->
+        <p>
+            <input type="checkbox" id="chord-practice-swing-checkbox" aria-describedby="chord-practice-swing-note" />
+            <label for="chord-practice-swing-checkbox">Swing, each and played late</label>
+            <span id="chord-practice-swing-note" hidden></span>
+        </p>
+
         <p>
             <label for="chord-practice-tempo-input">Tempo (beats per minute)</label>
             <input type="number" inputmode="numeric" id="chord-practice-tempo-input" min="30" max="240" step="1" value="60" />
@@ -349,6 +356,12 @@
         <p>
             <label for="progression-editor-pattern-select">Strumming pattern</label>
             <select id="progression-editor-pattern-select"></select>
+        </p>
+
+        <p>
+            <input type="checkbox" id="progression-editor-swing-checkbox" aria-describedby="progression-editor-swing-note" />
+            <label for="progression-editor-swing-checkbox">Swing, each and played late</label>
+            <span id="progression-editor-swing-note" hidden></span>
         </p>
 
         <h2 id="progression-editor-measures-heading">Measures</h2>
