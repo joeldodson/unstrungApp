@@ -73,6 +73,9 @@ eyesunstrung.vip.
   nothing changed.
 - `checks.md` -- `npm test` and `npm run test:songs`, which run the Node checks, and the app and
   browser drivers they leave out. Added 2026-11-11.
+- `one-player.md` -- moving chord practice onto the audio track player, decided 2026-10-14 and
+  never done; why there are two players, and the twenty differences between them to decide one
+  at a time. Notes from 2026-11-12, nothing built.
 
 Older findings live next to the scripts they came from: `scripts/sampleNotes.md`,
 `scripts/gp-experiment/gpParsingFindings.md` and `scripts/gp-experiment/songsterrCorpusReview.md`.
