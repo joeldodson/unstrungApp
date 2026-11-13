@@ -2,7 +2,7 @@
 // the stated duration, rather than our own default spacing?
 import * as fs from 'node:fs';
 import * as alphaTab from '@coderline/alphatab';
-import { buildAudioTrack, STRUM_STRING_DELAY_SECONDS } from '../../src/shared/audioTrack.mjs';
+import { buildAudioTrack, DEFAULT_STRUM_SPACING_SECONDS } from '../../src/shared/audioTrack.mjs';
 
 const score = alphaTab.importer.ScoreLoader.loadScoreFromBytes(
     new Uint8Array(fs.readFileSync('musicfiles/Grateful Dead-Ripple-12-20-2025.gp')));
@@ -20,7 +20,7 @@ const report = (label, group) => {
     const span = group.at(-1).startSeconds - group[0].startSeconds;
     console.log(`${label}: strings ${group.map(n => n.string).join(' -> ')}`);
     console.log(`  spread ${(span * 1000).toFixed(1)} ms over ${group.length} notes` +
-        `  (our default spacing would give ${((group.length - 1) * STRUM_STRING_DELAY_SECONDS * 1000).toFixed(0)} ms)`);
+        `  (our default spacing would give ${((group.length - 1) * DEFAULT_STRUM_SPACING_SECONDS * 1000).toFixed(0)} ms)`);
 };
 
 for (const barNumber of [11, 14]) {

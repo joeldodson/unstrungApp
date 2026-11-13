@@ -226,6 +226,11 @@ differently from today, and the entry says how.
       move progressions and the pattern preview;
     - the Chords item's Play (`STRUM_STRING_DELAY_MS` in `renderer.js`, `buildStrokePlan`);
     - chord practice's own strum (`CHORD_PRACTICE_STRUM_DELAY_SECONDS`, 22), until it is removed.
+
+    **Built 2026-11-12,** stage 2's first step. The three constants are gone: `buildAudioTrack` takes
+    `strumSpacingSeconds`, and the renderer's `strumSpacingMs` feeds it, `buildStrokePlan` and
+    `scheduleChordPracticeStrum`. Checked by `scripts/songs/check-strum-spacing.mjs` and
+    `scripts/settings/verify-strum-spacing.mjs`.
 15. **Level.** Chord practice plays the mf recordings at a gain of 0.55 times the stroke's gain. The
     track picks a recording layer from the dynamic, mf when there is none. To compare by
     measurement, so a progression is not suddenly louder or softer.
@@ -317,6 +322,18 @@ In stages, so progressions keep working throughout:
    and Loop, spoken names, accents, dead notes stopping their strings, the strum spacing
    setting, and the Feel list. The writer's changes (four-string upstrokes, cutting notes for
    each feel) and the reader's go with them.
+
+   Proposed order, one commit each: the strum spacing setting; dead notes stopping their
+   strings; accents; four-string upstrokes in the writer and reader; Times to play and Loop on a
+   song's player; carrying printed chords forward and planning speech for measures of any length;
+   speaking the next measure in songs; the writer and reader for every feel; the Metronome's Feel
+   list.
+
+   Decided 2026-11-12: the Feel list in chord practice, the editor, the Strumming Patterns item
+   and the New Strumming Pattern dialog waits for stage 3. Chord practice's own player plays only
+   straight and triplet eighths, so another feel chosen there before the move would play wrong.
+   Stage 2 builds what the list needs (the writer, the reader and the track's timing) and the
+   Metronome's list, which has its own scheduler.
 3. Play progressions on the track player, building the `Score` with `songFromProgression` as
    saving does. Check strum times and levels against the current player, as
    `check-swung-progressions.mjs` does for swing.

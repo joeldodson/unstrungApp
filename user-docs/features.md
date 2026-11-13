@@ -742,6 +742,13 @@ The dialog has three tabs.
 - **Spoken chord volume,** as a percentage, relative to the guitar.
   It starts at 50.
   The voice and volume are used everywhere names are spoken, the Chord Library as well as Chord Practice, from the moment unstrung starts.
+- **Time between strings in a strum, in milliseconds,** from 0 to 50.
+  It starts at 20.
+  A strum sounds its strings one after another, as a pick crosses them, and this is the time from one string to the next.
+  0 sounds every string at once, and higher numbers make a slower, looser strum.
+  It is used by every strum: a song's tracks, a progression, the strumming pattern preview and the Chord Library's Play.
+  Where a song file gives its own strum speed, the file's is used instead.
+  Changing it while something plays carries on from the same place with the new spacing.
 - **Folder for saved chord progressions.**
 
 ### Files

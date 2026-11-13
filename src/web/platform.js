@@ -136,6 +136,8 @@ async function dbSet(key, value) {
 const SETTINGS_KEY = 'unstrung-settings';
 const DEFAULT_SETTINGS = {
     terseBeatDescriptions: false, autoCollapseOnTabChange: true, chordVoice: 'zira', chordVoicePercent: 50,
+    // Time between strings in a strum, in milliseconds; see clampStrumSpacingMs in audioTrack.mjs.
+    strumSpacingMs: 20,
     // The player's own strumming patterns, { name, timeSignature, text } each.
     strummingPatterns: []
 };
@@ -681,6 +683,13 @@ window.unstrung = {
         if (Number.isFinite(percent)) changes.chordVoicePercent = Math.max(0, Math.min(100, Math.round(percent)));
         const saved = writeSettings(changes);
         return { chordVoice: saved.chordVoice, chordVoicePercent: saved.chordVoicePercent };
+    },
+    savePlaybackSettings: async settings => {
+        const value = settings?.strumSpacingMs;
+        const number = Number(value);
+        const changes = value === null || value === '' || !Number.isFinite(number)
+            ? {} : { strumSpacingMs: Math.max(0, Math.min(50, Math.round(number))) };
+        return { strumSpacingMs: writeSettings(changes).strumSpacingMs };
     },
 
     // The player's own strumming patterns, kept in local storage with the other settings, and

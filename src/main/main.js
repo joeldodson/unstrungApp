@@ -70,11 +70,21 @@ const DEFAULT_SCREEN_READER_SETTINGS = { terseBeatDescriptions: false, autoColla
 // default, and below full volume: the name is there to be heard under the playing, not over it.
 const DEFAULT_CHORD_VOICE_SETTINGS = { chordVoice: 'zira', chordVoicePercent: 50 };
 
+// Time between strings in a strum, in milliseconds, wherever a file states no brush speed. The
+// range and default match clampStrumSpacingMs in src/shared/audioTrack.mjs.
+const DEFAULT_PLAYBACK_SETTINGS = { strumSpacingMs: 20 };
+
+function readStrumSpacingMs(value, fallback) {
+    const number = Number(value);
+    if (value === null || value === '' || !Number.isFinite(number)) return fallback;
+    return Math.max(0, Math.min(50, Math.round(number)));
+}
+
 // Where saved chord progressions live. Empty means the default below, so the default can follow
 // the platform's Documents folder rather than being frozen into the state file.
 let appState = {
     recentFiles: [], defaultOpenDirectory: '', progressionsDirectory: '',
-    ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS,
+    ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS, ...DEFAULT_PLAYBACK_SETTINGS,
     // The player's own strumming patterns: { name, timeSignature, text } each. See
     // src/shared/strummingPatterns.mjs, A player's own patterns.
     strummingPatterns: []
@@ -111,12 +121,14 @@ async function loadAppState() {
                 ? parsed.chordVoice : DEFAULT_CHORD_VOICE_SETTINGS.chordVoice,
             chordVoicePercent: Number.isFinite(parsed.chordVoicePercent)
                 ? parsed.chordVoicePercent : DEFAULT_CHORD_VOICE_SETTINGS.chordVoicePercent,
+            strumSpacingMs: readStrumSpacingMs(parsed.strumSpacingMs, DEFAULT_PLAYBACK_SETTINGS.strumSpacingMs),
             strummingPatterns: readStrummingPatterns(parsed.strummingPatterns)
         };
     } catch {
         return {
             recentFiles: [], defaultOpenDirectory: '', progressionsDirectory: '',
-            ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS, strummingPatterns: []
+            ...DEFAULT_SCREEN_READER_SETTINGS, ...DEFAULT_CHORD_VOICE_SETTINGS, ...DEFAULT_PLAYBACK_SETTINGS,
+            strummingPatterns: []
         };
     }
 }
@@ -202,8 +214,16 @@ ipcMain.handle('settings:get', () => ({
     autoCollapseOnTabChange: appState.autoCollapseOnTabChange,
     chordVoice: appState.chordVoice,
     chordVoicePercent: appState.chordVoicePercent,
+    strumSpacingMs: appState.strumSpacingMs,
     strummingPatterns: appState.strummingPatterns
 }));
+
+/** The playback settings. Clamped here, as the chord voice is, since this is what is stored. */
+ipcMain.handle('settings:save-playback', async (_event, settings) => {
+    appState.strumSpacingMs = readStrumSpacingMs(settings?.strumSpacingMs, appState.strumSpacingMs);
+    await saveAppState();
+    return { strumSpacingMs: appState.strumSpacingMs };
+});
 
 /**
  * Which recorded voice speaks chord names, and how loud it sits against the guitar.

@@ -4,7 +4,9 @@ import {
     FINGER_NAMES, PITCH_CLASSES, QUALITY_LABELS, STANDARD_TUNING_MIDI, STRING_NUMBERS, TUNINGS,
     fretToMidi, identifyChordFromNotes, midiToPitchClassName, midiToPitchName, describeVoicingOmissions
 } from '../shared/musicTheory.mjs';
-import { buildAudioTrack, countInClicks, resolveRingLengths } from '../shared/audioTrack.mjs';
+import {
+    buildAudioTrack, countInClicks, resolveRingLengths, clampStrumSpacingMs, DEFAULT_STRUM_SPACING_MS
+} from '../shared/audioTrack.mjs';
 import { silentWav } from '../shared/silentWav.mjs';
 import helpContent from '../assets/help/help-content.json';
 import progressionModel from '../assets/progressions/progression-model.json';
@@ -1055,6 +1057,39 @@ async function saveChordVoiceSettings() {
 settingsChordVoiceSelect.addEventListener('change', saveChordVoiceSettings);
 settingsChordVolumeInput.addEventListener('change', saveChordVoiceSettings);
 
+/**
+ * Time between strings in a strum, in milliseconds, for every strum unstrung plays where a file
+ * states no brush speed: a song's track, chord practice, the pattern preview and the Chords item's
+ * Play. One setting since 2026-11-12; before that the track used 20 and chord practice 22. See
+ * docs/one-player.md, decision 14.
+ *
+ * Read at startup with the other settings. Changing it carries on from the same place in anything
+ * playing, as a tempo change does; see applyStrumSpacing.
+ */
+let strumSpacingMs = DEFAULT_STRUM_SPACING_MS;
+const settingsStrumSpacingInput = document.getElementById('settings-strum-spacing-input');
+
+/** The spacing in seconds, as the schedulers take it. */
+const strumSpacingSeconds = () => strumSpacingMs / 1000;
+
+async function saveStrumSpacingSetting() {
+    // An emptied field is put back rather than saved as the default.
+    if (settingsStrumSpacingInput.value.trim() === '') {
+        settingsStrumSpacingInput.value = String(strumSpacingMs);
+        return;
+    }
+    const saved = await window.unstrung.savePlaybackSettings({
+        strumSpacingMs: clampStrumSpacingMs(settingsStrumSpacingInput.value)
+    });
+    // Clamped by the main process, so read the stored value back rather than leaving what was typed.
+    settingsStrumSpacingInput.value = String(saved.strumSpacingMs);
+    if (saved.strumSpacingMs === strumSpacingMs) return;
+    strumSpacingMs = saved.strumSpacingMs;
+    applyStrumSpacing();
+}
+
+settingsStrumSpacingInput.addEventListener('change', saveStrumSpacingSetting);
+
 settingsOkButton.addEventListener('click', () => settingsDialog.close());
 
 settingsDialog.addEventListener('close', () => {
@@ -1080,6 +1115,7 @@ async function openSettingsDialog() {
     chordVoiceSettings = readChordVoiceSettings(settings);
     settingsChordVoiceSelect.value = chordVoiceSettings.chordVoice;
     settingsChordVolumeInput.value = String(chordVoiceSettings.chordVoicePercent);
+    settingsStrumSpacingInput.value = String(strumSpacingMs);
     settingsFilesStatusElement.textContent = '';
     activateSettingsTab('general');
     settingsDialog.showModal();
@@ -1140,6 +1176,7 @@ function requireFileAccess(element) {
         autoCollapseOnTabChange: settings.autoCollapseOnTabChange !== false
     };
     chordVoiceSettings = readChordVoiceSettings(settings);
+    strumSpacingMs = clampStrumSpacingMs(settings.strumSpacingMs ?? DEFAULT_STRUM_SPACING_MS);
 })();
 // --- end Settings dialog ---
 // --- Chord library (Tools menu) ---
@@ -1617,7 +1654,7 @@ function queueDefaultChordIfNoneQueued() {
 // downstroke note ends when the upstroke re-strikes its own string, and the upstroke notes
 // simply ring out. Because each string is re-struck at a different moment in the sweep,
 // the downstroke notes all have slightly different lengths.
-const STRUM_STRING_DELAY_MS = 20;
+// The time between strings is the strum spacing setting, strumSpacingMs.
 const UPSTROKE_DELAY_MS = 900;
 const CHORD_NOTE_GAIN = 0.45; // headroom so six stacked samples don't clip
 const CHORD_RESTRIKE_FADE_SECONDS = 0.025; // brief fade as a string is re-struck
@@ -1712,7 +1749,7 @@ function buildStrokePlan(voicing, direction) {
         string: entry.string,
         midi: STANDARD_TUNING_MIDI[entry.string] + entry.fret,
         velocity: index >= ordered.length - 2 ? 'mf' : 'f',
-        delaySeconds: (index * STRUM_STRING_DELAY_MS) / 1000
+        delaySeconds: index * strumSpacingSeconds()
     }));
 }
 
@@ -2509,10 +2546,11 @@ const audioTrackPanels = new Map();
 const audioTrackCache = new Map();
 
 function deriveAudioTrack(state) {
-    const cacheKey = `${state.songItemId}:${state.trackIndex}:${state.targetTempo}`;
+    const cacheKey = `${state.songItemId}:${state.trackIndex}:${state.targetTempo}:${strumSpacingMs}`;
     let audioTrack = audioTrackCache.get(cacheKey);
     if (!audioTrack) {
-        audioTrack = buildAudioTrack(state.score, state.trackIndex, { targetTempo: state.targetTempo });
+        audioTrack = buildAudioTrack(state.score, state.trackIndex,
+            { targetTempo: state.targetTempo, strumSpacingSeconds: strumSpacingSeconds() });
         if (audioTrack) {
             resolveRingLengths(audioTrack.notes);
             audioTrackCache.set(cacheKey, audioTrack);
@@ -4403,7 +4441,8 @@ const chordPracticeStatus = document.getElementById('chord-practice-status');
 const chordPracticeGenerateButton = document.getElementById('chord-practice-generate-button');
 const chordPracticeCancelButton = document.getElementById('chord-practice-cancel-button');
 
-const CHORD_PRACTICE_STRUM_DELAY_SECONDS = 0.022;
+// The time between strings is the strum spacing setting, strumSpacingSeconds(): 22 ms until
+// 2026-11-12, when it became one setting with a default of 20.
 const CHORD_PRACTICE_NOTE_GAIN = 0.55;
 const CHORD_PRACTICE_RING_SECONDS = 2.4;
 const CHORD_PRACTICE_VELOCITY = 'mf';
@@ -4854,11 +4893,12 @@ function scheduleChordPracticeStrum(state, midi, stroke, at, skipSeconds = 0, ou
     const level = CHORD_PRACTICE_NOTE_GAIN * stroke.gain *
         (stroke.direction === 'up' ? CHORD_PRACTICE_UPSTROKE_GAIN : 1);
     const strokeRing = chordPracticeStrokeRing(state, stroke);
+    const spacing = strumSpacingSeconds();
     for (const [stringIndex, note] of sweep.entries()) {
         const buffer = state.buffers.get(note);
         if (!buffer) continue;
 
-        const spread = stringIndex * CHORD_PRACTICE_STRUM_DELAY_SECONDS;
+        const spread = stringIndex * spacing;
         // The recording starts early by its attack, so that much less of it is left after the beat.
         const ring = Math.min(strokeRing, buffer.duration - noteAttackSeconds(buffer));
         // Each string of a strum begins a little later, so a resumed strum is that much less far
@@ -5304,6 +5344,33 @@ function setChordPracticeSwing(state, enabled) {
     state.pass = chordPracticeCurrentPass(state);
     stopChordPracticePlayback();
     startChordPracticePlayback(state, position, { countIn: false });
+}
+
+/**
+ * Strums everything again with the strum spacing setting just changed.
+ *
+ * A song's track is rebuilt, since the spacing is in its note times, and carries on from the same
+ * place if playing; bar times do not depend on it, so the position in seconds still holds. Chord
+ * practice reads the setting as it schedules, so only what is already scheduled ahead is laid out
+ * again. Neither counts in, and the count of times through is kept. The pattern preview and the
+ * Chords item take it from their next strum.
+ */
+function applyStrumSpacing() {
+    for (const { state } of audioTrackPanels.values()) {
+        if (!state?.audioTrack) continue;
+        const wasPlaying = state.playing;
+        if (wasPlaying) pauseAudioTrackPlayback(state);
+        state.audioTrack = deriveAudioTrack(state);
+        state.rangeCache = null;
+        if (wasPlaying && state.ready) startAudioTrackPlayback(state, state.anchorSeconds);
+    }
+    for (const { state } of chordPracticeStates) {
+        if (!state.playing) continue;
+        const position = chordPracticePosition(state);
+        state.pass = chordPracticeCurrentPass(state);
+        stopChordPracticePlayback();
+        startChordPracticePlayback(state, position, { countIn: false });
+    }
 }
 
 /** The Strumming line of the Metadata list, and the note saying whether Swing has any effect. */

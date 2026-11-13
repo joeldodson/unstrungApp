@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('unstrung', {
     removeStaleRecentFiles: () => ipcRenderer.invoke('settings:remove-stale-recent-files'),
     saveScreenReaderSettings: (settings) => ipcRenderer.invoke('settings:save-screen-reader', settings),
     saveChordVoiceSettings: (settings) => ipcRenderer.invoke('settings:save-chord-voice', settings),
+    savePlaybackSettings: (settings) => ipcRenderer.invoke('settings:save-playback', settings),
 
     // The player's own strumming patterns, kept in settings, and exported and imported as text.
     // Export and import return null when the dialog is cancelled.

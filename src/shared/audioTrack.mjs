@@ -19,8 +19,9 @@ export const TICKS_PER_QUARTER = 960;
 // of real information should take its place ahead of the corresponding fallback.
 //
 // 1. A beat with more than one note is a strum, whether or not the file labels it a chord.
-//    Its notes are sounded one after another, STRUM_STRING_DELAY_SECONDS apart, the way a pick
-//    crosses the strings rather than hitting them all at once.
+//    Its notes are sounded one after another, the way a pick crosses the strings rather than
+//    hitting them all at once: the file's brush speed apart where it states one, otherwise the
+//    app-wide setting "Time between strings in a strum", passed in as strumSpacingSeconds.
 //
 // 2. The direction of the strum comes from brushType or pickStroke, and from nothing else. Where
 //    the file states neither, the strum sweeps from the lowest-pitched string upward: the
@@ -51,7 +52,21 @@ export const TICKS_PER_QUARTER = 960;
 //
 // 6. A bar's triplet feel is played as alphaTab's own MIDI generator plays it: each even pair of
 //    eighths, or of sixteenths, becomes long then short. See tripletFeelTimes.
-export const STRUM_STRING_DELAY_SECONDS = 0.020;
+//
+// The strum spacing was a fixed 20 ms here, and 22 ms in chord practice, until 2026-11-12, when it
+// became one setting for every strum: 0 to 50 ms, 20 by default. docs/one-player.md, decision 14.
+// The same range and default are in src/main/main.js and src/web/platform.js, which store it.
+export const STRUM_SPACING_MIN_MS = 0;
+export const STRUM_SPACING_MAX_MS = 50;
+export const DEFAULT_STRUM_SPACING_MS = 20;
+export const DEFAULT_STRUM_SPACING_SECONDS = DEFAULT_STRUM_SPACING_MS / 1000;
+
+/** A typed or stored spacing as whole milliseconds within range; the default for anything else. */
+export function clampStrumSpacingMs(value) {
+    const number = typeof value === 'string' && value.trim() === '' ? NaN : Number(value);
+    if (value === null || !Number.isFinite(number)) return DEFAULT_STRUM_SPACING_MS;
+    return Math.max(STRUM_SPACING_MIN_MS, Math.min(STRUM_SPACING_MAX_MS, Math.round(number)));
+}
 
 // alphaTab's DynamicValue enum is not a simple soft-to-loud ordering: it starts PPP=0..FFF=7 but
 // then continues with PPPP=8..PPPPPP=10 and FFFF=11 onwards, plus accents like SF and SFZ. So the
@@ -107,15 +122,15 @@ function statedStrumDirection(beat) {
  * here for so long.
  *
  * These are much tighter than our own spacing: the two brushes in Ripple are 30 ticks, about 15ms
- * across five strings, where STRUM_STRING_DELAY_SECONDS would have taken 100ms. So a stated brush
+ * across five strings, where our default spacing would have taken 100ms. So a stated brush
  * really is nearly a chord, and playing it at our own pace overstated it sevenfold.
  *
- * STRUM_STRING_DELAY_SECONDS remains the fallback, for the overwhelming majority of beats where
- * the file marks no brush at all and playing every string at the same instant would not sound
- * like a guitar.
+ * The strum spacing setting, `fallback`, remains for the overwhelming majority of beats where the
+ * file marks no brush at all and playing every string at the same instant would not sound like a
+ * guitar.
  */
-function strumStepSeconds(beat, noteCount, beatTempo) {
-    if (!beat.brushType || !(beat.brushDuration > 0) || noteCount < 2) return STRUM_STRING_DELAY_SECONDS;
+function strumStepSeconds(beat, noteCount, beatTempo, fallback) {
+    if (!beat.brushType || !(beat.brushDuration > 0) || noteCount < 2) return fallback;
     // Integer ticks per gap, matching alphaTab rather than being fractionally more exact than it.
     const ticks = Math.floor(beat.brushDuration / (noteCount - 1));
     return ticks * (60 / (beatTempo * TICKS_PER_QUARTER));
@@ -326,8 +341,12 @@ function tickToSeconds(tempoMap, tick) {
  *
  * String numbers are converted to the guitarist convention on the way out: alphaTab counts
  * strings from the lowest pitch up, tab notation counts from the highest pitch down.
+ *
+ * `strumSpacingSeconds` is the time between strings of a strum whose file states no brush speed.
  */
-export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) {
+export function buildAudioTrack(score, trackIndex, {
+    targetTempo = null, strumSpacingSeconds = DEFAULT_STRUM_SPACING_SECONDS
+} = {}) {
     const track = (score.tracks || [])[trackIndex];
     if (!track) return null;
 
@@ -370,7 +389,7 @@ export function buildAudioTrack(score, trackIndex, { targetTempo = null } = {}) 
 
                     // The index comes from the raw note list so a skipped note still leaves its
                     // place in the sweep: the pick travels past that string either way.
-                    const step = strumStepSeconds(beat, beat.notes.length, beatTempo);
+                    const step = strumStepSeconds(beat, beat.notes.length, beatTempo, strumSpacingSeconds);
 
                     for (const [indexInBeat, note] of sweep.entries()) {
                         // A tied note is not struck again; the note it continues is simply

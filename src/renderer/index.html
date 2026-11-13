@@ -658,6 +658,26 @@
                 </p>
             </details>
 
+            <h2>Strumming</h2>
+
+            <p>
+                <label for="settings-strum-spacing-input">Time between strings in a strum, in milliseconds</label>
+                <input type="number" inputmode="numeric" id="settings-strum-spacing-input" min="0" max="50" step="1"
+                    value="20" aria-describedby="settings-strum-spacing-hint" />
+                <span id="settings-strum-spacing-hint">0 to 50, 20 by default.</span>
+            </p>
+
+            <details>
+                <summary>About Time Between Strings</summary>
+                <p>
+                    A strum sounds its strings one after another, as a pick crosses them. This is
+                    the time from one string to the next, for songs, chord progressions, the
+                    strumming pattern preview and the Chord Library's Play. 0 sounds every string at
+                    once; higher numbers make a slower, looser strum. Where a song file gives its
+                    own strum speed, the file's is used instead.
+                </p>
+            </details>
+
             <h2>Saved Progressions</h2>
 
             <p>
