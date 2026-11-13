@@ -2851,10 +2851,10 @@ function audioTrackRange(state) {
     };
 }
 
-/** Passes still to come after the given one; Infinity when repeating until stopped. */
+/** Passes still to come after the given one; Infinity while Loop is on. */
 function remainingPassesAfter(state, passNumber) {
-    if (state.repeatCount === 0) return Infinity;
-    return Math.max(0, state.repeatCount - passNumber);
+    if (state.loop) return Infinity;
+    return Math.max(0, state.timesToPlay - passNumber);
 }
 
 /**
@@ -2888,7 +2888,9 @@ function audioTrackTimeline(state) {
         return { position: state.anchorSeconds + elapsed, pass: state.anchorPass };
     }
 
-    const cap = pass => (state.repeatCount === 0 ? pass : Math.min(pass, state.repeatCount));
+    // Not capped below the pass playback started in: Loop turned off after Times to play was
+    // passed finishes the time through under way, whose number is above it.
+    const cap = pass => (state.loop ? pass : Math.min(pass, Math.max(state.timesToPlay, state.anchorPass)));
 
     // The first leg is short when playback began part way into the selection.
     const firstLeg = range.endSeconds - state.anchorSeconds;
@@ -3134,6 +3136,9 @@ function audioTrackTopUp(state, myToken) {
             state.countInEachPass, state.countInBeats),
         onEnd: endsAt => {
             const remainingMs = (endsAt - getSharedAudioContext().currentTime) * 1000;
+            // How many times through, said when more than one, as when Loop is turned off after
+            // Times to play was passed and playback stops having gone round more often than asked.
+            const played = state.scheduler.pass;
             audioTrackEndTimer = setTimeout(() => {
                 if (myToken !== audioTrackPlaybackToken) return;
                 state.anchorSeconds = audioTrackRange(state).startSeconds;
@@ -3142,7 +3147,8 @@ function audioTrackTopUp(state, myToken) {
                 // A finished run starts over from the top next time: a first play again.
                 state.countInArmed = true;
                 setAudioTrackPlayingState(state, false);
-                announceAudioTrack(state, state.measureAlone ? `End of measure ${state.measureAlone}.` : 'End of track.');
+                const ended = state.measureAlone ? `End of measure ${state.measureAlone}` : 'End of track';
+                announceAudioTrack(state, played > 1 ? `${ended}, played ${played} times.` : `${ended}.`);
             }, remainingMs);
         },
         prune: now => { audioTrackSources = audioTrackSources.filter(entry => entry.endsAt > now); },
@@ -3328,8 +3334,10 @@ function announceCurrentMeasure(state) {
                 ? `Measure ${measure}`
                 : `Measure ${measure} of measures ${first} through ${last}`;
     }
-    // When it repeats, which play-through we are on matters just as much.
-    if (state.repeatCount === 0) text += `, play ${currentPassAt(state)}`;
+    // When it repeats, which play-through we are on matters just as much: "play 2 of 3", or "play 5"
+    // while Loop is on, and nothing when it plays once. docs/one-player.md, decision 8.
+    if (state.loop) text += `, play ${currentPassAt(state)}`;
+    else if (state.timesToPlay > 1) text += `, play ${currentPassAt(state)} of ${state.timesToPlay}`;
     announceAudioTrack(state, text);
 }
 
@@ -3361,13 +3369,13 @@ function replayFromHere(state) {
 }
 
 /**
- * Count In Before Every Repeat is there only while Repeat is checked, and Number of Beats to Count
- * In only while that is checked too: each is about the one before it and means nothing without it.
+ * Number of Beats to Count In is there only while Count In Before Every Repeat is checked, being
+ * about it. Count In Before Every Repeat itself is always there since 2026-11-12, when Repeat
+ * became Times to play and Loop (docs/one-player.md, decision 1); it does nothing when only one
+ * time through is due.
  */
 function showAudioTrackRepeatCountIn(state) {
-    const repeat = state.repeatCount === 0;
-    state.ui.countInEachPassParagraph.hidden = !repeat;
-    state.ui.countInBeatsParagraph.hidden = !repeat || !state.countInEachPass;
+    state.ui.countInBeatsParagraph.hidden = !state.countInEachPass;
 }
 
 /**
@@ -3402,22 +3410,51 @@ function setAudioTrackCountInBeats(state, wanted) {
     replayFromHere(state);
 }
 
+// How many times to play, and whether to loop, are two settings since 2026-11-12, the same for songs
+// and progressions (docs/one-player.md, decision 1). Until then a track had a Repeat checkbox, once
+// or until stopped, and chord practice a count from 0 to 50 with 0 for until stopped.
+const AUDIO_TRACK_MIN_TIMES = 1;
+const AUDIO_TRACK_MAX_TIMES = 50;
+
 /**
- * Repeat until stopped, or play once.
+ * Loop on or off. While on, playback goes on until stopped, whatever Times to play says; each keeps
+ * its value when the other changes.
  *
- * Once or continuously is all a learner needs, so the 0 to 50 count this replaced is gone; inside,
- * it is still a count, 0 for until stopped and 1 for once, which is what the scheduler reads.
- * Turning it off while repeating finishes the play-through under way and stops.
+ * Turned on while playing, the count of times through goes on. Turned off while playing, playback
+ * goes on until Times to play is reached, or, if it has been reached or passed, finishes the time
+ * through under way and stops, saying how many times it played. Either way what is scheduled ahead
+ * is laid out again from where playback is, as the metronome does.
  *
  * `announce` is for the key: the checkbox reports its own state when it is what changed it, and
  * whether a selection is going to repeat cannot be heard until it does.
  */
-function setAudioTrackRepeat(state, repeat, { announce = false } = {}) {
-    state.repeatCount = repeat ? 0 : 1;
-    state.ui.repeatCheckbox.checked = repeat;
-    showAudioTrackRepeatCountIn(state);
-    replayFromHere(state);
-    if (announce) announceAudioTrack(state, repeat ? 'Repeat on' : 'Repeat off');
+function setAudioTrackLoop(state, loop, { announce = false } = {}) {
+    // Paused first, so the time through under way is counted as Loop was: once Loop is off, the
+    // count is held to Times to play, and play 3 of a selection played twice would read as play 2.
+    const wasPlaying = state.playing;
+    if (wasPlaying) pauseAudioTrackPlayback(state);
+    state.loop = loop;
+    state.ui.loopCheckbox.checked = loop;
+    if (wasPlaying) startAudioTrackPlayback(state, state.anchorSeconds);
+    if (announce) announceAudioTrack(state, loop ? 'Loop on' : 'Loop off');
+}
+
+/**
+ * Times to play, 1 to 50. Changing it starts again from the beginning of what is playing, as
+ * Restart Selection does but with the count back at 1, where Restart keeps it: someone changing it
+ * has usually stopped already and wants to play anew. Paused, the next Play starts there.
+ */
+function setAudioTrackTimesToPlay(state, wanted) {
+    if (!Number.isFinite(wanted) || String(state.ui.timesInput.value).trim() === '') {
+        state.ui.timesInput.value = String(state.timesToPlay);
+        return;
+    }
+    state.timesToPlay = Math.max(AUDIO_TRACK_MIN_TIMES, Math.min(AUDIO_TRACK_MAX_TIMES, Math.round(wanted)));
+    state.ui.timesInput.value = String(state.timesToPlay);
+    const wasPlaying = state.playing;
+    haltAudioTrack(state);
+    armAudioTrackFromStart(state);
+    if (wasPlaying) startAudioTrackPlayback(state, state.anchorSeconds, { countIn: state.countIn });
 }
 
 /**
@@ -3486,7 +3523,8 @@ function setAudioTrackSelection(state, first, last) {
 }
 
 /**
- * Play measure 5: that measure on its own, once or until stopped as Repeat says, independent of the
+ * Play measure 5: that measure on its own, as many times as Times to play says or until stopped
+ * while Loop is on, independent of the
  * track. The selection is left as it is, and where the track had got to is kept, so Play, the moves
  * and Restart Selection go back to it. Pressed again, or for another measure, it starts that
  * measure from the top, and the track's place is still the one from before the first.
@@ -3580,7 +3618,7 @@ const AUDIO_TRACK_SHORTCUTS = {
     ArrowDown: state => seekToStartOfCurrentMeasure(state),
     // Back to the top of the selection, counting in again, keeping the repeat count.
     ArrowUp: state => restartAudioTrackSelection(state),
-    l: state => setAudioTrackRepeat(state, state.repeatCount !== 0, { announce: true }),
+    l: state => setAudioTrackLoop(state, !state.loop, { announce: true }),
     b: state => announceCurrentMeasure(state),
     m: state => setAudioTrackMetronome(state, !state.metronome),
     s: state => stepAudioTrackTempo(state, -AUDIO_TRACK_TEMPO_STEP_BPM),
@@ -3598,8 +3636,8 @@ const AUDIO_TRACK_KEY_DESCRIPTIONS = [
     'rightArrow: forward one measure.',
     'downArrow: back to the start of the current measure.',
     'upArrow: back to the start of the selection, counting in again.',
-    'l: repeat on or off.',
-    'b: say which measure is playing, and which repeat.',
+    'l: loop on or off.',
+    'b: say which measure is playing, and which time through.',
     'm: metronome on or off.',
     `s: slower by ${AUDIO_TRACK_TEMPO_STEP_BPM} beats per minute.`,
     `f: faster by ${AUDIO_TRACK_TEMPO_STEP_BPM} beats per minute.`,
@@ -4008,17 +4046,17 @@ function buildAudioTrackPanel(state) {
         'Metronome', state.metronome);
     const countIn = buildCheckboxParagraph('audio-track-count-in-checkbox',
         'Count in, one measure of clicks before playing starts', state.countIn);
-    const repeat = buildCheckboxParagraph('audio-track-repeat-checkbox',
-        'Repeat until stopped', state.repeatCount === 0);
-    // Only about a selection that repeats, so it is there only while Repeat is checked, straight
-    // after it.
+    const times = buildNumberParagraph('audio-track-times-input',
+        `Times to play, ${AUDIO_TRACK_MIN_TIMES} to ${AUDIO_TRACK_MAX_TIMES}`,
+        { min: AUDIO_TRACK_MIN_TIMES, max: AUDIO_TRACK_MAX_TIMES, value: state.timesToPlay });
+    const loop = buildCheckboxParagraph('audio-track-loop-checkbox', 'Loop', state.loop);
     const countInEachPass = buildCheckboxParagraph('audio-track-count-in-each-pass-checkbox',
         'Count in before every repeat', state.countInEachPass);
     // Its range and value are filled in with the selection, by showAudioTrackCountInBeats.
     const countInBeats = buildNumberParagraph('audio-track-count-in-beats-input',
         'Number of beats to count in', { min: 1, max: 4, value: 4 });
-    container.append(metronome.paragraph, countIn.paragraph, repeat.paragraph, countInEachPass.paragraph,
-        countInBeats.paragraph);
+    container.append(metronome.paragraph, countIn.paragraph, times.paragraph, loop.paragraph,
+        countInEachPass.paragraph, countInBeats.paragraph);
 
     // Which measures play, collapsed behind a summary that reads out the selection.
     const measuresDetails = document.createElement('details');
@@ -4121,8 +4159,7 @@ function buildAudioTrackPanel(state) {
 
     state.ui = {
         tempoInput: tempo.input, metronomeCheckbox: metronome.checkbox, countInCheckbox: countIn.checkbox,
-        repeatCheckbox: repeat.checkbox, countInEachPassCheckbox: countInEachPass.checkbox,
-        countInEachPassParagraph: countInEachPass.paragraph,
+        timesInput: times.input, loopCheckbox: loop.checkbox, countInEachPassCheckbox: countInEachPass.checkbox,
         countInBeatsParagraph: countInBeats.paragraph, countInBeatsInput: countInBeats.input, sectionSelect,
         firstInput: first.input, lastInput: last.input, measuresSummary,
         playButton, error, status, announce, summary
@@ -4134,7 +4171,9 @@ function buildAudioTrackPanel(state) {
     metronome.checkbox.addEventListener('change', () =>
         setAudioTrackMetronome(state, metronome.checkbox.checked));
     countIn.checkbox.addEventListener('change', () => { state.countIn = countIn.checkbox.checked; });
-    repeat.checkbox.addEventListener('change', () => setAudioTrackRepeat(state, repeat.checkbox.checked));
+    loop.checkbox.addEventListener('change', () => setAudioTrackLoop(state, loop.checkbox.checked));
+    // On change, as the tempo is, so typing 12 does not restart at 1 on the way.
+    times.input.addEventListener('change', () => setAudioTrackTimesToPlay(state, Number(times.input.value)));
     // Re-anchors while playing, the same way the metronome does. Repeats are already scheduled
     // ahead, and the reported position is worked out from how long a repeat takes, so leaving the
     // old schedule running under the new setting would put the two out of step.
@@ -4333,14 +4372,15 @@ function buildAudioTrackContent(score, track, songItemId, details) {
         // How many of the measure's last beats a repeat is counted in with; null for all of them,
         // which is the default. Fewer is for a slow tempo, where a whole measure is a long wait.
         countInBeats: null,
-        // Which measures play, whether they repeat (0 for until stopped, 1 for once), and which
-        // play-through we are on. A measure played on its own plays in place of the selection, and
-        // trackPlace holds where the track was meanwhile.
+        // Which measures play, how many times (Times to play, 1 to 50, or until stopped while Loop
+        // is on), and which play-through we are on. A measure played on its own plays in place of
+        // the selection, and trackPlace holds where the track was meanwhile.
         firstMeasure: 1,
         lastMeasure: 1,
         measureAlone: null,
         trackPlace: null,
-        repeatCount: 1,
+        timesToPlay: 1,
+        loop: false,
         anchorPass: 1,
         sections: trackSections(track),
         rangeCache: null,

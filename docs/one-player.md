@@ -81,6 +81,19 @@ differently from today, and the entry says how.
    - Count in before every repeat is shown today only while Repeat is checked. It becomes an
      ordinary checkbox, always shown: simpler code, and it already applies when l turns Loop on
      from the keyboard. It has no effect when only one time through is due.
+
+   **Built for songs 2026-11-12,** stage 2's fifth step; progressions keep chord practice's count
+   until stage 3. `state.timesToPlay` and `state.loop` replace `repeatCount` on the track player.
+   - Changing Times to play while paused behaves as it does while playing, Joel said the same day:
+     back to the beginning of what is playing, with the count at 1. It does not start playing.
+   Choices made while building it, for Joel to overrule:
+   - The end announcement says how many times it played whenever that is more than one ("End of
+     track, played 3 times."), not only after Loop is turned off.
+   - Turning Loop on or off while playing lays out what is scheduled ahead again from where
+     playback is, as the Repeat checkbox and the metronome did: the count goes on, but there is a
+     short gap, about a tenth of a second. Doing it without the gap means rescheduling only from
+     the end of the time through under way, which the player cannot do yet.
+   Checked by `scripts/songs/verify-times-and-loop.mjs`.
 2. **Tempo range.** Track 15 to 300; chord practice 30 to 240. Both step by 5.
 
    **Decided 2026-11-12:** 15 to 300 for both, stepping by 5. Progressions gain the slower and

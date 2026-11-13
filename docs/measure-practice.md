@@ -68,7 +68,8 @@ not the heading.
   The selection is always a continuous run: adding 5 to 1 to 2 gives 1 to 5. "Add to Track" was
   considered and dropped, since "track" already means the instrument part.
 
-Both follow the Repeat checkbox.
+Both follow the Repeat checkbox. Since 2026-11-12 that is Times to play and a Loop checkbox, on L;
+see `one-player.md`, decision 1.
 
 ### Keys
 

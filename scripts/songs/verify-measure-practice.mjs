@@ -116,7 +116,8 @@ const region = () => page.evaluate(() => {
         first: control('First measure').value,
         last: control('Last measure').value,
         tempo: control('Tempo').value,
-        repeat: control('Repeat').checked,
+        times: control('Times to play').value,
+        loop: control('Loop').checked,
         countIn: control('Count in,').checked,
         eachPassHidden: control('Count in before every repeat').closest('p').hidden,
         section: section ? { value: section.value, text: section.selectedOptions[0].textContent,
@@ -165,20 +166,21 @@ check('Playback Controls: Play and Where Am I; the tempo; then the moves',
 check('no tempo buttons after the Tempo field', !r.tempoRowAfterTempo);
 check('no Create Track button, no printed key list', !r.controls.includes('Create Track') &&
     !r.headings.some(h => /Keyboard Control/.test(h)));
-check('starts: whole song, count in on, repeat off', r.summary === 'Measures to Play - Entire Song' &&
-    r.countIn && !r.repeat && r.eachPassHidden, `${r.summary}, count in ${r.countIn}, repeat ${r.repeat}`);
+// Count in before every repeat is always shown since 2026-11-12 (docs/one-player.md, decision 1).
+check('starts: whole song, count in on, once, loop off', r.summary === 'Measures to Play - Entire Song' &&
+    r.countIn && r.times === '1' && !r.loop && !r.eachPassHidden,
+    `${r.summary}, count in ${r.countIn}, times ${r.times}, loop ${r.loop}, each pass hidden ${r.eachPassHidden}`);
 if (r.section) {
     console.log(`  sections: ${r.section.options.join(' | ')}`);
     check('Section dropdown starts at Entire Song', r.section.text === 'Entire Song');
 }
 
-console.log('\n=== Repeat ===');
+console.log('\n=== Loop ===');
 await clickInRegion('Play'); // focus somewhere in the region first, for the keys
 await waitPlaying();
 await press('l');
 r = await region();
-check('l turns repeat on, shows Count in before every repeat, says so',
-    r.repeat && !r.eachPassHidden && r.announce === 'Repeat on', `${r.repeat} ${r.eachPassHidden} "${r.announce}"`);
+check('l turns Loop on and says so', r.loop && r.announce === 'Loop on', `${r.loop} "${r.announce}"`);
 
 console.log('\n=== A measure on its own leaves the track alone ===');
 // Paused, then back to the top, so the place is exact.

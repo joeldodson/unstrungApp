@@ -6,8 +6,10 @@
 // must then report play 1 of the new count.
 //
 // An audio track had the same count until 2026-10-27, when it became a Repeat checkbox (see
-// docs/measure-practice.md). Its half now checks what turning Repeat off while repeating does:
-// the play-through under way finishes, and playback stops.
+// docs/measure-practice.md), and on 2026-11-12 Times to play and a Loop checkbox
+// (docs/one-player.md, decision 1). Its half checks what turning Loop off past Times to play does:
+// the play-through under way finishes, and playback stops. scripts/songs/verify-times-and-loop.mjs
+// checks the rest.
 
 const APP_DIR = `${import.meta.dirname}/../..`.replace(/\\/g, '/');
 import { launchApp, runMenuCommand } from '../lib/app-ui.mjs';
@@ -95,9 +97,9 @@ await page.waitForTimeout(3000);
 await setField('audio-track-first-measure-input', '1');
 await setField('audio-track-last-measure-input', '2');
 await setField('audio-track-tempo-input', '240');
-const repeatBox = () => page.evaluate(() => {
+const loopBox = () => page.evaluate(() => {
     const p = document.querySelector('#item-panels > section:not([hidden]) details.track-region[open]');
-    return p.querySelector('[id^="audio-track-repeat-checkbox"]').checked;
+    return p.querySelector('[id^="audio-track-loop-checkbox"]').checked;
 });
 const playLabel = () => page.evaluate(() => {
     const p = document.querySelector('#item-panels > section:not([hidden]) details.track-region[open]');
@@ -107,18 +109,18 @@ await page.waitForTimeout(600);
 
 await focusPanel();
 await page.keyboard.press('l');
-check('l turns Repeat on', await repeatBox());
+check('l turns Loop on', await loopBox());
 // The first play loads the samples, then counts in and plays.
 await page.keyboard.press(' ');
 for (let i = 0; i < 40 && await playLabel() !== 'Pause'; i++) await page.waitForTimeout(500);
 await page.waitForTimeout(8000);
 const atBefore = await pressB();
 console.log(`  repeating: ${atBefore}`);
-check('went past the first play with Repeat on', passOf(atBefore) > 1, atBefore);
+check('went past the first play with Loop on', passOf(atBefore) > 1, atBefore);
 
 await page.keyboard.press('l');
 await page.waitForTimeout(300);
-check('l turns Repeat off', !await repeatBox());
+check('l turns Loop off', !await loopBox());
 check('and it keeps playing the play-through under way', await playLabel() === 'Pause');
 // Two measures at 240 is two seconds, and the last notes are given two more to ring out.
 await page.waitForTimeout(5500);

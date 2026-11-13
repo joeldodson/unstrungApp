@@ -1,7 +1,7 @@
 // Checks Number of Beats to Count In, in a track's Playback Settings, the chord practice dialog and
 // a chord practice tab, against the real app.
 //
-// The field: there only while Count In Before Every Repeat is shown and checked, running from 1 to
+// The field: there only while Count In Before Every Repeat is checked, running from 1 to
 // the beats in a measure and starting at all of them. The sound: the count-in clicks handed to the
 // audio graph, caught by wrapping AudioBufferSourceNode.start. The first count-in is a whole
 // measure; every repeat's is that many clicks a beat apart, the music starting a beat after the
@@ -108,14 +108,14 @@ await page.evaluate(panelSelector => {
 }, VISIBLE_PANEL);
 await pause(300);
 
-let shown = await controlState('region', ['Repeat', EACH, BEATS]);
+// Since 2026-11-12 a track has Times to play and Loop in place of Repeat, and Count In Before Every
+// Repeat is always shown (docs/one-player.md, decision 1).
+let shown = await controlState('region', ['Loop', EACH, BEATS]);
 check('the field exists, a number from 1 to 4, at 4', shown[BEATS]?.type === 'number' &&
     shown[BEATS].min === '1' && shown[BEATS].max === '4' && shown[BEATS].value === '4', JSON.stringify(shown[BEATS]));
-check('hidden while Repeat is unchecked', !shown.Repeat.checked && shown[BEATS].hidden);
-await setControl('region', 'Repeat', true);
-shown = await controlState('region', [EACH, BEATS]);
-check('still hidden with Repeat checked but not Count In Before Every Repeat',
-    !shown[EACH].hidden && !shown[EACH].checked && shown[BEATS].hidden);
+check('Count In Before Every Repeat is shown with Loop off, unchecked, and the field hidden',
+    !shown.Loop.checked && !shown[EACH].hidden && !shown[EACH].checked && shown[BEATS].hidden);
+await setControl('region', 'Loop', true);
 await setControl('region', EACH, true);
 shown = await controlState('region', [BEATS]);
 check('shown once Count In Before Every Repeat is checked', !shown[BEATS].hidden);
@@ -128,10 +128,10 @@ await setControl('region', EACH, false);
 shown = await controlState('region', [BEATS]);
 check('hidden again when that is unchecked', shown[BEATS].hidden);
 await setControl('region', EACH, true);
-await setControl('region', 'Repeat', false);
+await setControl('region', 'Loop', false);
 shown = await controlState('region', [EACH, BEATS]);
-check('both hidden when Repeat is unchecked', shown[EACH].hidden && shown[BEATS].hidden);
-await setControl('region', 'Repeat', true);
+check('both still shown when Loop is unchecked', !shown[EACH].hidden && !shown[BEATS].hidden);
+await setControl('region', 'Loop', true);
 
 await setControl('region', BEATS, 9);
 check('a number above the measure is held at 4', (await controlState('region', [BEATS]))[BEATS].value === '4');

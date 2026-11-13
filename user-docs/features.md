@@ -202,7 +202,7 @@ Those are specific to unstrung and work only when the screen reader is in focus 
 In addition to the proprietary keyboard commands unstrung has defined, media controls are also supported.
 
 Audio track and chord progression playback is focused on measures.
-You select which measures to play, and whether to play them once or repeat them.
+You select which measures to play, and how many times to play them.
 Hit the play button and the audio will begin playing.
 You can pause/resume playback with the media control mechanism, or using the spaceBar keyboard command.
 You can restart the progression using previous track from media control, or upArrow on the keyboard.
@@ -243,10 +243,18 @@ To collapse the section, go to Playback Settings and then up one line.
 - **Count in,** one measure of clicks before playing starts.
   It is on to begin with, and works whether or not the metronome is on.
   Before a pickup it counts a whole measure, then the beats before the pickup comes in: 1 2 3 4 1 2, and a two-beat pickup comes in on 3.
-- **Repeat until stopped.**
-  Unchecked, the measures play once.
-  Turning it off while they repeat lets the time through under way finish, then stops.
-- **Count in before every repeat,** shown only while Repeat is checked.
+- **Times to play,** from 1 to 50.
+  It starts at 1.
+  When the measures have played that many times, playback stops and says how many times it played.
+  Changing it while playing starts again from the beginning of the measures, with the count back at 1.
+- **Loop,** plays the measures over and over until you stop, whatever Times to play says.
+  It is off to begin with, and l turns it on and off.
+  Turning it on while playing carries on, counting each time through.
+  Turning it off while playing goes on until Times to play is reached.
+  If that has already been passed, the time through under way finishes, then playback stops.
+  Each setting keeps its value when the other changes.
+- **Count in before every repeat.**
+  It has no effect when the measures play only once.
 - **Number of beats to count in,** shown only while Count in before every repeat is checked.
   It runs from 1 to the beats per measure of the first measure of the selection, and starts at all of them.
   Fewer counts in each repeat with the last clicks of the count-in only, which is a shorter wait at a slow tempo: 2 in 4/4 clicks on beats 3 and 4, or on 1 and 2 before a two-beat pickup.
@@ -263,7 +271,8 @@ The heading is followed by a reminder that ? lists the keys.
 
 - **Play,** which becomes Pause while playing.
   The first time you play a track, unstrung loads its guitar samples first, says so, and then plays.
-- **Where Am I,** which says which measure is playing.
+- **Where Am I,** which says which measure is playing, and which time through: "play 2 of 3", or "play 5" while Loop is on.
+  Nothing is said about times through when the measures play once.
 - **Slower, Faster and Default Tempo,** which change the tempo by 5 beats per minute, or put it back.
 - **Restart Selection, Previous Measure, Next Measure and Start of Measure.**
   Restart Selection goes back to the start of the selection.
@@ -297,7 +306,7 @@ This is for learning a song a measure at a time: read a measure, listen to it un
 
 Each measure has two buttons under its heading:
 
-- **Play measure 5** plays that measure on its own, once, or until stopped if Repeat is checked.
+- **Play measure 5** plays that measure on its own, as many times as Times to play says, or until stopped if Loop is checked.
   It leaves the selection as it is, and remembers where the track had got to.
   While the measure plays, the button is named Stop measure 5, and pressing it stops the measure.
   Press Play measure 5 again to hear the measure from its start.
@@ -324,7 +333,7 @@ Each says where the track is as it goes back, for example "Back to the track at 
 Nothing else about playing and stopping is said.
 Where Am I says "Measure 5 on its own" while a measure plays on its own.
 
-For example, with Repeat checked, press Play measure 1 and listen until you have it, then Add measure 1 to selection.
+For example, with Loop checked, press Play measure 1 and listen until you have it, then Add measure 1 to selection.
 Read measure 2, press Play measure 2, and when you have that, Add measure 2 to selection.
 Press Play to hear measures 1 and 2 together.
 
@@ -343,8 +352,8 @@ The dialog has a link to this document, which closes the dialog and opens this d
 - rightArrow: forward one measure.
 - downArrow: back to the start of the current measure.
 - upArrow: back to the start of the selection, counting in again.
-- l: repeat on or off.
-- b: say which measure is playing, and which repeat.
+- l: loop on or off.
+- b: say which measure is playing, and which time through.
 - m: metronome on or off.
 - s: slower by 5 beats per minute.
 - f: faster by 5 beats per minute.
@@ -433,7 +442,7 @@ Playback Controls has the same buttons as a track: Play and Where Am I; Slower, 
 Where Am I says the measure, its chords, the beat, and which time through it is: "Measure 5 of 8, G C@3, beat 2, play 1".
 Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.
 
-The keys are the same as a track's, except l, since a progression has a number of times to play rather than Repeat.
+The keys are the same as a track's, except l, since a progression does not have Loop yet: 0 times to play stands for it.
 Like a track's, they work while focus is in the progression, and not on the Menu button or in the list of open items.
 ? lists them in the Playback Keys dialog.
 
