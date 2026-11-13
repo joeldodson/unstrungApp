@@ -544,4 +544,12 @@ and which time through. No full stop at the end, as a track's never had; chord p
 `scripts/songs/verify-where-am-i.mjs` and `check-measure-chords.mjs`; `verify-chord-practice.mjs`
 and `verify-measure-chords.mjs` check the chords and beat again.
 
+**Step 8 done 2026-11-12.** With the collapse setting on, `showItem` pauses any progression playing
+in another item, keeping its place; a song's track already paused as its region collapsed. With it
+off, both keep playing. The setting reads "Collapse expanded sections and pause playback when
+switching to another open item". The pattern preview is left playing either way, decision 7
+naming songs and progressions only; `verify-pattern-preview.mjs` turns the setting off to check
+that the preview leaves a progression alone. Checked by
+`scripts/progressions/verify-progression-switching.mjs`.
+
 Joel works on main, with no branches or worktrees unless he asks.

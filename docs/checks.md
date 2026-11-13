@@ -59,6 +59,7 @@ Run each with `node <script>`; the comment at the top of each says what it takes
 - `scripts/progressions/verify-no-held-chords.mjs`
 - `scripts/progressions/verify-progression-measures.mjs`
 - `scripts/progressions/verify-progression-player.mjs`
+- `scripts/progressions/verify-progression-switching.mjs`
 - `scripts/progressions/verify-repeat-count-reset.mjs`
 - `scripts/progressions/verify-sample-range.mjs`
 - `scripts/progressions/verify-saved-progressions.mjs`

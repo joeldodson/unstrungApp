@@ -344,6 +344,12 @@ function showItem(id, { focusContent = false } = {}) {
         for (const other of openItems) {
             if (other.id !== id) collapseDisclosures(other.panelEl);
         }
+        // One rule for songs and progressions (docs/one-player.md, decision 7): a song's track
+        // pauses as its region collapses, and a progression, whose controls are never collapsed,
+        // pauses here, keeping its place. With the setting off, both keep playing.
+        for (const entry of chordPracticeStates) {
+            if (entry.itemId !== id && entry.state.playing) pauseAudioTrackPlayback(entry.state);
+        }
     }
 
     for (const other of openItems) {

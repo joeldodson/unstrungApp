@@ -808,8 +808,10 @@ The dialog has three tabs.
 - **Shorter beat descriptions.**
   A beat that strums a chord unstrung can name is described by the chord name and the stroke direction only.
   Off unless you turn it on.
-- **Collapse expanded sections when switching to another open item.**
+- **Collapse expanded sections and pause playback when switching to another open item.**
   Coming back to an item with its measures still expanded can leave a screen reader unresponsive for several seconds while it takes in every beat again.
+  A song's track or a progression that is playing is paused, keeping its place, so Play carries on from there when you come back.
+  Turn it off to keep a progression playing while you look something up in another item, such as a fingering in the Chord Library.
   On unless you turn it off.
 
 ## Help

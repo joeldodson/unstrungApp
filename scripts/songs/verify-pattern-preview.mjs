@@ -49,6 +49,18 @@ const pressInPanel = label => page.evaluate(text => {
 }, label);
 
 try {
+    // Showing another item pauses a progression unless this setting is off (docs/one-player.md,
+    // decision 7), and the preview is in another item; with it off, what is checked is that the
+    // preview itself leaves the progression alone.
+    await runMenuCommand(page, 'settings');
+    await wait(800);
+    await page.evaluate(() => {
+        const box = document.getElementById('settings-auto-collapse-checkbox');
+        if (box.checked) box.click();
+    });
+    await page.click('#settings-ok-button');
+    await wait(400);
+
     console.log('A progression playing');
     await runMenuCommand(page, 'chord-practice');
     await wait(1500);
