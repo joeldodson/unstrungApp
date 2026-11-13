@@ -58,6 +58,12 @@ export const TICKS_PER_QUARTER = 960;
 // 6. A bar's triplet feel is played as alphaTab's own MIDI generator plays it: each even pair of
 //    eighths, or of sixteenths, becomes long then short. See tripletFeelTimes.
 //
+// 7. An accented note is louder than the notes around it: ACCENT_LEVEL times their level, and a
+//    heavy accent HEAVY_ACCENT_LEVEL times. The recording layer still comes from the dynamic
+//    alone, so the accent raises the level within it. Nothing unaccented is softened. Until
+//    2026-11-12 accents were ignored and loudness came from dynamics only. docs/one-player.md,
+//    decision 10.
+//
 // The strum spacing was a fixed 20 ms here, and 22 ms in chord practice, until 2026-11-12, when it
 // became one setting for every strum: 0 to 50 ms, 20 by default. docs/one-player.md, decision 14.
 // The same range and default are in src/main/main.js and src/web/platform.js, which store it.
@@ -92,6 +98,22 @@ const VELOCITY_LAYER_BY_DYNAMIC = {
 
 function velocityLayerFor(dynamics) {
     return VELOCITY_LAYER_BY_DYNAMIC[dynamics] ?? 'mf';
+}
+
+// Rule 7. 1.5 keeps the contrast chord practice gave a progression's accents, 1.3 against 0.85
+// for the strokes around them, now that the strokes around them are not softened. The heavy
+// accent's level is a first guess, to be set by ear.
+export const ACCENT_LEVEL = 1.5;
+export const HEAVY_ACCENT_LEVEL = 1.8;
+
+// alphaTab's AccentuationType.
+const ACCENT_NORMAL = 1, ACCENT_HEAVY = 2;
+
+/** How loud a note plays against an unaccented one: 1, or more for an accent. */
+function accentLevel(note) {
+    if (note.accentuated === ACCENT_HEAVY) return HEAVY_ACCENT_LEVEL;
+    if (note.accentuated === ACCENT_NORMAL) return ACCENT_LEVEL;
+    return 1;
 }
 
 // alphaTab's BrushType and PickStroke, where a file bothers to state the stroke.
@@ -425,6 +447,8 @@ export function buildAudioTrack(score, trackIndex, {
                             string,
                             fret: note.isStringed ? note.fret : null,
                             velocity: velocityLayerFor(note.dynamics),
+                            // Against an unaccented note's level, which the player sets: rule 7.
+                            level: accentLevel(note),
                             bar: bar.index,
                             indexInBeat,
                             strumSize: beat.notes.length

@@ -278,6 +278,9 @@ Each string rings until it is played again, or until a muted note (x) on that st
 A muted note sounds nothing yet, but stops whatever its string was ringing, as damping it with the hand does.
 So a muted strum, a chuck, cuts the chord before it, and strings it does not touch ring on.
 
+Accented notes are played louder than the notes around them, half as loud again, and heavy accents louder still.
+Loudness otherwise comes from the dynamics the file writes.
+
 A song the file marks as swung or shuffled is played that way, measure by measure, wherever the file marks it.
 With triplet eighths, the feel Song Summary calls "triplet eighths (swung)", each pair of eighth notes is played long then short: the second comes two thirds of the way through the beat instead of halfway.
 Triplet sixteenths do the same to each pair of sixteenth notes, and the dotted and Scottish feels play their pairs as a dotted note and a short one, or the other way round.

@@ -177,6 +177,19 @@ differently from today, and the entry says how.
     dropped, since the file writes neither: a pattern without accents plays every stroke evenly.
     Joel judges progressions by ear in stage 4. If the downbeat lean is missed, the writer writes
     it into the file; the player does not add it.
+
+    **Built 2026-11-12,** stage 2's third step. Each note of `buildAudioTrack` has a `level`: 1,
+    `ACCENT_LEVEL` 1.5, or `HEAVY_ACCENT_LEVEL` 1.8, a first guess for Joel to judge by ear. The
+    scheduler multiplies `AUDIO_TRACK_NOTE_GAIN` by it; the recording layer still comes from the
+    dynamic. Over the 33 Guitar Pro files in Joel's Guitar folder, 9 tracks write accents: 2,506
+    accented notes and 26 heavy ones, of 112,007. Checked by `scripts/songs/check-accents.mjs` and
+    `scripts/songs/verify-accents.mjs`.
+
+    Found while building it, for stage 3: alphaTab reads an alphaTex note with no dynamic as f,
+    not mf, so a
+    saved progression, which writes no dynamic, plays the f recordings on the track player.
+    Decision 15 assumed mf. Stage 3 should compare the two players' levels with that in mind, and
+    the writer could write mf if the f layer sounds too hard.
 11. **Upstrokes.** Chord practice sweeps the top four strings, from the highest, at 0.8 of the
     level. The file writes all six strings on an upstroke, and the track plays all six at full
     level. Could be settled in the writer instead of the player: write four strings on an

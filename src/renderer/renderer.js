@@ -3014,8 +3014,10 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
             : AUDIO_TRACK_RESTRIKE_FADE_SECONDS;
         source.connect(gain).connect(audioTrackMasterGain);
         const begin = startNoteOnAttack(source, when, intoNote);
-        gain.gain.setValueAtTime(AUDIO_TRACK_NOTE_GAIN, begin);
-        gain.gain.setValueAtTime(AUDIO_TRACK_NOTE_GAIN, Math.max(when, ends - fade));
+        // An accent raises the note's level: rule 7 in audioTrack.mjs.
+        const level = AUDIO_TRACK_NOTE_GAIN * (note.level ?? 1);
+        gain.gain.setValueAtTime(level, begin);
+        gain.gain.setValueAtTime(level, Math.max(when, ends - fade));
         gain.gain.linearRampToValueAtTime(0, ends);
         source.stop(ends + 0.01);
         audioTrackSources.push({ source, endsAt: ends + 0.01 });
