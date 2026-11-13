@@ -1,5 +1,5 @@
 // Checks Number of Beats to Count In, in a track's Playback Settings, the chord practice dialog and
-// a chord practice tab, against the real app.
+// a progression's tab, which has a track's settings since 2026-11-12, against the real app.
 //
 // The field: there only while Count In Before Every Repeat is checked, running from 1 to
 // the beats in a measure and starting at all of them. The sound: the count-in clicks handed to the
@@ -186,7 +186,7 @@ await page.evaluate(() => {
     for (const id of ['chord-practice-metronome-checkbox', 'chord-practice-speak-checkbox']) {
         document.getElementById(id).checked = false;
     }
-    document.getElementById('chord-practice-repeat-input').value = '0';
+    document.getElementById('chord-practice-loop-checkbox').checked = true;
     document.getElementById('chord-practice-tempo-input').value = '240';
     document.getElementById('chord-practice-count-input').value = '2';
 });
@@ -200,11 +200,12 @@ check('the tab starts at 2 of 1 to 3, from the dialog', shown[BEATS]?.max === '3
 await setControl(VISIBLE_PANEL, EACH, false);
 check('hidden when Count In Before Every Repeat is unchecked', (await controlState(VISIBLE_PANEL, [BEATS]))[BEATS].hidden);
 await setControl(VISIBLE_PANEL, EACH, true);
-await setControl(VISIBLE_PANEL, 'Times to play', 1);
+// Since progressions moved to the audio track player, Count In Before Every Repeat is always
+// shown, as a track's is (docs/one-player.md, decision 1).
+await setControl(VISIBLE_PANEL, 'Loop', false);
 shown = await controlState(VISIBLE_PANEL, [EACH, BEATS]);
-check('both hidden when the progression plays once', shown[EACH].hidden && shown[BEATS].hidden);
-await setControl(VISIBLE_PANEL, 'Times to play', 0);
-check('shown again when it repeats', !(await controlState(VISIBLE_PANEL, [BEATS]))[BEATS].hidden);
+check('both still shown when Loop is unchecked and it plays once', !shown[EACH].hidden && !shown[BEATS].hidden);
+await setControl(VISIBLE_PANEL, 'Loop', true);
 await setControl(VISIBLE_PANEL, BEATS, 5);
 check('a number above the measure is held at 3', (await controlState(VISIBLE_PANEL, [BEATS]))[BEATS].value === '3');
 
@@ -221,7 +222,7 @@ for (const beats of [2, 1]) {
     await playTab();
     // Back to the first measure while paused, so the next Play counts in from the top.
     await page.evaluate(panelSelector => [...document.querySelector(panelSelector).querySelectorAll('button')]
-        .find(b => b.textContent === 'Restart Progression').click(), VISIBLE_PANEL);
+        .find(b => b.textContent === 'Restart Selection').click(), VISIBLE_PANEL);
     checkRun(groups, { beats, measureBeats: 3, beat: 0.25, passSeconds: 2 * 3 * 0.25 });
 }
 

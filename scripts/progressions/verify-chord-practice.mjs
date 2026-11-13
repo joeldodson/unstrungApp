@@ -252,10 +252,11 @@ const panelState = () => page.evaluate(() => {
         playLabel: play.textContent,
         pressed: play.getAttribute('aria-pressed'),
         announcement: panel.querySelector('[aria-live]').textContent,
-        // Both are number inputs now, so pick them by id rather than by position.
-        tempo: panel.querySelector('input[id^="chord-practice-tab-tempo"]').value,
-        repeats: panel.querySelector('input[id^="chord-practice-tab-repeat"]').value,
-        metronome: panel.querySelector('input[id^="chord-practice-tab-metronome"]').checked
+        // A track's controls since progressions moved to the audio track player, picked by id.
+        tempo: panel.querySelector('input[id^="audio-track-tempo-input"]').value,
+        repeats: panel.querySelector('input[id^="audio-track-times-input"]').value,
+        loop: panel.querySelector('input[id^="audio-track-loop-checkbox"]').checked,
+        metronome: panel.querySelector('input[id^="audio-track-metronome-checkbox"]').checked
     };
 });
 
@@ -277,33 +278,33 @@ const controls = await page.evaluate(() => {
     return {
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
         labelled, listStyle,
-        settings: settings.map(p => labelOf(p.querySelector('input, select'))),
+        settings: settings.map(p => p.querySelector('input, select')).filter(Boolean).map(labelOf),
         keysNote: controlsHeading?.nextElementSibling?.textContent ?? null,
         controlRows: controlsAfter.filter(el => el.classList.contains('button-row'))
             .map(row => [...row.querySelectorAll('button')].map(b => b.textContent).join(', ')),
         plainLists: controlsAfter.filter(el => el.tagName === 'UL').length,
-        countIn: panel.querySelector('input[id^="chord-practice-tab-count-in-"]:not([id*="each-pass"]):not([id*="count-in-beats"])')?.checked ?? null,
-        eachPassHidden: panel.querySelector('input[id^="chord-practice-tab-count-in-each-pass"]')?.closest('p').hidden ?? null
+        countIn: panel.querySelector('input[id^="audio-track-count-in-checkbox"]')?.checked ?? null,
+        eachPassHidden: panel.querySelector('input[id^="audio-track-count-in-each-pass-checkbox"]')?.closest('p').hidden ?? null
     };
 });
 check('the chord list carries no bullet or number', controls.listStyle === 'none',
     controls.listStyle);
 check('the panel has tempo, repeats and metronome, all labelled', controls.labelled);
 console.log(`  settings: ${controls.settings.join(' | ')}`);
-check('Playback Settings: tempo, pattern, swing, names, metronome, count in, times to play, count in each repeat, beats to count in',
-    controls.settings.join(' | ') === 'Tempo in beats per minute, 30 to 240 | Strumming pattern | Swing, each and played late | ' +
-    'Speak the next measure; changing it starts again from the first measure | Metronome | ' +
-    'Count in, one measure of clicks before playing starts | ' +
-    'Times to play the progression, up to 50; 0 repeats until stopped | Count in before every repeat | ' +
-    'Number of beats to count in',
+// A track's, since progressions moved to the audio track player (docs/one-player.md, stage 3),
+// with the pattern and Swing after the tempo.
+check('Playback Settings: a track\'s, with pattern and swing after the tempo',
+    controls.settings.join(' | ') === 'Tempo in beats per minute, 15 to 300 | Strumming pattern | Swing, each and played late | ' +
+    'Speak the next measure | Metronome | Count in, one measure of clicks before playing starts | ' +
+    'Times to play, 1 to 50 | Loop | Count in before every repeat | Number of beats to count in',
     controls.settings.join(' | '));
 check('Count in starts checked', controls.countIn === true, String(controls.countIn));
-check('Count in before every repeat is shown while it repeats until stopped', controls.eachPassHidden === false);
+check('Count in before every repeat is always shown', controls.eachPassHidden === false);
 check('Playback Controls starts by saying how to reach the keys', controls.keysNote === 'Type ? for keyboard commands.',
     controls.keysNote);
 check('Playback Controls: Play and Where Am I; the tempo; then the moves',
     controls.controlRows.join(' / ') === 'Play, Where Am I / Slower, Faster, Default Tempo / ' +
-    'Restart Progression, Previous Measure, Next Measure, Start of Measure', controls.controlRows.join(' / '));
+    'Restart Selection, Previous Measure, Next Measure, Start of Measure', controls.controlRows.join(' / '));
 check('no printed key list', controls.plainLists === 0, `${controls.plainLists} lists`);
 
 console.log('\n=== The Playback Keys dialog ===');
@@ -317,11 +318,10 @@ const keysDialog = await page.evaluate(() => {
 });
 check('? opens it', keysDialog.open);
 check('it is about the progression', keysDialog.intro === 'These keys play the progression.', keysDialog.intro);
-check('eleven keys, without l', keysDialog.rows.length === 11 && !keysDialog.rows.some(r => r.startsWith('l:')),
+check('twelve keys, a track\'s, l included', keysDialog.rows.length === 12 && keysDialog.rows.includes('l: loop on or off.'),
     `${keysDialog.rows.length}: ${keysDialog.rows.map(r => r.split(':')[0]).join(' ')}`);
-check('upArrow, b and d are worded for a progression',
-    keysDialog.rows.includes('upArrow: back to the first measure, counting in again.') &&
-    keysDialog.rows.includes('b: say which measure is playing, its chord, and which repeat.') &&
+check('upArrow as a track\'s, and d worded for a progression',
+    keysDialog.rows.includes('upArrow: back to the start of the selection, counting in again.') &&
     keysDialog.rows.some(r => r.startsWith('d: back to the default tempo: the progression\'s own')),
     keysDialog.rows.join(' | '));
 check('the tempo keys name their step size',
@@ -332,14 +332,14 @@ check('escape closes it', await page.evaluate(() => !document.getElementById('pl
 
 const eachPassHiddenAt = times => page.evaluate(times => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
-    const repeats = panel.querySelector('input[id^="chord-practice-tab-repeat"]');
+    const repeats = panel.querySelector('input[id^="audio-track-times-input"]');
     repeats.value = String(times);
     repeats.dispatchEvent(new Event('change'));
-    return panel.querySelector('input[id^="chord-practice-tab-count-in-each-pass"]').closest('p').hidden;
+    return panel.querySelector('input[id^="audio-track-count-in-each-pass-checkbox"]').closest('p').hidden;
 }, times);
-check('Count in before every repeat goes when it plays once', await eachPassHiddenAt(1) === true);
-check('and comes back when it plays more than once', await eachPassHiddenAt(3) === false);
-await eachPassHiddenAt(0);
+check('Count in before every repeat stays when it plays once', await eachPassHiddenAt(1) === false);
+check('and when it plays more than once', await eachPassHiddenAt(3) === false);
+await eachPassHiddenAt(1);
 
 // Focus the panel itself so the bare keys reach the transport.
 await page.evaluate(() => {
@@ -358,10 +358,7 @@ await press('ArrowUp');
 
 const afterB = await press('b');
 console.log(`  B  -> ${afterB.announcement}`);
-// Which time round is deliberately left out: a progression repeating until stopped has no total
-// The beat since 2026-10-30, when a measure could hold more than one chord.
-check('B announces the measure, the chord, the beat and which play this is',
-    /^Measure 1 of 8, [A-G][^,]*, beat 1, play 1\.$/.test(afterB.announcement), afterB.announcement);
+check('B announces the measure', /^Measure 1 of 8\b/.test(afterB.announcement), afterB.announcement);
 
 // Moving around is silent, as in the audio track. Where a seek landed is confirmed with B, which
 // is the key that exists to ask.
@@ -370,24 +367,18 @@ const afterRight = await press('ArrowRight');
 check('Right says nothing', afterRight.announcement === beforeSeek, afterRight.announcement);
 const rightThenB = await press('b');
 console.log(`  Right then B -> ${rightThenB.announcement}`);
-check('Right moved forward a measure', /^Measure 2 of 8, /.test(rightThenB.announcement),
+check('Right moved forward a measure', /^Measure 2 of 8\b/.test(rightThenB.announcement),
     rightThenB.announcement);
 
 await press('ArrowLeft');
 const leftThenB = await press('b');
-check('Left moved back a measure', /^Measure 1 of 8, /.test(leftThenB.announcement),
+check('Left moved back a measure', /^Measure 1 of 8\b/.test(leftThenB.announcement),
     leftThenB.announcement);
 
 await press('ArrowDown');
 const downThenB = await press('b');
-check('Down returns to the start of this measure', /^Measure 1 of 8, /.test(downThenB.announcement),
+check('Down returns to the start of this measure', /^Measure 1 of 8\b/.test(downThenB.announcement),
     downThenB.announcement);
-
-// The one deliberate divergence from the audio track: a measure there can hold anything, so the
-// number is all that can be said. Here a measure is only chords, and which they are is the thing
-// worth knowing.
-check('B names the chord as well as the measure, unlike the audio track',
-    /^Measure \d+ of \d+, [A-G][^,]*, beat \d+, play \d+\.$/.test(downThenB.announcement), downThenB.announcement);
 
 const afterSlower = await press('s');
 console.log(`  S  -> "${afterSlower.announcement}", tempo box now ${afterSlower.tempo}`);
@@ -437,8 +428,9 @@ void afterSpace;
 
 const afterPause = await press(' ');
 console.log(`  Space -> button "${afterPause.playLabel}", ${afterPause.announcement}`);
-check('Space pauses and says where it stopped',
-    afterPause.playLabel === 'Play' && /^Paused at measure \d+\./.test(afterPause.announcement),
+// Pausing says nothing, as a track's does, since progressions moved to the audio track player;
+// until then it said "Paused at measure 3."
+check('Space pauses, saying nothing', afterPause.playLabel === 'Play' && !/^Paused/.test(afterPause.announcement),
     afterPause.announcement);
 
 // Up says nothing, as the audio track's restart says nothing: the count-in is the answer.
@@ -448,20 +440,23 @@ console.log(`  Up -> announcement unchanged: "${afterUp.announcement}"`);
 check('Up says nothing', afterUp.announcement === beforeUp, afterUp.announcement);
 const afterUpB = await press('b');
 check('but B still confirms it went back to measure 1',
-    /^Measure 1 of 8, /.test(afterUpB.announcement), afterUpB.announcement);
+    /^Measure 1 of 8\b/.test(afterUpB.announcement), afterUpB.announcement);
 
 console.log('\n=== Looping ===');
 const loopState = await panelState();
-console.log(`  repeats field reads "${loopState.repeats}"`);
-check('repeats defaults to 0, meaning until stopped', loopState.repeats === '0', loopState.repeats);
+console.log(`  Times to play reads "${loopState.repeats}", Loop ${loopState.loop}`);
+check('Times to play starts at 1 and Loop off, as the dialog had them', loopState.repeats === '1' && loopState.loop === false,
+    `${loopState.repeats} ${loopState.loop}`);
 
 // Eight bars of 4/4 at 70 bpm is 27.4 s, too long to wait for a wrap; push the tempo up so a
 // whole pass fits inside the check, then confirm playback survives past the end of pass one.
 await page.evaluate(() => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
-    const tempo = panel.querySelector('input[id^="chord-practice-tab-tempo"]');
+    const tempo = panel.querySelector('input[id^="audio-track-tempo-input"]');
     tempo.value = '240';
     tempo.dispatchEvent(new Event('change'));
+    const loop = panel.querySelector('input[id^="audio-track-loop-checkbox"]');
+    if (!loop.checked) loop.click();
 });
 await page.waitForTimeout(500);
 await page.evaluate(() => {
@@ -480,7 +475,7 @@ check('nothing is announced on a repeat', !/repeat/i.test(looping.announcement),
 const afterLoopB = await press('b');
 console.log(`  B while looping -> ${afterLoopB.announcement}`);
 check('B says which time round you are on while looping',
-    /, play [2-9]\d*\.$/.test(afterLoopB.announcement), afterLoopB.announcement);
+    /, play [2-9]\d*\.?$/.test(afterLoopB.announcement), afterLoopB.announcement);
 await page.keyboard.press(' ');
 await page.waitForTimeout(400);
 
@@ -504,7 +499,7 @@ await page.waitForTimeout(1500);
 console.log('\n=== Speaking the names is a control on the tab, not only a choice in the dialog ===');
 const speakUi = await page.evaluate(() => {
     const panel = document.querySelector('#item-panels > section:not([hidden])');
-    const box = panel.querySelector('input[id^="chord-practice-tab-speak"]');
+    const box = panel.querySelector('input[id^="audio-track-speak-checkbox"]');
     const settings = [...panel.querySelectorAll('h3')].find(h => h.textContent === 'Playback Settings');
     const meta = [...[...panel.querySelectorAll('ul:not(.chord-progression)')]
         .find(ul => !ul.closest('details')).querySelectorAll('li')].map(li => li.textContent);
@@ -519,8 +514,9 @@ const speakUi = await page.evaluate(() => {
 });
 check('the checkbox is under Playback Settings', speakUi.inSettings);
 console.log(`  label: "${speakUi.label}"`);
-check('the label warns that changing it starts again from the first measure',
-    /starts again from the first measure/.test(speakUi.label), speakUi.label);
+// Since progressions moved to the audio track player, changing it carries on from where playback
+// is, as a track's does, so the label no longer warns of a restart.
+check('the label is a track\'s, Speak the next measure', speakUi.label === 'Speak the next measure', speakUi.label);
 // A static line in the metadata saying speech is off would contradict the checkbox the moment it
 // is ticked, so the checkbox is the only place that answer lives now.
 check('the metadata no longer states it as well',
@@ -533,7 +529,7 @@ if (speakUi.disabled) {
     // Speaking is on by default, and this checks turning it on, so it is turned off first.
     await page.evaluate(() => {
         const panel = document.querySelector('#item-panels > section:not([hidden])');
-        const box = panel.querySelector('input[id^="chord-practice-tab-speak"]');
+        const box = panel.querySelector('input[id^="audio-track-speak-checkbox"]');
         if (!box.checked) return;
         box.checked = false;
         box.dispatchEvent(new Event('change'));
@@ -550,7 +546,7 @@ if (speakUi.disabled) {
 
     await page.evaluate(() => {
         const panel = document.querySelector('#item-panels > section:not([hidden])');
-        const box = panel.querySelector('input[id^="chord-practice-tab-speak"]');
+        const box = panel.querySelector('input[id^="audio-track-speak-checkbox"]');
         box.checked = true;
         box.dispatchEvent(new Event('change'));
     });
@@ -559,10 +555,8 @@ if (speakUi.disabled) {
         document.querySelector('#item-panels > section:not([hidden])').focus());
     const afterToggle = await press('b');
     console.log(`  after toggling  -> ${afterToggle.announcement}`);
-    check('toggling starts the progression again from the first measure',
-        /^Measure 1 of \d+, /.test(afterToggle.announcement), afterToggle.announcement);
-    check('and from the first play, since the audio it was counting is gone',
-        /, play 1\.$/.test(afterToggle.announcement), afterToggle.announcement);
+    check('toggling carries on from where it was, as a track\'s does',
+        /^Measure 3 of \d+/.test(afterToggle.announcement), afterToggle.announcement);
 
     // The names have to actually be in the audio now. Speech sources are the only ones started
     // with an explicit duration, the same tell the timing section uses.
@@ -590,6 +584,7 @@ const readDialog = () => page.evaluate(() => ({
     tempo: document.getElementById('chord-practice-tempo-input').value,
     count: document.getElementById('chord-practice-count-input').value,
     repeat: document.getElementById('chord-practice-repeat-input').value,
+    loop: document.getElementById('chord-practice-loop-checkbox').checked,
     countIn: document.getElementById('chord-practice-count-in-each-pass-checkbox').checked,
     metronome: document.getElementById('chord-practice-metronome-checkbox').checked,
     speak: document.getElementById('chord-practice-speak-checkbox').checked
@@ -607,6 +602,7 @@ await page.fill('#chord-practice-beat-unit-input', '8');
 await page.fill('#chord-practice-tempo-input', '150');
 await page.fill('#chord-practice-count-input', '32');
 await page.fill('#chord-practice-repeat-input', '4');
+await page.setChecked('#chord-practice-loop-checkbox', true);
 await page.setChecked('#chord-practice-count-in-each-pass-checkbox', true);
 await page.setChecked('#chord-practice-metronome-checkbox', false);
 await page.setChecked('#chord-practice-speak-checkbox', true).catch(() => {});
@@ -630,7 +626,8 @@ check('the time signature is back to 4/4',
 // 60, the default tempo since the metronome was added (it was 80).
 check('the tempo is back to 60', reopened.tempo === '60', reopened.tempo);
 check('the length is back to 8 measures', reopened.count === '8', reopened.count);
-check('the repeat count is back to 0', reopened.repeat === '0', reopened.repeat);
+check('Times to play is back to 1', reopened.repeat === '1', reopened.repeat);
+check('Loop is unchecked again', reopened.loop === false);
 check('count in before every repeat is off again', reopened.countIn === false);
 check('the metronome is on again', reopened.metronome === true);
 // On by default since fdc09fc, as user-docs/features.md says.

@@ -512,4 +512,20 @@ after the tempo and no Measures to Play or About section yet. What it brings:
 - Where Am I is the track's for now, measure and time through; step 7 adds chords and beat.
 Checked by `scripts/progressions/verify-progression-player.mjs`.
 
+**Step 5 done 2026-11-12.** Chord practice's own player is gone from the renderer: its strokes,
+scheduler, transport, keys and settings, about 700 lines. Its checks were rewritten against the
+track player rather than dropped, since each still covers something the new checks do not:
+- `verify-chord-practice.mjs`: Playback Settings and Controls are a track's, twelve keys with l,
+  Count in before every repeat always shown, Times to play 1 and Loop off from the dialog, Loop
+  to go round, Speak the next measure carrying on from where it is, the dialog resetting Times
+  to play and Loop.
+- `verify-media-session.mjs` and `verify-chord-practice.mjs`: pausing a progression, from a key,
+  the headphones or an interruption, says nothing, as a track's does; until now it said "Paused
+  at measure 3." A question for Joel.
+- `verify-repeat-count-reset.mjs`: Loop on past play 1, then Times to play 3 and Loop off.
+- `verify-count-in-beats.mjs`, `verify-swing.mjs`, `verify-spinner-keys.mjs`: the track's field
+  names and Restart Selection.
+- `verify-measure-chords.mjs`: Where Am I checked for the measure only until step 7.
+`verify-note-timing.mjs` passed unchanged, its progression now on the track player.
+
 Joel works on main, with no branches or worktrees unless he asks.

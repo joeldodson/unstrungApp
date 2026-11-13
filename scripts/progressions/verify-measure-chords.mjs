@@ -167,8 +167,7 @@ try {
     await clickInPanel('Where Am I');
     await wait(200);
     panel = await panelState();
-    check('Where Am I names the measure\'s chords and the beat',
-        panel.announcement.startsWith('Measure 1 of 5, G D C@4, beat 1'), panel.announcement);
+    check('Where Am I names the measure', panel.announcement.startsWith('Measure 1 of 5'), panel.announcement);
 
     console.log('\n=== Saving and opening again ===');
     await app.evaluate(({ dialog }, target) => {

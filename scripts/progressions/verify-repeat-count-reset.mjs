@@ -1,9 +1,11 @@
-// Changing the number of times to play restarts the play count, in chord practice.
+// Changing the number of times to play restarts the play count, in a progression.
 //
 // The sequence that broke: set 0 to play until stopped, go round several times, then ask for a
 // fixed number. The old tally was already past the new number, so the run ended almost at once.
-// The progression is played with 0 repeats until it is past play 1, the field is changed, and B
-// must then report play 1 of the new count.
+// Since progressions moved to the audio track player (docs/one-player.md, stage 3) they have Times
+// to play and Loop, as a track has: the progression is played with Loop on until it is past play
+// 1, Times to play is changed to 3, which starts again with the count at 1, and Loop is turned
+// off. B must then report play 1 of 3, and playback stop after the third.
 //
 // An audio track had the same count until 2026-10-27, when it became a Repeat checkbox (see
 // docs/measure-practice.md), and on 2026-11-12 Times to play and a Loop checkbox
@@ -47,38 +49,41 @@ const pressB = async () => {
 };
 const passOf = text => Number(text.match(/play (\d+)/)?.[1] ?? 0);
 
-// --- Chord practice ------------------------------------------------------------------
-console.log('=== Chord practice ===');
+// --- A progression -------------------------------------------------------------------
+console.log('=== A progression ===');
 await runMenuCommand(page, 'chord-practice');
 await page.waitForTimeout(2500);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.fill('#chord-practice-count-input', '4');
 await page.fill('#chord-practice-tempo-input', '240');
-await page.fill('#chord-practice-repeat-input', '0');
+await page.check('#chord-practice-loop-checkbox');
 await page.uncheck('#chord-practice-speak-checkbox').catch(() => {});
 await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
 
 await focusPanel();
 await page.keyboard.press(' ');
-// 4 measures of 4 beats at 240 bpm is 4 s a pass.
+// 4 measures of 4 beats at 240 bpm is 4 s a pass, after the samples load and a count-in.
 await page.waitForTimeout(11000);
 const cpBefore = await pressB();
 console.log(`  before change: ${cpBefore}`);
-check('went past the first play with repeats set to 0', passOf(cpBefore) > 1, cpBefore);
+check('went past the first play with Loop on', passOf(cpBefore) > 1, cpBefore);
 
-await setField('chord-practice-tab-repeat', '3');
-await page.waitForTimeout(500);
+await setField('audio-track-times-input', '3');
+await page.waitForTimeout(300);
 await focusPanel();
+await page.keyboard.press('l');
+await page.waitForTimeout(300);
 const cpAfter = await pressB();
 console.log(`  after change : ${cpAfter}`);
 check('play count restarted at 1 of the new count', /play 1 of 3/.test(cpAfter), cpAfter);
 check('still playing after the change', await isPlaying());
 
-// Three plays from here is at most 12 s; it must end, not carry on or stop straight away.
+// Three plays from the top, after a second's count-in, is 13 s, and the last strum is given two
+// more to ring out; it must end, not carry on or stop straight away.
 await page.waitForTimeout(3000);
 check('did not stop straight away', await isPlaying());
-await page.waitForTimeout(11000);
+await page.waitForTimeout(13500);
 check('stopped after the three plays', !(await isPlaying()), await announcement());
 
 // --- Audio track ---------------------------------------------------------------------

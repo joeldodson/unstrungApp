@@ -132,7 +132,7 @@ try {
         swung.every((gap, index) => near(gap, swung[index % 2])) && near(swung[0] + swung[1], 1), swung.join(' '));
 
     console.log('\n=== Unchecking Swing ===');
-    await clickInPanel('Restart Progression');
+    await clickInPanel('Restart Selection');
     await setCheckbox('Swing', false);
     await page.waitForTimeout(300);
     state = await tab();

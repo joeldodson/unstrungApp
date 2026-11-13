@@ -29,8 +29,8 @@ const read = () => page.evaluate(() => {
     const p = document.querySelector('#item-panels > section:not([hidden])');
     return {
         announcement: p.querySelector('[aria-live]').textContent,
-        tempo: p.querySelector('input[id^="chord-practice-tab-tempo"]').value,
-        repeats: p.querySelector('input[id^="chord-practice-tab-repeat"]').value,
+        tempo: p.querySelector('input[id^="audio-track-tempo-input"]').value,
+        repeats: p.querySelector('input[id^="audio-track-times-input"]').value,
         // By label: the panel's first checkbox is the count-in one.
         metronome: [...p.querySelectorAll('input[type="checkbox"]')]
             .find(b => p.querySelector(`label[for="${b.id}"]`)?.textContent.startsWith('Metronome'))?.checked,
@@ -40,7 +40,7 @@ const read = () => page.evaluate(() => {
 
 const focusTempo = () => page.evaluate(() => {
     const p = document.querySelector('#item-panels > section:not([hidden])');
-    p.querySelector('input[id^="chord-practice-tab-tempo"]').focus();
+    p.querySelector('input[id^="audio-track-tempo-input"]').focus();
 });
 
 console.log('=== With focus in the tempo spinner ===');
@@ -85,7 +85,7 @@ check('the arrow steps the field rather than restarting playback',
 
 await page.evaluate(() => {
     const p = document.querySelector('#item-panels > section:not([hidden])');
-    const box = p.querySelector('input[id^="chord-practice-tab-repeat"]');
+    const box = p.querySelector('input[id^="audio-track-times-input"]');
     box.focus();
     box.value = '';
 });
@@ -98,7 +98,7 @@ check('digits still reach the field', typed.repeats === '4', typed.repeats);
 console.log('\n=== Focus never leaves the field ===');
 const stillThere = await read();
 check('focus is still in the spinner after all of that',
-    /chord-practice-tab-repeat/.test(stillThere.focused), stillThere.focused);
+    /audio-track-times-input/.test(stillThere.focused), stillThere.focused);
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : `${failures} CHECK(S) FAILED`}`);
 await close();
