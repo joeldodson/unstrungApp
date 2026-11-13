@@ -176,7 +176,7 @@ check('its heading is Metronome', state.heading === 'Metronome', state.heading);
 check('its sections are Settings, Controls and Keyboard Control',
     state.headings.join('|') === 'Settings|Controls|Keyboard Control', state.headings.join('|'));
 check('every control has a label', state.labels.join('|') ===
-    'Time signature -> select|Strumming pattern -> select|Feel -> select|Tempo, 30 to 240 BPM -> input|Volume, 1 to 5 -> input',
+    'Time signature -> select|Strumming pattern -> select|Feel -> select|Tempo, 15 to 300 BPM -> input|Volume, 1 to 5 -> input',
     state.labels.join('|'));
 check('focus starts on Time signature', state.focusedOn === 'time signature', state.focusedOn);
 check('it starts on 4/4, Down Only', state.signature === '4/4' && state.pattern === 'Down Only: D D D D', `${state.signature} ${state.pattern}`);
@@ -186,8 +186,8 @@ check('the 4/4 patterns are the Strumming Patterns item\'s', state.patterns.incl
     state.patterns.includes('Three-Three-Two: >D D D >D D D >D D'), `${state.patterns.length} patterns`);
 check('the clicks are said in words after the list', state.about === 'Clicks on 1 high strong down, 2 down, 3 down, 4 down.',
     state.about);
-check('Tempo is a number field from 30 to 240, at 60', state.tempoType === 'number' && state.tempoMin === '30' &&
-    state.tempoMax === '240' && state.tempo === '60', `${state.tempoMin}-${state.tempoMax} at ${state.tempo}`);
+check('Tempo is a number field from 15 to 300, at 60', state.tempoType === 'number' && state.tempoMin === '15' &&
+    state.tempoMax === '300' && state.tempo === '60', `${state.tempoMin}-${state.tempoMax} at ${state.tempo}`);
 check('Volume is a number field from 1 to 5, at 3', state.volumeType === 'number' && state.volumeMin === '1' &&
     state.volumeMax === '5' && state.volume === '3', `${state.volumeMin}-${state.volumeMax} at ${state.volume}`);
 // A phone shows the number pad only with inputmode. Finding 16 of the November review.
@@ -374,26 +374,26 @@ await page.selectOption(`${PANEL} select >> nth=1`, { label: 'Old Faithful: D - 
 
 // --- Bounds -------------------------------------------------------------------------------------
 console.log('\nTempo bounds');
-await field('Tempo').fill('300');
+await field('Tempo').fill('400');
 await field('Tempo').press('Tab');
 await wait(80);
-check('a tempo over 240 is brought down to 240', (await item()).tempo === '240');
+check('a tempo over 300 is brought down to 300', (await item()).tempo === '300');
 await button('Faster').focus();
 await key('f');
 state = await item();
-check('f at 240 stays there and says so', state.tempo === '240' && state.live === '240 BPM is the fastest.', state.live);
+check('f at 300 stays there and says so', state.tempo === '300' && state.live === '300 BPM is the fastest.', state.live);
 await field('Tempo').fill('10');
 await field('Tempo').press('Tab');
 await wait(80);
-check('a tempo under 30 is brought up to 30', (await item()).tempo === '30');
+check('a tempo under 15 is brought up to 15', (await item()).tempo === '15');
 await button('Faster').focus();
 await key('s');
 state = await item();
-check('s at 30 stays there and says so', state.tempo === '30' && state.live === '30 BPM is the slowest.', state.live);
+check('s at 15 stays there and says so', state.tempo === '15' && state.live === '15 BPM is the slowest.', state.live);
 await field('Tempo').fill('');
 await field('Tempo').press('Tab');
 await wait(80);
-check('an emptied Tempo field goes back to the tempo', (await item()).tempo === '30');
+check('an emptied Tempo field goes back to the tempo', (await item()).tempo === '15');
 await field('Tempo').fill('80');
 await field('Tempo').press('Tab');
 await wait(80);

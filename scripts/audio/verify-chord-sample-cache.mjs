@@ -1,11 +1,14 @@
 // Counts the guitar samples the Chord Library decodes for one chord, down then up, and again.
-// See `chordSampleRequestSeconds` in src/renderer/renderer.js.
 //
-// The desktop app trims a recording to the length a note needs, so each length is its own sample.
-// The web version returns the whole recording whatever is asked, and until 2026-11-11 the Chord
-// Library still cached it once per length wanted: a chord down then up decoded the same few
-// recordings over and over, and kept every copy. Finding 10 of the November review. On the web a
-// recording is now decoded once per pitch and loudness and reused.
+// Since 2026-11-13 the Chords item's Play loads its samples as the track player does
+// (loadFullSample in src/renderer/renderer.js): the whole mf recording of each pitch, decoded once
+// and used by every note of that pitch, in the desktop app and the web version alike. So a
+// five-string chord decodes five recordings the first time and none after.
+//
+// Before that it had its own loading. The desktop app asked for each recording cut to the length
+// the note needed, so each length was its own sample; and until 2026-11-11 the web version, which
+// cannot cut a recording, kept a whole copy for each length asked (finding 10 of the November
+// review).
 //
 // Decodes are counted by wrapping decodeAudioData in the page. Judged from those counts and the DOM.
 //
@@ -83,9 +86,7 @@ try {
         return (await page.evaluate(() => window.__decodes)) - before;
     };
 
-    // Each stroke plays its last two strings a little softer (buildStrokePlan), so a five-string
-    // chord down then up sounds nine pitch-and-loudness pairs: each string's two, but the middle
-    // string's once.
+    // C major's first voicing plays five strings, each a different pitch, all at mf.
     const counts = [];
     for (const [voicings, label] of [[[0], 'voicing 1'], [[0], 'voicing 1 again'], [[0, 1], 'voicings 1 and 2'],
         [[1], 'voicing 2 alone'], [[0], 'voicing 1 alone once more']]) {
@@ -95,15 +96,10 @@ try {
         console.log(`  ${label}: ${decoded} decoded  (${list})`);
     }
 
-    if (webUrl) {
-        check('the first play decodes each pitch and loudness once: nine', counts[0] === 9, String(counts[0]));
-        check('playing it again decodes nothing', counts[1] === 0, String(counts[1]));
-        check('voicing 2 alone, after both together, decodes nothing: its notes are the same at any length',
-            counts[3] === 0, String(counts[3]));
-        check('voicing 1 alone once more decodes nothing', counts[4] === 0, String(counts[4]));
-    } else {
-        check('playing the same chord again decodes nothing new', counts[1] === 0, String(counts[1]));
-    }
+    check('the first play decodes each pitch once: five', counts[0] === 5, String(counts[0]));
+    check('playing it again decodes nothing', counts[1] === 0, String(counts[1]));
+    check('voicing 2 alone, after both together, decodes nothing', counts[3] === 0, String(counts[3]));
+    check('voicing 1 alone once more decodes nothing', counts[4] === 0, String(counts[4]));
 } finally {
     await finish();
 }

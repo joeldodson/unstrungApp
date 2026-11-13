@@ -232,6 +232,10 @@ It starts with the Playback Settings and Playback Controls headings, both level 
 From any measure, shift+3 goes back up to the Measures heading, then Playback Controls, then Playback Settings.
 To collapse the section, go to Playback Settings and then up one line.
 
+One track or chord progression plays at a time.
+Starting one pauses whichever was playing, a track of the same song, a track of another song or a progression, and that one keeps its place.
+Starting one also stops the Chord Library's Play Selected Chords, and Play Selected Chords pauses whichever track or progression was playing.
+
 ### Playback Settings
 
 - **Tempo in beats per minute,** from 15 to 300.
@@ -253,6 +257,8 @@ To collapse the section, go to Playback Settings and then up one line.
 - **Count in,** one measure of clicks before playing starts.
   It is on to begin with, and works whether or not the metronome is on.
   Before a pickup it counts a whole measure, then the beats before the pickup comes in: 1 2 3 4 1 2, and a two-beat pickup comes in on 3.
+  A change made before the first chord sounds starts the count-in again from its first click: a new tempo, the metronome, Loop, a move to another measure, the strum spacing or the voice in Settings, or a progression's strumming pattern or feel.
+  With Count in unchecked, the silent measure before the first chord starts again in the same way.
 - **Times to play,** from 1 to 50.
   It starts at 1.
   When the measures have played that many times, playback stops and says how many times it played.
@@ -703,7 +709,7 @@ Under Settings:
   The sixteenth feels do the same to each pair of sixteenths.
   An eighth feel has no effect on a pattern in sixteenths or in 6/8, and a sixteenth feel none on a pattern with no sixteenths; the list then says so in its description, such as "This feel has no effect in 6/8."
   The feel stays as you set it until unstrung is closed.
-- **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
+- **Tempo,** from 15 to 300 beats per minute, 60 to begin with.
   The tempo you type here is the default tempo.
 - **Volume,** from 1 to 5, 3 to begin with.
 
@@ -760,6 +766,8 @@ Each chord also has a collapsed section with what is known about it.
 
 Under the Playback heading are the chords you have checked.
 Play Selected Chords strums them, speaking each name first if "Speak chord name before playing" is checked.
+Each chord is strummed down across every string it plays, then up across its four highest, at the same level and with the same recordings as a chord progression.
+Play Selected Chords pauses a track or progression that is playing, and one starting stops it.
 Clear Selected unchecks them all.
 
 ## Frets to Chord
@@ -804,6 +812,8 @@ The dialog has three tabs.
 - **Spoken chord volume,** as a percentage, relative to the guitar.
   It starts at 50.
   The voice and volume are used everywhere names are spoken, the Chord Library as well as Chord Practice, from the moment unstrung starts.
+  A change to either is taken up at once by a track or progression that is already open.
+  If one is playing, it carries on from where it is, and the next names are in the new voice.
 - **Time between strings in a strum, in milliseconds,** from 0 to 50.
   It starts at 20.
   A strum sounds its strings one after another, as a pick crosses them, and this is the time from one string to the next.

@@ -622,29 +622,114 @@ without it, for a progression and for a song.
 **Leftovers removed.** `PATTERN_PREVIEW_LEAD_SECONDS`, the `speechVolume` and `voice` that
 `chordPracticePlaybackOptions` returned and nothing read, and `beatsPerBar` on a progression's
 state. Comments that still described two players were rewritten. The spoken names' volume is read
-from Settings as each name is scheduled, so it follows Settings in an open tab; the voice is the
-one in force when the names were loaded.
+from Settings as each name is scheduled, so it follows Settings in an open tab. The voice was the
+one in force when the names were loaded, until decision 4 below made it follow Settings too.
 
 Kept, though the app no longer calls them: `spokenMeasurePlan`, `slotBeats` and
 `metronomeSwingDelay`, which checks still use. `check-two-players-strum-times.mjs` compares the
 track player with a model of chord practice's old timing; it still shows that a pattern written to
 a file plays at the pattern's times.
 
-Found and not decided:
+The review also found eight things to decide. They were put to Joel one at a time the same day,
+and built in one pass.
 
-- A song and a progression are in separate groups, so with the collapse setting off both can play
-  at once, while the media keys own one.
-- The Chord Practice dialog has its own copy of settings the tab also has and can change: tempo,
-  Times to play, Loop, Count in before every repeat, beats to count in, Metronome, Speak the next
-  measure.
-- The Metronome item's tempo is 30 to 240; decision 2 made the player's 15 to 300.
-- A progression file saved before 2026-11-12, opened as a song, plays the f recordings and
-  six-string upstrokes until saved again.
-- Still written twice: the two media session kinds, the pattern and Feel wiring of the dialog and
-  the editor, the loading of spoken names (`loadSpokenPhrases` without a cache,
-  `chordLibrarySpeech` with one), and the six feels in three tables (`TRIPLET_FEEL_PAIRS`,
-  `FEELS`, `feelPairTicks`).
-- The Chords item's Play has its own transport, sample loading and note scheduling, at gain 0.45
-  on the f recordings with upstrokes on every string.
+1. **One group.** A song's tracks and progressions were separate groups, so with the collapse
+   setting off both could play at once while the media keys owned one. They are one group now,
+   `'music'`: starting a track or a progression pauses whichever was playing, which keeps its
+   place. The pattern preview stays its own group and plays beside either, as decided on
+   2026-11-12.
+2. **The Chord Practice dialog keeps its playback settings.** Tempo, Times to play, Loop, Count in
+   before every repeat, Number of beats to count in, Metronome and Speak the next measure stay in
+   the dialog, though the tab has them too. Joel chose that over taking them out. Their wording is
+   the tab's: the labels and the tempo and times ranges of both come from one table,
+   `PLAYBACK_SETTING_LABELS`, and the dialog's "Count in before every repeat, not just the first
+   time through" is "Count in before every repeat". Their order in the dialog was left.
+3. **The Metronome item's tempo is 15 to 300**, where it had stayed at 30 to 240. The range is in
+   one place, `MIN_TEMPO` and `MAX_TEMPO` in `tempo.mjs`, for the player and the metronome.
+4. **The voice follows Settings.** The volume already did, being read as each name is scheduled;
+   the voice was the one in force when a tab loaded its names. Changing the voice now loads the
+   new voice's recordings for every track and progression that has names loaded, plans the names
+   again, since a voice takes its own time over each, and carries on from where playback is
+   (`applyChordVoice`). Nothing starts again from the beginning: the names are scheduled a few
+   seconds ahead as it plays, so this is the same re-anchor as ticking Metronome.
+5. **Files saved before 2026-11-12, opened as songs.** A progression file from before that date
+   writes no level and writes every string on an upstroke. Opened as a progression it plays as it
+   should, being written out afresh. Opened as a song with Open File it plays the f recordings and
+   six-string upstrokes until saved again. Joel accepted that, as he did the 6/8 tempo: the file is
+   played as written, and nothing in the player looks for an old progression file.
+6. **What was written twice is written once.**
+   - *Media session.* The table of two kinds, which differed only in whether a player was
+     available and what it was called, is two functions, `mediaSessionAvailable` and
+     `mediaSessionTitle`. An interruption looks through the transports, so it stops the pattern
+     preview too, which it used to miss; the preview stays stopped, as the metronome does.
+   - *Spoken names.* `loadSpokenPhrases` is the one loader, with a cache by voice and phrase. The
+     Chords item's `chordLibrarySpeech` is gone, and a progression's names are no longer decoded
+     again for every tab and every edit.
+   - *Whether names can be spoken* is asked in one place, `ensureSpokenNamesSupported`, and the
+     sentence for when they cannot is `SPOKEN_NAMES_MISSING`. The two chord library variables are
+     one, `chordLibrary`. The two indexes of chord names were left: one is by the library's names
+     and one by the names a progression displays.
+   - *Pattern and Feel wiring* of the Chord Practice dialog and the progression editor is
+     `wirePatternAndFeel`.
+   - *The six feels* are one table, `FEELS` in `strummingPatterns.mjs`, which now carries each
+     feel's number in alphaTab. The player's ticks for each feel (`TRIPLET_FEEL_PAIRS`) and
+     `feelPairTicks` are worked out from it.
+   - *Wording.* Where the player's words differ for a track and a progression they are in
+     `PLAYER_WORDS`, in place of six tests of `state.progression`. The Playback Keys dialog's two
+     lists are one, `playbackKeyDescriptions`.
+7. **The Chords item's Play uses the player's code and sounds like a progression.** It is still
+   not a Score, because its spoken names stretch the time between chords. But it has a transport
+   of its own and is stopped by `stopTransport`; it loads samples with `loadFullSample`; its notes
+   go through `scheduleGuitarNote`, which the track player's chunk scheduler now calls too; and its
+   ring lengths come from `resolveRingLengths`. It plays the mf recordings at 0.4, where it played
+   f at 0.45 with the last two strings of each stroke at mf, and an upstroke strikes the four
+   highest strings (`upstrokeFrets`), where it struck them all. The desktop app no longer asks
+   for recordings cut to length for it, so the `trimsSamples` capability is not read by the
+   renderer any more; it is still declared in `preload.js` and `platform.js`.
+8. **A change during the count-in starts the count-in again.** Changing the tempo, metronome,
+   Loop, pattern, feel, strum spacing or voice, or moving to another measure, while the count-in
+   or the silent measure before the first chord was still running, used to drop the rest of it and
+   start the music at once. It now counts in again from the first click, at the new tempo if that
+   changed (`audioTrackInLeadIn`, and `fresh` in `startAudioTrackPlayback`). This was so for songs
+   before 2026-11-12. A count-in before a repeat is not covered: a change there still carries
+   straight on.
+
+`scripts/songs/verify-review-decisions.mjs` checks 1, 4, 7 and 8 and the dialog's label, and
+`verify-metronome.mjs` and `verify-chord-sample-cache.mjs` were brought up to date for 3 and 7.
+
+### Checking the review's fixes
+
+The same day the fixes were read over again, and the checks run. Things changed as a result:
+
+1. **The Chords item's Play is in the one group.** Decision 7 gave it a transport of its own,
+   but in a group of its own, `'chords'`, so with the collapse setting off Play Selected Chords
+   and a track or progression could still sound together, which decision 1 set out to end. Joel
+   put it in `'music'`. Play pauses a track or progression that is playing, which keeps its place.
+   A track or progression starting stops Play, which has no place to keep, and the Chords item's
+   status line says "Stopped: a track or progression started." only if Play was loading or
+   sounding (`quietGroup`, `stopChordPlayback`). A Play still loading its samples does not then
+   start. The pattern preview still plays beside any of them.
+2. **An interruption stops the Chords item's Play.** The interruption handler looked only at
+   transports with a player state, which Play's has none of, so a call left what Play had
+   scheduled to carry on when the sound came back. It now stops, as the pattern preview does, and
+   stays stopped; its status line says "Stopped: another app took the sound." Play still sounding
+   also counts as something playing when the handler judges whether the context can be trusted
+   (`chordPlaybackBusy`).
+3. **Tidying.** Decided by Joel together:
+   - The paragraph before the eight decisions said the voice is the one in force when the names
+     were loaded; it now says decision 4 changed that.
+   - `user-docs/features.md` lists every change that starts the count-in again, strum spacing and
+     the voice among them, and says the silent measure before the first chord starts again too.
+   - The Chord Practice dialog's labels for its seven playback settings, and the Tempo and Times
+     to play ranges, are empty in `index.html`. `PLAYBACK_SETTING_LABELS` fills them, so there is
+     one copy.
+   - `buildAudioTrackPanel`'s doc comment, which the table had been put in front of, is back on
+     the function.
+   - `capabilities.trimsSamples` is gone from `preload.js` and `platform.js`, nothing reading it.
+     `getGuitarSampleAudio` still takes a length, which the Listen to Guitar Samples item uses, and
+     the desktop app still cuts a recording to it.
+
+`verify-review-decisions.mjs` checks 1 and 2: Play pausing a track, a track stopping Play, a track
+started while Play loads, and an interruption.
 
 Joel works on main, with no branches or worktrees unless he asks.

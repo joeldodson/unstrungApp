@@ -24,11 +24,12 @@
 // No DOM and no Web Audio here: the renderer schedules the sounds. See
 // docs/strumming-patterns-and-metronome.md.
 
-import { DEFAULT_TEMPO } from './tempo.mjs';
+import { DEFAULT_TEMPO, MIN_TEMPO, MAX_TEMPO } from './tempo.mjs';
 import { FEELS, feelApplies } from './strummingPatterns.mjs';
 
-export const METRONOME_MIN_TEMPO = 30;
-export const METRONOME_MAX_TEMPO = 240;
+// The range everything in unstrung plays in: tempo.mjs.
+export const METRONOME_MIN_TEMPO = MIN_TEMPO;
+export const METRONOME_MAX_TEMPO = MAX_TEMPO;
 export const METRONOME_DEFAULT_TEMPO = DEFAULT_TEMPO;
 // One press of Faster or Slower, the same step as chord practice and audio tracks.
 export const METRONOME_TEMPO_STEP = 5;

@@ -7,6 +7,14 @@
 
 export const DEFAULT_TEMPO = 60;
 
+// The slowest and fastest tempo anything in unstrung plays at, in beats per minute: a song's track,
+// a progression and the Metronome item. A student slows a song down far more often than speeds it
+// up, so the range runs well below a typical written tempo and only a little above it. 15 to 300
+// for songs and progressions since 2026-11-12 (docs/one-player.md, decision 2), and for the
+// Metronome item, which had stayed at 30 to 240, since 2026-11-13.
+export const MIN_TEMPO = 15;
+export const MAX_TEMPO = 300;
+
 /** The tempo a score's file states, or null when it states none. */
 export function fileTempo(score) {
     const marked = score?.masterBars?.[0]?.tempoAutomations?.[0]?.value;

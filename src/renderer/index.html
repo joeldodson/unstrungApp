@@ -251,9 +251,13 @@
             <span id="chord-practice-feel-note" hidden></span>
         </p>
 
+        <!-- The labels of Tempo, Times to play, Loop, Count in before every repeat, Number of beats
+             to count in, Metronome and Speak the next measure, and the ranges of Tempo and Times to
+             play, are filled in by renderer.js from PLAYBACK_SETTING_LABELS, the table a track's and
+             progression's Playback Settings use, so the two cannot drift apart. -->
         <p>
-            <label for="chord-practice-tempo-input">Tempo in beats per minute, 15 to 300</label>
-            <input type="number" inputmode="numeric" id="chord-practice-tempo-input" min="15" max="300" step="1" value="60" />
+            <label for="chord-practice-tempo-input"></label>
+            <input type="number" inputmode="numeric" id="chord-practice-tempo-input" step="1" value="60" />
         </p>
 
         <p>
@@ -267,37 +271,33 @@
         </p>
 
         <p>
-            <label for="chord-practice-repeat-input">Times to play, 1 to 50</label>
-            <input type="number" inputmode="numeric" id="chord-practice-repeat-input" min="1" max="50" step="1" value="1" />
+            <label for="chord-practice-repeat-input"></label>
+            <input type="number" inputmode="numeric" id="chord-practice-repeat-input" step="1" value="1" />
         </p>
 
         <p>
             <input type="checkbox" id="chord-practice-loop-checkbox" checked />
-            <label for="chord-practice-loop-checkbox">Loop</label>
+            <label for="chord-practice-loop-checkbox"></label>
         </p>
 
         <p>
             <input type="checkbox" id="chord-practice-count-in-each-pass-checkbox" />
-            <label for="chord-practice-count-in-each-pass-checkbox">
-                Count in before every repeat, not just the first time through
-            </label>
+            <label for="chord-practice-count-in-each-pass-checkbox"></label>
         </p>
 
         <p id="chord-practice-count-in-beats-paragraph" hidden>
-            <label for="chord-practice-count-in-beats-input">Number of beats to count in</label>
+            <label for="chord-practice-count-in-beats-input"></label>
             <input type="number" inputmode="numeric" id="chord-practice-count-in-beats-input" min="1" max="4" step="1" value="4" />
         </p>
 
         <p>
             <input type="checkbox" id="chord-practice-metronome-checkbox" checked />
-            <label for="chord-practice-metronome-checkbox">Metronome</label>
+            <label for="chord-practice-metronome-checkbox"></label>
         </p>
 
         <p>
             <input type="checkbox" id="chord-practice-speak-checkbox" checked />
-            <label for="chord-practice-speak-checkbox">
-                Speak the next measure
-            </label>
+            <label for="chord-practice-speak-checkbox"></label>
         </p>
 
         <p id="chord-practice-speech-note"></p>

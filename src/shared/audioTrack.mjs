@@ -5,6 +5,7 @@
 // it can run standalone for testing, like scoreMetadata.mjs.
 
 import { scoreTempo } from './tempo.mjs';
+import { FEELS, feelPairTicks } from './strummingPatterns.mjs';
 
 // alphaTab's tick resolution: a quarter note is 960 ticks, so a 4/4 bar is 3840.
 export const TICKS_PER_QUARTER = 960;
@@ -167,14 +168,14 @@ function strumStepSeconds(beat, noteCount, beatTempo, fallback) {
 // `interval` ticks: Triplet8th plays two eighths as a triplet quarter and eighth, 640 and 320;
 // Dotted8th as a dotted eighth and sixteenth; Scottish8th the other way round. The 16th feels do
 // the same to sixteenths. These are the durations alphaTab's MidiFileGenerator gives them.
-const TRIPLET_FEEL_PAIRS = {
-    2: { interval: 480, first: 640, second: 320 },   // Triplet8th
-    4: { interval: 480, first: 720, second: 240 },   // Dotted8th
-    6: { interval: 480, first: 240, second: 720 },   // Scottish8th
-    1: { interval: 240, first: 320, second: 160 },   // Triplet16th
-    3: { interval: 240, first: 360, second: 120 },   // Dotted16th
-    5: { interval: 240, first: 120, second: 360 }    // Scottish16th
-};
+//
+// Worked out from FEELS in strummingPatterns.mjs, the one table of feels: a pair's span, and where
+// in it the second note falls. Triplet8th comes to { interval: 480, first: 640, second: 320 }.
+const TRIPLET_FEEL_PAIRS = Object.fromEntries(FEELS.map(feel => {
+    const pair = feelPairTicks(feel.id);
+    const first = Math.round(pair * feel.secondAt);
+    return [feel.tripletFeel, { interval: pair / 2, first, second: pair - first }];
+}));
 
 /**
  * Where each beat of a voice sounds and for how long, in ticks from its bar's start, once the

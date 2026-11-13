@@ -6,8 +6,7 @@ contextBridge.exposeInMainWorld('unstrung', {
     platform: 'electron',
     // What the page may offer. src/web/platform.js turns these off in a browser.
     // fileAccess is always true here: files go through the main process, not the browser's API.
-    // trimsSamples: getGuitarSampleAudio cuts a recording to the length asked.
-    capabilities: { fileAccess: true, typedFolderPaths: true, openFolderInFileManager: true, defaultOpenFolder: true, trimsSamples: true },
+    capabilities: { fileAccess: true, typedFolderPaths: true, openFolderInFileManager: true, defaultOpenFolder: true },
 
     getAppVersion: () => ipcRenderer.invoke('app:get-version'),
     openExternalLink: (url) => ipcRenderer.send('shell:open-external', url),

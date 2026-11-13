@@ -577,7 +577,8 @@ presets, and the metronome choice in chord practice and audio tracks are still t
   beat click that plays with chord practice (0.096); level 5 leaves headroom before clipping when
   other sound plays too. Chosen for first testing, to be set by ear. Volume is a gain node in front
   of every click, so a change is heard at once, even on clicks already laid out.
-- **Tempo** is 30 to 240, as in chord practice, starting at 60, with Faster and Slower stepping 5,
+- **Tempo** is 15 to 300 since 2026-11-13, the range of a song's track and a progression
+  (`MIN_TEMPO` and `MAX_TEMPO` in `tempo.mjs`). It was 30 to 240, as in chord practice then, starting at 60, with Faster and Slower stepping 5,
   as f and s do in chord practice and audio tracks.
 - **Default Tempo** goes back to the tempo last typed into the Tempo field, or 60 before anything
   is typed; Faster and Slower leave it alone. "Originally configured" was read as what the player

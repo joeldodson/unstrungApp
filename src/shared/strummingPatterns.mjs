@@ -90,17 +90,25 @@ export function swingApplies(beatUnit, slotsPerBeat) {
  * alphaTex writes with \tf, each pairing eighths or sixteenths long then short (tripletFeelTimes in
  * audioTrack.mjs). `id` is the alphaTex name, `pairs` the note value paired, 8 or 16. Triplet
  * eighths is what the Swing checkbox has meant since 2026-11-11. docs/one-player.md, decision 18.
+ *
+ * The one table of feels since 2026-11-13. The player's table of each feel's long and short halves
+ * in ticks (audioTrack.mjs) and the span of a pair (feelPairTicks) are worked out from it, where
+ * each had been written out on its own.
  */
 // `secondAt` is where the second note of a pair falls, as a fraction of the pair: two thirds for a
 // triplet feel, three quarters for dotted, a quarter for Scottish, the long note second.
+// `tripletFeel` is the feel's number in alphaTab's TripletFeel, which a Score's measures carry.
 export const FEELS = [
-    { id: 'triplet8th', pairs: 8, secondAt: 2 / 3, label: 'Triplet eighths (swing)' },
-    { id: 'dotted8th', pairs: 8, secondAt: 3 / 4, label: 'Dotted eighths' },
-    { id: 'scottish8th', pairs: 8, secondAt: 1 / 4, label: 'Scottish eighths' },
-    { id: 'triplet16th', pairs: 16, secondAt: 2 / 3, label: 'Triplet sixteenths' },
-    { id: 'dotted16th', pairs: 16, secondAt: 3 / 4, label: 'Dotted sixteenths' },
-    { id: 'scottish16th', pairs: 16, secondAt: 1 / 4, label: 'Scottish sixteenths' }
+    { id: 'triplet8th', tripletFeel: 2, pairs: 8, secondAt: 2 / 3, label: 'Triplet eighths (swing)' },
+    { id: 'dotted8th', tripletFeel: 4, pairs: 8, secondAt: 3 / 4, label: 'Dotted eighths' },
+    { id: 'scottish8th', tripletFeel: 6, pairs: 8, secondAt: 1 / 4, label: 'Scottish eighths' },
+    { id: 'triplet16th', tripletFeel: 1, pairs: 16, secondAt: 2 / 3, label: 'Triplet sixteenths' },
+    { id: 'dotted16th', tripletFeel: 3, pairs: 16, secondAt: 3 / 4, label: 'Dotted sixteenths' },
+    { id: 'scottish16th', tripletFeel: 5, pairs: 16, secondAt: 1 / 4, label: 'Scottish sixteenths' }
 ];
+
+// A whole note in ticks, at 960 a quarter.
+const WHOLE_NOTE_TICKS = 3840;
 
 /**
  * What a Feel list says under it when the chosen feel moves nothing, or '' when it does or is
@@ -134,7 +142,8 @@ export function feelApplies(feel, beatUnit, slotsPerBeat) {
  */
 export function feelPairTicks(feel) {
     const pairs = FEELS.find(f => f.id === feel)?.pairs;
-    return pairs === 8 ? 960 : pairs === 16 ? 480 : null;
+    // Two notes of the value paired: two eighths, or two sixteenths.
+    return pairs ? 2 * WHOLE_NOTE_TICKS / pairs : null;
 }
 
 /** Where a slot falls in its measure, in beats from 0, with each "and" late when `swing`. */

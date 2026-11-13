@@ -456,9 +456,7 @@ window.unstrung = {
     // underneath, do not.
     capabilities: {
         fileAccess: hasFilePickers,
-        typedFolderPaths: false, openFolderInFileManager: false, defaultOpenFolder: false,
-        // getGuitarSampleAudio returns the whole recording whatever length is asked; see below.
-        trimsSamples: false
+        typedFolderPaths: false, openFolderInFileManager: false, defaultOpenFolder: false
     },
 
     getAppVersion: async () => VERSION,
