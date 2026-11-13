@@ -147,7 +147,10 @@ try {
     await setSpacing('10');
     const after = await whereAmI();
     check('changing it while playing keeps playing', await songPlay.textContent() === 'Pause');
-    check('from the same place', before === after && !/^Measure 1 /.test(after), `${before} / ${after}`);
+    // The measure, not the whole answer: Where Am I says the beat too since 2026-11-12, which moves
+    // on between the two askings.
+    const measureOf = text => /^Measure \d+ of \d+/.exec(text)?.[0];
+    check('from the same place', measureOf(before) === measureOf(after) && !/^Measure 1 /.test(after), `${before} / ${after}`);
     await pause(3000);
     strums = await strumGaps(changedAt + 0.001);
     check('and strums 10 ms a string from there', within(strums, 10), describe(strums));
