@@ -204,6 +204,17 @@ differently from today, and the entry says how.
     strings of the chord sounding continues that chord rather than starting a new one; six-string
     upstrokes in older files read as before. Song files that upstroke fewer strings, as Songsterr's
     often do, may then open as progressions where they are refused today.
+
+    **Built 2026-11-12,** stage 2's fourth step. `upstrokeFrets` in `songScore.mjs` gives the
+    strings; the writer uses it for upstroke strikes and the ties after them, not for mutes, which
+    damp every string of the chord whichever way the hand goes. The reader continues the chord on
+    an upstroke of its top four strings, and when a chord's first strike is an upstroke takes its
+    whole shape from the diagram printed with its name, or the library's. Old six-string upstrokes
+    are compared by their top four, so those files read as before. Over the 33 Guitar Pro files in
+    Joel's Guitar folder nothing changed: no track gained or lost a measure in simple form, so the
+    hope that Songsterr files would open as progressions did not come true there. Why was not
+    looked into: their measures may be written out for other reasons, or their upstrokes may not be
+    exactly the chord's top four. Checked by `scripts/songs/check-upstrokes.mjs`.
 12. **How long a strum rings.** Chord practice rings each strum 1.8 times the gap to the next
     stroke, then fades. The track lets each string ring until it is struck again, or the recording
     runs out (`resolveRingLengths`). This is the difference most likely to be heard: chord practice

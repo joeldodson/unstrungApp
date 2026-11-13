@@ -296,10 +296,11 @@ console.log('\n=== The audio track player plays a written song unchanged ===');
     check('six strums: beats 1 and 2, the ands of 2 and 3, beat 4 and its and', summary.length === 6, summary.join('; '));
     check('strums fall on 0, 1, 1.5, 2.5, 3, 3.5 seconds', [...strums.keys()].join() === '0,1,1.5,2.5,3,3.5', [...strums.keys()].join());
     check('downs sweep from string 6, ups from string 1', summary.map(s => s.split(' ')[1]).join() === 'down,down,up,up,down,up', summary.join('; '));
-    check('the and of 3 already plays C', /^2\.5s up 1:0 2:1 3:0 4:2 5:3$/.test(summary[3]), summary[3]);
-    // Beat 3 is a miss where C takes over: a beat tying G's six strings carries the name, and the
-    // player sustains it rather than striking it.
-    check('the tie carrying C\'s name on beat 3 is not struck', track.skipped.tiedContinuations === 6, JSON.stringify(track.skipped));
+    // An upstroke strikes the chord's top four strings since 2026-11-12 (upstrokeFrets).
+    check('the and of 3 already plays C, on its top four strings', /^2\.5s up 1:0 2:1 3:0 4:2$/.test(summary[3]), summary[3]);
+    // Beat 3 is a miss where C takes over: a beat tying the four strings the upstroke on the and of
+    // 2 struck carries the name, and the player sustains it rather than striking it.
+    check('the tie carrying C\'s name on beat 3 is not struck', track.skipped.tiedContinuations === 4, JSON.stringify(track.skipped));
 }
 
 console.log(failures ? `\n${failures} failed.` : '\nAll passed.');

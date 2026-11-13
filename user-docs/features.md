@@ -454,6 +454,9 @@ Progressions are saved as ordinary files in a folder you choose in Settings, so 
 On the desktop version, the folder is Unstrung\Progressions in your Documents folder unless you choose another.
 The files end in .atex.
 They are alphaTex, a plain-text way of writing music that other programs built on alphaTab can open too.
+An upstroke is written on the four highest strings of the chord, all of them for a chord of four strings or fewer, as a hand coming back up catches the top of the chord.
+A progression opened as a song, with Open File, plays it that way, the lower strings ringing on from the stroke before.
+Earlier versions of unstrung wrote every string on an upstroke; those files still open, and are written the new way when saved again.
 
 To open one, choose Open Saved Progression from the Chord Progressions submenu, or press ctrl+shift+o.
 The folder is shown as a tree.

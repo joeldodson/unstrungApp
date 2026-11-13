@@ -65,6 +65,18 @@ const fretsKey = frets => [...frets].sort((a, b) => b.string - a.string).map(f =
 const sameChord = (a, b) => !!a && !!b && a.root === b.root && a.suffix === b.suffix && fretsKey(a.frets) === fretsKey(b.frets);
 const quoted = text => `"${String(text).replace(/["\\]/g, "'")}"`;
 
+/**
+ * The strings an upstroke strikes: the four highest the chord plays, or all of them for a chord of
+ * four strings or fewer. The hand coming back up catches the top of the chord, and the strings
+ * below ring on from the stroke before, as rule 4 in audioTrack.mjs plays them. Until 2026-11-12
+ * every string of the chord was written on an upstroke, and chord practice's own player swept only
+ * the top four, so a progression sounded different in the two. docs/one-player.md, decision 11.
+ */
+export const UPSTROKE_STRINGS = 4;
+export function upstrokeFrets(frets) {
+    return [...frets].sort((a, b) => a.string - b.string).slice(0, UPSTROKE_STRINGS);
+}
+
 /** The fingering a chord is written with: the library's preferred voicing, open and fretted strings. */
 export function libraryFrets(library, chord) {
     const entry = (library?.chords ?? []).find(e => e.root === chord.root && e.suffix === chord.suffix);
@@ -195,11 +207,14 @@ export function expandMeasure(measure, song, context = { ringing: null, named: n
             spans.push({ slot: index, slots: 1, kind: ringingFrets ? 'tie' : 'rest', frets: ringingFrets, chord });
             continue;
         }
+        // An upstroke strikes the top strings only, and what ties on after it ties those. A mute
+        // damps every string of the chord whichever way the hand goes, as chord practice's does.
+        const kind = slot.stroke === 'mute' ? 'mute' : 'strike';
         spans.push({
             slot: index,
             slots: 1,
-            kind: slot.stroke === 'mute' ? 'mute' : 'strike',
-            frets: chord.frets,
+            kind,
+            frets: kind === 'strike' && slot.stroke === 'up' ? upstrokeFrets(chord.frets) : chord.frets,
             direction: slot.stroke === 'up' ? 'up' : 'down',
             accent: slot.accent,
             chord
@@ -340,6 +355,10 @@ export function songToAlphaTex(song) {
  * silence either way. A strike is its time,
  * frets, direction and accent; a mute its time, direction and accent, since a deadened string
  * sounds no pitch.
+ *
+ * An upstroke is compared by its top four strings, which is what the writer writes, so a file
+ * saved before 2026-11-12, which wrote every string of the chord on an upstroke, still reads as it
+ * did. Saved again, its upstrokes are written on four strings.
  */
 function heardEvents(beats) {
     const events = [];
@@ -350,11 +369,13 @@ function heardEvents(beats) {
             if (before !== 'rest' && before !== 'mute') events.push({ tick: beat.tick, kind: 'rest' });
             continue;
         }
+        const direction = beat.direction ?? 'down';
         events.push({
             tick: beat.tick,
             kind: beat.kind,
-            frets: beat.kind === 'strike' ? fretsKey(beat.frets) : null,
-            direction: beat.direction ?? 'down',
+            frets: beat.kind !== 'strike' ? null
+                : fretsKey(direction === 'up' ? upstrokeFrets(beat.frets) : beat.frets),
+            direction,
             accent: !!beat.accent
         });
     }
@@ -410,8 +431,31 @@ function readBeat(beat, stringCount) {
         midi: beat.notes.map(n => n.realValue).filter(m => typeof m === 'number'),
         direction: beatDirection(beat),
         accent: beat.notes.some(n => n.accentuated === ACCENT_NORMAL),
-        chordName: beat.hasChord && beat.chord ? beat.chord.name : null
+        chordName: beat.hasChord && beat.chord ? beat.chord.name : null,
+        diagram: beat.hasChord && beat.chord ? chordDiagramFrets(beat.chord) : null
     };
+}
+
+/**
+ * The fingering a chord symbol's diagram gives, [{ string, fret }] in tab numbering, or null where
+ * it gives none. alphaTab keeps a diagram's frets from string 1, the highest, with -1 for a string
+ * not played; a saved progression declares one for every chord with \chord.
+ */
+function chordDiagramFrets(chord) {
+    const frets = (chord.strings ?? []).map((fret, index) => ({ string: index + 1, fret }))
+        .filter(f => typeof f.fret === 'number' && f.fret >= 0);
+    return frets.length ? frets : null;
+}
+
+/**
+ * The whole fingering of a chord whose first strike is an upstroke, which writes only its top
+ * strings: the diagram printed with its name, or the library's shape, whichever has those top
+ * strings. Otherwise the strike's own strings, as an upstroke of every string is.
+ */
+function upstrokeChordFrets(pending, beat, song) {
+    const struck = fretsKey(beat.frets);
+    const candidates = [pending.diagram, libraryFrets(song.library, pending) ?? spelledFrets(pending)];
+    return candidates.find(frets => frets && fretsKey(upstrokeFrets(frets)) === struck) ?? beat.frets;
 }
 
 /**
@@ -486,13 +530,18 @@ function readBar(bar, song, stringCount, context) {
                 if (!current.frets) return fail(`it names ${chordDisplayName(pending)}, which has no fingering`);
                 changes.push({ tick: pending.tick, chord: current });
             }
-            pending = { root: entry.root, suffix: entry.suffix, tick: beat.tick };
+            pending = { root: entry.root, suffix: entry.suffix, tick: beat.tick, diagram: beat.diagram };
         }
         if (beat.kind !== 'strike') continue;
+        const up = beat.direction === 'up';
         if (pending) {
-            current = { root: pending.root, suffix: pending.suffix, frets: beat.frets };
+            const frets = up ? upstrokeChordFrets(pending, beat, song) : beat.frets;
+            current = { root: pending.root, suffix: pending.suffix, frets };
             changes.push({ tick: pending.tick, chord: current });
             pending = null;
+        } else if (current && up && fretsKey(upstrokeFrets(current.frets)) === fretsKey(beat.frets)) {
+            // An upstroke on the top strings of the chord sounding continues it: decision 11.
+            continue;
         } else if (!current || fretsKey(current.frets) !== fretsKey(beat.frets)) {
             // A library shape first; otherwise whatever its notes spell, which takes in partial
             // chords and power chords. The score's own frets are kept either way.
