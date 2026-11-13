@@ -360,6 +360,22 @@ differently from today, and the entry says how.
       own scheduler learns the other five feels. There, as now, it is not part of a pattern and
       lasts until unstrung closes.
 
+    **Writer and reader built 2026-11-12,** stage 2's eighth step; the Feel list itself waits for
+    stage 3 (see How to build it).
+    - `FEELS`, `feelApplies` and `feelPairTicks` in `strummingPatterns.mjs`. An eighth feel applies
+      as Swing does, with a quarter-note beat and a pattern no finer than eighths; a sixteenth feel
+      to a pattern in sixteenths, in 4/4 or 6/8.
+    - `songFromProgression` takes `feel`, and `swing` as triplet eighths, and keeps it only where it
+      applies. The writer states it once with `\tf` and cuts notes at the edges of its pairs
+      (`feelPiece`, which was `swungPiece`): every 960 ticks for eighth feels, 480 for sixteenth.
+    - The reader gives the song's `feel` as a `FEELS` id, or `feelChanges` when bars differ. A file
+      whose feel changes is refused, saying it opens as a song with Open File. A file with one
+      feel other than triplet eighths reads back with it, but `progressionFromSong` still refuses
+      it while chord practice's own player cannot play it; stage 3 lifts that.
+    - `check-swung-progressions.mjs` covers all six: every built-in pattern each eighth feel
+      applies to, and four sixteenth patterns made for it (no built-in pattern is in sixteenths),
+      each written, played as a track with every strum where the feel puts it, and read back.
+
 ### What else moves
 
 19. **The pattern preview.** Play in the Strumming Patterns item and the New Strumming Pattern

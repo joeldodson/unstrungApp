@@ -25,7 +25,8 @@ import {
     STANDARD_TUNING_MIDI
 } from './musicTheory.mjs';
 import {
-    coarsestPattern, everyBeatDown, finerPattern, formatStrummingPattern, SLOTS_PER_BEAT_CHOICES, swingApplies
+    coarsestPattern, everyBeatDown, finerPattern, formatStrummingPattern, SLOTS_PER_BEAT_CHOICES, swingApplies,
+    feelApplies, feelPairTicks, FEELS
 } from './strummingPatterns.mjs';
 import { DEFAULT_TEMPO, scoreTempo } from './tempo.mjs';
 
@@ -51,7 +52,6 @@ const BRUSH_UP = 1, BRUSH_DOWN = 2, ARPEGGIO_UP = 3, ARPEGGIO_DOWN = 4;
 const PICK_UP = 1, PICK_DOWN = 2;
 const ACCENT_NONE = 0, ACCENT_NORMAL = 1;
 const KEY_TYPE_MINOR = 1;
-const TRIPLET_FEEL_8TH = 2;
 
 // Sharps (positive) or flats (negative) for each key unstrung offers, as alphaTab counts them.
 const KEY_SIGNATURES = {
@@ -126,13 +126,21 @@ export function spelledFrets(chord) {
 /**
  * A generated or edited progression as a song, with one pattern throughout. Each measure is its
  * chord, and the `laterChords` after it, each with the beat it starts on.
+ *
+ * `feel` is one of FEELS' ids, or null for straight; `swing`, as chord practice still gives it until
+ * its Feel list comes in stage 3, means triplet eighths. The song's `feel` is kept only where it has
+ * an effect (feelApplies), so a progression is never saved stating a feel that moves nothing.
  */
-export function songFromProgression(progression, { library, tempo = DEFAULT_TEMPO, pattern = null, title = '', swing = false }) {
+export function songFromProgression(progression, {
+    library, tempo = DEFAULT_TEMPO, pattern = null, title = '', swing = false, feel = null
+}) {
     const songPattern = pattern ?? everyBeatDown(progression.beatsPerBar);
+    const wanted = feel ?? (swing ? 'triplet8th' : null);
+    const kept = feelApplies(wanted, progression.beatUnit, songPattern.slotsPerBeat) ? wanted : null;
     return {
         title,
-        // Kept only where it is played: see swingApplies.
-        swing: !!swing && swingApplies(progression.beatUnit, songPattern.slotsPerBeat),
+        feel: kept,
+        swing: kept === 'triplet8th',
         key: progression.key,
         mode: progression.mode,
         beatsPerBar: progression.beatsPerBar,
@@ -222,7 +230,10 @@ export function expandMeasure(measure, song, context = { ringing: null, named: n
     }
 
     let { ringing, named } = context;
-    const swung = !!song.swing && beatUnit === 4;
+    // A feel's pairs, if it moves any here: cut every span at their edges (feelPiece). An eighth
+    // feel is cut only with a quarter-note beat, as swing always was.
+    const feel = songFeel(song);
+    const pairTicks = FEELS.find(f => f.id === feel)?.pairs === 8 && beatUnit !== 4 ? null : feelPairTicks(feel);
     const beats = [];
     for (const span of spans) {
         let chordName = null;
@@ -235,7 +246,7 @@ export function expandMeasure(measure, song, context = { ringing: null, named: n
         let remaining = span.slots * slotLength;
         let first = true;
         while (remaining > 0) {
-            const piece = swung ? swungPiece(tick, remaining) : NOTE_VALUES.find(v => v.ticks <= remaining);
+            const piece = pairTicks ? feelPiece(tick, remaining, pairTicks) : NOTE_VALUES.find(v => v.ticks <= remaining);
             if (!piece) return { error: 'A span is shorter than a thirty-second note.' };
             const kind = first ? span.kind
                 : span.kind === 'strike' || span.kind === 'tie' ? 'tie' : 'rest';
@@ -259,27 +270,33 @@ export function expandMeasure(measure, song, context = { ringing: null, named: n
     return { beats, context: { ringing, named } };
 }
 
+/** A song's feel: one of FEELS' ids, or null for straight. `swing` is how songs said triplet eighths. */
+const songFeel = song => song.feel ?? (song.swing ? 'triplet8th' : null);
+
 /**
- * The next note value of a span in a swung song.
+ * The next note value of a span in a song with a feel, whose pairs fill `pairTicks`: 960 for an
+ * eighth feel, two eighths to a quarter, and 480 for a sixteenth feel.
  *
- * A file's triplet feel moves only an eighth note that directly follows another eighth on the
- * beat (see tripletFeelTimes in audioTrack.mjs, which follows alphaTab). Written the usual way,
- * the longest note first, some "ands" would not be such a pair: in D - D U - U D U the up on the
- * and of 2 rings through beat 3, a quarter note starting off the beat, and it would be played
- * straight while the and of 4 swung. So in a swung song a span is cut at the beat: whole beats
- * from a beat, and never more than an eighth from an "and", the rest tied on. Every "and" is then
- * the second eighth of a pair, and the file plays as chord practice does, here and in any program
- * that swings as alphaTab does.
+ * A file's feel moves only a note of the paired value that directly follows another on the edge of
+ * a pair (see tripletFeelTimes in audioTrack.mjs, which follows alphaTab). Written the usual way,
+ * the longest note first, some second halves would not be such a pair: in D - D U - U D U the up on
+ * the and of 2 rings through beat 3, a quarter note starting off the beat, and it would be played
+ * straight while the and of 4 swung. So a span is cut at the edges of the pairs: whole pairs from an
+ * edge, and never more than half a pair from the middle of one, the rest tied on. Every second half
+ * is then the second note of a pair, and the file plays as the feel says, here and in any program
+ * that plays feels as alphaTab does. For eighth feels this is cutting at the beat, as swing has
+ * since 2026-11-11; for sixteenth feels at each half beat, since 2026-11-12 (docs/one-player.md,
+ * decision 18).
  *
- * A measure that needs sixteenths, for a chord starting on a quarter beat, can still leave an
- * "and" unpaired. Chord practice swings it all the same; only the file played elsewhere differs.
+ * A measure that needs a finer grid than the feel pairs, for a chord starting on a quarter of a
+ * beat under an eighth feel, can still leave a pair unmatched, which is then played straight.
  */
-function swungPiece(tick, remaining) {
-    const within = tick % TICKS_PER_QUARTER;
-    if (within === 0 && remaining >= TICKS_PER_QUARTER) {
-        return NOTE_VALUES.find(v => v.ticks <= remaining && v.ticks % TICKS_PER_QUARTER === 0);
+function feelPiece(tick, remaining, pairTicks) {
+    const within = tick % pairTicks;
+    if (within === 0 && remaining >= pairTicks) {
+        return NOTE_VALUES.find(v => v.ticks <= remaining && v.ticks % pairTicks === 0);
     }
-    const most = within === TICKS_PER_QUARTER / 2 ? Math.min(remaining, TICKS_PER_QUARTER / 2) : remaining;
+    const most = within === pairTicks / 2 ? Math.min(remaining, pairTicks / 2) : remaining;
     return NOTE_VALUES.find(v => v.ticks <= most);
 }
 
@@ -338,7 +355,7 @@ export function songToAlphaTex(song) {
         timeSignature = measureSignature;
         if (index === 0 && song.key) parts.push(`\\ks ${song.key.toLowerCase()}${song.mode}`);
         // Written once: alphaTab carries a bar's triplet feel forward, as it does the time signature.
-        if (index === 0 && song.swing) parts.push('\\tf triplet8th');
+        if (index === 0 && songFeel(song)) parts.push(`\\tf ${songFeel(song)}`);
         if (measure.section) parts.push(`\\section (${quoted(measure.section)})`);
         parts.push(...expanded.beats.map(alphaTexBeat));
         lines.push(`${parts.join(' ')} |`);
@@ -601,12 +618,20 @@ function readBar(bar, song, stringCount, context) {
     return { measure, context: { ringing: actualRinging, named: actualNamed } };
 }
 
+// alphaTab's TripletFeel, by the FEELS id alphaTex writes it with.
+const FEEL_BY_TRIPLET_FEEL = {
+    1: 'triplet16th', 2: 'triplet8th', 3: 'dotted16th', 4: 'dotted8th', 5: 'scottish16th', 6: 'scottish8th'
+};
+
+/**
+ * The song's feel, as { feel, feelChanges, swing }: `feel` one of FEELS' ids, or null for straight
+ * or for one that changes from bar to bar, which `feelChanges` says. `swing` is triplet eighths.
+ */
 function readFeel(masterBars) {
     const feels = new Set(masterBars.map(bar => bar.tripletFeel ?? 0));
-    const feel = feels.size > 1 ? 'mixed'
-        : feels.has(TRIPLET_FEEL_8TH) ? 'swing'
-            : feels.has(0) || feels.size === 0 ? 'straight' : 'other';
-    return { swing: feel === 'swing', feel };
+    if (feels.size > 1) return { feel: null, feelChanges: true, swing: false };
+    const feel = FEEL_BY_TRIPLET_FEEL[[...feels][0]] ?? null;
+    return { feel, feelChanges: false, swing: feel === 'triplet8th' };
 }
 
 function keyFromSignature(signature, type) {
@@ -633,8 +658,8 @@ export function readSongFromScore(score, { library, trackIndex = 0 }) {
         beatsPerBar: firstMaster?.timeSignatureNumerator ?? 4,
         beatUnit: firstMaster?.timeSignatureDenominator ?? 4,
         tempo: scoreTempo(score),
-        // Swung when every bar states triplet eighths. `feel` says what else the bars state, for
-        // progressionFromSong: "straight", "swing", "mixed" or "other".
+        // The feel every bar states, one of FEELS' ids or null for straight; `feelChanges` when the
+        // bars state more than one. Swung when it is triplet eighths.
         ...readFeel(score.masterBars ?? []),
         measures: []
     };
@@ -687,8 +712,17 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
     if (!song.key) return { error: 'its key signature is not one of the keys unstrung offers' };
     if (song.measures.length === 0) return { error: 'it has no measures' };
     if (song.measures.length > maxMeasures) return { error: `it has more than ${maxMeasures} measures` };
-    if (song.feel === 'mixed') return { error: 'it is swung in some measures and not others, which chord practice cannot show yet' };
-    if (song.feel === 'other') return { error: 'it has a feel other than triplet eighths, which chord practice cannot play yet' };
+    // A progression has no settings per measure, so a feel that changes partway is refused for good,
+    // and the file is better opened as a song: docs/one-player.md, decision 18.
+    if (song.feelChanges) {
+        return { error: 'its feel changes partway through, which a progression cannot hold; opened as a song, with Open File, it plays as written' };
+    }
+    // Chord practice's own player plays only straight and triplet eighths. Stage 3 of
+    // docs/one-player.md plays progressions on the audio track player, which plays them all, and
+    // lifts this.
+    if (song.feel && song.feel !== 'triplet8th') {
+        return { error: 'it has a feel other than triplet eighths, which chord practice cannot play yet' };
+    }
 
     const chords = [];
     let pattern = null;
@@ -723,6 +757,8 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
             // Kept only where it is played, as songFromProgression keeps it: a file stating triplet
             // eighths in 6/8, or over sixteenths, opens straight, as it would be saved again.
             swing: !!song.swing && swingApplies(song.beatUnit, pattern.slotsPerBeat),
+            // The same, as one of FEELS' ids or null, for the Feel list stage 3 brings.
+            feel: feelApplies(song.feel, song.beatUnit, pattern.slotsPerBeat) ? song.feel : null,
             chords,
             pattern: { slotsPerBeat: pattern.slotsPerBeat, slots: pattern.slots },
             origin: { made: 'hand' }

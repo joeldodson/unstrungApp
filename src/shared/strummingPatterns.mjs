@@ -82,7 +82,45 @@ export const SWING_AND = 2 / 3;
 
 /** Whether swing changes anything for this time signature and pattern grid. */
 export function swingApplies(beatUnit, slotsPerBeat) {
-    return beatUnit === 4 && slotsPerBeat <= 2;
+    return feelApplies('triplet8th', beatUnit, slotsPerBeat);
+}
+
+/**
+ * The feels a progression can be played with, besides straight: the six alphaTab knows and
+ * alphaTex writes with \tf, each pairing eighths or sixteenths long then short (tripletFeelTimes in
+ * audioTrack.mjs). `id` is the alphaTex name, `pairs` the note value paired, 8 or 16. Triplet
+ * eighths is what the Swing checkbox has meant since 2026-11-11. docs/one-player.md, decision 18.
+ */
+export const FEELS = [
+    { id: 'triplet8th', pairs: 8, label: 'Triplet eighths (swing)' },
+    { id: 'dotted8th', pairs: 8, label: 'Dotted eighths' },
+    { id: 'scottish8th', pairs: 8, label: 'Scottish eighths' },
+    { id: 'triplet16th', pairs: 16, label: 'Triplet sixteenths' },
+    { id: 'dotted16th', pairs: 16, label: 'Dotted sixteenths' },
+    { id: 'scottish16th', pairs: 16, label: 'Scottish sixteenths' }
+];
+
+/**
+ * Whether a feel changes anything for this time signature and pattern grid. An eighth feel needs a
+ * quarter-note beat and a pattern no finer than eighths, as Swing always has: over sixteenths, or
+ * in 6/8, it has no pairs of eighths on the beat to move. A sixteenth feel needs a pattern in
+ * sixteenths, in any time signature. Null, straight, applies nowhere.
+ */
+export function feelApplies(feel, beatUnit, slotsPerBeat) {
+    const pairs = FEELS.find(f => f.id === feel)?.pairs;
+    if (pairs === 8) return beatUnit === 4 && slotsPerBeat <= 2;
+    // A slot is a sixteenth when there are 16 to a whole note: 4 to a quarter beat, 2 to an eighth.
+    if (pairs === 16) return beatUnit * slotsPerBeat === 16;
+    return false;
+}
+
+/**
+ * The span a feel's pairs fill, in ticks of 960 a quarter: 960 for an eighth feel, which pairs two
+ * eighths in each quarter, 480 for a sixteenth feel. Null for straight.
+ */
+export function feelPairTicks(feel) {
+    const pairs = FEELS.find(f => f.id === feel)?.pairs;
+    return pairs === 8 ? 960 : pairs === 16 ? 480 : null;
 }
 
 /** Where a slot falls in its measure, in beats from 0, with each "and" late when `swing`. */

@@ -480,7 +480,8 @@ To open one, choose Open Saved Progression from the Chord Progressions submenu, 
 The folder is shown as a tree.
 upArrow and downArrow move, rightArrow and leftArrow open and close a folder, a letter moves to the next name starting with that letter, and enter opens the progression.
 Any file that cannot be opened is listed after the tree with the reason.
-That includes music chord practice cannot show, such as single notes rather than chords, more than one strumming pattern, or swing in only some of its measures.
+That includes music chord practice cannot show, such as single notes rather than chords, more than one strumming pattern, or a feel, such as swing, that changes partway through.
+A file like that can still be opened as a song with Open File, where it plays as written.
 A folder that holds a great deal besides progressions, such as Documents itself, is listed only in part, and the dialog says so.
 Choose a folder just for saved progressions.
 
