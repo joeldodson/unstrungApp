@@ -56,7 +56,8 @@ the beat where the harmony changes, so the names are in the `Score`.
 
 ## Decisions
 
-Each is open until Joel decides it. "Track" is the audio track player, "chord practice" the chord
+All twenty are decided and built. Each entry is kept as it was put to Joel, with what he chose.
+"Track" is the audio track player, "chord practice" the chord
 practice player. Where the combined player follows the track, a progression sounds or behaves
 differently from today, and the entry says how.
 
@@ -604,5 +605,46 @@ one commit:
 11. **About section.** A progression has none. Joel asked instead for its playing time in the
     Metadata list: "Length - 8 measures, 32 seconds at 60 beats per minute", one time through at
     the tempo of the moment, kept up as the tempo changes (`refreshProgressionLength`).
+
+### Review on 2026-11-13
+
+The day after, the work was reviewed against this document. The player is one: one transport, one
+scheduler, one state, one panel builder, one table of keys. Two things were changed.
+
+**Playing after its item closed.** The first Play loads the samples and starts when they are in.
+Closing the item during that load left the start waiting, so the player started with its item,
+button and keys gone, and nothing could stop it; a progression loops by default. The same could
+happen where a new pattern needed samples not yet loaded (`rebuildProgressionScore`). A closed
+player now refuses to start: `dropAudioTransport` marks the transport closed and
+`startAudioTrackPlayback` returns for one. `scripts/songs/verify-close-while-loading.mjs` fails
+without it, for a progression and for a song.
+
+**Leftovers removed.** `PATTERN_PREVIEW_LEAD_SECONDS`, the `speechVolume` and `voice` that
+`chordPracticePlaybackOptions` returned and nothing read, and `beatsPerBar` on a progression's
+state. Comments that still described two players were rewritten. The spoken names' volume is read
+from Settings as each name is scheduled, so it follows Settings in an open tab; the voice is the
+one in force when the names were loaded.
+
+Kept, though the app no longer calls them: `spokenMeasurePlan`, `slotBeats` and
+`metronomeSwingDelay`, which checks still use. `check-two-players-strum-times.mjs` compares the
+track player with a model of chord practice's old timing; it still shows that a pattern written to
+a file plays at the pattern's times.
+
+Found and not decided:
+
+- A song and a progression are in separate groups, so with the collapse setting off both can play
+  at once, while the media keys own one.
+- The Chord Practice dialog has its own copy of settings the tab also has and can change: tempo,
+  Times to play, Loop, Count in before every repeat, beats to count in, Metronome, Speak the next
+  measure.
+- The Metronome item's tempo is 30 to 240; decision 2 made the player's 15 to 300.
+- A progression file saved before 2026-11-12, opened as a song, plays the f recordings and
+  six-string upstrokes until saved again.
+- Still written twice: the two media session kinds, the pattern and Feel wiring of the dialog and
+  the editor, the loading of spoken names (`loadSpokenPhrases` without a cache,
+  `chordLibrarySpeech` with one), and the six feels in three tables (`TRIPLET_FEEL_PAIRS`,
+  `FEELS`, `feelPairTicks`).
+- The Chords item's Play has its own transport, sample loading and note scheduling, at gain 0.45
+  on the f recordings with upstrokes on every string.
 
 Joel works on main, with no branches or worktrees unless he asks.

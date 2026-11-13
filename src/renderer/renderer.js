@@ -2519,15 +2519,26 @@ const AUDIO_TRACK_DECAY_FADE_SECONDS = 0.15; // fade at the tail of a note left 
 const audioTransports = new Set();
 
 function createAudioTransport(group) {
-    const transport = { group, token: 0, masterGain: null, sources: [], endTimer: null, passTimer: null, state: null };
+    const transport = {
+        group, token: 0, masterGain: null, sources: [], endTimer: null, passTimer: null, state: null, closed: false
+    };
     audioTransports.add(transport);
     return transport;
 }
 
-/** Forgets a player that is closing, after stopping it. */
+/**
+ * Forgets a player that is closing, after stopping it.
+ *
+ * `closed` stays set for good, and startAudioTrackPlayback refuses a closed player. Something may
+ * still be loading for it: its samples after a first Play, or a new pattern's. Without this the
+ * load finished and started a player whose item, button and keys were gone, so nothing could stop
+ * it, and a progression loops by default.
+ */
 function dropAudioTransport(transport) {
     stopTransport(transport);
     clearTransportTimers(transport);
+    transport.closed = true;
+    if (transport.state) transport.state.pendingStart = null;
     audioTransports.delete(transport);
 }
 
@@ -3074,9 +3085,10 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
  * final pass has been fully scheduled, the end timer takes over.
  */
 /**
- * The rolling-window scheduler, shared by both things that play audio.
+ * The rolling-window scheduler. It has one caller, audioTrackTopUp, since progressions moved to the
+ * track player on 2026-11-12 (docs/one-player.md).
  *
- * WHY THIS IS SHARED. Scheduling a whole piece up front puts one source and one gain node per note
+ * WHY IT ROLLS. Scheduling a whole piece up front puts one source and one gain node per note
  * into the graph at once, and the audio thread visits every scheduled node each render quantum: a
  * long or dense piece blows its budget and the missed deadlines are audible as crackling. Worse,
  * every re-anchor -- pausing, seeking, changing tempo, toggling the metronome -- rebuilds all of
@@ -3084,15 +3096,15 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
  * bounded no matter how long the piece is.
  *
  * The audio track learned that when a thirty measure file became a hundred measure one. Chord
- * practice then learned it again, separately and later, because the same walk had been written
- * twice. This is that walk, once.
+ * practice's own player then learned it again, separately and later, because the same walk had been
+ * written twice. That player is gone, and this is the walk, once.
  *
  * The cursor moves through music time while carrying the exact context time each chunk begins at,
  * so repeats join sample-accurately: nothing is ever re-derived from a timer.
  *
  * WHAT IT DOES NOT DO. It never announces anything, touches a button, or decides what a key press
- * means. It only decides when sound is handed to the graph. Everything either panel says, and
- * every difference between what they say, lives outside this and stays free to differ.
+ * means. It only decides when sound is handed to the graph. Everything the player says lives
+ * outside this.
  *
  * Callers supply:
  *   isCurrent()        whether this run is still the live one; a stale token stops the walk
@@ -3204,7 +3216,7 @@ function audioTrackTopUp(state, myToken) {
  * end of stage 3 of docs/one-player.md, for songs and progressions alike.
  */
 function startAudioTrackPlayback(state, fromSeconds, { fresh = false } = {}) {
-    if (!state.ready) return;
+    if (!state.ready || state.transport.closed) return;
     const countIn = fresh && state.countIn;
     const silentLead = fresh && !state.countIn && state.speak && Boolean(state.speech);
     // One at a time within a group: another song's track playing is paused, keeping its place.
@@ -3556,9 +3568,9 @@ function audioTrackSpokenChords(state) {
  * Speak the next measure on or off.
  *
  * Turned on, the recordings for every chord the track prints are loaded, in the voice set in
- * Settings, and playback carries on from where it is, as the metronome does. Chord practice instead
- * starts again from the first measure, its names being laid out with its strums; a song's player
- * schedules them as it goes, so nothing needs to start again. Turned off, it carries on without.
+ * Settings, and playback carries on from where it is, as the metronome does: the names are
+ * scheduled as it goes, so nothing needs to start again. Turned off, it carries on without. A song's
+ * track and a progression alike.
  */
 async function setAudioTrackSpeak(state, enabled) {
     state.speak = enabled;
@@ -3928,8 +3940,8 @@ document.addEventListener('keydown', event => {
 // --- Playback Keys dialog -----------------------------------------------------------------------
 // The keys are listed here rather than in every track and progression, where the list had to be
 // passed every time. Opened by ?, which a line under Playback Controls mentions. A song's tracks
-// and a progression share it, each with its own list: they differ in l and in what upArrow, b and
-// d refer to.
+// and a progression share it, each with its own list. The keys are the same; the lists differ only
+// in wording, "track" or "progression", and in what d goes back to.
 
 const playbackKeysDialog = document.getElementById('playback-keys-dialog');
 const playbackKeysIntro = document.getElementById('playback-keys-intro');
@@ -4697,21 +4709,20 @@ function closeAudioTracksOf(songItemId) {
 
 // --- Chord practice (Tools menu) --------------------------------------------------------
 //
-// Generates a progression to play along with, and its audio track, in one tab. The generator
-// lives in shared/chordProgressions.mjs and knows nothing about the DOM; this asks it for a
-// progression, lists the result, and plays it.
+// Generates a progression to play along with, in one tab. The generator lives in
+// shared/chordProgressions.mjs and knows nothing about the DOM; this asks it for a progression,
+// lists the result, and hands it to the audio track player.
 //
-// A measure holds one chord or several, strummed with the progression's pattern. With spoken names
-// on, the NEXT measure's chords are said just before it, one beat ahead or earlier if the list
-// needs longer, which is the only moment it is useful: early enough to move a hand, late enough
-// not to be forgotten. A measure the same as the one before is announced as "repeat".
+// Nothing here plays. Since 2026-11-12 a progression is written as a Score, exactly as saving
+// writes it (progressionScore), and the track player plays that: the same Playback Settings,
+// Playback Controls, Measures to Play, keys and announcements as a song's track, built by
+// buildAudioTrackPanel on a newTrackPlayerState. docs/one-player.md has the decisions.
 //
-// The speech is rendered to audio rather than spoken by the browser, so it can be scheduled on the
-// same clock as the strums instead of started on a timer and hoped for. That is the one platform
-// specific piece; where it is unavailable the option is disabled and says so.
-//
-// Transport matches the audio track's, key for key, because a player should not have to remember
-// which panel they are in. There is no measure range: a generated progression is the selection.
+// A measure holds one chord or several, strummed with the progression's pattern. With Speak the
+// next measure on, the next measure's chords are said just before it, one beat ahead or earlier if
+// the list needs longer: early enough to move a hand, late enough not to be forgotten. A measure
+// the same as the one before is announced as "repeat". The names are recordings, so they are
+// scheduled on the same clock as the strums; where they are missing the option says so.
 
 const chordPracticeDialog = document.getElementById('chord-practice-dialog');
 const chordPracticeLevelSelect = document.getElementById('chord-practice-level-select');
@@ -5255,7 +5266,6 @@ function buildChordPracticeTab(progression, options, file = {}) {
 
     const state = newTrackPlayerState({
         progression,
-        beatsPerBar: progression.beatsPerBar,
         targetTempo: options.tempo,
         // What D goes back to: the tempo it opened with, until another is typed into the Tempo field.
         defaultTempo: options.defaultTempo ?? options.tempo,
@@ -5348,11 +5358,10 @@ function chordPracticePlaybackOptions({ fromDialog = true } = {}) {
     return {
         tempo: Math.max(AUDIO_TRACK_MIN_BPM,
             Math.min(AUDIO_TRACK_MAX_BPM, Number(value(chordPracticeTempoInput)) || DEFAULT_TEMPO)),
+        // The voice and volume are not here: the player reads them from Settings. The volume is read
+        // as each name is scheduled, so it follows Settings in an open tab; the voice is the one in
+        // force when the names were loaded (loadAudioTrackSpeech, scheduleAudioTrackSpeech).
         speak: checked(chordPracticeSpeakCheckbox) && chordPracticeSpeechSupported === true,
-        // From Settings, read once when the tab is made: a tab already open keeps whatever was in
-        // force when it was opened.
-        speechVolume: Math.min(1, Math.max(0, chordVoiceSettings.chordVoicePercent / 100)),
-        voice: chordVoiceSettings.chordVoice,
         metronome: checked(chordPracticeMetronomeCheckbox),
         // Not in the dialog. On to begin with, as a track's is: playing along from a standing
         // start is what it is for.
@@ -5929,8 +5938,6 @@ const PATTERN_PREVIEW_CHORDS = [
 ];
 const PATTERN_PREVIEW_MEASURES_EACH = 2;
 const PATTERN_PREVIEW_TEMPO = DEFAULT_TEMPO;
-// How far ahead of the next time round it is laid out.
-const PATTERN_PREVIEW_LEAD_SECONDS = 2;
 
 let strummingPatternsItemId = null;
 let strummingPatternsUi = null;
