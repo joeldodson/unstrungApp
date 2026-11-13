@@ -552,4 +552,20 @@ naming songs and progressions only; `verify-pattern-preview.mjs` turns the setti
 that the preview leaves a progression alone. Checked by
 `scripts/progressions/verify-progression-switching.mjs`.
 
+**Step 9 done 2026-11-12, the last of stage 3.** A Feel list, Straight and the six feels
+(`buildFeelParagraph`, `fillFeelSelect`), replaces the Swing checkbox in the Chord Practice
+dialog, a progression's Playback Settings, the editor and the Strumming Patterns item, whose Play
+and the New Strumming Pattern dialog's follow it. Its note is `feelNote`'s, as the Metronome's:
+"This feel has no effect in 6/8." A progression keeps `feel`, one of FEELS' ids or null, in place
+of `swing`; `prepareProgression` still reads `swing` as triplet eighths. The Metadata line names
+the feel where it moves anything: "Old Faithful: D - D U - U D U, triplet eighths (swing)", where
+it said "swung". `progressionFromSong` no longer refuses a file in one feel other than triplet
+eighths. Checked by `verify-swing.mjs`, rewritten for the list (straight, triplet, dotted, saving
+Scottish, opening a dotted file, the notes, the dialog, the editor, the item and its dialog), and
+`check-swung-progressions.mjs`, where every feel now opens.
+
+Stage 3 and what stage 4 was to do are done: progressions, songs and the pattern preview play on
+the one player, and chord practice's own player is gone. What is left is Joel's hearing of it, and
+the questions put to him at the end of the session.
+
 Joel works on main, with no branches or worktrees unless he asks.

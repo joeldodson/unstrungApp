@@ -11,8 +11,8 @@
 // the text with alphaTab, plays it as an audio track, and compares where each strum sounds with
 // where the feel puts it, as alphaTab's own MIDI generator would.
 //
-// Chord practice's own player plays only straight and triplet eighths, so until stage 3 a file
-// stating another feel reads back with it but is not opened as a progression.
+// Until stage 3, when progressions moved to the audio track player, a file stating a feel other
+// than triplet eighths read back with it but was not opened as a progression; now every one is.
 //
 //   node scripts/songs/check-swung-progressions.mjs
 
@@ -137,13 +137,11 @@ for (const feel of FEELS) {
         if (unread.length) problems.push(`measures read as written out: ${unread[0]}`);
         if (song.pattern?.text !== formatStrummingPattern(p.slots)) problems.push(`reads its pattern as ${song.pattern?.text}`);
 
+        // Every feel opens as a progression since they play on the audio track player (stage 3).
         const read = progressionFromSong(song, { library });
-        if (feel.id === 'triplet8th') {
-            if (read.progression?.swing !== true || read.progression?.feel !== 'triplet8th') problems.push(read.error ?? 'does not open swung');
-            if (read.progression?.chords.map(c => c.root).join(' ') !== 'C G D') problems.push('opens with other chords');
-        } else if (!/feel other than triplet eighths/.test(read.error ?? '')) {
-            problems.push(`chord practice, which cannot play it yet, says "${read.error ?? 'nothing'}"`);
-        }
+        if (read.progression?.feel !== feel.id) problems.push(read.error ?? `opens with feel ${read.progression?.feel}`);
+        if (read.progression?.swing !== (feel.id === 'triplet8th')) problems.push('opens with swing set wrongly');
+        if (read.progression?.chords.map(c => c.root).join(' ') !== 'C G D') problems.push('opens with other chords');
         check(`${label}: plays as the feel says and reads back with it`, problems.length === 0, problems.join('; '));
     }
 }
@@ -205,7 +203,7 @@ console.log('\nFiles a progression cannot hold');
     const twoFeels = reason(`\\tempo 60\n\\ts (4 4) \\ks c \\tf triplet8th ${bar} |\n\\tf dotted8th ${bar} |\n`);
     check('so is one that changes from one feel to another', /feel changes partway through/.test(twoFeels), twoFeels);
     const dotted = reason(`\\tempo 60\n\\ts (4 4) \\ks c \\tf dotted8th ${bar} |\n${bar} |\n`);
-    check('a feel other than triplet eighths, until chord practice plays on the track player', /feel other than triplet eighths/.test(dotted), dotted);
+    check('a feel other than triplet eighths throughout is not refused, since progressions play on the track player', dotted === '', dotted);
 }
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) FAILED.`);

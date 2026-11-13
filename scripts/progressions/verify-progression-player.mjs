@@ -1,11 +1,11 @@
 // Checks a progression played on the audio track player (docs/one-player.md, stage 3, step 4):
 //
-// - Playback Settings are a track's, with Strumming pattern and Swing after the tempo: tempo 15 to
+// - Playback Settings are a track's, with Strumming pattern and Feel after the tempo: tempo 15 to
 //   300, Times to play 1 to 50, Loop, Count in before every repeat always shown.
 // - Playback Controls are a track's, Restart Selection included.
 // - Times to play 2 plays twice and says so at the end; l turns Loop on and off.
 // - The tempo keys step by 5 and say the tempo; a 6/8 progression's tempo counts eighths.
-// - Changing the pattern or Swing while playing carries on playing.
+// - Changing the pattern or the feel while playing carries on playing.
 // - The keys and the Playback Keys dialog are a track's, with d naming the progression's tempo.
 //
 // Drives the Electron app on a scratch profile, judged from the DOM, the announcement line and the
@@ -113,8 +113,8 @@ try {
     console.log('\nThe tab: two measures of 4/4 at 240, two seconds a time through');
     await generate();
     let r = await read();
-    check('Playback Settings are a track\'s, with the pattern and Swing after the tempo', r.labels.join(' | ') ===
-        'Tempo in beats per minute, 15 to 300 | Strumming pattern | Swing, each and played late | Speak the next measure | ' +
+    check('Playback Settings are a track\'s, with the pattern and Feel after the tempo', r.labels.join(' | ') ===
+        'Tempo in beats per minute, 15 to 300 | Strumming pattern | Feel | Speak the next measure | ' +
         'Metronome | Count in, one measure of clicks before playing starts | Times to play, 1 to 50 | Loop | ' +
         'Count in before every repeat | Number of beats to count in', r.labels.join(' | '));
     check('tempo runs 15 to 300', r.tempoMin === '15' && r.tempoMax === '300', `${r.tempoMin}-${r.tempoMax}`);
@@ -157,7 +157,7 @@ try {
     await page.click('#playback-keys-close-button');
     await wait(200);
 
-    console.log('\nChanging the pattern and Swing while it plays');
+    console.log('\nChanging the pattern and the feel while it plays');
     await setField('Loop', true);
     await press('Play');
     await waitFor(s => s.playing, 10);
@@ -169,9 +169,9 @@ try {
     // Notes at 240: All Down-Up strums every eighth, an eighth of a second apart.
     const notes = [...new Set((await page.evaluate(() => window.__starts)).filter(s => s.length >= 0.1).map(s => Math.round(s.when * 8) / 8))];
     check('a new pattern keeps playing, now strumming every eighth', r.playing && notes.length >= 10, `${notes.length} eighths`);
-    await setField('Swing', true);
+    await setField('Feel', 'triplet8th');
     await wait(800);
-    check('Swing checked keeps playing', (await read()).playing);
+    check('a feel chosen keeps playing', (await read()).playing);
     await press('Pause');
 
     console.log('\nA 6/8 progression at 120: six eighths a measure, two a second');

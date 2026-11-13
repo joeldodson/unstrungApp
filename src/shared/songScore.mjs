@@ -729,12 +729,8 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
     if (song.feelChanges) {
         return { error: 'its feel changes partway through, which a progression cannot hold; opened as a song, with Open File, it plays as written' };
     }
-    // Chord practice's own player plays only straight and triplet eighths. Stage 3 of
-    // docs/one-player.md plays progressions on the audio track player, which plays them all, and
-    // lifts this.
-    if (song.feel && song.feel !== 'triplet8th') {
-        return { error: 'it has a feel other than triplet eighths, which chord practice cannot play yet' };
-    }
+    // Any one feel opens: progressions play on the audio track player, which plays all six, since
+    // stage 3 of docs/one-player.md. Until then a feel other than triplet eighths was refused.
 
     const chords = [];
     let pattern = null;
@@ -766,11 +762,12 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
             beatsPerBar: song.beatsPerBar,
             beatUnit: song.beatUnit,
             tempo: song.tempo,
-            // Kept only where it is played, as songFromProgression keeps it: a file stating triplet
-            // eighths in 6/8, or over sixteenths, opens straight, as it would be saved again.
-            swing: !!song.swing && swingApplies(song.beatUnit, pattern.slotsPerBeat),
-            // The same, as one of FEELS' ids or null, for the Feel list stage 3 brings.
+            // One of FEELS' ids, or null for straight, kept only where it is played, as
+            // songFromProgression keeps it: a file stating triplet eighths in 6/8, or over
+            // sixteenths, opens straight, as it would be saved again.
             feel: feelApplies(song.feel, song.beatUnit, pattern.slotsPerBeat) ? song.feel : null,
+            // The same as a yes or no for triplet eighths, as Swing was before the Feel list.
+            swing: !!song.swing && swingApplies(song.beatUnit, pattern.slotsPerBeat),
             chords,
             pattern: { slotsPerBeat: pattern.slotsPerBeat, slots: pattern.slots },
             origin: { made: 'hand' }

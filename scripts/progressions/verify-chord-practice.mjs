@@ -293,9 +293,9 @@ check('the chord list carries no bullet or number', controls.listStyle === 'none
 check('the panel has tempo, repeats and metronome, all labelled', controls.labelled);
 console.log(`  settings: ${controls.settings.join(' | ')}`);
 // A track's, since progressions moved to the audio track player (docs/one-player.md, stage 3),
-// with the pattern and Swing after the tempo.
-check('Playback Settings: a track\'s, with pattern and swing after the tempo',
-    controls.settings.join(' | ') === 'Tempo in beats per minute, 15 to 300 | Strumming pattern | Swing, each and played late | ' +
+// with the pattern and Feel after the tempo.
+check('Playback Settings: a track\'s, with pattern and feel after the tempo',
+    controls.settings.join(' | ') === 'Tempo in beats per minute, 15 to 300 | Strumming pattern | Feel | ' +
     'Speak the next measure | Metronome | Count in, one measure of clicks before playing starts | ' +
     'Times to play, 1 to 50 | Loop | Count in before every repeat | Number of beats to count in',
     controls.settings.join(' | '));

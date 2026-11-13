@@ -243,11 +243,12 @@
             <select id="chord-practice-pattern-select"></select>
         </p>
 
-        <!-- The note is filled only when the time signature or pattern leaves swing no effect. -->
+        <!-- Filled with Straight and the six feels by fillFeelSelect. The note is filled only when
+             the time signature or pattern leaves the feel no effect. -->
         <p>
-            <input type="checkbox" id="chord-practice-swing-checkbox" aria-describedby="chord-practice-swing-note" />
-            <label for="chord-practice-swing-checkbox">Swing, each and played late</label>
-            <span id="chord-practice-swing-note" hidden></span>
+            <label for="chord-practice-feel-select">Feel</label>
+            <select id="chord-practice-feel-select" aria-describedby="chord-practice-feel-note"></select>
+            <span id="chord-practice-feel-note" hidden></span>
         </p>
 
         <p>
@@ -364,9 +365,9 @@
         </p>
 
         <p>
-            <input type="checkbox" id="progression-editor-swing-checkbox" aria-describedby="progression-editor-swing-note" />
-            <label for="progression-editor-swing-checkbox">Swing, each and played late</label>
-            <span id="progression-editor-swing-note" hidden></span>
+            <label for="progression-editor-feel-select">Feel</label>
+            <select id="progression-editor-feel-select" aria-describedby="progression-editor-feel-note"></select>
+            <span id="progression-editor-feel-note" hidden></span>
         </p>
 
         <h2 id="progression-editor-measures-heading">Measures</h2>

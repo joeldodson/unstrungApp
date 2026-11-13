@@ -24,7 +24,7 @@ import {
 import {
     everyBeatDown, formatStrummingPattern, patternsFor, namedPatternLike, parseStrummingPattern, fitPattern,
     checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS,
-    swingApplies, FEELS, feelNote
+    FEELS, feelNote, feelApplies
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import {
@@ -4242,7 +4242,7 @@ function buildAudioTrackPanel(state, { afterTempo = [], measures = true, about =
     const tempo = buildNumberParagraph('audio-track-tempo-input',
         `Tempo in beats per minute, ${AUDIO_TRACK_MIN_BPM} to ${AUDIO_TRACK_MAX_BPM}`,
         { min: AUDIO_TRACK_MIN_BPM, max: AUDIO_TRACK_MAX_BPM, value: state.targetTempo });
-    // A progression's strumming pattern and swing come straight after the tempo.
+    // A progression's strumming pattern and feel come straight after the tempo.
     container.append(tempo.paragraph, ...afterTempo);
 
     // Where chord practice has it, before the metronome. Unavailable, with a note saying why, for a
@@ -4970,14 +4970,14 @@ function setChordPracticePattern(state, pattern) {
 }
 
 /**
- * Swings the progression or plays it straight, in place.
+ * Plays the progression with another feel, or straight, in place: one of FEELS' ids, or null.
  *
  * Like the pattern, it is something a player tries out: not an unsaved change, and saving writes
- * it. The note under the checkbox says when the pattern or time signature leaves it nothing to do.
+ * it. The note under the list says when the pattern or time signature leaves it nothing to do.
  */
-function setChordPracticeSwing(state, enabled) {
-    state.progression.swing = enabled;
-    state.ui.swingCheckbox.checked = enabled;
+function setChordPracticeFeel(state, feel) {
+    state.progression.feel = feel || null;
+    state.ui.feelSelect.value = state.progression.feel ?? '';
     refreshChordPracticeStrumming(state);
     rebuildProgressionScore(state);
 }
@@ -5002,39 +5002,57 @@ function applyStrumSpacing() {
     }
 }
 
-/** The Strumming line of the Metadata list, and the note saying whether Swing has any effect. */
+/** The Strumming line of the Metadata list, and the note saying whether the feel has any effect. */
 function refreshChordPracticeStrumming(state) {
     const { progression } = state;
     state.ui.strummingItem.textContent = `Strumming - ${progressionPatternLabel(progression)}`;
-    showSwingNote(state.ui.swingNote, progression.beatsPerBar, progression.beatUnit,
+    showFeelNote(state.ui.feelNote, progression.feel, progression.beatsPerBar, progression.beatUnit,
         progressionPattern(progression).slotsPerBeat);
 }
 
-const SWING_LABEL = 'Swing, each and played late';
+// The Feel list, in place of the Swing checkbox since 2026-11-12 (docs/one-player.md, decision 18):
+// Straight, then the six feels alphaTab knows, triplet eighths being what Swing was. The same list
+// wherever a strumming pattern is chosen: the Chord Practice dialog, a progression's Playback
+// Settings, the progression editor and the Strumming Patterns item. The Metronome builds its own.
+
+/** Fills a select with Straight and the six feels; Straight's value is ''. */
+function fillFeelSelect(select) {
+    select.replaceChildren(...[['', 'Straight'], ...FEELS.map(f => [f.id, f.label])].map(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        if (value === '') option.defaultSelected = true;
+        return option;
+    }));
+}
 
 /**
- * A Swing checkbox in a paragraph, with a note after it in the same paragraph that is the
- * checkbox's description. The note is filled by showSwingNote, and is empty and hidden unless
- * swing has nothing to move.
+ * A Feel list in a paragraph, labelled Feel, with a note after it in the same paragraph that is
+ * the list's description. The note is filled by showFeelNote, and is empty and hidden unless the
+ * feel has nothing to move.
  */
-function buildSwingParagraph(idPrefix, checked) {
-    const { paragraph, checkbox } = buildCheckboxParagraph(idPrefix, SWING_LABEL, checked);
+function buildFeelParagraph(idPrefix, feel) {
+    const paragraph = document.createElement('p');
+    const select = document.createElement('select');
+    select.id = uniqueControlId(idPrefix);
+    fillFeelSelect(select);
+    select.value = feel ?? '';
+    const label = document.createElement('label');
+    label.htmlFor = select.id;
+    label.textContent = 'Feel';
     const note = document.createElement('span');
     note.id = uniqueControlId(`${idPrefix}-note`);
     note.hidden = true;
-    checkbox.setAttribute('aria-describedby', note.id);
-    paragraph.append(' ', note);
-    return { paragraph, checkbox, note };
+    select.setAttribute('aria-describedby', note.id);
+    paragraph.append(label, select, ' ', note);
+    return { paragraph, select, note };
 }
 
-/** Says in a Swing checkbox's note when the time signature or the pattern leaves it no effect. */
-function showSwingNote(note, beatsPerBar, beatUnit, slotsPerBeat) {
-    const applies = swingApplies(beatUnit, slotsPerBeat);
-    note.textContent = applies ? ''
-        : beatUnit !== 4
-            ? `Swing has no effect in ${beatsPerBar}/${beatUnit}.`
-            : 'Swing has no effect on a pattern in sixteenths.';
-    note.hidden = applies;
+/** Says in a Feel list's note when the time signature or the pattern leaves the feel no effect. */
+function showFeelNote(note, feel, beatsPerBar, beatUnit, slotsPerBeat) {
+    const text = feelNote(feel || null, beatsPerBar, beatUnit, slotsPerBeat);
+    note.textContent = text;
+    note.hidden = text === '';
 }
 
 // What the progression's keys do, as the Playback Keys dialog lists them: a track's keys, which a
@@ -5050,14 +5068,14 @@ function activeChordPracticeState() {
     return entry ? entry.state : null;
 }
 
-/** How the progression's Score is written: its pattern and swing as Playback Settings has them. */
+/** How the progression's Score is written: its pattern and feel as Playback Settings has them. */
 function progressionScoreOptions(state) {
     const { progression } = state;
-    return { tempo: state.targetTempo, pattern: progressionPattern(progression), swing: progression.swing === true };
+    return { tempo: state.targetTempo, pattern: progressionPattern(progression), feel: progression.feel ?? null };
 }
 
 /**
- * Writes the progression's Score again, for a pattern or swing changed in place, and carries on
+ * Writes the progression's Score again, for a pattern or feel changed in place, and carries on
  * from the same place: the same measure and how far into it, with no count-in and the count of
  * times through kept (docs/one-player.md, decision 6). The chords are unchanged, so the samples
  * and spoken names already loaded still serve.
@@ -5105,7 +5123,7 @@ function progressionHarmonies(score) {
  * Builds the tab. Its Playback Settings and Playback Controls are a song track's, from
  * buildAudioTrackPanel, since progressions moved to the track player on 2026-11-12
  * (docs/one-player.md, stage 3): the same controls, keys and announcements, with the strumming
- * pattern and Swing after the tempo.
+ * pattern and Feel after the tempo.
  *
  * The progression itself comes straight after the metadata, because it is what the tab is for.
  * The controls sit below it: they are set once and then left alone, while the chords are read
@@ -5238,17 +5256,17 @@ function buildChordPracticeTab(progression, options, file = {}) {
     patternParagraph.append(patternLabel, patternSelect);
 
     // Straight after the pattern, since it is about how the pattern is played. The note is the
-    // checkbox's description, and is there only when swing has nothing to move.
-    const swing = buildSwingParagraph('chord-practice-tab-swing', progression.swing === true);
+    // list's description, and is there only when the feel has nothing to move.
+    const feel = buildFeelParagraph('chord-practice-tab-feel', progression.feel);
 
     state.ui = {
         heading, savedAsItem, strummingItem, editButton, progressionHeading,
-        patternSelect, swingCheckbox: swing.checkbox, swingNote: swing.note
+        patternSelect, feelSelect: feel.select, feelNote: feel.note
     };
     // Measures to Play with First and Last measure only, a progression having no sections
     // (docs/one-player.md, decision 3).
     const panel = buildAudioTrackPanel(state, {
-        afterTempo: [patternParagraph, swing.paragraph], about: false
+        afterTempo: [patternParagraph, feel.paragraph], about: false
     });
     container.append(panel.container);
     list.addEventListener('click', event => {
@@ -5264,7 +5282,7 @@ function buildChordPracticeTab(progression, options, file = {}) {
         else showAudioTrackSpeakUnavailable(state, 'The chord name recordings are missing from this build.');
     }
 
-    swing.checkbox.addEventListener('change', () => setChordPracticeSwing(state, swing.checkbox.checked));
+    feel.select.addEventListener('change', () => setChordPracticeFeel(state, feel.select.value));
     editButton.addEventListener('click', () => openProgressionEditor({ state }));
     saveButton.addEventListener('click', () => saveChordPractice(state));
     saveAsButton.addEventListener('click', () => saveChordPractice(state, { saveAs: true }));
@@ -5338,11 +5356,13 @@ async function ensureChordPracticeReady() {
  */
 function prepareProgression({
     key, mode, beatsPerBar, beatUnit, chords, origin, fresh = false,
-    level = null, cadence = null, borrowing = null, borrowedCount = 0, pattern = null, swing = false
+    level = null, cadence = null, borrowing = null, borrowedCount = 0, pattern = null, feel = null, swing = false
 }) {
     const prepared = {
         key, mode, beatsPerBar, beatUnit, origin, fresh, level, cadence, borrowing, borrowedCount,
-        swing: swing === true
+        // One of FEELS' ids, or null for straight. `swing`, from anything still giving one, is
+        // triplet eighths.
+        feel: feel || (swing === true ? 'triplet8th' : null)
     };
     // The strumming pattern, kept only where it fits the time signature.
     prepared.pattern = progressionPattern({ beatsPerBar, pattern });
@@ -5513,15 +5533,17 @@ function strummingPatternLabel(pattern, beatsPerBar, beatUnit) {
     return builtIn ? `${builtIn.name}: ${builtIn.text}` : text;
 }
 
+/** "Old Faithful: D - D U - U D U", followed by the feel where it has one that moves anything. */
 function progressionPatternLabel(progression) {
     const label = strummingPatternLabel(progressionPattern(progression), progression.beatsPerBar, progression.beatUnit);
-    return progressionSwings(progression) ? `${label}, swung` : label;
+    const feel = FEELS.find(f => f.id === progressionFeel(progression));
+    return feel ? `${label}, ${feel.label.charAt(0).toLowerCase()}${feel.label.slice(1)}` : label;
 }
 
-/** Whether the progression is played swung: Swing is checked, and its pattern has "ands" to move. */
-function progressionSwings(progression) {
-    return progression.swing === true &&
-        swingApplies(progression.beatUnit, progressionPattern(progression).slotsPerBeat);
+/** The feel the progression is played with: its own, where its pattern has pairs for it to move. */
+function progressionFeel(progression) {
+    const feel = progression.feel ?? null;
+    return feelApplies(feel, progression.beatUnit, progressionPattern(progression).slotsPerBeat) ? feel : null;
 }
 
 /**
@@ -5563,7 +5585,7 @@ function selectedPattern(select) {
 /** The alphaTex a saved file holds. Throws only on a program error. */
 function progressionFileText(progression, tempo) {
     return progressionTex(progression, {
-        tempo, pattern: progressionPattern(progression), swing: progression.swing === true
+        tempo, pattern: progressionPattern(progression), feel: progression.feel ?? null
     });
 }
 
@@ -5712,7 +5734,7 @@ async function generateChordPractice() {
         ...generated, beatsPerBar, beatUnit, fresh: true,
         origin: { made: 'generated', levelId, borrowingId },
         pattern: selectedPattern(chordPracticePatternSelect),
-        swing: chordPracticeSwingCheckbox.checked
+        feel: chordPracticeFeelSelect.value || null
     });
 
     // Focus goes to the new tab, not back to whatever opened the dialog.
@@ -5770,19 +5792,24 @@ function chordPracticeRefreshPatterns() {
     const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
     const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
     fillPatternSelect(chordPracticePatternSelect, beatsPerBar, beatUnit);
-    chordPracticeShowSwing();
+    chordPracticeShowFeel();
 }
 
-const chordPracticeSwingCheckbox = document.getElementById('chord-practice-swing-checkbox');
+const chordPracticeFeelSelect = document.getElementById('chord-practice-feel-select');
+fillFeelSelect(chordPracticeFeelSelect);
 
-/** Says beside the dialog's Swing checkbox when the time signature or pattern leaves it no effect. */
-function chordPracticeShowSwing() {
+/** Says beside the dialog's Feel list when the time signature or pattern leaves the feel no effect. */
+function chordPracticeShowFeel() {
     const beatsPerBar = Math.max(1, Math.min(16, Number(chordPracticeBeatsInput.value) || 4));
     const beatUnit = Math.max(1, Math.min(16, Number(chordPracticeBeatUnitInput.value) || 4));
     const pattern = selectedPattern(chordPracticePatternSelect);
-    if (pattern) showSwingNote(document.getElementById('chord-practice-swing-note'), beatsPerBar, beatUnit, pattern.slotsPerBeat);
+    if (pattern) {
+        showFeelNote(document.getElementById('chord-practice-feel-note'), chordPracticeFeelSelect.value,
+            beatsPerBar, beatUnit, pattern.slotsPerBeat);
+    }
 }
-chordPracticePatternSelect.addEventListener('change', chordPracticeShowSwing);
+chordPracticePatternSelect.addEventListener('change', chordPracticeShowFeel);
+chordPracticeFeelSelect.addEventListener('change', chordPracticeShowFeel);
 
 /**
  * Number of Beats to Count In runs from 1 to the beats in a measure. A new time signature counts
@@ -5889,8 +5916,9 @@ function allListedPatterns() {
 // The Play button that is playing, if any, and the player it plays on. Only one plays at a time,
 // the item's or the dialog's. `token` tells a start still loading whether it has been overtaken.
 const patternPreview = { button: null, state: null, token: 0 };
-// Whether the Strumming Patterns item plays its patterns swung, kept while the item is closed.
-let strummingPatternsSwing = false;
+// The feel the Strumming Patterns item plays its patterns with, one of FEELS' ids or null for
+// straight, kept while the item is closed. It was a Swing checkbox until 2026-11-12.
+let strummingPatternsFeel = null;
 
 function setPreviewButton(button, playing) {
     button.textContent = playing ? 'Pause' : 'Play';
@@ -5917,7 +5945,7 @@ function stopPatternPreview() {
  * progression's playback and a song's alone. It stops the chord library's playback on starting,
  * and the chord library playing anything stops it (playChordSelection).
  */
-async function startPatternPreview(button, pattern, beatsPerBar, { beatUnit = null, swing = false } = {}) {
+async function startPatternPreview(button, pattern, beatsPerBar, { beatUnit = null, feel = null } = {}) {
     stopPatternPreview();
     stopChordPlayback();
     patternPreview.button = button;
@@ -5933,10 +5961,10 @@ async function startPatternPreview(button, pattern, beatsPerBar, { beatUnit = nu
         key: 'G', mode: 'major', beatsPerBar, beatUnit: unit,
         chords: PATTERN_PREVIEW_CHORDS.flatMap(chord => Array(PATTERN_PREVIEW_MEASURES_EACH).fill(chord))
     };
-    // Swung only where the caller gives the time signature and asks for it: the Strumming Patterns
-    // item and the pattern dialog both follow the item's Swing checkbox.
+    // With a feel only where the caller gives the time signature and asks for one: the Strumming
+    // Patterns item and the pattern dialog both follow the item's Feel list.
     const state = newTrackPlayerState({
-        score: progressionScore(progression, { tempo: PATTERN_PREVIEW_TEMPO, pattern, swing }),
+        score: progressionScore(progression, { tempo: PATTERN_PREVIEW_TEMPO, pattern, feel }),
         targetTempo: PATTERN_PREVIEW_TEMPO,
         quarterScale: progressionQuarterTempo(1, unit),
         metronome: true,
@@ -6022,7 +6050,7 @@ function fillListedPatterns(name = null) {
     const found = name ? ui.patterns.findIndex(p => p.name === name) : -1;
     ui.list.value = String(Math.max(0, found));
     ui.about.textContent = describeListedPattern(ui.patterns[Number(ui.list.value)]);
-    ui.showSwing?.();
+    ui.showFeel?.();
 }
 
 function chosenListedPattern() {
@@ -6072,14 +6100,14 @@ async function openStrummingPatternsItem() {
     const about = document.createElement('p');
     container.append(about);
 
-    // For hearing a pattern swung. It is not part of a pattern: a progression says whether it is
-    // swung, so this is kept only while unstrung is open.
-    const swing = buildSwingParagraph('strumming-patterns-swing', strummingPatternsSwing);
-    container.append(swing.paragraph);
-    const previewOptions = pattern => ({ beatUnit: pattern.beatUnit, swing: swing.checkbox.checked });
-    const showSwing = () => {
+    // For hearing a pattern with a feel. It is not part of a pattern: a progression says which feel
+    // it has, so this is kept only while unstrung is open.
+    const feel = buildFeelParagraph('strumming-patterns-feel', strummingPatternsFeel);
+    container.append(feel.paragraph);
+    const previewOptions = pattern => ({ beatUnit: pattern.beatUnit, feel: feel.select.value || null });
+    const showFeel = () => {
         const pattern = chosenListedPattern();
-        if (pattern) showSwingNote(swing.note, pattern.beatsPerBar, pattern.beatUnit, pattern.slotsPerBeat);
+        if (pattern) showFeelNote(feel.note, feel.select.value, pattern.beatsPerBar, pattern.beatUnit, pattern.slotsPerBeat);
     };
 
     const actions = createButtonRow();
@@ -6121,7 +6149,7 @@ async function openStrummingPatternsItem() {
     });
     strummingPatternsItemId = item.id;
     const announce = text => announceLiveRegion(status, text);
-    strummingPatternsUi = { signatureSelect, list, about, status, problems, announce, showSwing, all: [], patterns: null };
+    strummingPatternsUi = { signatureSelect, list, about, status, problems, announce, showFeel, all: [], patterns: null };
     renderStrummingPatternList();
 
     // Choosing another pattern while it plays switches to that one, so patterns can be compared
@@ -6139,11 +6167,12 @@ async function openStrummingPatternsItem() {
     list.addEventListener('change', () => {
         const pattern = chosenListedPattern();
         if (pattern) about.textContent = describeListedPattern(pattern);
-        showSwing();
+        showFeel();
         playChosenIfPlaying();
     });
-    swing.checkbox.addEventListener('change', () => {
-        strummingPatternsSwing = swing.checkbox.checked;
+    feel.select.addEventListener('change', () => {
+        strummingPatternsFeel = feel.select.value || null;
+        showFeel();
         playChosenIfPlaying();
     });
     playButton.setAttribute('aria-pressed', 'false');
@@ -6308,9 +6337,9 @@ patternPlayButton.addEventListener('click', () => {
         patternStrokesInput.focus();
         return;
     }
-    // Swung as the Strumming Patterns item's Swing checkbox is set, since the dialog opens from it.
+    // With the feel the Strumming Patterns item's Feel list has, since the dialog opens from it.
     startPatternPreview(patternPlayButton, result.pattern, result.beatsPerBar,
-        { beatUnit: Number(patternBeatUnitInput.value), swing: strummingPatternsSwing });
+        { beatUnit: Number(patternBeatUnitInput.value), feel: strummingPatternsFeel });
 });
 
 document.getElementById('pattern-save-button').addEventListener('click', async () => {
@@ -7235,19 +7264,24 @@ function refreshEditorPatterns() {
     const beatsPerBar = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatsInput.value) || 4));
     const beatUnit = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatUnitInput.value) || 4));
     fillPatternSelect(editorPatternSelect, beatsPerBar, beatUnit);
-    editorShowSwing();
+    editorShowFeel();
 }
 
-const editorSwingCheckbox = document.getElementById('progression-editor-swing-checkbox');
+const editorFeelSelect = document.getElementById('progression-editor-feel-select');
+fillFeelSelect(editorFeelSelect);
 
-/** Says beside the editor's Swing checkbox when the time signature or pattern leaves it no effect. */
-function editorShowSwing() {
+/** Says beside the editor's Feel list when the time signature or pattern leaves the feel no effect. */
+function editorShowFeel() {
     const beatsPerBar = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatsInput.value) || 4));
     const beatUnit = Math.max(1, Math.min(MAX_BEATS, Number(editorBeatUnitInput.value) || 4));
     const pattern = selectedPattern(editorPatternSelect);
-    if (pattern) showSwingNote(document.getElementById('progression-editor-swing-note'), beatsPerBar, beatUnit, pattern.slotsPerBeat);
+    if (pattern) {
+        showFeelNote(document.getElementById('progression-editor-feel-note'), editorFeelSelect.value,
+            beatsPerBar, beatUnit, pattern.slotsPerBeat);
+    }
 }
-editorPatternSelect.addEventListener('change', editorShowSwing);
+editorPatternSelect.addEventListener('change', editorShowFeel);
+editorFeelSelect.addEventListener('change', editorShowFeel);
 editorBeatsInput.addEventListener('change', refreshEditorPatterns);
 editorBeatUnitInput.addEventListener('change', refreshEditorPatterns);
 const editorMeasures = document.getElementById('progression-editor-measures');
@@ -7277,7 +7311,7 @@ function editorKey() {
 function editorSnapshot() {
     return JSON.stringify([editorKeySelect.value, editorBeatsInput.value, editorBeatUnitInput.value,
         editor.measures.map(measure => (measure ? formatMeasureChords(measure) : null)),
-        editorPatternSelect.value, editorSwingCheckbox.checked]);
+        editorPatternSelect.value, editorFeelSelect.value]);
 }
 
 function editorKeyClasses() {
@@ -7743,8 +7777,8 @@ async function openProgressionEditor({ state = null, opener = document.activeEle
         editorApplyButton.textContent = 'Create Progression';
     }
 
-    editorSwingCheckbox.checked = editor.entry?.state.progression.swing === true;
-    editorShowSwing();
+    editorFeelSelect.value = editor.entry?.state.progression.feel ?? '';
+    editorShowFeel();
 
     editor.original = editor.entry ? editorSnapshot() : '';
     editorStatus.textContent = '';
@@ -7818,7 +7852,7 @@ function applyProgressionEditor() {
             root: first.root, suffix: first.suffix, laterChords: later
         })),
         pattern: selectedPattern(editorPatternSelect),
-        swing: editorSwingCheckbox.checked
+        feel: editorFeelSelect.value || null
     });
 
     // Focus goes to the tab, not back to whatever opened the dialog.

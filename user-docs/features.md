@@ -392,7 +392,7 @@ The Chord Practice dialog asks for:
   The tempo counts beats, so the lower number does not change the speed: 6/8 at 90 is ninety eighth notes a minute.
 - **Strumming pattern,** from the patterns for the time signature, described under Strumming Patterns.
   It starts on Down Only, and the list changes when the time signature does.
-- **Swing, each and played late,** unchecked to begin with, described under Swing.
+- **Feel,** Straight to begin with, described under Feel.
 - **Tempo,** from 15 to 300 beats per minute, 60 to begin with.
 - **Number of measures,** from 2 to 256.
 - **No chord held over into the next measure,** checked to begin with.
@@ -419,7 +419,7 @@ A progression's item has:
 - **Metadata:** the key, level, time signature, strumming pattern, length, the cadence it ends with, how many chords come from outside the key, and whether it has been saved.
   The strumming pattern is given by its name and its strokes, such as Old Faithful: D - D U - U D U.
   A pattern unstrung does not have a name for is given by its strokes alone.
-  A swung progression says so after the strokes: Old Faithful: D - D U - U D U, swung.
+  A progression with a feel names it after the strokes: Old Faithful: D - D U - U D U, triplet eighths (swing).
 - **Chords Used:** each different chord once, collapsed, with its fingering and notes.
   A chord from outside the key says which key it comes from and why.
 - **Progression:** the measures in order, each as its chords are written in the editor, such as G D C@4.
@@ -440,8 +440,7 @@ Playback Settings has a track's settings, with two more after the tempo:
 - **Strumming pattern.**
   Changing it carries on from where the progression is, so you can try patterns while it plays.
   Like the tempo, it is not counted as an unsaved change, but saving keeps the pattern you are on.
-- **Swing, each and played late.**
-  Checked, the progression is swung, as described under Swing.
+- **Feel,** described under Feel.
   Like the pattern, it changes while the progression plays, is not counted as an unsaved change, and is saved with the progression.
 - **Speak the next measure,** checked to begin with, where a song's is not.
   Changing it carries on from where the progression is.
@@ -470,9 +469,10 @@ The media keys on your keyboard and headphone buttons control a progression as t
 Save Progression, or ctrl+s, saves the progression.
 The first time, unstrung suggests a name such as Am-60-intermediate-occasional: the key, the number of measures, the level and the setting for chords from outside the key.
 Save Progression As, or ctrl+shift+s, saves a copy under a new name.
-The key, time signature, chords, strumming pattern, swing and tempo are saved, the pattern, swing and tempo as they are set under Playback Settings.
-Swing is saved only where it has an effect, so a progression with a pattern in sixteenths opens with Swing unchecked.
+The key, time signature, chords, strumming pattern, feel and tempo are saved, the pattern, feel and tempo as they are set under Playback Settings.
+A feel is saved only where it has an effect, so a progression in 6/8 with Triplet eighths chosen opens as Straight.
 The same goes for a file from elsewhere that is swung in 6/8 or over sixteenths.
+A file in any one feel opens with it.
 The metronome and the number of repeats are not.
 Opening a progression sets the tempo to the one it was saved with.
 
@@ -550,22 +550,30 @@ Any other time signature has those two.
 - On the Pulse: D - - D - - D - - D - -.
 - Slow Blues: every eighth down, strong on each beat.
 
-### Swing
+### Feel
 
 Played straight, the and falls halfway between two beats.
-Swung, it comes late, two thirds of the way through the beat, so each beat is a long stroke and a short one.
-This is the feel Song Summary calls "triplet eighths (swung)", and it is also called a shuffle.
-Only the ands move; the strokes on the beat stay where they are, and so does the metronome.
+With a feel, the notes go in pairs, long then short, or short then long.
+Each place a strumming pattern is chosen has a list after it, Feel: the Chord Practice dialog, a progression's Playback Settings, the progression editor and the Strumming Patterns item.
+The Metronome has the same list; see Metronome.
 
-Each place a strumming pattern is chosen has a checkbox after it, Swing, each and played late: the Chord Practice dialog, a progression's Playback Settings, the progression editor and the Strumming Patterns item.
-The Metronome has a Feel list in its place, with swing and five other feels; see Metronome.
+- **Straight,** to begin with.
+- **Triplet eighths (swing):** each and comes two thirds of the way through the beat, so each beat is a long stroke and a short one.
+  This is the feel Song Summary calls "triplet eighths (swung)", and it is also called a shuffle.
+  It was a checkbox, Swing, until unstrung had a list of feels.
+- **Dotted eighths:** each and comes three quarters of the way through the beat.
+- **Scottish eighths:** each and comes a quarter of the way through, short then long.
+- **Triplet sixteenths,** **dotted sixteenths** and **Scottish sixteenths** do the same to each pair of sixteenths, within each half of the beat.
+
+Only the second of each pair moves; the strokes on the beat stay where they are, and so does the metronome.
 A chord that starts on an and, such as C@2.5, is still written that way, and is played late with the rest.
-A chord that starts on a quarter of a beat, such as C@2.25, can leave the and beside it played straight; the rest of the measure swings.
+A chord that starts on a quarter of a beat, such as C@2.25, can leave the and beside it played straight; the rest of the measure keeps the feel.
 
-Swing moves eighth notes, so it has no effect on a pattern in sixteenths, or in a time signature counted in eighths such as 6/8 or 12/8, which is in threes already.
-The checkbox then says so in its description, such as "Swing has no effect in 6/8."
+An eighth feel has no effect on a pattern in sixteenths, or in a time signature counted in eighths such as 6/8 or 12/8, which is in threes already.
+A sixteenth feel has no effect on a pattern with no sixteenths, and none of the patterns that come with unstrung has any; make one of your own to hear one.
+The list then says so in its description, such as "This feel has no effect in 6/8."
 
-A swung progression is saved as a swung song, so it is played the same way when the file is opened as a track.
+A progression is saved with its feel, so it is played the same way when the file is opened as a track.
 
 ### Your Own Strumming Patterns
 
@@ -573,14 +581,14 @@ Choose Strumming Patterns from the menu.
 It opens as an item in the list of open items, with you on the Time signature list.
 The Pattern list after it has that time signature's patterns, the ones that come with unstrung first and yours after them, each of yours ending in "yours".
 After them, a line says what the chosen pattern is and reads its strokes out in words, such as "1 down, and miss, 2 down, and up".
-After that is the Swing checkbox, described under Swing.
-It is for hearing a pattern swung with Play, and is not part of the pattern; it stays as you set it until unstrung is closed.
+After that is the Feel list, described under Feel.
+It is for hearing a pattern with a feel with Play, and is not part of the pattern; it stays as you set it until unstrung is closed.
 
 The buttons after it:
 
 - **Play:** plays the pattern on G, C, D and F, two measures each, with the metronome on the beats, round and round until you press it again; while playing it reads Pause.
   It is played as a saved song would be, so a written accent is louder, every other stroke is even, an upstroke catches the four highest strings, and a chuck stops the chord.
-  Choosing another pattern while it plays switches to that one, and so does checking or unchecking Swing.
+  Choosing another pattern while it plays switches to that one, and so does choosing another feel.
   It goes on while a progression or a song plays, and stops when the Chord Library plays chords.
 - **New Pattern:** opens the New Strumming Pattern dialog.
 - **Copy to My Patterns:** opens the same dialog with the chosen pattern's strokes, to make one of your own from it.
@@ -591,7 +599,7 @@ The buttons after it:
 The dialog asks for a name, the time signature and the strokes.
 The strokes are typed as described under Strumming Patterns, and the line after the field reads them back in words as you type, or says what is wrong.
 Play plays them the same way, until you press Pause or close the dialog, and Save Pattern keeps the pattern.
-Play is swung when the Swing checkbox in the Strumming Patterns item is checked.
+Play has the feel chosen in the Strumming Patterns item.
 A name has to be new in its time signature, and so do the strokes: strokes that are already a pattern are refused, with that pattern's name.
 
 Your patterns are listed in the Chord Practice dialog, the progression editor and a progression's Playback Settings, after the ones that come with unstrung.
@@ -611,9 +619,9 @@ Under Export and Import:
 Edit Progression opens the Editing Chord Progression dialog.
 Manually Create Chord Progression, in the Chord Progressions submenu, opens the same dialog as Creating Chord Progression, with one empty measure.
 
-The dialog sets the key, time signature, strumming pattern and swing, and lists the measures with their chords.
-The strumming pattern starts on the progression's own, and Swing as the progression has it.
-Changing Swing here is a change to apply, unlike in Playback Settings.
+The dialog sets the key, time signature, strumming pattern and feel, and lists the measures with their chords.
+The strumming pattern starts on the progression's own, and the feel as the progression has it.
+Changing the feel here is a change to apply, unlike in Playback Settings.
 A progression opened from a file whose pattern unstrung has no name for keeps it, listed as this progression's own.
 The list of measures is used in focus mode.
 In browse mode it is one line, Measures, and enter on it goes into the list at the current measure.
@@ -682,7 +690,7 @@ Under Settings:
   After them, a line says where the clicks fall, such as "Clicks on 1 high strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up".
 - **Feel,** Straight to begin with, then the six feels: triplet, dotted and Scottish, each at eighths and at sixteenths.
   A feel plays the clicks in pairs, long then short, or short then long for Scottish.
-  Triplet eighths is the swing described under Swing, each and two thirds of the way through the beat.
+  Triplet eighths is the swing described under Feel, in Chord Practice, each and two thirds of the way through the beat.
   Dotted eighths puts the and three quarters of the way through, Scottish eighths a quarter of the way.
   The sixteenth feels do the same to each pair of sixteenths.
   An eighth feel has no effect on a pattern in sixteenths or in 6/8, and a sixteenth feel none on a pattern with no sixteenths; the list then says so in its description, such as "This feel has no effect in 6/8."
