@@ -28,6 +28,9 @@ await page.waitForTimeout(2500);
 await page.selectOption('#chord-practice-key-select', 'C|major');
 await page.fill('#chord-practice-count-input', '4');
 await page.fill('#chord-practice-tempo-input', '240');
+// Loop, so it goes round until stopped: since 2026-11-12 a progression plays once unless told,
+// where it used to repeat until stopped (docs/one-player.md, decision 1).
+await page.check('#chord-practice-loop-checkbox');
 await page.uncheck('#chord-practice-speak-checkbox').catch(() => {});
 await page.click('#chord-practice-generate-button');
 await page.waitForTimeout(1500);
