@@ -361,7 +361,10 @@ await press('ArrowUp');
 
 const afterB = await press('b');
 console.log(`  B  -> ${afterB.announcement}`);
-check('B announces the measure', /^Measure 1 of 8\b/.test(afterB.announcement), afterB.announcement);
+// The measure, its chords, the beat, and which time through only when it plays more than once
+// (docs/one-player.md, decision 8).
+check('B announces the measure, the chord and the beat',
+    /^Measure 1 of 8, [A-G][^,]*, beat 1$/.test(afterB.announcement), afterB.announcement);
 
 // Moving around is silent, as in the audio track. Where a seek landed is confirmed with B, which
 // is the key that exists to ask.
@@ -382,6 +385,8 @@ await press('ArrowDown');
 const downThenB = await press('b');
 check('Down returns to the start of this measure', /^Measure 1 of 8\b/.test(downThenB.announcement),
     downThenB.announcement);
+check('B names the chord as well as the measure, as a song\'s does where it prints chords',
+    /^Measure \d+ of \d+, [A-G][^,]*, beat \d+$/.test(downThenB.announcement), downThenB.announcement);
 
 const afterSlower = await press('s');
 console.log(`  S  -> "${afterSlower.announcement}", tempo box now ${afterSlower.tempo}`);

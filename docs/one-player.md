@@ -535,4 +535,13 @@ the Progression list is its chords followed by Add measure N to selection, which
 a song says "Audio track is now". Checks that read the list's items now read their first text.
 Checked by `scripts/progressions/verify-progression-measures.mjs`.
 
+**Step 7 done 2026-11-12.** Where Am I (`announceCurrentMeasure`) says, for songs and progressions,
+the measure against the selection, the measure's harmony written as the editor writes it
+(`formatHarmony` in `measureChords.mjs`, from each measure's `harmony`), left out where the file
+prints none, the beat by the bar's own beats (a pickup counted from where it sits in its measure),
+and which time through. No full stop at the end, as a track's never had; chord practice's had one.
+"Measure 12 on its own" keeps its words and gains the chords and beat after them. Checked by
+`scripts/songs/verify-where-am-i.mjs` and `check-measure-chords.mjs`; `verify-chord-practice.mjs`
+and `verify-measure-chords.mjs` check the chords and beat again.
+
 Joel works on main, with no branches or worktrees unless he asks.

@@ -117,6 +117,16 @@ export function formatMeasureChords(chords) {
 }
 
 /**
+ * A measure's harmony, [{ name, beat }] as extractScoreMetadata gives it, written as the editor
+ * writes a measure: "G C@3". The names are as the file prints them. Where Am I says it, for songs
+ * and progressions alike (docs/one-player.md, decision 8).
+ */
+export function formatHarmony(harmony) {
+    return harmony.map((chord, index) => (startsWhereExpected(harmony, index)
+        ? chord.name : `${chord.name}@${formatBeat(chord.beat)}`)).join(' ');
+}
+
+/**
  * Chords a strumming pattern does not strike where they start, with the beat each is first heard.
  *
  * `C@2.5` with Down Only starts C on the and of 2, where the hand does nothing, so C is first

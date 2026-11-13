@@ -6,7 +6,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-    parseMeasureChords, formatMeasureChords, chordsStruckLate, spokenMeasurePlan, spokenBeatVocabulary, SPOKEN_REPEAT
+    parseMeasureChords, formatMeasureChords, chordsStruckLate, spokenMeasurePlan, spokenBeatVocabulary, SPOKEN_REPEAT,
+    formatHarmony
 } from '../../src/shared/measureChords.mjs';
 import { chordDisplayName } from '../../src/shared/chordProgressions.mjs';
 import { parseStrummingPattern, fitPattern } from '../../src/shared/strummingPatterns.mjs';
@@ -159,6 +160,15 @@ console.log('\n=== When each measure is spoken ===');
     });
     check('without a recording of "repeat", the names are said', say(noRepeat[1]) === 'G from -1.00', say(noRepeat[1]));
 }
+
+// Where Am I says a measure's harmony, printed and carried forward, as the editor writes chords.
+console.log('\n=== A printed harmony written as the editor writes it ===');
+check('one chord is its name', formatHarmony([{ name: 'G', beat: 1 }]) === 'G');
+check('the next whole beat needs no @', formatHarmony([{ name: 'G', beat: 1 }, { name: 'D', beat: 2 }]) === 'G D');
+check('a later one says its beat', formatHarmony([{ name: 'G', beat: 1 }, { name: 'C', beat: 3 }]) === 'G C@3');
+check('one between beats too', formatHarmony([{ name: 'Am', beat: 1 }, { name: 'F#m', beat: 2.5 }]) === 'Am F#m@2.5');
+check('a measure whose first chord comes late says so', formatHarmony([{ name: 'C', beat: 3 }]) === 'C@3');
+check('none is nothing', formatHarmony([]) === '');
 
 console.log(failures ? `\n${failures} failed.` : '\nAll passed.');
 process.exitCode = failures ? 1 : 0;

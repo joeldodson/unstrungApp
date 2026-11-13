@@ -150,13 +150,14 @@ try {
     r = await read();
     check('keeps playing', r.playing);
     said = await whereAmI();
-    check('from the top, with the count back at 1', /^Measure 1 of 2, play 1 of 2$/.test(said), said);
+    check('from the top, with the count back at 1', /^Measure 1 of 2, beat \d, play 1 of 2$/.test(said), said);
     await click('Pause');
 
     console.log('\nOnce');
     await setTimes('1');
     said = await whereAmI();
-    check('Where Am I says no time through when it plays once', said === 'Measure 1 of 2', said);
+    // The beat since 2026-11-12 (docs/one-player.md, decision 8); this song prints no chords.
+    check('Where Am I says no time through when it plays once', said === 'Measure 1 of 2, beat 1', said);
 } finally {
     await close();
 }

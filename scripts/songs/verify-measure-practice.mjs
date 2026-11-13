@@ -296,7 +296,7 @@ await clickInRegion('Play');
 await waitPlaying();
 await press('b');
 r = await region();
-check('Play then plays it; b says where it is against the selection', /^Measure \d+ of measures 1 through 8, play \d+$/.test(r.announce), r.announce);
+check('Play then plays it; b says where it is against the selection', /^Measure \d+ of measures 1 through 8, (.+, )?beat \d+, play \d+$/.test(r.announce), r.announce);
 
 console.log('\n=== Tempo ===');
 const songTempo = Number(r.tempo);

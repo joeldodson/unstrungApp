@@ -28,7 +28,7 @@ import {
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import {
-    chordsInMeasure, parseMeasureChords, formatMeasureChords, formatBeat, chordsStruckLate,
+    chordsInMeasure, parseMeasureChords, formatMeasureChords, formatBeat, chordsStruckLate, formatHarmony,
     spokenMeasureWords, spokenMeasureTimes, songSpokenChords, SPOKEN_REPEAT, SPOKEN_WORD_GAP_SECONDS
 } from '../shared/measureChords.mjs';
 import { attackSeconds, attackAlignedStart } from '../shared/sampleAttack.mjs';
@@ -3350,8 +3350,16 @@ function stepAudioTrackTempo(state, deltaBpm) {
     announceAudioTrack(state, `${state.targetTempo} BPM`);
 }
 
+/**
+ * Where Am I, for songs and progressions alike (docs/one-player.md, decision 8): the measure,
+ * against the selection; its chords as the editor writes them, from those the file prints, carried
+ * forward, and left out where there are none; the beat, by the measure's own time signature; and
+ * which time through. "Measure 9 of measures 7 through 21, G C@3, beat 2, play 2 of 3".
+ */
 function announceCurrentMeasure(state) {
-    const measure = measureIndexAt(state, audioTrackPosition(state)) + 1;
+    const position = audioTrackPosition(state);
+    const index = measureIndexAt(state, position);
+    const measure = index + 1;
     let text;
     if (state.measureAlone) {
         text = `Measure ${measure} on its own`;
@@ -3369,6 +3377,15 @@ function announceCurrentMeasure(state) {
             : first === last
                 ? `Measure ${measure}`
                 : `Measure ${measure} of measures ${first} through ${last}`;
+    }
+    const harmony = state.harmonies[index] ?? [];
+    if (harmony.length > 0) text += `, ${formatHarmony(harmony)}`;
+    const bar = state.audioTrack.bars[index];
+    if (bar) {
+        // A pickup's first beat is not beat 1, and one of a beat and a half starts on the and of
+        // the beat before its first: see buildBarMap.
+        const into = bar.beats.filter(at => at <= position + 1e-6).length;
+        text += `, beat ${into > 0 ? bar.firstBeat + into : Math.max(1, bar.firstBeat)}`;
     }
     // When it repeats, which play-through we are on matters just as much: "play 2 of 3", or "play 5"
     // while Loop is on, and nothing when it plays once. docs/one-player.md, decision 8.
@@ -3806,7 +3823,7 @@ const AUDIO_TRACK_KEY_DESCRIPTIONS = [
     'downArrow: back to the start of the current measure.',
     'upArrow: back to the start of the selection, counting in again.',
     'l: loop on or off.',
-    'b: say which measure is playing, and which time through.',
+    'b: say which measure is playing, its chords, the beat, and which time through.',
     'm: metronome on or off.',
     `s: slower by ${AUDIO_TRACK_TEMPO_STEP_BPM} beats per minute.`,
     `f: faster by ${AUDIO_TRACK_TEMPO_STEP_BPM} beats per minute.`,

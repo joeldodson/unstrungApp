@@ -280,8 +280,11 @@ The heading is followed by a reminder that ? lists the keys.
 
 - **Play,** which becomes Pause while playing.
   The first time you play a track, unstrung loads its guitar samples first, says so, and then plays.
-- **Where Am I,** which says which measure is playing, and which time through: "play 2 of 3", or "play 5" while Loop is on.
-  Nothing is said about times through when the measures play once.
+- **Where Am I,** which says which measure is playing, its chords, the beat, and which time through: "Measure 9 of measures 7 through 21, G C@3, beat 2, play 2 of 3".
+  The measure is counted against the selection when it is not the whole song.
+  The chords are the ones the file prints, carried on from earlier measures as the measure headings carry them, written as the progression editor writes them; they are left out where the file prints none.
+  The beat follows the measure's own time signature.
+  Times through are "play 2 of 3", or "play 5" while Loop is on, and nothing when the measures play once.
 - **Slower, Faster and Default Tempo,** which change the tempo by 5 beats per minute, or put it back.
 - **Restart Selection, Previous Measure, Next Measure and Start of Measure.**
   Restart Selection goes back to the start of the selection.
@@ -362,7 +365,7 @@ The dialog has a link to this document, which closes the dialog and opens this d
 - downArrow: back to the start of the current measure.
 - upArrow: back to the start of the selection, counting in again.
 - l: loop on or off.
-- b: say which measure is playing, and which time through.
+- b: say which measure is playing, its chords, the beat, and which time through.
 - m: metronome on or off.
 - s: slower by 5 beats per minute.
 - f: faster by 5 beats per minute.
