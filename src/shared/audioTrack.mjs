@@ -44,8 +44,13 @@ export const TICKS_PER_QUARTER = 960;
 //    read in the measure heading and the track's Chord Symbols, so a player has what they need to
 //    strum it if they want to. See docs/chord-forms-in-scores.md, Playing what is written.
 //
-// 4. A note rings until that same string is struck again, then decays on its own. Notated
-//    duration says when the next attack falls, not when the string stops sounding.
+// 4. A note rings until that same string is struck again or damped, then decays on its own.
+//    Notated duration says when the next attack falls, not when the string stops sounding.
+//
+//    A dead note (x) is the string damped: it sounds nothing, there being no recordings of
+//    deadened strings, but it stops whatever that string was ringing, at its place in the sweep.
+//    Strings it does not touch ring on. Until 2026-11-12 dead notes were skipped outright, so the
+//    strings before rang on through a muted strum. docs/one-player.md, decision 13.
 //
 // 5. A tied note is not struck again: the note it continues is simply still ringing, which
 //    rule 4 already provides.
@@ -352,6 +357,8 @@ export function buildAudioTrack(score, trackIndex, {
 
     const tempoMap = buildTempoMap(score, targetTempo);
     const notes = [];
+    // Where a dead note damps a string: { startSeconds, string, bar }. See rule 4.
+    const stops = [];
     const skipped = { tiedContinuations: 0, deadNotes: 0, unpitched: 0 };
     let stringCount = 0;
 
@@ -392,22 +399,30 @@ export function buildAudioTrack(score, trackIndex, {
                     const step = strumStepSeconds(beat, beat.notes.length, beatTempo, strumSpacingSeconds);
 
                     for (const [indexInBeat, note] of sweep.entries()) {
+                        // Notes of a strum are spread across the sweep, which is what makes a
+                        // downstroke sound different from an upstroke.
+                        const startSeconds = beatStartSeconds + (isStrum ? indexInBeat * step : 0);
+                        // alphaTab numbers strings low-to-high; flip to tab convention.
+                        const string = note.isStringed && staffStringCount
+                            ? staffStringCount - note.string + 1
+                            : null;
+
                         // A tied note is not struck again; the note it continues is simply
                         // still ringing, which the ring-until-restruck rule already gives us.
                         if (note.isTieDestination) { skipped.tiedContinuations++; continue; }
-                        if (note.isDead) { skipped.deadNotes++; continue; }
+                        // A dead note sounds nothing but damps its string: rule 4.
+                        if (note.isDead) {
+                            skipped.deadNotes++;
+                            if (string !== null) stops.push({ startSeconds, string, bar: bar.index });
+                            continue;
+                        }
                         if (typeof note.realValue !== 'number') { skipped.unpitched++; continue; }
 
                         notes.push({
-                            // Notes of a strum are spread across the sweep, which is what makes a
-                            // downstroke sound different from an upstroke.
-                            startSeconds: beatStartSeconds + (isStrum ? indexInBeat * step : 0),
+                            startSeconds,
                             notatedSeconds,
                             midi: note.realValue,
-                            // alphaTab numbers strings low-to-high; flip to tab convention.
-                            string: note.isStringed && staffStringCount
-                                ? staffStringCount - note.string + 1
-                                : null,
+                            string,
                             fret: note.isStringed ? note.fret : null,
                             velocity: velocityLayerFor(note.dynamics),
                             bar: bar.index,
@@ -421,6 +436,7 @@ export function buildAudioTrack(score, trackIndex, {
     }
 
     notes.sort((a, b) => a.startSeconds - b.startSeconds || (a.string ?? 0) - (b.string ?? 0));
+    stops.sort((a, b) => a.startSeconds - b.startSeconds || a.string - b.string);
 
     return {
         trackIndex,
@@ -438,32 +454,84 @@ export function buildAudioTrack(score, trackIndex, {
         // Bars with their beat positions, for the metronome and the count-in.
         bars: buildBarMap(score, tempoMap),
         notes,
+        // Not sounded, so not among the notes; they only end what a string was ringing.
+        stops,
         skipped
     };
 }
 
 /**
+ * Where each string is next struck or damped after a time, for working out how long a note rings:
+ * `next(string, seconds)` is the first strike or stop on that string later than `seconds`, or
+ * undefined. `notes` and `stops` are a track's, or any part of them.
+ */
+export function stringEvents(notes, stops = []) {
+    const byString = new Map();
+    // Notes with no string are kept together under null, as one voice that each cuts off the last.
+    for (const event of [...notes, ...stops]) {
+        if (event.string === undefined) continue;
+        if (!byString.has(event.string)) byString.set(event.string, []);
+        byString.get(event.string).push(event.startSeconds);
+    }
+    for (const times of byString.values()) times.sort((a, b) => a - b);
+    // A binary search, since a long song asks this once for each of thousands of notes.
+    const next = (string, seconds) => {
+        const times = byString.get(string);
+        if (!times) return undefined;
+        let low = 0, high = times.length;
+        while (low < high) {
+            const middle = (low + high) >> 1;
+            if (times[middle] > seconds + 1e-9) high = middle;
+            else low = middle + 1;
+        }
+        return times[low];
+    };
+    return { first: string => byString.get(string)?.[0], next };
+}
+
+/**
+ * The notes of a selection, { startSeconds, endSeconds }, each with how long it rings when the
+ * selection is played: `ringFinal` on its last time through and `ringLoop` when it repeats, in
+ * seconds, null meaning let the recording run out.
+ *
+ * Rule 4 within the selection: until the string is next struck or damped. When it repeats, the
+ * next of those may be in the next time through, so the ring wraps: the time left to the end of
+ * the selection plus the time from its start to that string's first strike or stop. Moved here
+ * from the renderer's rangeNotesFor on 2026-11-12, when dead notes began to damp strings.
+ */
+export function ringLengthsInRange(audioTrack, { startSeconds, endSeconds }) {
+    const within = event => event.startSeconds >= startSeconds - 1e-9 && event.startSeconds < endSeconds - 1e-9;
+    const inRange = audioTrack.notes.filter(within);
+    const events = stringEvents(inRange, (audioTrack.stops ?? []).filter(within));
+    return inRange.map(note => {
+        const next = events.next(note.string, note.startSeconds);
+        const ringFinal = next !== undefined ? next - note.startSeconds : null;
+        const ringLoop = next !== undefined
+            ? next - note.startSeconds
+            : (endSeconds - note.startSeconds) + (events.first(note.string) - startSeconds);
+        return { ...note, ringFinal, ringLoop };
+    });
+}
+
+/**
  * Fills in how long each note actually sounds.
  *
- * A note rings until that same string is struck again, and otherwise decays away on its own,
- * which is how a guitar behaves: notated duration says when the next attack falls, not when
- * the string stops. `ringSeconds` of null means "let the recording run out".
+ * A note rings until that same string is struck again or damped by a dead note, and otherwise
+ * decays away on its own, which is how a guitar behaves: notated duration says when the next
+ * attack falls, not when the string stops. `ringSeconds` of null means "let the recording run out".
  *
  * Notes with no string information (a non-stringed track) fall back to their notated length,
  * since without a string there is nothing to steal the voice.
  */
-export function resolveRingLengths(notes) {
-    const nextOnString = new Map();
-
-    for (let index = notes.length - 1; index >= 0; index--) {
-        const note = notes[index];
+export function resolveRingLengths(notes, stops = []) {
+    const events = stringEvents(notes, stops);
+    for (const note of notes) {
         if (note.string === null) {
             note.ringSeconds = note.notatedSeconds;
             continue;
         }
-        const next = nextOnString.get(note.string);
+        const next = events.next(note.string, note.startSeconds);
         note.ringSeconds = next === undefined ? null : next - note.startSeconds;
-        nextOnString.set(note.string, note.startSeconds);
     }
     return notes;
 }

@@ -214,6 +214,13 @@ differently from today, and the entry says how.
     recordings of deadened strings, and strings it does not touch ring on. Progressions keep the
     gap they have now. Songs change too: Songsterr rhythm tracks write many dead-note strokes,
     which will cut the strings instead of ringing through.
+
+    **Built 2026-11-12,** stage 2's second step. `buildAudioTrack` returns the dead notes as
+    `stops`, each at its string's place in the sweep, and `resolveRingLengths` and
+    `ringLengthsInRange` (moved from the renderer's `rangeNotesFor`) end a ring at the next strike
+    or stop. Over the 33 Guitar Pro files in Joel's Guitar folder, 19 tracks write dead notes, and
+    537 of their 31,111 notes now stop earlier. Checked by `scripts/songs/check-dead-notes.mjs` and
+    `scripts/songs/verify-dead-notes.mjs`.
 14. **Sweep spacing.** Chord practice spaces the strings of a strum 22 milliseconds apart; the
     track 20 (`STRUM_STRING_DELAY_SECONDS`), or the brush speed the file gives.
 

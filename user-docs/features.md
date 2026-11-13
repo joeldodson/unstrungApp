@@ -274,6 +274,10 @@ unstrung plays exactly the notes the file writes.
 Tab often prints a chord over a single bass note and leaves the rest to the player, and unstrung plays that bass note alone.
 The chord is in the measure heading and the track's Chord Symbols, so you can strum it yourself if that is what the tab means.
 
+Each string rings until it is played again, or until a muted note (x) on that string stops it.
+A muted note sounds nothing yet, but stops whatever its string was ringing, as damping it with the hand does.
+So a muted strum, a chuck, cuts the chord before it, and strings it does not touch ring on.
+
 A song the file marks as swung or shuffled is played that way, measure by measure, wherever the file marks it.
 With triplet eighths, the feel Song Summary calls "triplet eighths (swung)", each pair of eighth notes is played long then short: the second comes two thirds of the way through the beat instead of halfway.
 Triplet sixteenths do the same to each pair of sixteenth notes, and the dotted and Scottish feels play their pairs as a dotted note and a short one, or the other way round.

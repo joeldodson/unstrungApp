@@ -5,7 +5,8 @@ import {
     fretToMidi, identifyChordFromNotes, midiToPitchClassName, midiToPitchName, describeVoicingOmissions
 } from '../shared/musicTheory.mjs';
 import {
-    buildAudioTrack, countInClicks, resolveRingLengths, clampStrumSpacingMs, DEFAULT_STRUM_SPACING_MS
+    buildAudioTrack, countInClicks, resolveRingLengths, ringLengthsInRange, clampStrumSpacingMs,
+    DEFAULT_STRUM_SPACING_MS
 } from '../shared/audioTrack.mjs';
 import { silentWav } from '../shared/silentWav.mjs';
 import helpContent from '../assets/help/help-content.json';
@@ -2552,7 +2553,7 @@ function deriveAudioTrack(state) {
         audioTrack = buildAudioTrack(state.score, state.trackIndex,
             { targetTempo: state.targetTempo, strumSpacingSeconds: strumSpacingSeconds() });
         if (audioTrack) {
-            resolveRingLengths(audioTrack.notes);
+            resolveRingLengths(audioTrack.notes, audioTrack.stops);
             audioTrackCache.set(cacheKey, audioTrack);
         }
     }
@@ -2935,36 +2936,18 @@ function measureIndexAt(state, positionSeconds) {
 /**
  * The selection's notes with ring lengths worked out for looping.
  *
- * The rule is the usual one: a note rings until its own string is struck again. Inside a
- * repeating selection the next strike may be in the next pass, so the ring wraps: the time left
- * to the end of the selection plus the time from the selection's start to that string's first
- * strike. On the final pass there is no next strike, so `ringFinal` is used and the last notes
- * decay naturally.
+ * The rule is the usual one: a note rings until its own string is struck again, or damped by a
+ * dead note (rule 4 in audioTrack.mjs). Inside a repeating selection the next of those may be in
+ * the next pass, so the ring wraps: the time left to the end of the selection plus the time from
+ * the selection's start to that string's first strike or stop. On the final pass there is none,
+ * so `ringFinal` is used and the last notes decay naturally, unless the selection damps them.
  */
 function rangeNotesFor(state) {
     const range = audioTrackRange(state);
     const cacheKey = `${state.targetTempo}:${range.firstIndex}:${range.lastIndex}`;
     if (state.rangeCache && state.rangeCache.key === cacheKey) return state.rangeCache.notes;
 
-    const inRange = state.audioTrack.notes.filter(note =>
-        note.startSeconds >= range.startSeconds - 1e-9 && note.startSeconds < range.endSeconds - 1e-9);
-
-    const strikesByString = new Map();
-    for (const note of inRange) {
-        if (!strikesByString.has(note.string)) strikesByString.set(note.string, []);
-        strikesByString.get(note.string).push(note.startSeconds);
-    }
-    for (const strikes of strikesByString.values()) strikes.sort((a, b) => a - b);
-
-    const notes = inRange.map(note => {
-        const strikes = strikesByString.get(note.string);
-        const next = strikes.find(t => t > note.startSeconds + 1e-9);
-        const ringFinal = next !== undefined ? next - note.startSeconds : null;
-        const ringLoop = next !== undefined
-            ? next - note.startSeconds
-            : (range.endSeconds - note.startSeconds) + (strikes[0] - range.startSeconds);
-        return { ...note, ringFinal, ringLoop };
-    });
+    const notes = ringLengthsInRange(state.audioTrack, range);
 
     state.rangeCache = { key: cacheKey, notes };
     return notes;

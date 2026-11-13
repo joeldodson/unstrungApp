@@ -67,6 +67,7 @@ Run each with `node <script>`; the comment at the top of each says what it takes
 - `scripts/settings/verify-default-folder-field.mjs`
 - `scripts/settings/verify-strum-spacing.mjs`
 - `scripts/songs/verify-chord-symbols-in-app.mjs`
+- `scripts/songs/verify-dead-notes.mjs`
 - `scripts/songs/verify-guitar-bass-tracks.mjs`
 - `scripts/songs/verify-keys-stay-in-item.mjs`
 - `scripts/songs/verify-measure-practice.mjs`
