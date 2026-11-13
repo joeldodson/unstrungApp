@@ -295,17 +295,19 @@ try {
     play = await playButtonState();
     check('pressed, it reads Pause and says what it plays', play.label === 'Pause' && play.pressed === 'true' &&
         state.status === 'Playing Island Shuffle.', `${JSON.stringify(play)} ${state.status}`);
-    // Island Shuffle has no accents: downstrokes at the note level, the one on beat 1 a little
-    // above it, upstrokes a little below.
+    // Island Shuffle has no accents. Since the preview moved to the audio track player
+    // (docs/one-player.md, decisions 10 and 19) every stroke plays at the track's note level, 0.4:
+    // chord practice's lean on beat 1 and its lighter upstrokes are not written in the file.
     const levels = [...new Set(await page.evaluate(() => window.__levels))].sort((a, b) => a - b);
     console.log(`  strum levels: ${levels.join(', ')}`);
-    check('a pattern without accents leans a little on beat 1', levels.join(',') === '0.44,0.55,0.616', levels.join(','));
+    check('a pattern without accents plays every strum at one level', levels.join(',') === '0.4', levels.join(','));
     // G, C, D and F, two measures each of 4/4 at 60, is 32 seconds a time round.
     const afterFirstRound = await started();
     await wait(32000);
     const intoSecondRound = await started();
     play = await playButtonState();
-    // A whole time round is laid out at once, so the second doubles the count.
+    // Twelve seconds ahead are laid out at a time, so 35 seconds in it has laid out more than twice
+    // what it had at 3, if it went round again.
     console.log(`  sounds laid out: ${afterFirstRound} in the first 3 seconds, ${intoSecondRound} after 35`);
     check('it goes round again, still playing', play.label === 'Pause' && intoSecondRound >= afterFirstRound * 2,
         `${afterFirstRound} then ${intoSecondRound}`);

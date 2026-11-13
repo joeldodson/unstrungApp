@@ -72,6 +72,7 @@ Run each with `node <script>`; the comment at the top of each says what it takes
 - `scripts/songs/verify-guitar-bass-tracks.mjs`
 - `scripts/songs/verify-keys-stay-in-item.mjs`
 - `scripts/songs/verify-measure-practice.mjs`
+- `scripts/songs/verify-pattern-preview.mjs`
 - `scripts/songs/verify-progression-files.mjs`
 - `scripts/songs/verify-song-speech.mjs`
 - `scripts/songs/verify-strumming-patterns.mjs`

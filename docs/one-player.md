@@ -481,4 +481,14 @@ tracks are one group. One thing changes: starting a track used to silence anothe
 but leave its button reading Pause, and now pauses it properly, keeping its place. Checked by
 `scripts/songs/verify-transports.mjs`.
 
+**Step 3 done 2026-11-12.** The pattern preview writes its eight measures with `progressionScore`,
+as saving does, and plays them on a player of its own (`newTrackPlayerState`, group `preview`)
+with Loop on, the metronome and no count-in. Its tempo is `DEFAULT_TEMPO`, 60, as it was in the
+code; decision 19 says 80, which the code never used. It no longer shares the chord library's
+playback, so closing the Chord Library or pressing Clear there no longer stops it; the chord
+library playing chords still does (`playChordSelection`), and starting it still stops the chord
+library's. `verify-strumming-patterns.mjs` now expects every stroke of a pattern without accents at
+one level, 0.4, decision 10 having dropped the lean on beat 1. Checked by
+`scripts/songs/verify-pattern-preview.mjs`.
+
 Joel works on main, with no branches or worktrees unless he asks.

@@ -570,7 +570,9 @@ It is for hearing a pattern swung with Play, and is not part of the pattern; it 
 The buttons after it:
 
 - **Play:** plays the pattern on G, C, D and F, two measures each, with the metronome on the beats, round and round until you press it again; while playing it reads Pause.
+  It is played as a saved song would be, so a written accent is louder, every other stroke is even, an upstroke catches the four highest strings, and a chuck stops the chord.
   Choosing another pattern while it plays switches to that one, and so does checking or unchecking Swing.
+  It goes on while a progression or a song plays, and stops when the Chord Library plays chords.
 - **New Pattern:** opens the New Strumming Pattern dialog.
 - **Copy to My Patterns:** opens the same dialog with the chosen pattern's strokes, to make one of your own from it.
 - **Edit:** changes one of yours.

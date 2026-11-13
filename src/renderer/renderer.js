@@ -18,7 +18,8 @@ import {
     keyPitchClasses, isChordInKey, degreeChords, MAX_MEASURES, MAX_BEATS
 } from '../shared/keyChords.mjs';
 import {
-    songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, alphaTexError, chordIndex
+    songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, alphaTexError, chordIndex,
+    progressionQuarterTempo
 } from '../shared/songScore.mjs';
 import {
     everyBeatDown, formatStrummingPattern, patternsFor, namedPatternLike, parseStrummingPattern, fitPattern,
@@ -1835,6 +1836,8 @@ async function loadChordSample(note) {
  * waiting for the recording to run out, which would leave a silence longer than the chord.
  */
 async function playChordSelection(voicings, label, spokenNames = []) {
+    // The chord library playing stops the pattern preview, as when the two shared one player.
+    stopPatternPreview();
     stopChordPlayback();
     const myToken = chordPlaybackToken;
     const context = getSharedAudioContext();
@@ -2576,14 +2579,15 @@ const audioTrackPanels = new Map();
 const audioTrackCache = new Map();
 
 function deriveAudioTrack(state) {
-    const cacheKey = `${state.songItemId}:${state.trackIndex}:${state.targetTempo}:${strumSpacingMs}`;
-    let audioTrack = audioTrackCache.get(cacheKey);
+    const cache = state.cacheId ? audioTrackCache : state.trackCache;
+    const cacheKey = `${state.cacheId ?? ''}:${state.targetTempo}:${strumSpacingMs}`;
+    let audioTrack = cache.get(cacheKey);
     if (!audioTrack) {
         audioTrack = buildAudioTrack(state.score, state.trackIndex,
-            { targetTempo: state.targetTempo, strumSpacingSeconds: strumSpacingSeconds() });
+            { targetTempo: state.targetTempo * state.quarterScale, strumSpacingSeconds: strumSpacingSeconds() });
         if (audioTrack) {
             resolveRingLengths(audioTrack.notes, audioTrack.stops);
-            audioTrackCache.set(cacheKey, audioTrack);
+            cache.set(cacheKey, audioTrack);
         }
     }
     return audioTrack;
@@ -2666,7 +2670,7 @@ function setAudioTrackPlayingState(state, playing) {
     state.ui.playButton.textContent = playing ? 'Pause' : 'Play';
     state.ui.playButton.setAttribute('aria-pressed', String(playing));
     showMeasurePlaying(state);
-    playbackChanged('audioTrack', state);
+    if (state.mediaKind) playbackChanged(state.mediaKind, state);
 }
 
 /**
@@ -3953,19 +3957,8 @@ function selectionIsPlayable(state) {
  */
 async function prepareAudioTrack(state) {
     const { ui } = state;
-    const needed = [...new Set(state.audioTrack.notes.map(n => `${n.midi}:${n.velocity}`))];
     ui.status.textContent = 'Loading the guitar samples for this track…';
-
-    const results = await Promise.allSettled(needed.map(key => {
-        const [midi, velocity] = key.split(':');
-        return loadFullSample(Number(midi), velocity);
-    }));
-
-    state.failedSampleKeys = new Set();
-    results.forEach((result, index) => {
-        if (result.status === 'rejected') state.failedSampleKeys.add(needed[index]);
-    });
-    state.ready = true;
+    await loadAudioTrackSamples(state);
 
     // Short, since the music is about to start under it.
     let readyText = 'Samples loaded.';
@@ -3977,6 +3970,20 @@ async function prepareAudioTrack(state) {
             ' sample and cannot be played.';
     }
     ui.status.textContent = readyText;
+}
+
+/** Loads the recording for every pitch and loudness the track plays, noting any that fail. */
+async function loadAudioTrackSamples(state) {
+    const needed = [...new Set(state.audioTrack.notes.map(n => `${n.midi}:${n.velocity}`))];
+    const results = await Promise.allSettled(needed.map(key => {
+        const [midi, velocity] = key.split(':');
+        return loadFullSample(Number(midi), velocity);
+    }));
+    state.failedSampleKeys = new Set();
+    results.forEach((result, index) => {
+        if (result.status === 'rejected') state.failedSampleKeys.add(needed[index]);
+    });
+    state.ready = true;
 }
 
 /**
@@ -4504,7 +4511,7 @@ function buildTrackRegion(score, track, getSongItemId) {
  * no playable notes, which gets a line saying so in place of the controls.
  */
 function buildAudioTrackContent(score, track, songItemId, details) {
-    const state = {
+    const state = newTrackPlayerState({
         score,
         trackIndex: track.index,
         songItemId,
@@ -4512,6 +4519,54 @@ function buildAudioTrackContent(score, track, songItemId, details) {
         targetTempo: scoreTempo(score),
         // What D goes back to: the song's own tempo, until another is typed into the Tempo field.
         defaultTempo: scoreTempo(score),
+        sections: trackSections(track),
+        // Speaking the next measure's chords, from the chords the file prints: each measure's
+        // harmony, carried forward (extractScoreMetadata). Off by default for songs.
+        harmonies: track.measures.map(measure => measure.harmony ?? []),
+        cacheId: `${songItemId}:${track.index}`,
+        mediaKind: 'audioTrack'
+    // Songs' tracks play one at a time, as they always have.
+    }, 'song');
+    state.audioTrack = deriveAudioTrack(state);
+
+    if (!state.audioTrack || state.audioTrack.notes.length === 0) {
+        audioTransports.delete(state.transport);
+        const message = document.createElement('p');
+        message.textContent = 'This track has no playable notes.';
+        return { element: message, state: null };
+    }
+    state.lastMeasure = state.audioTrack.barCount;
+
+    const element = buildAudioTrackPanel(state);
+    const entry = { itemId: songItemId, state, details, lastUsed: performance.now() };
+    audioTrackPanels.set(`${songItemId}:${track.index}`, entry);
+    // Using a track is what makes it the one the playback keys act on, whether or not focus is
+    // still inside it when the key is pressed.
+    details.addEventListener('focusin', () => { entry.lastUsed = performance.now(); });
+    return { element, state };
+}
+
+/**
+ * Everything a player on the audio track player keeps, with the defaults a song's track starts
+ * with, overridden by `fields`. Songs, progressions and the pattern preview each make one; `group`
+ * is their transport's (createAudioTransport).
+ *
+ * `quarterScale` turns the tempo the player shows into alphaTab's quarters a minute: 1 for a song,
+ * whose tempo is alphaTab's, and 4 / beatUnit for a progression, whose tempo counts the time
+ * signature's lower number (progressionQuarterTempo). `cacheId` keys the timelines kept for each
+ * tempo across the song's lifetime; without one they are kept on the state, and dropped when its
+ * Score is rebuilt. `mediaKind` is the media session's name for it, or null to stay out of it.
+ */
+function newTrackPlayerState(fields, group) {
+    const state = {
+        score: null,
+        trackIndex: 0,
+        targetTempo: DEFAULT_TEMPO,
+        defaultTempo: DEFAULT_TEMPO,
+        quarterScale: 1,
+        cacheId: null,
+        trackCache: new Map(),
+        mediaKind: null,
         audioTrack: null,
         // Samples loaded. The first Play loads them; see playAudioTrackWhenReady.
         ready: false,
@@ -4542,37 +4597,20 @@ function buildAudioTrackContent(score, track, songItemId, details) {
         timesToPlay: 1,
         loop: false,
         anchorPass: 1,
-        sections: trackSections(track),
+        sections: [],
         rangeCache: null,
         failedSampleKeys: null,
-        // Speaking the next measure's chords, from the chords the file prints: each measure's
-        // harmony, carried forward (extractScoreMetadata). Off by default for songs. `speech` holds
+        // Each measure's chords as [{ name, beat }], printed and carried forward. `speech` holds
         // the recordings once loaded, in the voice of the moment, and `speechPlan` when to say them.
-        harmonies: track.measures.map(measure => measure.harmony ?? []),
+        harmonies: [],
         speak: false,
         speech: null,
         speechPlan: null,
-        // Songs' tracks play one at a time, as they always have.
-        transport: createAudioTransport('song')
+        ...fields,
+        transport: createAudioTransport(group)
     };
     state.transport.state = state;
-    state.audioTrack = deriveAudioTrack(state);
-
-    if (!state.audioTrack || state.audioTrack.notes.length === 0) {
-        audioTransports.delete(state.transport);
-        const message = document.createElement('p');
-        message.textContent = 'This track has no playable notes.';
-        return { element: message, state: null };
-    }
-    state.lastMeasure = state.audioTrack.barCount;
-
-    const element = buildAudioTrackPanel(state);
-    const entry = { itemId: songItemId, state, details, lastUsed: performance.now() };
-    audioTrackPanels.set(`${songItemId}:${track.index}`, entry);
-    // Using a track is what makes it the one the playback keys act on, whether or not focus is
-    // still inside it when the key is pressed.
-    details.addEventListener('focusin', () => { entry.lastUsed = performance.now(); });
-    return { element, state };
+    return state;
 }
 
 /** Stops and forgets every audio track belonging to a song that is closing. */
@@ -6310,13 +6348,25 @@ function selectedPattern(select) {
 
 /** The alphaTex a saved file holds. Throws only on a program error. */
 function progressionFileText(progression, tempo) {
-    const song = songFromProgression(progression, {
-        library: chordPracticeLibrary, tempo, pattern: progressionPattern(progression),
-        swing: progression.swing === true
+    return progressionTex(progression, {
+        tempo, pattern: progressionPattern(progression), swing: progression.swing === true
     });
+}
+
+/** A progression written as alphaTex with the pattern and feel given. Throws only on a program error. */
+function progressionTex(progression, { tempo, pattern, swing = false, feel = null }) {
+    const song = songFromProgression(progression, { library: chordPracticeLibrary, tempo, pattern, swing, feel });
     const written = songToAlphaTex(song);
     if (written.error) throw new Error(`measure ${written.measure}: ${written.error}`);
     return written.text;
+}
+
+/**
+ * A progression as the Score the audio track player plays: written as saving writes it, then read
+ * by alphaTab, so it plays exactly as the saved file does when opened as a song.
+ */
+function progressionScore(progression, options) {
+    return importAlphaTex(progressionTex(progression, options));
 }
 
 function importAlphaTex(text) {
@@ -6622,9 +6672,9 @@ function allListedPatterns() {
     return listed;
 }
 
-// The Play button that is playing, if any, its timer and what it has scheduled. Only one plays at
-// a time, the item's or the dialog's.
-const patternPreview = { button: null, timer: null, sources: [] };
+// The Play button that is playing, if any, and the player it plays on. Only one plays at a time,
+// the item's or the dialog's. `token` tells a start still loading whether it has been overtaken.
+const patternPreview = { button: null, state: null, token: 0 };
 // Whether the Strumming Patterns item plays its patterns swung, kept while the item is closed.
 let strummingPatternsSwing = false;
 
@@ -6635,79 +6685,58 @@ function setPreviewButton(button, playing) {
 
 /** Stops the pattern preview, and puts its button back to Play. */
 function stopPatternPreview() {
-    clearTimeout(patternPreview.timer);
-    patternPreview.timer = null;
+    patternPreview.token++;
+    if (patternPreview.state) dropAudioTransport(patternPreview.state.transport);
+    patternPreview.state = null;
     if (patternPreview.button) setPreviewButton(patternPreview.button, false);
     patternPreview.button = null;
-    patternPreview.sources = [];
-    stopChordPlayback();
 }
 
 /**
- * Plays a pattern on G, C, D and F, two measures each, at 80 beats a minute with the metronome on
- * the beats, round and round until stopped. `button` is the Play button, which reads Pause while
- * it plays.
+ * Plays a pattern on G, C, D and F, two measures each, at DEFAULT_TEMPO with the metronome on the
+ * beats, round and round until stopped. `button` is the Play button, which reads Pause while it
+ * plays.
  *
- * Through the chord library's playback, so the chord library playing anything stops it, and it
- * leaves a progression's playback alone. Each time round is laid out a couple of seconds before it
- * is due, on the audio clock, so the loop joins without a gap.
+ * On the audio track player since 2026-11-12 (docs/one-player.md, decision 19): the eight measures
+ * are written as a progression is saved and played with Loop on and no count-in, so the preview
+ * sounds as a progression with that pattern does. It has a player of its own, so it leaves a
+ * progression's playback and a song's alone. It stops the chord library's playback on starting,
+ * and the chord library playing anything stops it (playChordSelection).
  */
 async function startPatternPreview(button, pattern, beatsPerBar, { beatUnit = null, swing = false } = {}) {
     stopPatternPreview();
+    stopChordPlayback();
     patternPreview.button = button;
     setPreviewButton(button, true);
-    const myToken = chordPlaybackToken;
-    const stillMine = () => myToken === chordPlaybackToken && patternPreview.button === button;
+    const myToken = patternPreview.token;
+    // Asked for in the press, since a phone only lets sound start from one.
+    getSharedAudioContext();
 
     await ensureChordPracticeReady();
-    const voicings = PATTERN_PREVIEW_CHORDS.map(chord => chordPracticeVoicing(chordPracticeLibraryEntry(chord))?.midi ?? []);
-    const buffers = await loadPracticeNoteBuffers(new Set(voicings.flat()), () => !stillMine());
-    if (!buffers || !stillMine()) return;
-
-    const context = getSharedAudioContext();
-    const master = context.createGain();
-    master.gain.value = 1;
-    master.connect(context.destination);
-    chordMasterGain = master;
-
+    if (myToken !== patternPreview.token) return;
+    const unit = beatUnit ?? 4;
+    const progression = {
+        key: 'G', mode: 'major', beatsPerBar, beatUnit: unit,
+        chords: PATTERN_PREVIEW_CHORDS.flatMap(chord => Array(PATTERN_PREVIEW_MEASURES_EACH).fill(chord))
+    };
     // Swung only where the caller gives the time signature and asks for it: the Strumming Patterns
     // item and the pattern dialog both follow the item's Swing checkbox.
-    const player = { tempo: PATTERN_PREVIEW_TEMPO, buffers, strokes: chordPracticeStrokes({ beatsPerBar, beatUnit, pattern, swing }) };
-    const secondsPerBeat = 60 / PATTERN_PREVIEW_TEMPO;
-    const measureSeconds = beatsPerBar * secondsPerBeat;
-    const roundSeconds = PATTERN_PREVIEW_CHORDS.length * PATTERN_PREVIEW_MEASURES_EACH * measureSeconds;
-
-    const scheduleRound = start => {
-        // Something else stopped the chord library's playback: let the button say so.
-        if (!stillMine()) {
-            if (patternPreview.button === button) {
-                setPreviewButton(button, false);
-                patternPreview.button = null;
-            }
-            return;
-        }
-        // Only what is still sounding is kept, so a long listen does not pile up finished sources.
-        const now = context.currentTime;
-        const output = { destination: master, sources: patternPreview.sources.filter(entry => entry.endsAt > now) };
-        for (const [chordIndex, midi] of voicings.entries()) {
-            for (let repeat = 0; repeat < PATTERN_PREVIEW_MEASURES_EACH; repeat++) {
-                const measureStart = start + (chordIndex * PATTERN_PREVIEW_MEASURES_EACH + repeat) * measureSeconds;
-                for (let beat = 0; beat < beatsPerBar; beat++) {
-                    const at = measureStart + beat * secondsPerBeat;
-                    output.sources.push({ source: scheduleMetronomeClick(context, master, at, beat === 0), endsAt: at + METRONOME_CLICK_SECONDS });
-                }
-                for (const stroke of player.strokes.strokes) {
-                    scheduleChordPracticeStrum(player, midi, stroke, measureStart + stroke.beats * secondsPerBeat, 0, output);
-                }
-            }
-        }
-        patternPreview.sources = output.sources;
-        chordActiveSources = output.sources.map(entry => entry.source);
-        const next = start + roundSeconds;
-        patternPreview.timer = setTimeout(() => scheduleRound(next),
-            Math.max(0, (next - PATTERN_PREVIEW_LEAD_SECONDS - context.currentTime) * 1000));
-    };
-    scheduleRound(context.currentTime + 0.1);
+    const state = newTrackPlayerState({
+        score: progressionScore(progression, { tempo: PATTERN_PREVIEW_TEMPO, pattern, swing }),
+        targetTempo: PATTERN_PREVIEW_TEMPO,
+        quarterScale: progressionQuarterTempo(1, unit),
+        metronome: true,
+        countIn: false,
+        countInArmed: false,
+        loop: true,
+        ui: { playButton: button }
+    }, 'preview');
+    state.audioTrack = deriveAudioTrack(state);
+    state.lastMeasure = state.audioTrack.barCount;
+    patternPreview.state = state;
+    await loadAudioTrackSamples(state);
+    if (myToken !== patternPreview.token) return;
+    startAudioTrackPlayback(state, 0);
 }
 
 /** Play and Pause in one button: starts the preview from this button, or stops it. */
