@@ -549,7 +549,8 @@ Swung, it comes late, two thirds of the way through the beat, so each beat is a 
 This is the feel Song Summary calls "triplet eighths (swung)", and it is also called a shuffle.
 Only the ands move; the strokes on the beat stay where they are, and so does the metronome.
 
-Each place a strumming pattern is chosen has a checkbox after it, Swing, each and played late: the Chord Practice dialog, a progression's Playback Settings, the progression editor, the Strumming Patterns item and the Metronome.
+Each place a strumming pattern is chosen has a checkbox after it, Swing, each and played late: the Chord Practice dialog, a progression's Playback Settings, the progression editor and the Strumming Patterns item.
+The Metronome has a Feel list in its place, with swing and five other feels; see Metronome.
 A chord that starts on an and, such as C@2.5, is still written that way, and is played late with the rest.
 
 Swing moves eighth notes, so it has no effect on a pattern in sixteenths, or in a time signature counted in eighths such as 6/8 or 12/8, which is in threes already.
@@ -668,8 +669,13 @@ Under Settings:
 
 - **Time signature** and **Strumming pattern,** the same patterns as in the Strumming Patterns item, the ones that come with unstrung and yours.
   After them, a line says where the clicks fall, such as "Clicks on 1 high strong down, 2 down, 2 and up, 3 and up, 4 down, 4 and up".
-- **Swing, each and played late.**
-  Checked, each click on an and comes late, as described under Swing.
+- **Feel,** Straight to begin with, then the six feels: triplet, dotted and Scottish, each at eighths and at sixteenths.
+  A feel plays the clicks in pairs, long then short, or short then long for Scottish.
+  Triplet eighths is the swing described under Swing, each and two thirds of the way through the beat.
+  Dotted eighths puts the and three quarters of the way through, Scottish eighths a quarter of the way.
+  The sixteenth feels do the same to each pair of sixteenths.
+  An eighth feel has no effect on a pattern in sixteenths or in 6/8, and a sixteenth feel none on a pattern with no sixteenths; the list then says so in its description, such as "This feel has no effect in 6/8."
+  The feel stays as you set it until unstrung is closed.
 - **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
   The tempo you type here is the default tempo.
 - **Volume,** from 1 to 5, 3 to begin with.
@@ -683,7 +689,7 @@ Under Controls:
   Slower and Faster do not change it.
 - **Quieter** and **Louder:** change the volume by one.
 
-Changing the tempo, the volume, the pattern or Swing while it plays carries on without starting the measure again.
+Changing the tempo, the volume, the pattern or the feel while it plays carries on without starting the measure again.
 Each button says what it did, such as "85 BPM" or "Volume 4", and says so when the tempo or volume is already as far as it goes.
 The metronome keeps playing while you look at another open item.
 Closing the item stops it, and opening it again keeps your settings until unstrung is closed.

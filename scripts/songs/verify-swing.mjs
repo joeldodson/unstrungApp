@@ -1,7 +1,8 @@
 // Verifies swing in the real app: a swung file opens with Swing checked, the strums are scheduled
 // long then short, unchecking Swing plays them evenly, saving writes the feel, and the note beside
 // the checkbox says when swing has nothing to move. Then the same checkbox in the Chord Practice
-// dialog, the progression editor, the Strumming Patterns item and the Metronome.
+// dialog, the progression editor and the Strumming Patterns item, and the Metronome's Feel list,
+// which took the place of its Swing checkbox on 2026-11-12.
 //
 // Strum times are read from the Web Audio calls: every start of a recorded note is noted, and the
 // gaps between starts of the one note most often played are compared. Runs on a scratch profile.
@@ -290,33 +291,68 @@ try {
         const whens = (await page.evaluate(() => window.__starts)).map(s => Math.round(s.when * 1000) / 1000).sort((a, b) => a - b);
         return whens.slice(1).map((when, index) => Math.round((when - whens[index]) * 1000) / 1000);
     };
+    // Since 2026-11-12 the Metronome has a Feel list in place of Swing (docs/one-player.md,
+    // decision 18): Straight and the six feels, each pairing eighths or sixteenths.
+    const feelState = () => page.evaluate(() => {
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
+        const label = [...panel.querySelectorAll('label')].find(l => l.textContent === 'Feel');
+        const select = label && document.getElementById(label.htmlFor);
+        const note = select && document.getElementById(select.getAttribute('aria-describedby'));
+        return {
+            type: select?.tagName, value: select?.value, chosen: select?.selectedOptions[0]?.textContent,
+            options: [...(select?.options ?? [])].map(o => o.textContent),
+            afterAbout: select?.closest('p').previousElementSibling?.textContent.startsWith('Clicks on'),
+            noSwing: ![...panel.querySelectorAll('label')].some(l => l.textContent.startsWith('Swing')),
+            note: note?.hidden ? '' : note?.textContent ?? null
+        };
+    });
+    const chooseFeel = text => page.evaluate(wanted => {
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
+        const select = document.getElementById([...panel.querySelectorAll('label')].find(l => l.textContent === 'Feel').htmlFor);
+        select.value = [...select.options].find(o => o.textContent === wanted).value;
+        select.dispatchEvent(new Event('change'));
+    }, text);
     await runMenuCommand(page, 'metronome');
     await page.waitForTimeout(1200);
     await choosePattern('Strumming pattern', '4/4', 'All Down-Up');
-    state = await tab();
-    check('it has Swing after the clicks are described, unchecked', state.swingLabel === 'Swing, each and played late' && !state.swingChecked);
-    // Tempo 60: clicks half a second apart straight, two thirds and one third swung.
+    let feel = await feelState();
+    check('it has a Feel list after the clicks are described, at Straight, and no Swing checkbox',
+        feel.type === 'SELECT' && feel.afterAbout && feel.chosen === 'Straight' && feel.noSwing, JSON.stringify(feel));
+    check('offering Straight and the six feels', feel.options.join('|') === 'Straight|Triplet eighths (swing)|Dotted eighths|' +
+        'Scottish eighths|Triplet sixteenths|Dotted sixteenths|Scottish sixteenths', feel.options.join('|'));
+    // Tempo 60: clicks half a second apart straight; each feel moves the and of each beat.
     let clicks = await clickGaps();
     console.log(`  straight: ${clicks.join(' ')}`);
     check('straight, the clicks are even', clicks.length >= 3 && clicks.every(gap => near(gap, 0.5)), clicks.join(' '));
-    await setCheckbox('Swing', true);
+    for (const [name, long] of [['Triplet eighths (swing)', 0.667], ['Dotted eighths', 0.75], ['Scottish eighths', 0.25]]) {
+        await chooseFeel(name);
+        clicks = await clickGaps();
+        console.log(`  ${name}: ${clicks.join(' ')}`);
+        check(`${name}: the and comes ${long} of a beat after the beat`,
+            clicks.length >= 3 && clicks.every((gap, index) => near(gap, index % 2 === 0 ? long : 1 - long)), clicks.join(' '));
+    }
+    await chooseFeel('Triplet sixteenths');
+    check('a sixteenth feel over eighths says it has no effect',
+        (await feelState()).note === 'This feel has no effect on a pattern with no sixteenths.', String((await feelState()).note));
     clicks = await clickGaps();
-    console.log(`  swung: ${clicks.join(' ')}`);
-    check('swung, they come two thirds and one third of a beat apart',
-        clicks.length >= 3 && clicks.every((gap, index) => near(gap, index % 2 === 0 ? 0.667 : 0.333)), clicks.join(' '));
+    check('and the clicks are even', clicks.length >= 3 && clicks.every(gap => near(gap, 0.5)), clicks.join(' '));
     // Changed while it plays, it carries on: no click is lost or doubled, and each pair is still a beat.
+    await chooseFeel('Triplet eighths (swing)');
     await page.evaluate(() => { window.__starts = []; });
     await clickInPanel('Start');
     await page.waitForTimeout(1300);
-    await setCheckbox('Swing', false);
+    await chooseFeel('Straight');
     await page.waitForTimeout(1500);
     await clickInPanel('Stop');
     const through = [...new Set((await page.evaluate(() => window.__sounded())).map(s => Math.round(s.when * 1000) / 1000))].sort((a, b) => a - b);
     const beatGaps = through.filter((_, index) => index % 2 === 0).slice(1).map((when, index) => Math.round((when - through[index * 2]) * 1000) / 1000);
-    check('unchecking Swing while it plays keeps the beat', beatGaps.length >= 2 && beatGaps.every(gap => near(gap, 1)), through.join(' '));
+    check('changing the feel while it plays keeps the beat', beatGaps.length >= 2 && beatGaps.every(gap => near(gap, 1)), through.join(' '));
+    await chooseFeel('Dotted eighths');
     await choosePattern('Strumming pattern', '6/8', 'All Down-Up');
-    state = await tab();
-    check('in 6/8 it says Swing has no effect', state.note === 'Swing has no effect in 6/8.', String(state.note));
+    feel = await feelState();
+    check('in 6/8 an eighth feel says it has no effect', feel.note === 'This feel has no effect in 6/8.', String(feel.note));
+    await chooseFeel('Straight');
+    check('and Straight says nothing', (await feelState()).note === '', String((await feelState()).note));
 
     check('no errors in the console', consoleErrors.length === 0, consoleErrors.join(' ; '));
 } finally {

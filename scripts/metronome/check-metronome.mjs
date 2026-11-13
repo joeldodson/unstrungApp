@@ -7,11 +7,11 @@
 import {
     metronomeClicks, metronomeClickGain, formatMetronomeClicks, describeMetronomeClicks, clampMetronomeTempo,
     clampMetronomeVolume, metronomeVolumeGain, metronomeSlotTime, firstMetronomeSlotAfter, retimeMetronome,
-    regridMetronome, metronomeSlotInMeasure, metronomeSlotSeconds,
+    regridMetronome, metronomeSlotInMeasure, metronomeSlotSeconds, metronomeSwingDelay, metronomeFeelDelay,
     METRONOME_VOLUME_GAINS, METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, METRONOME_DEFAULT_TEMPO
 } from '../../src/shared/metronome.mjs';
 import { DEFAULT_TEMPO, scoreTempo } from '../../src/shared/tempo.mjs';
-import { patternsFor, BUILT_IN_PATTERNS } from '../../src/shared/strummingPatterns.mjs';
+import { patternsFor, BUILT_IN_PATTERNS, FEELS, feelNote } from '../../src/shared/strummingPatterns.mjs';
 
 let failures = 0;
 const check = (label, condition, detail = '') => {
@@ -121,6 +121,36 @@ const other = regridMetronome(playing, 10.6, eighths, { slotsPerBeat: 1, slotsPe
 check('a new time signature starts a new measure on the next beat', near(other.time, 11) && other.slot === 0, JSON.stringify(other));
 const late = regridMetronome({ time: 10, slot: 0, slotSeconds: 0.25 }, 11.9, eighths, eighths, 0.25, { sameSignature: true });
 check('the place in the measure wraps round', near(late.time, 12) && metronomeSlotInMeasure(late.slot, 8) === 0, JSON.stringify(late));
+
+// The Feel list, in place of Swing since 2026-11-12 (docs/one-player.md, decision 18). A slot is
+// 0.5 s on an eighth grid at 60 BPM in 4/4, and 0.25 s on a sixteenth grid.
+console.log('\nFeels');
+const feelEighths = { slotsPerBeat: 2, beatUnit: 4 };
+const feelSixteenths = { slotsPerBeat: 4, beatUnit: 4 };
+const feelSixEight = { slotsPerBeat: 2, beatUnit: 8 };
+const feelDelaysAt = (grid, feel, slotSeconds) => [0, 1, 2, 3].map(slot => Math.round(metronomeFeelDelay(slot, grid, slotSeconds, feel) * 1000) / 1000);
+check('straight moves nothing', feelDelaysAt(feelEighths, null, 0.5).every(d => d === 0));
+check('triplet eighths moves each and as Swing did, a third of a slot late',
+    [0, 1, 2, 3].every(slot => near(metronomeFeelDelay(slot, feelEighths, 0.5, 'triplet8th'), metronomeSwingDelay(slot, 2, 0.5))));
+const feelDelays8 = { triplet8th: 0.167, dotted8th: 0.25, scottish8th: -0.25 };
+for (const [feel, delay] of Object.entries(feelDelays8)) {
+    check(`${feel} moves each and ${delay} s at 60 BPM, and no beat`, feelDelaysAt(feelEighths, feel, 0.5).join() === `0,${delay},0,${delay}`,
+        feelDelaysAt(feelEighths, feel, 0.5).join());
+}
+const feelDelays16 = { triplet16th: 0.083, dotted16th: 0.125, scottish16th: -0.125 };
+for (const [feel, delay] of Object.entries(feelDelays16)) {
+    check(`${feel} moves every second sixteenth ${delay} s`, feelDelaysAt(feelSixteenths, feel, 0.25).join() === `0,${delay},0,${delay}`,
+        feelDelaysAt(feelSixteenths, feel, 0.25).join());
+    check(`${feel} does the same in 6/8 sixteenths`, feelDelaysAt(feelSixEight, feel, 0.25).join() === `0,${delay},0,${delay}`,
+        feelDelaysAt(feelSixEight, feel, 0.25).join());
+}
+check('an eighth feel over sixteenths moves nothing', FEELS.filter(f => f.pairs === 8).every(f => feelDelaysAt(feelSixteenths, f.id, 0.25).every(d => d === 0)));
+check('nor in 6/8', FEELS.filter(f => f.pairs === 8).every(f => feelDelaysAt({ slotsPerBeat: 1, beatUnit: 8 }, f.id, 0.5).every(d => d === 0)));
+check('a sixteenth feel over eighths moves nothing', FEELS.filter(f => f.pairs === 16).every(f => feelDelaysAt(feelEighths, f.id, 0.5).every(d => d === 0)));
+check('the note says when a feel has no effect', feelNote('dotted8th', 6, 8, 1) === 'This feel has no effect in 6/8.' &&
+    feelNote('triplet8th', 4, 4, 4) === 'This feel has no effect on a pattern in sixteenths.' &&
+    feelNote('scottish16th', 4, 4, 2) === 'This feel has no effect on a pattern with no sixteenths.' &&
+    feelNote('triplet8th', 4, 4, 2) === '' && feelNote(null, 6, 8, 1) === '');
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
 process.exitCode = failures === 0 ? 0 : 1;

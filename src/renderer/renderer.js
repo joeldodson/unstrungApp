@@ -23,7 +23,7 @@ import {
 import {
     everyBeatDown, formatStrummingPattern, patternsFor, namedPatternLike, parseStrummingPattern, fitPattern,
     checkOwnPattern, formatPatternFile, mergeImportedPatterns, describeStrummingPattern, BUILT_IN_PATTERNS,
-    swingApplies, slotBeats
+    swingApplies, slotBeats, FEELS, feelNote
 } from '../shared/strummingPatterns.mjs';
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import {
@@ -37,7 +37,7 @@ import {
     METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, METRONOME_DEFAULT_VOLUME,
     clampMetronomeTempo, clampMetronomeVolume, metronomeVolumeGain,
     metronomeClicks, metronomeClickGain, metronomeSlotSeconds, metronomeSlotTime, retimeMetronome, regridMetronome,
-    metronomeSwingDelay,
+    metronomeFeelDelay,
     metronomeSlotInMeasure, describeMetronomeClicks
 } from '../shared/metronome.mjs';
 import { createMenuButton } from './menu.js';
@@ -7109,8 +7109,9 @@ const metronome = {
     volume: METRONOME_DEFAULT_VOLUME,
     // The chosen pattern, as { timeSignature, name }, kept while the item is closed.
     chosen: { timeSignature: '4/4', name: 'Down Only' },
-    // Whether each "and" clicks late, kept while the item is closed.
-    swing: false,
+    // The feel the clicks are played with, one of FEELS' ids or null for straight, kept while the
+    // item is closed and lasting until unstrung closes. It was a Swing checkbox until 2026-11-12.
+    feel: null,
     // The pattern being played: its clicks and grid.
     grid: null,
     anchor: null,
@@ -7176,9 +7177,9 @@ function metronomePatternChosen() {
     metronome.chosen = { timeSignature: pattern.timeSignature, name: pattern.name };
     const grid = metronomeGrid(pattern);
     metronome.ui.about.textContent = describeMetronomeClicks(grid.clicks, grid.slotsPerBeat);
-    showSwingNote(metronome.ui.swingNote, grid.beatsPerBar, grid.beatUnit, grid.slotsPerBeat);
     const before = metronome.grid;
     metronome.grid = grid;
+    showMetronomeFeelNote();
     if (!metronome.playing || !before) return;
     const context = getSharedAudioContext();
     reanchorMetronome(regridMetronome(metronome.anchor, context.currentTime + METRONOME_CHANGE_MARGIN_SECONDS,
@@ -7204,8 +7205,7 @@ function scheduleMetronomeAhead() {
     const context = getSharedAudioContext();
     const now = context.currentTime;
     const until = now + METRONOME_LEAD_SECONDS;
-    const { clicks, slotsPerMeasure, slotsPerBeat, beatUnit } = metronome.grid;
-    const swung = metronome.swing && swingApplies(beatUnit, slotsPerBeat);
+    const { clicks, slotsPerMeasure } = metronome.grid;
     // Only what is still to sound is kept, so a long session does not pile up finished sources.
     metronome.sources = metronome.sources.filter(entry => entry.endsAt > now);
     for (;;) {
@@ -7213,8 +7213,8 @@ function scheduleMetronomeAhead() {
         if (slotAt >= until) break;
         const slotInMeasure = metronomeSlotInMeasure(metronome.nextSlot, slotsPerMeasure);
         const click = clicks[slotInMeasure];
-        // A swung "and" clicks later than its slot; the slots stay even.
-        const at = slotAt + (swung ? metronomeSwingDelay(slotInMeasure, slotsPerBeat, metronome.anchor.slotSeconds) : 0);
+        // The second of a pair clicks where the feel puts it; the slots stay even.
+        const at = slotAt + metronomeFeelDelay(slotInMeasure, metronome.grid, metronome.anchor.slotSeconds, metronome.feel);
         // A slot already past, after a stalled timer, is skipped rather than played late.
         if (click && at >= now) metronome.sources.push(scheduleMetronomeStrokeClick(context, at, click));
         metronome.nextSlot++;
@@ -7307,9 +7307,19 @@ function setMetronomeTempo(tempo) {
         metronomeSlotSeconds(tempo, metronome.grid.slotsPerBeat)));
 }
 
-/** Swings the clicks or plays them straight, carrying on from the next slot when playing. */
-function setMetronomeSwing(swing) {
-    metronome.swing = swing;
+/** The note under the Feel list: said only when the pattern leaves the feel nothing to move. */
+function showMetronomeFeelNote() {
+    const note = metronome.ui?.feelNote;
+    const grid = metronome.grid;
+    if (!note || !grid) return;
+    note.textContent = feelNote(metronome.feel, grid.beatsPerBar, grid.beatUnit, grid.slotsPerBeat);
+    note.hidden = note.textContent === '';
+}
+
+/** Plays the clicks with another feel, carrying on from the next slot when playing. */
+function setMetronomeFeel(feel) {
+    metronome.feel = feel || null;
+    showMetronomeFeelNote();
     if (!metronome.playing) return;
     const context = getSharedAudioContext();
     reanchorMetronome(retimeMetronome(metronome.anchor, context.currentTime + METRONOME_CHANGE_MARGIN_SECONDS,
@@ -7436,8 +7446,21 @@ function openMetronomeItem() {
     // wanted rather than on every visit.
     const about = document.createElement('p');
     container.append(about);
-    const swing = buildSwingParagraph('metronome-swing', metronome.swing);
-    container.append(swing.paragraph);
+    // In place of Swing since 2026-11-12: Straight and the six feels, described by a note when the
+    // pattern leaves the feel nothing to move. docs/one-player.md, decision 18.
+    const feelSelect = labelled(document.createElement('select'), 'metronome-feel', 'Feel');
+    for (const [value, label] of [['', 'Straight'], ...FEELS.map(f => [f.id, f.label])]) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        feelSelect.append(option);
+    }
+    feelSelect.value = metronome.feel ?? '';
+    const feelNoteElement = document.createElement('span');
+    feelNoteElement.id = uniqueControlId('metronome-feel-note');
+    feelNoteElement.hidden = true;
+    feelSelect.setAttribute('aria-describedby', feelNoteElement.id);
+    feelSelect.closest('p').append(' ', feelNoteElement);
     const tempoInput = labelled(numberField(METRONOME_MIN_TEMPO, METRONOME_MAX_TEMPO, metronome.tempo),
         'metronome-tempo', `Tempo, ${METRONOME_MIN_TEMPO} to ${METRONOME_MAX_TEMPO} BPM`);
     const volumeInput = labelled(numberField(METRONOME_MIN_VOLUME, METRONOME_MAX_VOLUME, metronome.volume),
@@ -7503,12 +7526,12 @@ function openMetronomeItem() {
     });
     metronome.itemId = item.id;
     metronome.ui = {
-        signatureSelect, patternSelect, about, swingNote: swing.note, tempoInput, volumeInput, startButton, announce,
-        all: [], patterns: null
+        signatureSelect, patternSelect, about, feelSelect, feelNote: feelNoteElement, tempoInput, volumeInput,
+        startButton, announce, all: [], patterns: null
     };
     metronome.grid = null;
     fillMetronomeLists();
-    swing.checkbox.addEventListener('change', () => setMetronomeSwing(swing.checkbox.checked));
+    feelSelect.addEventListener('change', () => setMetronomeFeel(feelSelect.value));
 
     signatureSelect.addEventListener('change', () => fillMetronomePatterns());
     patternSelect.addEventListener('change', () => metronomePatternChosen());

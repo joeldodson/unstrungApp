@@ -25,6 +25,7 @@
 // docs/strumming-patterns-and-metronome.md.
 
 import { DEFAULT_TEMPO } from './tempo.mjs';
+import { FEELS, feelApplies } from './strummingPatterns.mjs';
 
 export const METRONOME_MIN_TEMPO = 30;
 export const METRONOME_MAX_TEMPO = 240;
@@ -133,6 +134,26 @@ export function metronomeSlotSeconds(tempo, slotsPerBeat) {
  */
 export function metronomeSwingDelay(slotInMeasure, slotsPerBeat, slotSeconds) {
     return slotsPerBeat === 2 && slotInMeasure % 2 === 1 ? slotSeconds / 3 : 0;
+}
+
+/**
+ * How much later than its slot a click sounds with a feel, in seconds, negative for earlier. Since
+ * 2026-11-12 the Metronome has a Feel list in place of Swing (docs/one-player.md, decision 18).
+ *
+ * A feel pairs slots of its note value, eighths or sixteenths, and moves the second of each pair
+ * from halfway through the pair to where the feel puts it (`secondAt` in FEELS): later for triplet
+ * and dotted feels, earlier for Scottish. Nothing moves where the feel does not apply to the grid
+ * (feelApplies), or for straight. Triplet eighths gives what metronomeSwingDelay gives.
+ */
+export function metronomeFeelDelay(slotInMeasure, { slotsPerBeat, beatUnit }, slotSeconds, feel) {
+    const chosen = FEELS.find(f => f.id === feel);
+    if (!chosen || !feelApplies(feel, beatUnit, slotsPerBeat)) return 0;
+    // Slots per pair: two when the slots are the paired value, as feelApplies ensures for
+    // sixteenths; an eighth feel over quarters has no seconds to move.
+    const slotTicks = (4 / beatUnit) * 960 / slotsPerBeat;
+    const pairTicks = chosen.pairs === 8 ? 960 : 480;
+    if (slotTicks * 2 !== pairTicks || slotInMeasure % 2 !== 1) return 0;
+    return (chosen.secondAt - 0.5) * 2 * slotSeconds;
 }
 
 /** When slot `n` sounds, by the anchor. */

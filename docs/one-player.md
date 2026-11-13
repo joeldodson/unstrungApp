@@ -1,8 +1,9 @@
 # One player for songs and progressions
 
-Notes from 2026-11-12. Nothing is built yet. Every difference under Decisions was put to Joel one
-at a time the same day, and each now records which way the combined player goes. The next step is
-stage 2 under How to build it.
+Notes from 2026-11-12. Every difference under Decisions was put to Joel one at a time the same
+day, and each now records which way the combined player goes. Stage 2 under How to build it was
+built the same day, nine commits on main, each noted as built under its decision. The next step is
+stage 3.
 
 ## How this came up
 
@@ -376,6 +377,15 @@ differently from today, and the entry says how.
       applies to, and four sixteenth patterns made for it (no built-in pattern is in sixteenths),
       each written, played as a track with every strum where the feel puts it, and read back.
 
+    **The Metronome's Feel list built 2026-11-12,** stage 2's ninth and last step. It replaces the
+    Metronome's Swing checkbox: Straight and the six feels, after the line describing the clicks,
+    with a note as its description when the pattern leaves the feel nothing to move (`feelNote`).
+    The scheduler moves the second of each pair by `metronomeFeelDelay`, from `secondAt` in
+    `FEELS`: later for triplet and dotted feels, earlier for Scottish. Kept until unstrung closes,
+    as Swing was. Checked by `check-metronome.mjs` for every feel, and in the app by
+    `verify-swing.mjs` for straight and the three eighth feels, the notes, and changing feel while
+    it plays; `verify-metronome.mjs` lists the new control.
+
 ### What else moves
 
 19. **The pattern preview.** Play in the Strumming Patterns item and the New Strumming Pattern
@@ -416,7 +426,7 @@ In stages, so progressions keep working throughout:
    setting, and the Feel list. The writer's changes (four-string upstrokes, cutting notes for
    each feel) and the reader's go with them.
 
-   Proposed order, one commit each: the strum spacing setting; dead notes stopping their
+   Done 2026-11-12, in this order, one commit each: the strum spacing setting; dead notes stopping their
    strings; accents; four-string upstrokes in the writer and reader; Times to play and Loop on a
    song's player; carrying printed chords forward and planning speech for measures of any length;
    speaking the next measure in songs; the writer and reader for every feel; the Metronome's Feel
