@@ -390,13 +390,14 @@ The Chord Practice dialog asks for:
 - **Strumming pattern,** from the patterns for the time signature, described under Strumming Patterns.
   It starts on Down Only, and the list changes when the time signature does.
 - **Swing, each and played late,** unchecked to begin with, described under Swing.
-- **Tempo,** from 30 to 240 beats per minute, 60 to begin with.
+- **Tempo,** from 15 to 300 beats per minute, 60 to begin with.
 - **Number of measures,** from 2 to 256.
 - **No chord held over into the next measure,** checked to begin with.
   The chord then changes on every measure, which is what practicing changes needs.
   Chords with the same root count as the same chord, so G7 never follows G.
   Unchecked, a chord is sometimes held for two measures, as in most real progressions.
-- **Times to play the progression,** up to 50, or 0 to repeat until you stop, and whether to count in before every repeat.
+- **Times to play,** from 1 to 50, 1 to begin with, and **Loop,** unchecked to begin with, which plays until you stop whatever the number says.
+  Then whether to count in before every repeat.
   Once that is checked, Number of beats to count in sets how many beats each repeat is counted in with, from 1 to the beats per measure.
   It starts at the beats per measure, and goes back to it when Beats per measure changes.
 - **Metronome.**
@@ -421,37 +422,36 @@ A progression's item has:
 - **Progression:** the measures in order, each as its chords are written in the editor, such as G D C@4.
   While there are unsaved changes, this heading, the item's name and the level 2 heading at the top all say "unsaved changes".
 - The Edit Progression, Save Progression and Save Progression As buttons.
-- **Playback Settings** and **Playback Controls,** level 3 headings laid out as a track's are; see Playing a Track.
+- **Playback Settings** and **Playback Controls,** level 3 headings with the same settings, buttons and keys as a track's; see Playing a Track.
 
-Playback Settings has:
+A progression is played by the same player as a song's tracks.
+It sounds exactly as its saved file does when opened as a song with Open File.
 
-- **Tempo in beats per minute,** from 30 to 240.
+Playback Settings has a track's settings, with two more after the tempo:
+
+- **Tempo in beats per minute,** from 15 to 300.
+  It counts beats, so 6/8 at 90 is ninety eighth notes a minute.
 - **Strumming pattern.**
   Changing it carries on from where the progression is, so you can try patterns while it plays.
   Like the tempo, it is not counted as an unsaved change, but saving keeps the pattern you are on.
 - **Swing, each and played late.**
   Checked, the progression is swung, as described under Swing.
   Like the pattern, it changes while the progression plays, is not counted as an unsaved change, and is saved with the progression.
-- **Speak the next measure.**
-  Changing it starts the progression again from the first measure.
+- **Speak the next measure,** checked to begin with, where a song's is not.
+  Changing it carries on from where the progression is.
   A measure with one chord has its name said one beat before it.
   A measure with several has them all said one after the other, finishing just before it starts, which may be earlier than one beat ahead.
   They are said as the editor writes them, so a chord with an @ is followed by its beat: G C@3 is said "G, C, at 3".
   Where there is not time for them all, only the first is said.
   A measure the same as the one before it is announced as "repeat".
-- **Metronome,** clicks while the progression plays.
-- **Count in,** one measure of clicks before playing starts.
-  It is on to begin with, and works whether or not the metronome is on.
-- **Times to play the progression,** up to 50, with 0 for until stopped.
-  Playing it a set number of times is a way to practice for a set time.
-- **Count in before every repeat,** shown only when the progression plays more than once.
-- **Number of beats to count in,** from 1 to the beats per measure, shown only while Count in before every repeat is checked, as for a track.
+  The first measure's chords are said during the count-in, so with Count in unchecked they are not heard the first time through.
+- **Metronome,** **Count in,** **Times to play,** **Loop,** **Count in before every repeat** and **Number of beats to count in,** as for a track.
+  Playing a progression a set number of times is a way to practice for a set time.
 
-Playback Controls has the same buttons as a track: Play and Where Am I; Slower, Faster and Default Tempo; Restart Progression, Previous Measure, Next Measure and Start of Measure.
-Where Am I says the measure, its chords, the beat, and which time through it is: "Measure 5 of 8, G C@3, beat 2, play 1".
+Playback Controls has a track's buttons: Play and Where Am I; Slower, Faster and Default Tempo; Restart Selection, Previous Measure, Next Measure and Start of Measure.
 Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.
 
-The keys are the same as a track's, except l, since a progression does not have Loop yet: 0 times to play stands for it.
+The keys are a track's, l for Loop included.
 Like a track's, they work while focus is in the progression, and not on the Menu button or in the list of open items.
 ? lists them in the Playback Keys dialog.
 
@@ -495,7 +495,7 @@ D is a downstroke and U an upstroke.
 A dash is a place the hand passes without strumming, while the chord rings on.
 x is a muted strum, a chuck, which stops the chord ringing; unstrung does not sound the chuck itself yet.
 An accented stroke has a greater-than sign before it, as in >D.
-A pattern with no accents of its own is played with beat 1 a little stronger, as a player leans on the downbeat without thinking about it; a written accent is much stronger.
+An accented stroke is played about one and a half times as loud as the others; a pattern with no accents plays every stroke at the same level.
 With eight places in a measure of 4/4, the downstrokes fall on the beats and the upstrokes on the ands between them.
 
 These come with unstrung, and each list starts with Down Only and All Down-Up.
@@ -552,6 +552,7 @@ Only the ands move; the strokes on the beat stay where they are, and so does the
 Each place a strumming pattern is chosen has a checkbox after it, Swing, each and played late: the Chord Practice dialog, a progression's Playback Settings, the progression editor and the Strumming Patterns item.
 The Metronome has a Feel list in its place, with swing and five other feels; see Metronome.
 A chord that starts on an and, such as C@2.5, is still written that way, and is played late with the rest.
+A chord that starts on a quarter of a beat, such as C@2.25, can leave the and beside it played straight; the rest of the measure swings.
 
 Swing moves eighth notes, so it has no effect on a pattern in sixteenths, or in a time signature counted in eighths such as 6/8 or 12/8, which is in threes already.
 The checkbox then says so in its description, such as "Swing has no effect in 6/8."

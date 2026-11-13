@@ -251,8 +251,8 @@
         </p>
 
         <p>
-            <label for="chord-practice-tempo-input">Tempo (beats per minute)</label>
-            <input type="number" inputmode="numeric" id="chord-practice-tempo-input" min="30" max="240" step="1" value="60" />
+            <label for="chord-practice-tempo-input">Tempo in beats per minute, 15 to 300</label>
+            <input type="number" inputmode="numeric" id="chord-practice-tempo-input" min="15" max="300" step="1" value="60" />
         </p>
 
         <p>
@@ -266,8 +266,13 @@
         </p>
 
         <p>
-            <label for="chord-practice-repeat-input">Times to play the progression, up to 50; 0 repeats until stopped</label>
-            <input type="number" inputmode="numeric" id="chord-practice-repeat-input" min="0" max="50" step="1" value="0" />
+            <label for="chord-practice-repeat-input">Times to play, 1 to 50</label>
+            <input type="number" inputmode="numeric" id="chord-practice-repeat-input" min="1" max="50" step="1" value="1" />
+        </p>
+
+        <p>
+            <input type="checkbox" id="chord-practice-loop-checkbox" />
+            <label for="chord-practice-loop-checkbox">Loop</label>
         </p>
 
         <p>

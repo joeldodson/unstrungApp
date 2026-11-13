@@ -491,4 +491,25 @@ library's. `verify-strumming-patterns.mjs` now expects every stroke of a pattern
 one level, 0.4, decision 10 having dropped the lean on beat 1. Checked by
 `scripts/songs/verify-pattern-preview.mjs`.
 
+**Step 4 done 2026-11-12.** A progression's tab builds its Score with `progressionScore` and plays it
+on a player of its own (group `progression`, so one progression plays at a time, as before). Its
+Playback Settings and Controls are `buildAudioTrackPanel`'s, with the strumming pattern and Swing
+after the tempo and no Measures to Play or About section yet. What it brings:
+- Times to play 1 to 50 and Loop (decision 1), in the Chord Practice dialog too, where Times to
+  play starts at 1 and Loop unchecked, as decided; until now a generated progression repeated until
+  stopped.
+- Tempo 15 to 300 (2), in the dialog too; Restart Selection (9); the track's keys, l included, and
+  the track's media session actions.
+- A changed pattern or Swing rebuilds the Score and carries on from the same place
+  (`rebuildProgressionScore`). `scripts/progressions/report-rebuild-time.mjs` times the rebuild on
+  256 measures at about 40 milliseconds, 70 at the slowest, before the 0.12 second head start any
+  restart has; chord practice's was nearly nothing, so the pause should not be noticeably longer.
+- The spoken names come from the harmony the Score prints, read as a song's
+  (`progressionHarmonies`), loaded when the tab opens; the first Play waits for them. Changing
+  Speak the next measure carries on instead of starting again from the first measure. Unlike
+  chord practice, which kept a silent measure before the first so its names could be said, the
+  first measure's names are heard only in a count-in.
+- Where Am I is the track's for now, measure and time through; step 7 adds chords and beat.
+Checked by `scripts/progressions/verify-progression-player.mjs`.
+
 Joel works on main, with no branches or worktrees unless he asks.

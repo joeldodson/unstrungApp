@@ -57,6 +57,7 @@ Run each with `node <script>`; the comment at the top of each says what it takes
 - `scripts/progressions/verify-measure-chords.mjs`
 - `scripts/progressions/verify-media-session.mjs`
 - `scripts/progressions/verify-no-held-chords.mjs`
+- `scripts/progressions/verify-progression-player.mjs`
 - `scripts/progressions/verify-repeat-count-reset.mjs`
 - `scripts/progressions/verify-sample-range.mjs`
 - `scripts/progressions/verify-saved-progressions.mjs`
@@ -89,9 +90,10 @@ The first two drive the Electron app instead when not given `--web` and an addre
 - `scripts/metronome/verify-metronome.mjs`
 - `scripts/web/verify-failed-fetch-retry.mjs`, the web version only
 
-This one is Node only and reads the bundled guitar samples, but is a report rather than a check:
+These are Node only but are reports rather than checks, so `npm test` does not run them:
 
-- `scripts/audio/report-progression-levels.mjs`, how loud a progression is on the audio track player against chord practice's player
+- `scripts/audio/report-progression-levels.mjs`, how loud a progression is on the audio track player against chord practice's player, from the bundled guitar samples
+- `scripts/progressions/report-rebuild-time.mjs`, how long a 256-measure progression takes to rebuild when its pattern changes
 
 These are Node only but read particular files from the `musicfiles` folder, which is not in the repository, so they cannot run anywhere else:
 
