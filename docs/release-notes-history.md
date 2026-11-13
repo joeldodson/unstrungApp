@@ -10,6 +10,67 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.10.3 - One player
+
+Published 2026-11-13.
+
+0.10.3 plays chord progressions on the same player as songs, adds a Feel list for swing and its relatives, and gives a song's player what chord practice had: Speak the next measure, Times to play and Loop.
+
+### One Player
+
+A progression is now played by the same player as a song's tracks, and sounds exactly as its saved file does when opened as a song with Open File. Its Playback Settings and Playback Controls have a track's settings, buttons and keys, l for Loop included. Its measures have Add measure to selection buttons, and Measures to Play sets the first and last measure to play.
+
+One track or progression plays at a time. Starting one pauses whichever was playing, which keeps its place. Play Selected Chords in the Chord Library pauses a playing track or progression too, and one starting stops it.
+
+The setting to collapse expanded sections when switching items now also pauses playback, so Play carries on from the same place when you come back. Turn it off to keep a progression playing while you look up a fingering in the Chord Library.
+
+Pausing says where it stopped, such as "Paused at measure 3", from spaceBar, the button, headphones or a phone call. Where Am I says the measure, its chords, the beat and which time through: "Measure 9 of measures 7 through 21, G C@3, beat 2, play 2 of 3".
+
+The tempo runs from 15 to 300 beats per minute everywhere, the Chord Practice dialog and the Metronome included.
+
+A change made during the count-in, such as a new tempo, a move to another measure or another strumming pattern, starts the count-in again rather than dropping the rest of it.
+
+### Times to Play and Loop
+
+Repeat is replaced by Times to play, from 1 to 50, and Loop, which plays until you stop whatever Times to play says. When the measures have played that many times, playback stops and says how many times it played. A progression starts with Loop checked, a song's track with it unchecked.
+
+### Speak the Next Measure on Songs
+
+A song's track has Speak the next measure, off to begin with. Before each measure unstrung says the chords the file prints over it, and "repeat" for a measure with the same chords as the one before. The chords are only the ones the file prints, never worked out from the notes. With Count in unchecked, playing from the start waits one silent measure so the first measure's chords can be said.
+
+### Feel
+
+The Swing checkbox is replaced by a Feel list: Straight, then triplet, dotted and Scottish feels, each for pairs of eighths or of sixteenths. Triplet eighths is swing, or a shuffle. The list is in the Chord Practice dialog, a progression's Playback Settings, the progression editor, the Strumming Patterns item and the Metronome. A feel that would move nothing, such as an eighth feel in 6/8, says so in the list's description.
+
+A progression is saved with its feel. A song the file marks as swung or shuffled is played with that feel, wherever the file marks it.
+
+### Playing What the File Writes
+
+unstrung plays exactly the notes a track writes. Tab often prints a chord over a single bass note, and unstrung plays that bass note alone; the chord is in the measure heading for you to strum if that is what the tab means.
+
+A muted note (x) stops whatever its string was ringing, so a chuck cuts the chord before it. Accented notes are played half as loud again as the notes around them. A song that starts with a pickup clicks only on the beats the pickup holds, and the count-in leads into it. A second voice on the same staff, such as a bass held under fingerpicking, is described in its own line under the measure.
+
+### Strums
+
+Settings has Time between strings in a strum, from 0 to 50 milliseconds, used by every strum: songs, progressions, the pattern preview and the Chord Library. An upstroke is written and played on the chord's four highest strings. Play Selected Chords strums at the same level and with the same recordings as a progression.
+
+A saved progression writes its tempo in quarter notes a minute, so a 6/8 progression opened as a song plays at its own speed. A 6/8 or 12/8 progression saved by an earlier version opens at twice its tempo; set the tempo and save it again.
+
+### Spoken Chord Names
+
+The voice and volume set in Settings are used from the moment unstrung starts. A change to either is taken up at once by an open track or progression, and one that is playing carries on from where it is.
+
+### Smaller Changes
+
+- The key signature is named as minor where the file marks it minor.
+- A MusicXML tablature part that names no instrument is listed as a track.
+- The playback keys work anywhere in a song or progression, on its buttons too, but not on the Menu button or in the list of open items.
+- Quitting the desktop app with changes in the progression editor asks whether to save them.
+- A progressions folder that holds a great deal else is listed in part, and the dialog says so.
+- A phone shows the number pad in the Metronome's fields.
+- A phone call stops the pattern preview and Play Selected Chords, as it pauses a track.
+- On the web, a failed download is tried again, each guitar recording is decoded once, and a sample still plays when the browser's cache is full.
+
 ## unstrung 0.10.2 - Shorter count-ins
 
 Published 2026-11-05.
