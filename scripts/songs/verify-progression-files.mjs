@@ -51,7 +51,7 @@ const activePanel = () => page.evaluate(() => {
     return {
         heading: panel.querySelector('h2')?.textContent,
         meta: [...(metaList?.querySelectorAll('li') ?? [])].map(li => li.textContent),
-        chords: [...panel.querySelectorAll('ul.progression-list li')].map(li => li.textContent),
+        chords: [...panel.querySelectorAll('ul.progression-list li')].map(li => li.firstChild.textContent.trim()),
         tempo: panel.querySelector('input[type="number"]')?.value ?? null,
         announcement: panel.querySelector('[aria-live]')?.textContent ?? ''
     };

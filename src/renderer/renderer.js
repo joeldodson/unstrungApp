@@ -3762,9 +3762,10 @@ function addMeasureToSelection(state, measure) {
     const first = inside ? measure : Math.min(state.firstMeasure, measure);
     const last = inside ? measure : Math.max(state.lastMeasure, measure);
     setAudioTrackSelection(state, first, last);
+    const what = state.progression ? 'Selection' : 'Audio track';
     announceAudioTrack(state, first === last
-        ? `Audio track is now measure ${first}.`
-        : `Audio track is now measures ${first} through ${last}.`);
+        ? `${what} is now measure ${first}.`
+        : `${what} is now measures ${first} through ${last}.`);
 }
 
 // How much one press of the tempo keys moves the tempo.
@@ -4069,9 +4070,11 @@ function selectedSection(state) {
         section.first === state.firstMeasure && section.last === state.lastMeasure) ?? null;
 }
 
-/** "Entire Song", "5 to 12, Verse" or "7". */
+/** "Entire Song", "Entire Progression", "5 to 12, Verse" or "7". */
 function audioTrackSelectionText(state) {
-    if (state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount) return 'Entire Song';
+    if (state.firstMeasure === 1 && state.lastMeasure === state.audioTrack.barCount) {
+        return state.progression ? 'Entire Progression' : 'Entire Song';
+    }
     const section = selectedSection(state);
     const span = measureSpanText(state.firstMeasure, state.lastMeasure);
     return section ? `${span}, ${section.name}` : span;
@@ -5135,13 +5138,21 @@ function buildChordPracticeTab(progression, options, file = {}) {
     progressionHeading.textContent = `Progression (${progression.chords.length} measures)`;
     container.append(progressionHeading);
 
+    // Each measure has one button after its chords, Add measure N to selection, as a song's
+    // measures have (docs/one-player.md, decision 4). No Play measure and no heading per measure:
+    // this is the simpler view, and the file opened as a song has both.
     const list = document.createElement('ul');
     list.className = 'chord-progression progression-list';
-    for (const chord of progression.chords) {
+    progression.chords.forEach((chord, index) => {
         const item = document.createElement('li');
-        item.textContent = formatMeasureChords(chordsInMeasure(chord));
+        item.append(formatMeasureChords(chordsInMeasure(chord)), ' ');
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.textContent = `Add measure ${index + 1} to selection`;
+        add.dataset.measure = String(index + 1);
+        item.append(add);
         list.append(item);
-    }
+    });
     container.append(list);
 
     // Straight after the list they act on. Save and Save As name their shortcuts, which work from
@@ -5211,10 +5222,16 @@ function buildChordPracticeTab(progression, options, file = {}) {
         heading, savedAsItem, strummingItem, editButton, progressionHeading,
         patternSelect, swingCheckbox: swing.checkbox, swingNote: swing.note
     };
+    // Measures to Play with First and Last measure only, a progression having no sections
+    // (docs/one-player.md, decision 3).
     const panel = buildAudioTrackPanel(state, {
-        afterTempo: [patternParagraph, swing.paragraph], measures: false, about: false
+        afterTempo: [patternParagraph, swing.paragraph], about: false
     });
     container.append(panel.container);
+    list.addEventListener('click', event => {
+        const button = event.target.closest('button[data-measure]');
+        if (button) addMeasureToSelection(state, Number(button.dataset.measure));
+    });
 
     refreshChordPracticeNames(state);
     refreshChordPracticeStrumming(state);

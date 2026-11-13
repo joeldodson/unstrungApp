@@ -138,7 +138,7 @@ const tab = await page.evaluate(() => {
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
         liveRegions: [...panel.querySelectorAll('[aria-live]')].length,
         chordCount: panel.querySelectorAll('ul.progression-list > li').length,
-        progressionNames: [...panel.querySelectorAll('ul.progression-list > li')].map(li => li.textContent),
+        progressionNames: [...panel.querySelectorAll('ul.progression-list > li')].map(li => li.firstChild.textContent.trim()),
         progressionHasDetails: panel.querySelectorAll('ul.progression-list details').length,
         summaries: details.map(d => d.querySelector('summary').textContent),
         // Collapsed content must stay out of the accessibility tree, which is what keeps the
@@ -278,7 +278,8 @@ const controls = await page.evaluate(() => {
     return {
         buttons: [...panel.querySelectorAll('button')].map(b => b.textContent),
         labelled, listStyle,
-        settings: settings.map(p => p.querySelector('input, select')).filter(Boolean).map(labelOf),
+        settings: settings.filter(el => el.tagName === 'P').map(p => p.querySelector('input, select')).filter(Boolean).map(labelOf),
+        measuresSummary: settings.find(el => el.tagName === 'DETAILS')?.querySelector('summary')?.textContent ?? null,
         keysNote: controlsHeading?.nextElementSibling?.textContent ?? null,
         controlRows: controlsAfter.filter(el => el.classList.contains('button-row'))
             .map(row => [...row.querySelectorAll('button')].map(b => b.textContent).join(', ')),
@@ -298,6 +299,8 @@ check('Playback Settings: a track\'s, with pattern and swing after the tempo',
     'Speak the next measure | Metronome | Count in, one measure of clicks before playing starts | ' +
     'Times to play, 1 to 50 | Loop | Count in before every repeat | Number of beats to count in',
     controls.settings.join(' | '));
+check('then Measures to Play, collapsed, the whole progression',
+    controls.measuresSummary === 'Measures to Play - Entire Progression', controls.measuresSummary);
 check('Count in starts checked', controls.countIn === true, String(controls.countIn));
 check('Count in before every repeat is always shown', controls.eachPassHidden === false);
 check('Playback Controls starts by saying how to reach the keys', controls.keysNote === 'Type ? for keyboard commands.',

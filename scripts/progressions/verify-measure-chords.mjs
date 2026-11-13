@@ -45,7 +45,7 @@ const typeChords = async text => {
 const panelState = () => page.evaluate(selector => {
     const panel = document.querySelector(selector);
     return {
-        measures: [...panel.querySelectorAll('ul.progression-list li')].map(li => li.textContent),
+        measures: [...panel.querySelectorAll('ul.progression-list li')].map(li => li.firstChild.textContent.trim()),
         used: [...panel.querySelectorAll('ul.chords-used summary')].map(s => s.textContent),
         announcement: panel.querySelector('[aria-live]').textContent,
         tabName: document.querySelector('#open-items-list button[aria-current="true"]')?.textContent

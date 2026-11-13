@@ -30,7 +30,7 @@ const progressionInFront = () => page.evaluate(() => {
     const speak = [...panel.querySelectorAll('input[type="checkbox"]')]
         .find(box => /speak/i.test(panel.querySelector(`label[for="${box.id}"]`)?.textContent ?? ''));
     return {
-        chords: [...panel.querySelectorAll('ul.progression-list > li')].map(li => li.textContent.trim()),
+        chords: [...panel.querySelectorAll('ul.progression-list > li')].map(li => li.firstChild.textContent.trim()),
         speak: speak?.checked ?? null
     };
 });

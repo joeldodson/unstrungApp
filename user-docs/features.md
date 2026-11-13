@@ -420,6 +420,9 @@ A progression's item has:
 - **Chords Used:** each different chord once, collapsed, with its fingering and notes.
   A chord from outside the key says which key it comes from and why.
 - **Progression:** the measures in order, each as its chords are written in the editor, such as G D C@4.
+  Each is followed by a button, Add measure 5 to selection, which works as a track's does; see Practicing Measure by Measure.
+  It says what the selection now is, such as "Selection is now measures 2 through 5."
+  There is no Play measure button: open the progression as a song, with Open File, to go measure by measure that way.
   While there are unsaved changes, this heading, the item's name and the level 2 heading at the top all say "unsaved changes".
 - The Edit Progression, Save Progression and Save Progression As buttons.
 - **Playback Settings** and **Playback Controls,** level 3 headings with the same settings, buttons and keys as a track's; see Playing a Track.
@@ -447,6 +450,8 @@ Playback Settings has a track's settings, with two more after the tempo:
   The first measure's chords are said during the count-in, so with Count in unchecked they are not heard the first time through.
 - **Metronome,** **Count in,** **Times to play,** **Loop,** **Count in before every repeat** and **Number of beats to count in,** as for a track.
   Playing a progression a set number of times is a way to practice for a set time.
+- **Measures to Play,** collapsed, as for a track, with First measure to play and Last measure to play.
+  A progression has no sections, so its summary says Entire Progression when every measure plays.
 
 Playback Controls has a track's buttons: Play and Where Am I; Slower, Faster and Default Tempo; Restart Selection, Previous Measure, Next Measure and Start of Measure.
 Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.

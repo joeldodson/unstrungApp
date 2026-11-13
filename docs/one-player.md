@@ -528,4 +528,11 @@ track player rather than dropped, since each still covers something the new chec
 - `verify-measure-chords.mjs`: Where Am I checked for the measure only until step 7.
 `verify-note-timing.mjs` passed unchanged, its progression now on the track player.
 
+**Step 6 done 2026-11-12.** A progression's Playback Settings has Measures to Play, a track's, with
+First and Last measure to play and "Entire Progression" (`audioTrackSelectionText`). Each item of
+the Progression list is its chords followed by Add measure N to selection, which calls the song's
+`addMeasureToSelection`; for a progression it says "Selection is now measures 2 through 5." where
+a song says "Audio track is now". Checks that read the list's items now read their first text.
+Checked by `scripts/progressions/verify-progression-measures.mjs`.
+
 Joel works on main, with no branches or worktrees unless he asks.

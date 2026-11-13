@@ -58,7 +58,7 @@ const activePanel = () => page.evaluate(() => {
         tabName: document.querySelector('#open-items-list button[aria-current="true"]')?.textContent,
         windowTitle: document.title,
         meta,
-        chords: [...progressionList.querySelectorAll('li')].map(li => li.textContent),
+        chords: [...progressionList.querySelectorAll('li')].map(li => li.firstChild.textContent.trim()),
         afterList: [...(progressionList.nextElementSibling?.querySelectorAll('button') ?? [])].map(b => ({
             text: b.textContent, shortcut: b.getAttribute('aria-keyshortcuts')
         })),
