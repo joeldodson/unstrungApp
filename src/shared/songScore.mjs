@@ -124,6 +124,18 @@ export function spelledFrets(chord) {
 }
 
 /**
+ * A progression's tempo as alphaTab counts it, in quarters a minute.
+ *
+ * A progression's tempo counts the time signature's lower number, as chord practice always has: 80
+ * in 6/8 is 80 eighths a minute. alphaTab's counts quarters whatever the time signature, so a 6/8
+ * progression played on the audio track player is played at half its number. Saved files still
+ * write the progression's own number (docs/one-player.md, stage 3).
+ */
+export function progressionQuarterTempo(tempo, beatUnit) {
+    return tempo * 4 / (beatUnit || 4);
+}
+
+/**
  * A generated or edited progression as a song, with one pattern throughout. Each measure is its
  * chord, and the `laterChords` after it, each with the beat it starts on.
  *

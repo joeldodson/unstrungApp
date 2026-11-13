@@ -442,4 +442,37 @@ In stages, so progressions keep working throughout:
    `check-swung-progressions.mjs` does for swing.
 4. Joel plays progressions on the new player. Only then is chord practice's own player removed.
 
+Decided 2026-11-12, before stage 3 began: stages 3 and 4 become one. Progressions move to the
+track player outright, with no setting to go back to chord practice's player, which is removed as
+soon as nothing uses it; problems are fixed as they turn up. Its checks are rewritten against the
+track player or dropped in that step, rather than kept running through stage 3 as decision 20
+said. Joel compares by ear against the commit before the move if he wants to. The order, one
+commit each:
+
+1. Compare the two players' strum times, and measure the levels.
+2. Give each player its own transport, so a progression, a song and the pattern preview can play
+   on the track player at once, as they can today.
+3. The pattern preview on the track player.
+4. Progressions on the track player.
+5. Chord practice's player removed, and its checks rewritten or dropped.
+6. Measures to Play and Add measure N to selection for progressions.
+7. Where Am I with the chords and the beat.
+8. Pausing a progression on showing another item.
+9. The Feel list in place of Swing.
+
+**Step 1 done 2026-11-12.** `scripts/songs/check-two-players-strum-times.mjs` writes every built-in
+pattern, straight and swung where swing applies, as `songFromProgression` does, plays it as a track
+and finds every strum and mute where chord practice puts it. Found on the way: a progression's
+tempo counts the time signature's lower number, so 80 in 6/8 is 80 eighths a minute, while
+alphaTab's counts quarters. A saved 6/8 progression opened as a song plays twice as fast as in
+chord practice. On the track player a progression is played at `progressionQuarterTempo`, its
+number turned into quarters; saved files still write the progression's own number, a question for
+Joel.
+
+`scripts/audio/report-progression-levels.mjs` measures the levels. Over the 47 guitar notes
+recorded at both mf and f, the f recordings' first second is on average 7.1 decibels louder (2.7
+to 16.9). With the gain of 0.4 against 0.55, -2.8 decibels, a progression on the track player
+plays about 4.3 decibels louder than in chord practice, where decision 15 expected 2.8 quieter.
+Left as it is for Joel to judge by ear; writing mf would bring it to what decision 15 accepted.
+
 Joel works on main, with no branches or worktrees unless he asks.

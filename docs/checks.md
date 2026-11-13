@@ -87,6 +87,10 @@ The first two drive the Electron app instead when not given `--web` and an addre
 - `scripts/metronome/verify-metronome.mjs`
 - `scripts/web/verify-failed-fetch-retry.mjs`, the web version only
 
+This one is Node only and reads the bundled guitar samples, but is a report rather than a check:
+
+- `scripts/audio/report-progression-levels.mjs`, how loud a progression is on the audio track player against chord practice's player
+
 These are Node only but read particular files from the `musicfiles` folder, which is not in the repository, so they cannot run anywhere else:
 
 - `scripts/gp-experiment/verify-brush-timing.mjs`
