@@ -2496,26 +2496,55 @@ const AUDIO_TRACK_NOTE_GAIN = 0.4; // headroom: up to six strings can sound at o
 const AUDIO_TRACK_RESTRIKE_FADE_SECONDS = 0.025; // fade as a string is struck again
 const AUDIO_TRACK_DECAY_FADE_SECONDS = 0.15; // fade at the tail of a note left to ring out
 
-let audioTrackPlaybackToken = 0;
-let audioTrackMasterGain = null;
-let audioTrackSources = [];
-let audioTrackEndTimer = null;
+// What one player has in the audio graph: its master gain, what it has scheduled, its timers, and
+// the token that tells its scheduler whether the run it belongs to is still the live one.
+//
+// One per player since 2026-11-12 (docs/one-player.md, stage 3). They were single variables while
+// only songs played on the track player, so starting any track stopped whatever track was playing.
+// Progressions and the pattern preview moving onto it each keep their own, so a progression, a song
+// and the preview play side by side as they did on their own players. Players in the same `group`
+// still play one at a time: starting one pauses the others (startAudioTrackPlayback).
+const audioTransports = new Set();
 
-function stopAudioTrackPlayback() {
-    audioTrackPlaybackToken++;
-    if (audioTrackMasterGain && sharedAudioContext) {
+function createAudioTransport(group) {
+    const transport = { group, token: 0, masterGain: null, sources: [], endTimer: null, passTimer: null, state: null };
+    audioTransports.add(transport);
+    return transport;
+}
+
+/** Forgets a player that is closing, after stopping it. */
+function dropAudioTransport(transport) {
+    stopTransport(transport);
+    clearTransportTimers(transport);
+    audioTransports.delete(transport);
+}
+
+function stopTransport(transport) {
+    transport.token++;
+    if (transport.masterGain && sharedAudioContext) {
         const now = sharedAudioContext.currentTime;
-        const gain = audioTrackMasterGain.gain;
+        const gain = transport.masterGain.gain;
         gain.cancelScheduledValues(now);
         gain.setValueAtTime(gain.value, now);
         gain.linearRampToValueAtTime(0, now + AUDIO_TRACK_RESTRIKE_FADE_SECONDS);
         // Entries carry their scheduled end so a repeating loop can prune finished ones.
-        for (const entry of audioTrackSources) {
+        for (const entry of transport.sources) {
             try { entry.source.stop(now + AUDIO_TRACK_RESTRIKE_FADE_SECONDS); } catch { /* already done */ }
         }
     }
-    audioTrackMasterGain = null;
-    audioTrackSources = [];
+    transport.masterGain = null;
+    transport.sources = [];
+}
+
+function clearTransportTimers(transport) {
+    clearTimeout(transport.endTimer);
+    clearTimeout(transport.passTimer);
+    transport.endTimer = null;
+    transport.passTimer = null;
+}
+
+function stopAudioTrackPlayback(state) {
+    stopTransport(state.transport);
 }
 
 /**
@@ -2628,17 +2657,8 @@ function refreshAudioTrackSummary(state) {
 // start while repeats remain, and a timer tops the schedule up to a fixed lookahead. Windows
 // are anchored to exact context times carried forward, so repeats join sample-accurately.
 
-let audioTrackPassTimer = null;
-
-function clearAudioTrackTimers() {
-    if (audioTrackEndTimer !== null) {
-        clearTimeout(audioTrackEndTimer);
-        audioTrackEndTimer = null;
-    }
-    if (audioTrackPassTimer !== null) {
-        clearTimeout(audioTrackPassTimer);
-        audioTrackPassTimer = null;
-    }
+function clearAudioTrackTimers(state) {
+    clearTransportTimers(state.transport);
 }
 
 function setAudioTrackPlayingState(state, playing) {
@@ -2780,7 +2800,7 @@ function scheduleAudioTrackCountIn(state, destination, atContextTime, forSeconds
 
     const context = getSharedAudioContext();
     for (const { offset, accent } of countIn.clicks) {
-        audioTrackSources.push({
+        state.transport.sources.push({
             source: scheduleMetronomeClick(context, destination, atContextTime + offset, accent),
             endsAt: atContextTime + offset + METRONOME_CLICK_SECONDS
         });
@@ -2973,15 +2993,16 @@ const AUDIO_TRACK_TOPUP_INTERVAL_MS = 3000;
  */
 function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, hasNextPass, includeRinging }) {
     const context = getSharedAudioContext();
+    const { transport } = state;
 
     if (state.metronome) {
         for (const bar of state.audioTrack.bars) {
             for (const [beatInBar, beatSeconds] of bar.beats.entries()) {
                 if (beatSeconds < fromSeconds - 1e-6 || beatSeconds >= toSeconds - 1e-6) continue;
                 const when = baseContext + (beatSeconds - fromSeconds);
-                audioTrackSources.push({
+                transport.sources.push({
                     // A pickup's first beat is not the downbeat; see buildBarMap.
-                    source: scheduleMetronomeClick(context, audioTrackMasterGain, when, bar.firstBeat + beatInBar === 0),
+                    source: scheduleMetronomeClick(context, transport.masterGain, when, bar.firstBeat + beatInBar === 0),
                     endsAt: when + METRONOME_CLICK_SECONDS
                 });
             }
@@ -3014,7 +3035,7 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
         const fade = ring === null
             ? AUDIO_TRACK_DECAY_FADE_SECONDS
             : AUDIO_TRACK_RESTRIKE_FADE_SECONDS;
-        source.connect(gain).connect(audioTrackMasterGain);
+        source.connect(gain).connect(transport.masterGain);
         const begin = startNoteOnAttack(source, when, intoNote);
         // An accent raises the note's level: rule 7 in audioTrack.mjs.
         const level = AUDIO_TRACK_NOTE_GAIN * (note.level ?? 1);
@@ -3022,7 +3043,7 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
         gain.gain.setValueAtTime(level, Math.max(when, ends - fade));
         gain.gain.linearRampToValueAtTime(0, ends);
         source.stop(ends + 0.01);
-        audioTrackSources.push({ source, endsAt: ends + 0.01 });
+        transport.sources.push({ source, endsAt: ends + 0.01 });
     }
 
     if (state.speak && state.speech) scheduleAudioTrackSpeech(state, { fromSeconds, toSeconds, baseContext });
@@ -3123,7 +3144,7 @@ function audioTrackTopUp(state, myToken) {
         lookaheadSeconds: AUDIO_TRACK_LOOKAHEAD_SECONDS,
         topUpIntervalMs: AUDIO_TRACK_TOPUP_INTERVAL_MS,
         endTailSeconds: 2,
-        isCurrent: () => myToken === audioTrackPlaybackToken,
+        isCurrent: () => myToken === state.transport.token,
         range: () => audioTrackRange(state),
         hasNextPass: pass => remainingPassesAfter(state, pass) > 0,
         scheduleChunk: ({ fromSeconds, toSeconds, baseContext, hasNextPass, firstChunk }) =>
@@ -3134,15 +3155,15 @@ function audioTrackTopUp(state, myToken) {
         // now rather than when playback started, so ticking the box mid-loop takes effect from the
         // next repeat instead of needing the track rebuilt.
         onWrap: cursorContext => scheduleAudioTrackCountIn(
-            state, audioTrackMasterGain, cursorContext, audioTrackRange(state).startSeconds,
+            state, state.transport.masterGain, cursorContext, audioTrackRange(state).startSeconds,
             state.countInEachPass, state.countInBeats),
         onEnd: endsAt => {
             const remainingMs = (endsAt - getSharedAudioContext().currentTime) * 1000;
             // How many times through, said when more than one, as when Loop is turned off after
             // Times to play was passed and playback stops having gone round more often than asked.
             const played = state.scheduler.pass;
-            audioTrackEndTimer = setTimeout(() => {
-                if (myToken !== audioTrackPlaybackToken) return;
+            state.transport.endTimer = setTimeout(() => {
+                if (myToken !== state.transport.token) return;
                 state.anchorSeconds = audioTrackRange(state).startSeconds;
                 state.anchorContextTime = null;
                 state.anchorPass = 1;
@@ -3153,28 +3174,34 @@ function audioTrackTopUp(state, myToken) {
                 announceAudioTrack(state, played > 1 ? `${ended}, played ${played} times.` : `${ended}.`);
             }, remainingMs);
         },
-        prune: now => { audioTrackSources = audioTrackSources.filter(entry => entry.endsAt > now); },
-        armTopUp: (step, intervalMs) => { audioTrackPassTimer = setTimeout(step, intervalMs); }
+        prune: now => { state.transport.sources = state.transport.sources.filter(entry => entry.endsAt > now); },
+        armTopUp: (step, intervalMs) => { state.transport.passTimer = setTimeout(step, intervalMs); }
     });
 }
 
 function startAudioTrackPlayback(state, fromSeconds, { countIn = false } = {}) {
     if (!state.ready) return;
-    stopAudioTrackPlayback();
-    clearAudioTrackTimers();
+    // One at a time within a group: another song's track playing is paused, keeping its place.
+    for (const other of audioTransports) {
+        if (other !== state.transport && other.group === state.transport.group && other.state?.playing) {
+            pauseAudioTrackPlayback(other.state);
+        }
+    }
+    stopAudioTrackPlayback(state);
+    clearAudioTrackTimers(state);
 
     const range = audioTrackRange(state);
     let from = Math.max(range.startSeconds, Math.min(range.endSeconds, fromSeconds));
     if (from >= range.endSeconds - 1e-3) from = range.startSeconds;
 
-    const myToken = audioTrackPlaybackToken;
+    const myToken = state.transport.token;
     const context = getSharedAudioContext();
 
     const masterGain = context.createGain();
     masterGain.gain.value = 1;
     masterGain.connect(context.destination);
-    audioTrackMasterGain = masterGain;
-    audioTrackSources = [];
+    state.transport.masterGain = masterGain;
+    state.transport.sources = [];
 
     const contextStart = context.currentTime + 0.12;
     const leadIn = scheduleAudioTrackCountIn(state, masterGain, contextStart, from, countIn);
@@ -3200,8 +3227,8 @@ function pauseAudioTrackPlayback(state) {
     const inLeadIn = state.playing && state.anchorContextTime !== null &&
         sharedAudioContext && sharedAudioContext.currentTime < state.anchorContextTime;
 
-    stopAudioTrackPlayback();
-    clearAudioTrackTimers();
+    stopAudioTrackPlayback(state);
+    clearAudioTrackTimers(state);
     state.anchorSeconds = position;
     state.anchorContextTime = null;
     state.anchorPass = pass;
@@ -3551,9 +3578,9 @@ function scheduleAudioTrackSpeech(state, { fromSeconds, toSeconds, baseContext }
             source.buffer = phrase.buffer;
             const gain = context.createGain();
             gain.gain.value = volume;
-            source.connect(gain).connect(audioTrackMasterGain);
+            source.connect(gain).connect(state.transport.masterGain);
             source.start(when, phrase.startSeconds, phrase.speechSeconds);
-            audioTrackSources.push({ source, endsAt: when + phrase.speechSeconds });
+            state.transport.sources.push({ source, endsAt: when + phrase.speechSeconds });
             when += phrase.speechSeconds + SPOKEN_WORD_GAP_SECONDS;
         }
     }
@@ -3603,8 +3630,8 @@ function activeAudioTrackState() {
 /** Stops playback without keeping a position, ahead of changing what plays. */
 function haltAudioTrack(state) {
     if (!state.playing) return;
-    stopAudioTrackPlayback();
-    clearAudioTrackTimers();
+    stopAudioTrackPlayback(state);
+    clearAudioTrackTimers(state);
     setAudioTrackPlayingState(state, false);
 }
 
@@ -4524,11 +4551,15 @@ function buildAudioTrackContent(score, track, songItemId, details) {
         harmonies: track.measures.map(measure => measure.harmony ?? []),
         speak: false,
         speech: null,
-        speechPlan: null
+        speechPlan: null,
+        // Songs' tracks play one at a time, as they always have.
+        transport: createAudioTransport('song')
     };
+    state.transport.state = state;
     state.audioTrack = deriveAudioTrack(state);
 
     if (!state.audioTrack || state.audioTrack.notes.length === 0) {
+        audioTransports.delete(state.transport);
         const message = document.createElement('p');
         message.textContent = 'This track has no playable notes.';
         return { element: message, state: null };
@@ -4546,17 +4577,11 @@ function buildAudioTrackContent(score, track, songItemId, details) {
 
 /** Stops and forgets every audio track belonging to a song that is closing. */
 function closeAudioTracksOf(songItemId) {
-    let wasPlaying = false;
     for (const [key, entry] of audioTrackPanels) {
         if (entry.itemId !== songItemId) continue;
-        wasPlaying ||= entry.state.playing;
         clearMediaSession(entry.state);
+        dropAudioTransport(entry.state.transport);
         audioTrackPanels.delete(key);
-    }
-    // Only one track plays at a time, so stopping is only for when it was one of these.
-    if (wasPlaying) {
-        stopAudioTrackPlayback();
-        clearAudioTrackTimers();
     }
 }
 // --- end audio track playback ---
@@ -8860,8 +8885,10 @@ function replaceSharedAudioContext() {
     sharedAudioClockMark = null;
     chordMasterGain = null;
     chordActiveSources = [];
-    audioTrackMasterGain = null;
-    audioTrackSources = [];
+    for (const transport of audioTransports) {
+        transport.masterGain = null;
+        transport.sources = [];
+    }
     chordPracticeMasterGain = null;
     chordPracticeSources = [];
     old.close().catch(() => {});

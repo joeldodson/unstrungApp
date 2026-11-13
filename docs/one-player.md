@@ -475,4 +475,10 @@ to 16.9). With the gain of 0.4 against 0.55, -2.8 decibels, a progression on the
 plays about 4.3 decibels louder than in chord practice, where decision 15 expected 2.8 quieter.
 Left as it is for Joel to judge by ear; writing mf would bring it to what decision 15 accepted.
 
+**Step 2 done 2026-11-12.** Each player has its own transport (`createAudioTransport`): master gain,
+scheduled sources, timers and token. Players in the same group play one at a time; a song's
+tracks are one group. One thing changes: starting a track used to silence another playing track
+but leave its button reading Pause, and now pauses it properly, keeping its place. Checked by
+`scripts/songs/verify-transports.mjs`.
+
 Joel works on main, with no branches or worktrees unless he asks.

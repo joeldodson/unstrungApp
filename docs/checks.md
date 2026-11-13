@@ -77,6 +77,7 @@ Run each with `node <script>`; the comment at the top of each says what it takes
 - `scripts/songs/verify-strumming-patterns.mjs`
 - `scripts/songs/verify-swing.mjs`
 - `scripts/songs/verify-times-and-loop.mjs`
+- `scripts/songs/verify-transports.mjs`
 - `scripts/speech/verify-chord-voice-settings.mjs`
 - `scripts/speech/verify-prerendered-speech.mjs`, against the packaged app
 
