@@ -19,7 +19,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildAudioTrack } from '../../src/shared/audioTrack.mjs';
-import { songFromProgression, songToAlphaTex, progressionQuarterTempo } from '../../src/shared/songScore.mjs';
+import {
+    songFromProgression, songToAlphaTex, progressionQuarterTempo, readSongFromScore, progressionFromSong
+} from '../../src/shared/songScore.mjs';
 import { BUILT_IN_PATTERNS, patternsFor, slotBeats, swingApplies } from '../../src/shared/strummingPatterns.mjs';
 
 const root = path.join(import.meta.dirname, '..', '..');
@@ -60,6 +62,31 @@ console.log('The tempo a progression is played at on the track player');
 check('a quarter-note beat is unchanged', progressionQuarterTempo(80, 4) === 80);
 check('an eighth-note beat is halved: 80 eighths a minute is 40 quarters', progressionQuarterTempo(80, 8) === 40);
 check('a half-note beat is doubled', progressionQuarterTempo(80, 2) === 160);
+
+// Settled by Joel at the end of stage 3: a saved progression writes its tempo in quarters, so the
+// file opened as a song plays at the progression's speed, and writes mf, so it plays the mf
+// recordings as chord practice did rather than the f alphaTab gives a note with no dynamic.
+console.log('\nWhat a saved progression writes');
+{
+    const pattern = patternsFor(6, 8).find(p => p.name === 'Down Only');
+    const song = songFromProgression({ key: 'G', mode: 'major', beatsPerBar: 6, beatUnit: 8, chords: CHORDS },
+        { library, tempo: 75, pattern });
+    const text = songToAlphaTex(song).text;
+    check('6/8 at 75 is written as 37.5 quarters a minute', text.includes('\\tempo 37.5\n'), text.split('\n')[0]);
+    const score = scoreFromTex(text);
+    const read = progressionFromSong(readSongFromScore(score, { library }), { library });
+    check('and reads back as 75', read.progression?.tempo === 75, read.error ?? String(read.progression?.tempo));
+    check('mf is written once, on the first beat', text.split('{').filter(part => part.includes('dy mf')).length === 1, text.slice(0, 300));
+    const layers = new Set(buildAudioTrack(score, 0).notes.map(note => note.velocity));
+    check('and every note plays the mf recordings', layers.size === 1 && layers.has('mf'), [...layers].join(' '));
+    const old = progressionFromSong(readSongFromScore(scoreFromTex(text.replace('\\tempo 37.5', '\\tempo 75')), { library }), { library });
+    check('a 6/8 file from before writes its own number, and opens at twice it', old.progression?.tempo === 150, String(old.progression?.tempo));
+    const reggae = patternsFor(4, 4).find(p => p.name === 'Reggae Offbeat');
+    const offbeat = scoreFromTex(songToAlphaTex(songFromProgression({ key: 'G', mode: 'major', beatsPerBar: 4, beatUnit: 4, chords: CHORDS },
+        { library, tempo: 60, pattern: reggae })).text);
+    const offbeatLayers = new Set(buildAudioTrack(offbeat, 0).notes.map(note => note.velocity));
+    check('mf carries on from a first beat that is a rest', offbeatLayers.size === 1 && offbeatLayers.has('mf'), [...offbeatLayers].join(' '));
+}
 
 const signatures = [...new Set(BUILT_IN_PATTERNS.map(p => p.timeSignature))];
 for (const signature of signatures) {

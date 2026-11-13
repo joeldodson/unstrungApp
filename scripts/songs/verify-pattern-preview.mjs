@@ -136,6 +136,26 @@ try {
     await wait(800);
     check('stops the preview, whose button reads Play', (await playButton('Strumming Patterns'))?.label === 'Play',
         JSON.stringify(await playButton('Strumming Patterns')));
+    // With the collapse setting on, leaving the Strumming Patterns item stops the preview (Joel,
+    // end of stage 3).
+    console.log('\nLeaving the item');
+    await runMenuCommand(page, 'settings');
+    await wait(800);
+    await page.evaluate(() => {
+        const box = document.getElementById('settings-auto-collapse-checkbox');
+        if (!box.checked) box.click();
+    });
+    await page.click('#settings-ok-button');
+    await wait(400);
+    await runMenuCommand(page, 'strumming-patterns');
+    await wait(800);
+    await pressInPanel('Play');
+    await wait(2000);
+    check('Play plays again', (await playButton('Strumming Patterns'))?.label === 'Pause');
+    await runMenuCommand(page, 'chord-library');
+    await wait(800);
+    check('showing another item stops it, with the setting on', (await playButton('Strumming Patterns'))?.label === 'Play',
+        JSON.stringify(await playButton('Strumming Patterns')));
     check('no errors in the page', consoleErrors.length === 0, consoleErrors.join(' | '));
 } finally {
     await close();

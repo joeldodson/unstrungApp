@@ -79,6 +79,8 @@ try {
     await page.fill('#chord-practice-tempo-input', '240');
     await page.fill('#chord-practice-count-input', '6');
     await page.uncheck('#chord-practice-speak-checkbox');
+    // Played once, so that playing a selection ends.
+    await page.uncheck('#chord-practice-loop-checkbox');
     await page.click('#chord-practice-generate-button');
     await wait(1500);
 

@@ -153,9 +153,9 @@ state = await snapshot();
 check('playback stops', state.playButton === 'Play', state.playButton);
 check('playbackState is paused', state.playbackState === 'paused', state.playbackState);
 check('the media element is paused', state.elementPaused === true, String(state.elementPaused));
-// Since progressions moved to the audio track player (docs/one-player.md, stage 3) pausing says
-// nothing, as a track's does; until then a progression said "Paused at measure 3." b says where.
-check('pause says nothing, as a track\'s does', !/^Paused/.test(state.announcement ?? ''), state.announcement);
+// Pausing says where it stopped, for a song's track and a progression alike (Joel, at the end of
+// stage 3 of docs/one-player.md).
+check('pause says where it stopped', /^Paused at measure \d+\.$/.test(state.announcement ?? ''), state.announcement);
 session = windowsSession();
 check('Windows shows it paused', session?.status === 'Paused', JSON.stringify(session));
 const pausedAt = await measureNow();
@@ -252,7 +252,7 @@ await interrupt();
 await page.waitForTimeout(500);
 state = await snapshot();
 check('an interruption pauses', state.playButton === 'Play', state.playButton);
-check('and says nothing, as a track\'s does', !/^Paused/.test(state.announcement ?? ''), state.announcement);
+check('and says where', /^Paused at measure \d+\.$/.test(state.announcement ?? ''), state.announcement);
 check('and tells the system', state.playbackState === 'paused', state.playbackState);
 await endInterruption();
 await page.waitForTimeout(800);

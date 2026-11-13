@@ -157,7 +157,13 @@ export function songFromProgression(progression, {
         mode: progression.mode,
         beatsPerBar: progression.beatsPerBar,
         beatUnit: progression.beatUnit,
-        tempo,
+        // In quarters a minute, as alphaTab reads a tempo, so the file opened as a song plays at
+        // the progression's speed; progressionFromSong turns it back. Until 2026-11-12 the
+        // progression's own number was written, so 6/8 at 80 played twice as fast as a song.
+        tempo: progressionQuarterTempo(tempo, progression.beatUnit),
+        // Played at mf, chord practice's level, rather than the f alphaTab reads a note with no
+        // dynamic as (docs/one-player.md, decision 15, settled by Joel 2026-11-12).
+        dynamic: 'mf',
         measures: progression.chords.map(chord => ({
             section: null,
             chords: [{ root: chord.root, suffix: chord.suffix, beat: 1 }, ...(chord.laterChords ?? [])]
@@ -317,6 +323,7 @@ function alphaTexBeat(beat) {
     if (beat.dotted) effects.push('d');
     if (beat.kind === 'strike' || beat.kind === 'mute') effects.push(beat.direction === 'up' ? 'su' : 'sd');
     if (beat.chordName) effects.push(`ch ${quoted(beat.chordName)}`);
+    if (beat.dynamic) effects.push(`dy ${beat.dynamic}`);
     const effectText = effects.length ? ` {${effects.join(' ')}}` : '';
 
     if (beat.kind === 'rest') return `r.${beat.value}${effectText}`;
@@ -369,7 +376,12 @@ export function songToAlphaTex(song) {
         // Written once: alphaTab carries a bar's triplet feel forward, as it does the time signature.
         if (index === 0 && songFeel(song)) parts.push(`\\tf ${songFeel(song)}`);
         if (measure.section) parts.push(`\\section (${quoted(measure.section)})`);
-        parts.push(...expanded.beats.map(alphaTexBeat));
+        // A dynamic is written on the song's first beat, and alphaTab carries it to every note
+        // after: without one it reads every note as f.
+        const beats = index === 0 && song.dynamic && expanded.beats.length
+            ? [{ ...expanded.beats[0], dynamic: song.dynamic }, ...expanded.beats.slice(1)]
+            : expanded.beats;
+        parts.push(...beats.map(alphaTexBeat));
         lines.push(`${parts.join(' ')} |`);
     }
     return { text: lines.join('\n') + '\n' };
@@ -761,7 +773,10 @@ export function progressionFromSong(song, { library, maxMeasures = 256 }) {
             mode: song.mode,
             beatsPerBar: song.beatsPerBar,
             beatUnit: song.beatUnit,
-            tempo: song.tempo,
+            // The file's tempo counts quarters; a progression's counts the time signature's lower
+            // number. A 6/8 file saved before 2026-11-12 wrote the progression's own number, so it
+            // opens at twice its tempo, and is right once saved again.
+            tempo: song.tempo * (song.beatUnit || 4) / 4,
             // One of FEELS' ids, or null for straight, kept only where it is played, as
             // songFromProgression keeps it: a file stating triplet eighths in 6/8, or over
             // sixteenths, opens straight, as it would be saved again.

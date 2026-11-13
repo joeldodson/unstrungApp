@@ -2,8 +2,10 @@
 
 Notes from 2026-11-12. Every difference under Decisions was put to Joel one at a time the same
 day, and each now records which way the combined player goes. Stage 2 under How to build it was
-built the same day, nine commits on main, each noted as built under its decision. The next step is
-stage 3.
+built the same day, nine commits on main, each noted as built under its decision. Stage 3, merged
+with stage 4, was built the same day too: progressions and the pattern preview play on the audio
+track player, and chord practice's own player is gone. See How to build it, and Settled at the end
+of stage 3 for the questions answered after it.
 
 ## How this came up
 
@@ -393,7 +395,8 @@ differently from today, and the entry says how.
     track player.
 
     **Decided 2026-11-12:** only the player changes. The preview builds its eight measures (G, C,
-    D and F, two each, at 80 beats a minute) as a `Score` and plays it on the track player with
+    D and F, two each, at 60 beats a minute, `DEFAULT_TEMPO`; this said 80, which the code never
+    used, corrected at the end of stage 3) as a `Score` and plays it on the track player with
     Loop on, the metronome on the beats and no count-in. The Play and Pause button stays, and so
     does how it sits with the rest: the Chords item playing stops it, and it leaves a
     progression's playback alone. It picks up 10 to 14 with no work of its own, so the preview
@@ -565,7 +568,41 @@ Scottish, opening a dotted file, the notes, the dialog, the editor, the item and
 `check-swung-progressions.mjs`, where every feel now opens.
 
 Stage 3 and what stage 4 was to do are done: progressions, songs and the pattern preview play on
-the one player, and chord practice's own player is gone. What is left is Joel's hearing of it, and
-the questions put to him at the end of the session.
+the one player, and chord practice's own player is gone. What is left is Joel's hearing of it.
+
+### Settled at the end of stage 3
+
+Eleven questions were put to Joel one at a time on 2026-11-12, after the nine steps, and built in
+one commit:
+1. **Tempo in saved files.** A saved progression writes its tempo in quarters a minute, as
+   alphaTab reads it (`songFromProgression`, with `progressionQuarterTempo`), so 6/8 at 80 is
+   written as 40 and the file opened as a song plays at the progression's speed. The reader turns
+   it back. A 6/8 or 12/8 file saved before writes its own number, so it opens at twice its tempo
+   until saved again; Joel accepted that.
+2. **Level.** A saved progression writes mf on its first beat, which alphaTab carries to every
+   note, so progressions play the mf recordings at 0.4, as decision 15 expected, about 2.8
+   decibels under chord practice's 0.55, rather than the f recordings 4.3 above it
+   (`report-progression-levels.mjs`).
+3. **Preview tempo.** 60, `DEFAULT_TEMPO`, as the code had it; decision 19's text is corrected.
+4. **Chord Library and the preview.** Closing the Chord Library or pressing Clear leaves the
+   preview playing; only the Chord Library playing chords stops it.
+5. **Pausing says where.** Pausing a song's track or a progression, from a key, the Play button,
+   the headphones or an interruption, says "Paused at measure 3." (`toggleAudioTrackPlayback`), as
+   chord practice's player did. A measure played on its own still says "Stopped measure 3."
+6. **Loop by default.** The Chord Practice dialog starts with Loop checked, a change from decision
+   1. Its defaults are also what a progression opened from a file or made in the editor gets, so
+   those loop too. Songs start with Loop off.
+7. **Naming the first chord.** With Speak the next measure on and Count in off, a start that would
+   count in waits a silent measure instead, so the first measure's chords are said, as chord
+   practice's player did (`fresh` in `startAudioTrackPlayback`). Songs and progressions alike.
+8. **Add measure wording.** "Selection is now measures 2 through 5." stays for progressions.
+9. **A check failing at random.** `verify-saved-progressions.mjs` works out the count of chords
+   outside the key from the edited chords, by the app's rule, instead of adding two to the
+   generator's count of what it borrowed.
+10. **The preview on switching items.** With the collapse setting on, leaving the Strumming
+    Patterns item stops the preview (`showItem`).
+11. **About section.** A progression has none. Joel asked instead for its playing time in the
+    Metadata list: "Length - 8 measures, 32 seconds at 60 beats per minute", one time through at
+    the tempo of the moment, kept up as the tempo changes (`refreshProgressionLength`).
 
 Joel works on main, with no branches or worktrees unless he asks.

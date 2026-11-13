@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildAudioTrack } from '../../src/shared/audioTrack.mjs';
-import { songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong } from '../../src/shared/songScore.mjs';
+import { songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, progressionQuarterTempo } from '../../src/shared/songScore.mjs';
 import {
     BUILT_IN_PATTERNS, FEELS, feelApplies, feelPairTicks, formatStrummingPattern, parseStrummingPattern, patternsFor,
     slotBeats, swingApplies, SWING_AND
@@ -113,12 +113,15 @@ for (const feel of FEELS) {
         // Where the feel puts each strum, in seconds: mutes sound no note in an audio track, so they
         // are allowed and not required.
         const measureQuarters = beatsPerBar * 4 / beatUnit;
+        // The file's tempo is in quarters since 2026-11-12: 60 beats a minute in 6/8 is 30
+        // quarters, so a quarter is two seconds there.
+        const secondsPerQuarter = 60 / progressionQuarterTempo(60, beatUnit);
         const struck = [];
         const allowed = new Set();
         for (let measure = 0; measure < CHORDS.length; measure++) {
             for (const [index, slot] of p.slots.entries()) {
                 if (slot.stroke === 'miss') continue;
-                const at = round(measure * measureQuarters + feelQuarters(index, p.slotsPerBeat, beatUnit, feel.id));
+                const at = round((measure * measureQuarters + feelQuarters(index, p.slotsPerBeat, beatUnit, feel.id)) * secondsPerQuarter);
                 allowed.add(at);
                 if (slot.stroke !== 'mute') struck.push(at);
             }

@@ -350,6 +350,9 @@ function showItem(id, { focusContent = false } = {}) {
         for (const entry of chordPracticeStates) {
             if (entry.itemId !== id && entry.state.playing) pauseAudioTrackPlayback(entry.state);
         }
+        // And the pattern preview stops on leaving the Strumming Patterns item, Joel's choice at the
+        // end of stage 3. It has no place to keep, so Play starts it again from the top.
+        if (patternPreview.button && currentItemId === strummingPatternsItemId) stopPatternPreview();
     }
 
     for (const other of openItems) {
@@ -2653,7 +2656,8 @@ function describeAudioTrack(state) {
 }
 
 function refreshAudioTrackSummary(state) {
-    // A progression has no About the Audio Track section.
+    // A progression has no About the Audio Track section, but its Metadata says how long it plays.
+    if (state.progression) refreshProgressionLength(state);
     if (!state.ui.summary) return;
     state.ui.summary.replaceChildren();
     appendTextItems(state.ui.summary, describeAudioTrack(state));
@@ -3192,8 +3196,17 @@ function audioTrackTopUp(state, myToken) {
     });
 }
 
-function startAudioTrackPlayback(state, fromSeconds, { countIn = false } = {}) {
+/**
+ * Starts playing from `fromSeconds`. `fresh` is a start that counts in when Count in is checked:
+ * a first play, a restart, a new selection, a run that finished. With Count in unchecked and the
+ * next measure's chords being spoken, a fresh start waits a silent measure instead, so the first
+ * measure's chords are said before it, as chord practice's player always did: Joel's choice at the
+ * end of stage 3 of docs/one-player.md, for songs and progressions alike.
+ */
+function startAudioTrackPlayback(state, fromSeconds, { fresh = false } = {}) {
     if (!state.ready) return;
+    const countIn = fresh && state.countIn;
+    const silentLead = fresh && !state.countIn && state.speak && Boolean(state.speech);
     // One at a time within a group: another song's track playing is paused, keeping its place.
     for (const other of audioTransports) {
         if (other !== state.transport && other.group === state.transport.group && other.state?.playing) {
@@ -3217,7 +3230,9 @@ function startAudioTrackPlayback(state, fromSeconds, { countIn = false } = {}) {
     state.transport.sources = [];
 
     const contextStart = context.currentTime + 0.12;
-    const leadIn = scheduleAudioTrackCountIn(state, masterGain, contextStart, from, countIn);
+    const leadIn = silentLead
+        ? audioTrackLeadInSeconds(state, from, true)
+        : scheduleAudioTrackCountIn(state, masterGain, contextStart, from, countIn);
 
     state.scheduler = {
         pass: state.anchorPass,
@@ -3253,8 +3268,13 @@ function toggleAudioTrackPlayback(state) {
     if (state.playing) {
         // The one time a key acts on a measure played on its own, so it is said: the next press
         // starts the track, not the measure.
-        if (state.measureAlone) announceAudioTrack(state, `Stopped measure ${state.measureAlone}.`);
+        const alone = state.measureAlone;
         pauseAudioTrackPlayback(state);
+        // Where it stopped, for a song and a progression alike, from a key, the Play button, the
+        // headphones or an interruption such as a call: Joel's choice at the end of stage 3 of
+        // docs/one-player.md, bringing back what chord practice's player said.
+        announceAudioTrack(state, alone ? `Stopped measure ${alone}.`
+            : `Paused at measure ${measureIndexAt(state, state.anchorSeconds) + 1}.`);
         return;
     }
     // Play is the track's, so after a measure played on its own it goes back to where the track was.
@@ -3262,7 +3282,7 @@ function toggleAudioTrackPlayback(state) {
     // Only a start that was armed by a first play, finishing a run, restarting, or changing the
     // selection counts in; resuming after a pause carries straight on.
     playAudioTrackWhenReady(state, () =>
-        startAudioTrackPlayback(state, state.anchorSeconds, { countIn: state.countInArmed && state.countIn }));
+        startAudioTrackPlayback(state, state.anchorSeconds, { fresh: state.countInArmed }));
 }
 
 /**
@@ -3336,7 +3356,7 @@ function restartAudioTrackSelection(state) {
     const range = audioTrackRange(state);
 
     if (resume) {
-        startAudioTrackPlayback(state, range.startSeconds, { countIn: state.countIn });
+        startAudioTrackPlayback(state, range.startSeconds, { fresh: true });
     } else {
         state.anchorSeconds = range.startSeconds;
         state.anchorContextTime = null;
@@ -3642,7 +3662,7 @@ function setAudioTrackTimesToPlay(state, wanted) {
     const wasPlaying = state.playing;
     haltAudioTrack(state);
     armAudioTrackFromStart(state);
-    if (wasPlaying) startAudioTrackPlayback(state, state.anchorSeconds, { countIn: state.countIn });
+    if (wasPlaying) startAudioTrackPlayback(state, state.anchorSeconds, { fresh: true });
 }
 
 /**
@@ -3691,7 +3711,7 @@ function armAudioTrackFromStart(state) {
 function playAudioTrackFromStart(state) {
     armAudioTrackFromStart(state);
     playAudioTrackWhenReady(state, () =>
-        startAudioTrackPlayback(state, audioTrackRange(state).startSeconds, { countIn: state.countIn }));
+        startAudioTrackPlayback(state, audioTrackRange(state).startSeconds, { fresh: true }));
 }
 
 /** "5", or "5 to 12". */
@@ -5002,6 +5022,27 @@ function applyStrumSpacing() {
     }
 }
 
+/** "32 seconds", "1 minute", "2 minutes 8 seconds": a length in words, to the nearest second. */
+function durationInWords(totalSeconds) {
+    const rounded = Math.round(totalSeconds);
+    const minutes = Math.floor(rounded / 60);
+    const seconds = rounded % 60;
+    const unit = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    if (minutes === 0) return unit(seconds, 'second');
+    return seconds === 0 ? unit(minutes, 'minute') : `${unit(minutes, 'minute')} ${unit(seconds, 'second')}`;
+}
+
+/**
+ * The Length line of the Metadata list: the measures, and how long one time through takes at the
+ * tempo of the moment, kept up as the tempo changes. Asked for by Joel at the end of stage 3, in
+ * place of a track's About section. "Length - 8 measures, 32 seconds at 60 beats per minute".
+ */
+function refreshProgressionLength(state) {
+    if (!state.ui.lengthItem || !state.audioTrack) return;
+    state.ui.lengthItem.textContent = `Length - ${state.progression.chords.length} measures, ` +
+        `${durationInWords(state.audioTrack.totalSeconds)} at ${state.targetTempo} beats per minute`;
+}
+
 /** The Strumming line of the Metadata list, and the note saying whether the feel has any effect. */
 function refreshChordPracticeStrumming(state) {
     const { progression } = state;
@@ -5261,7 +5302,8 @@ function buildChordPracticeTab(progression, options, file = {}) {
 
     state.ui = {
         heading, savedAsItem, strummingItem, editButton, progressionHeading,
-        patternSelect, feelSelect: feel.select, feelNote: feel.note
+        patternSelect, feelSelect: feel.select, feelNote: feel.note,
+        lengthItem: [...summaryList.children].find(item => item.textContent.startsWith('Length - '))
     };
     // Measures to Play with First and Last measure only, a progression having no sections
     // (docs/one-player.md, decision 3).

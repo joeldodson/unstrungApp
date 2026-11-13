@@ -363,8 +363,8 @@ const afterB = await press('b');
 console.log(`  B  -> ${afterB.announcement}`);
 // The measure, its chords, the beat, and which time through only when it plays more than once
 // (docs/one-player.md, decision 8).
-check('B announces the measure, the chord and the beat',
-    /^Measure 1 of 8, [A-G][^,]*, beat 1$/.test(afterB.announcement), afterB.announcement);
+check('B announces the measure, the chord, the beat, and which time through while Loop is on',
+    /^Measure 1 of 8, [A-G][^,]*, beat 1, play 1$/.test(afterB.announcement), afterB.announcement);
 
 // Moving around is silent, as in the audio track. Where a seek landed is confirmed with B, which
 // is the key that exists to ask.
@@ -386,7 +386,7 @@ const downThenB = await press('b');
 check('Down returns to the start of this measure', /^Measure 1 of 8\b/.test(downThenB.announcement),
     downThenB.announcement);
 check('B names the chord as well as the measure, as a song\'s does where it prints chords',
-    /^Measure \d+ of \d+, [A-G][^,]*, beat \d+$/.test(downThenB.announcement), downThenB.announcement);
+    /^Measure \d+ of \d+, [A-G][^,]*, beat \d+, play \d+$/.test(downThenB.announcement), downThenB.announcement);
 
 const afterSlower = await press('s');
 console.log(`  S  -> "${afterSlower.announcement}", tempo box now ${afterSlower.tempo}`);
@@ -436,9 +436,10 @@ void afterSpace;
 
 const afterPause = await press(' ');
 console.log(`  Space -> button "${afterPause.playLabel}", ${afterPause.announcement}`);
-// Pausing says nothing, as a track's does, since progressions moved to the audio track player;
-// until then it said "Paused at measure 3."
-check('Space pauses, saying nothing', afterPause.playLabel === 'Play' && !/^Paused/.test(afterPause.announcement),
+// Pausing says where it stopped, for a song's track and a progression alike (Joel, at the end of
+// stage 3 of docs/one-player.md).
+check('Space pauses and says where it stopped',
+    afterPause.playLabel === 'Play' && /^Paused at measure \d+\./.test(afterPause.announcement),
     afterPause.announcement);
 
 // Up says nothing, as the audio track's restart says nothing: the count-in is the answer.
@@ -453,7 +454,7 @@ check('but B still confirms it went back to measure 1',
 console.log('\n=== Looping ===');
 const loopState = await panelState();
 console.log(`  Times to play reads "${loopState.repeats}", Loop ${loopState.loop}`);
-check('Times to play starts at 1 and Loop off, as the dialog had them', loopState.repeats === '1' && loopState.loop === false,
+check('Times to play starts at 1 and Loop on, as the dialog had them', loopState.repeats === '1' && loopState.loop === true,
     `${loopState.repeats} ${loopState.loop}`);
 
 // Eight bars of 4/4 at 70 bpm is 27.4 s, too long to wait for a wrap; push the tempo up so a
@@ -610,7 +611,7 @@ await page.fill('#chord-practice-beat-unit-input', '8');
 await page.fill('#chord-practice-tempo-input', '150');
 await page.fill('#chord-practice-count-input', '32');
 await page.fill('#chord-practice-repeat-input', '4');
-await page.setChecked('#chord-practice-loop-checkbox', true);
+await page.setChecked('#chord-practice-loop-checkbox', false);
 await page.setChecked('#chord-practice-count-in-each-pass-checkbox', true);
 await page.setChecked('#chord-practice-metronome-checkbox', false);
 await page.setChecked('#chord-practice-speak-checkbox', true).catch(() => {});
@@ -635,7 +636,7 @@ check('the time signature is back to 4/4',
 check('the tempo is back to 60', reopened.tempo === '60', reopened.tempo);
 check('the length is back to 8 measures', reopened.count === '8', reopened.count);
 check('Times to play is back to 1', reopened.repeat === '1', reopened.repeat);
-check('Loop is unchecked again', reopened.loop === false);
+check('Loop is checked again', reopened.loop === true);
 check('count in before every repeat is off again', reopened.countIn === false);
 check('the metronome is on again', reopened.metronome === true);
 // On by default since fdc09fc, as user-docs/features.md says.

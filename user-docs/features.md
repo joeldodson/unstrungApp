@@ -243,6 +243,7 @@ To collapse the section, go to Playback Settings and then up one line.
   A chord printed once carries on until the next, so measures that print none are "repeat".
   Measures before the first printed chord, and a section that prints none, say nothing.
   A chord unstrung does not know is not said; one it spells another way is said its way, so G#m is said "A flat minor".
+  The first measure's chords are said during the count-in; with Count in unchecked, playing from the start waits one silent measure so they can be said.
   The voice and its volume are set in Settings.
   When the file prints no chords over the track, the checkbox is unavailable and says why.
   Turning it on or off while playing carries on from where it is.
@@ -279,6 +280,7 @@ To collapse the section, go to Playback Settings and then up one line.
 The heading is followed by a reminder that ? lists the keys.
 
 - **Play,** which becomes Pause while playing.
+  Pausing says where it stopped, such as "Paused at measure 3", from spaceBar, the button, headphones or a phone call.
   The first time you play a track, unstrung loads its guitar samples first, says so, and then plays.
 - **Where Am I,** which says which measure is playing, its chords, the beat, and which time through: "Measure 9 of measures 7 through 21, G C@3, beat 2, play 2 of 3".
   The measure is counted against the selection when it is not the whole song.
@@ -399,7 +401,8 @@ The Chord Practice dialog asks for:
   The chord then changes on every measure, which is what practicing changes needs.
   Chords with the same root count as the same chord, so G7 never follows G.
   Unchecked, a chord is sometimes held for two measures, as in most real progressions.
-- **Times to play,** from 1 to 50, 1 to begin with, and **Loop,** unchecked to begin with, which plays until you stop whatever the number says.
+- **Times to play,** from 1 to 50, 1 to begin with, and **Loop,** checked to begin with, which plays until you stop whatever the number says.
+  A progression opened from a file or made in the editor starts with Loop checked too; a song's track starts with it unchecked.
   Then whether to count in before every repeat.
   Once that is checked, Number of beats to count in sets how many beats each repeat is counted in with, from 1 to the beats per measure.
   It starts at the beats per measure, and goes back to it when Beats per measure changes.
@@ -417,6 +420,7 @@ The progression opens as a new item in the list of open items.
 A progression's item has:
 
 - **Metadata:** the key, level, time signature, strumming pattern, length, the cadence it ends with, how many chords come from outside the key, and whether it has been saved.
+  The length is the measures and how long one time through takes at the tempo, such as "Length - 8 measures, 32 seconds at 60 beats per minute", and it changes with the tempo.
   The strumming pattern is given by its name and its strokes, such as Old Faithful: D - D U - U D U.
   A pattern unstrung does not have a name for is given by its strokes alone.
   A progression with a feel names it after the strokes: Old Faithful: D - D U - U D U, triplet eighths (swing).
@@ -449,7 +453,7 @@ Playback Settings has a track's settings, with two more after the tempo:
   They are said as the editor writes them, so a chord with an @ is followed by its beat: G C@3 is said "G, C, at 3".
   Where there is not time for them all, only the first is said.
   A measure the same as the one before it is announced as "repeat".
-  The first measure's chords are said during the count-in, so with Count in unchecked they are not heard the first time through.
+  The first measure's chords are said during the count-in; with Count in unchecked, playing from the start waits one silent measure so they can be said, as for a track.
 - **Metronome,** **Count in,** **Times to play,** **Loop,** **Count in before every repeat** and **Number of beats to count in,** as for a track.
   Playing a progression a set number of times is a way to practice for a set time.
 - **Measures to Play,** collapsed, as for a track, with First measure to play and Last measure to play.
@@ -470,6 +474,9 @@ Save Progression, or ctrl+s, saves the progression.
 The first time, unstrung suggests a name such as Am-60-intermediate-occasional: the key, the number of measures, the level and the setting for chords from outside the key.
 Save Progression As, or ctrl+shift+s, saves a copy under a new name.
 The key, time signature, chords, strumming pattern, feel and tempo are saved, the pattern, feel and tempo as they are set under Playback Settings.
+The tempo is written in quarter notes a minute, as music programs read a tempo, so 6/8 at 80 is written as 40 and the file opened as a song plays at the same speed.
+A 6/8 or 12/8 progression saved by an earlier version wrote its own number, so it opens at twice its tempo; set the tempo and save it again.
+Every note is written mf, medium loud, so a progression plays the medium recordings, opened as a song too.
 A feel is saved only where it has an effect, so a progression in 6/8 with Triplet eighths chosen opens as Straight.
 The same goes for a file from elsewhere that is swung in 6/8 or over sixteenths.
 A file in any one feel opens with it.
@@ -590,6 +597,7 @@ The buttons after it:
   It is played as a saved song would be, so a written accent is louder, every other stroke is even, an upstroke catches the four highest strings, and a chuck stops the chord.
   Choosing another pattern while it plays switches to that one, and so does choosing another feel.
   It goes on while a progression or a song plays, and stops when the Chord Library plays chords.
+  It stops when you show another item, unless the setting to collapse expanded sections and pause playback is off; see Settings.
 - **New Pattern:** opens the New Strumming Pattern dialog.
 - **Copy to My Patterns:** opens the same dialog with the chosen pattern's strokes, to make one of your own from it.
 - **Edit:** changes one of yours.
@@ -819,6 +827,7 @@ The dialog has three tabs.
 - **Collapse expanded sections and pause playback when switching to another open item.**
   Coming back to an item with its measures still expanded can leave a screen reader unresponsive for several seconds while it takes in every beat again.
   A song's track or a progression that is playing is paused, keeping its place, so Play carries on from there when you come back.
+  Play in the Strumming Patterns item stops.
   Turn it off to keep a progression playing while you look something up in another item, such as a fingering in the Chord Library.
   On unless you turn it off.
 

@@ -1,7 +1,7 @@
 // Checks Where Am I on a song's track (docs/one-player.md, decision 8, stage 3 step 7): the
 // measure against the selection, the chords as the editor writes them, from those the file prints,
 // carried forward, then the beat by the measure's own time signature, then which time through.
-// A track the file prints no chords over leaves them out.
+// A track the file prints no chords over leaves them out. Pausing says where it stopped.
 //
 // Drives the Electron app on a scratch profile, judged from the announcement line. The song is
 // alphaTex written here: two tracks of two measures of 3/4, the first printing G and C@3 over its
@@ -72,6 +72,10 @@ try {
     said = await whereAmI(1);
     check('the beat follows the music', /^Measure 1 of 2, beat 3$/.test(said), said);
     await click(1, 'Pause');
+    await wait(250);
+    said = await page.evaluate(() => window.__regions[1].querySelector('.audio-track p[aria-live="polite"]:not([role])').textContent);
+    // As a progression's does, since Joel chose it at the end of stage 3.
+    check('pausing says where it stopped', said === 'Paused at measure 1.', said);
 } finally {
     await close();
 }

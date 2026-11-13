@@ -246,7 +246,9 @@ await press(' ');
 await press(' ');
 await waitPlaying();
 r = await region();
-check('pausing and playing the track says nothing', r.announce === '', r.announce);
+// Pausing says where it stopped since Joel chose it at the end of stage 3 of docs/one-player.md;
+// playing again adds nothing.
+check('pausing the track says where it stopped, and playing says nothing', /^Paused at measure \d+\.$/.test(r.announce), r.announce);
 await press('n');
 await press('a');
 r = await region();

@@ -11,6 +11,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { launchApp, runMenuCommand, closeCurrentItem } from '../lib/app-ui.mjs';
 import { readSongFromScore, describeMeasure } from '../../src/shared/songScore.mjs';
+import { keyPitchClasses, isChordInKey } from '../../src/shared/keyChords.mjs';
+import { chordDisplayName } from '../../src/shared/chordProgressions.mjs';
+const progressionModel = JSON.parse(await readFile(path.join(import.meta.dirname, '..', '..', 'src', 'assets', 'progressions', 'progression-model.json'), 'utf8'));
 
 const APP_DIR = path.join(import.meta.dirname, '..', '..');
 const alphaTab = await import(pathToFileURL(path.join(APP_DIR, 'node_modules', '@coderline', 'alphatab', 'dist', 'alphaTab.mjs')).href);
@@ -147,9 +150,6 @@ try {
     check('the metadata says it is not saved', tab.meta.includes('Not saved'), tab.meta.join(' | '));
     check('there is no Made line', !tab.meta.some(m => m.startsWith('Made')), tab.meta.join(' | '));
     const generatedChords = tab.chords;
-    // A generated progression may already borrow a chord, which stays outside the key once edited.
-    const borrowedLine = tab.meta.find(m => m.startsWith('Chords from outside the key'));
-    const generatedOutside = Number(/, (\d+) used$/.exec(borrowedLine)?.[1] ?? 0);
 
     await mkdir(path.join(folder, 'Blues'), { recursive: true });
     const firstSave = path.join(folder, 'Blues', 'Twelve bar.atex');
@@ -389,9 +389,17 @@ try {
     check('the heading and tab say there are unsaved changes',
         tab.heading === 'Chord Practice - Twelve bar (unsaved changes)' &&
         tab.tabName === 'Practice - Twelve bar (unsaved changes)', `${tab.heading} / ${tab.tabName}`);
+    // Worked out from the edited chords by the app's own rule, their notes against the key's: the
+    // generator's count of what it borrowed is not the same thing, so 2 more than it failed now
+    // and then, whenever the random progression held a chord whose notes leave the key.
+    const [, keyRoot, keyMode] = /^Key - (\S+) (major|minor)$/.exec(tab.meta.find(m => m.startsWith('Key - '))) ?? [];
+    const keyClasses = keyPitchClasses(progressionModel, keyMode, keyRoot);
+    const byName = new Map(library.chords.map(entry => [chordDisplayName(entry), entry]));
+    const expectedOutside = tab.chords.filter(name => !isChordInKey(byName.get(name), keyClasses)).length;
     check('the metadata counts the chords outside the key, with no Made line',
         !tab.meta.some(m => m.startsWith('Made')) &&
-        tab.meta.includes(`Chords from outside the key - ${2 + generatedOutside}`), tab.meta.join(' | '));
+        tab.meta.includes(`Chords from outside the key - ${expectedOutside}`), `expected ${expectedOutside}: ${tab.meta.join(' | ')}`);
+    check('which includes the two Bb measures', expectedOutside >= 2, String(expectedOutside));
     check('focus is back on Edit Progression', tab.focused === 'Edit Progression', tab.focused);
     const bbRow = await page.evaluate(() => {
         const panel = document.querySelector('#item-panels > section:not([hidden])');

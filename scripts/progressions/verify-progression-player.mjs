@@ -106,8 +106,8 @@ try {
         loopChecked: document.getElementById('chord-practice-loop-checkbox')?.checked
     }));
     check('tempo runs 15 to 300', dialog.tempoMin === '15' && dialog.tempoMax === '300' && dialog.tempo === 'Tempo in beats per minute, 15 to 300', JSON.stringify(dialog));
-    check('Times to play, 1 to 50, starting at 1, then Loop, unchecked', dialog.times === 'Times to play, 1 to 50' &&
-        dialog.timesValue === '1' && dialog.loop === 'Loop' && dialog.loopChecked === false, JSON.stringify(dialog));
+    check('Times to play, 1 to 50, starting at 1, then Loop, checked', dialog.times === 'Times to play, 1 to 50' &&
+        dialog.timesValue === '1' && dialog.loop === 'Loop' && dialog.loopChecked === true, JSON.stringify(dialog));
     await page.click('#chord-practice-cancel-button');
 
     console.log('\nThe tab: two measures of 4/4 at 240, two seconds a time through');
@@ -118,14 +118,26 @@ try {
         'Metronome | Count in, one measure of clicks before playing starts | Times to play, 1 to 50 | Loop | ' +
         'Count in before every repeat | Number of beats to count in', r.labels.join(' | '));
     check('tempo runs 15 to 300', r.tempoMin === '15' && r.tempoMax === '300', `${r.tempoMin}-${r.tempoMax}`);
-    check('Times to play 1 and Loop off, from the dialog', r.times === '1' && r.loop === false);
+    check('Times to play 1 and Loop on, from the dialog', r.times === '1' && r.loop === true);
     check('Count in before every repeat is shown', r.eachPassShown);
     check('Playback Controls are a track\'s', r.buttons.join(' | ') ===
         'Play | Where Am I | Slower | Faster | Default Tempo | Restart Selection | Previous Measure | Next Measure | Start of Measure',
         r.buttons.join(' | '));
 
+    // How long one time through takes, in the Metadata list, kept up with the tempo (Joel, end of
+    // stage 3).
+    const lengthLine = () => page.evaluate(() => [...document.querySelectorAll('#item-panels > section:not([hidden]) li')]
+        .map(li => li.textContent).find(text => text.startsWith('Length - ')));
+    let length = await lengthLine();
+    check('the Length line says how long it plays', length === 'Length - 2 measures, 2 seconds at 240 beats per minute', length);
+    await setField('Tempo', '120');
+    length = await lengthLine();
+    check('and follows the tempo', length === 'Length - 2 measures, 4 seconds at 120 beats per minute', length);
+    await setField('Tempo', '240');
+
     console.log('\nPlaying twice');
     await setField('Count in, one measure', false);
+    await setField('Loop', false);
     await setField('Times to play', '2');
     await press('Play');
     check('it plays', await waitFor(s => s.playing, 30));
@@ -186,6 +198,46 @@ try {
     const gaps = clicks.slice(1, 7).map((at, i) => Math.round((at - clicks[i]) * 1000) / 1000);
     check('the metronome clicks each eighth, half a second apart', gaps.length === 6 && gaps.every(g => Math.abs(g - 0.5) < 0.01), gaps.join(' '));
     await press('Pause');
+
+    // With the names spoken and Count in off, a start from the top waits a silent measure so the
+    // first measure's chords are said, as chord practice's player did (Joel, end of stage 3).
+    console.log('\nThe first chord named without a count-in');
+    await runMenuCommand(page, 'chord-practice');
+    await wait(1200);
+    await page.fill('#chord-practice-tempo-input', '120');
+    await page.fill('#chord-practice-count-input', '2');
+    await page.click('#chord-practice-generate-button');
+    await wait(1500);
+    const speakOn = await page.evaluate(() => {
+        const panel = document.querySelector('#item-panels > section:not([hidden])');
+        const label = [...panel.querySelectorAll('label')].find(l => l.textContent === 'Speak the next measure');
+        return document.getElementById(label.htmlFor).checked;
+    });
+    if (!speakOn) {
+        console.log('  (no chord name recordings in this build, so this cannot be checked)');
+    } else {
+        await setField('Count in, one measure', false);
+        await page.evaluate(() => {
+            window.__spoken = [];
+            const start = AudioBufferSourceNode.prototype.start;
+            AudioBufferSourceNode.prototype.start = function (when, offset, duration) {
+                window.__spoken.push({ when: when ?? 0, speech: duration !== undefined, length: this.buffer?.duration ?? 0, now: this.context.currentTime });
+                return start.call(this, when, offset, duration);
+            };
+        });
+        await press('Play');
+        await waitFor(s => s.playing, 30);
+        await wait(1500);
+        await press('Pause');
+        const sounds = await page.evaluate(() => window.__spoken);
+        const firstWord = Math.min(...sounds.filter(s => s.speech).map(s => s.when));
+        const firstNote = Math.min(...sounds.filter(s => !s.speech && s.length >= 0.1).map(s => s.when));
+        const pressedAt = Math.min(...sounds.map(s => s.now));
+        // A measure of 4/4 at 120 is two seconds.
+        check('the first chord is named before the first strum', firstWord < firstNote, `${(firstWord - pressedAt).toFixed(2)} against ${(firstNote - pressedAt).toFixed(2)}`);
+        check('and the first strum waits a silent measure', firstNote - pressedAt > 1.9, `${(firstNote - pressedAt).toFixed(2)} s`);
+        check('pausing says where it stopped', /^Paused at measure \d\.$/.test((await read()).announce), (await read()).announce);
+    }
 
     check('no errors in the page', errors.length === 0, errors.join(' | '));
 } finally {
