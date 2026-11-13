@@ -635,6 +635,9 @@ Joel asked for it in chord practice, saved with the progression as the tempo and
   "and" falls two thirds of the way through the beat, the triplet eighths feel (alphaTab's
   `Triplet8th`), which is what song files state and the only amount alphaTex can carry besides
   dotted.
+  Reopened 2026-11-12: with chord practice moving to the track player, the checkbox becomes a
+  Feel list of Straight and alphaTab's six feels, everywhere the checkbox is. alphaTex writes all
+  six. See `one-player.md`, items 17 and 18.
 - **Where it applies.** It moves eighth notes, so it applies where the beat is a quarter note and
   the pattern is no finer than eighths (`swingApplies` in `strummingPatterns.mjs`). A pattern in
   sixteenths, and 6/8 or 12/8, play straight; the checkbox's description says so ("Swing has no
