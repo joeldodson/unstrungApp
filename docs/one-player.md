@@ -133,6 +133,29 @@ differently from today, and the entry says how.
    what keeps "repeat" for measures 2 and 3. Measures before a song's first printed chord say
    nothing. A lead fill or rests under a carried chord still get "repeat", as a lead sheet's
    harmony continues there.
+
+   **Shared logic built 2026-11-12,** stage 2's sixth step; the app speaks it in the seventh.
+   - Each measure from `extractScoreMetadata` has `harmony`, [{ name, beat }], by the heading's
+     rule, so carrying stops at a section that prints no chord, as the heading's "continues" does.
+   - `songSpokenChords` in `measureChords.mjs` turns printed names into phrases through the chord
+     library's names, reading ♯ and ♭ as # and b and dropping parentheses, and keeps the printed
+     name as `key`, so an unknown chord is not said but still counts for "repeat". A chord printed
+     between quarters of a beat is said at the quarter it falls in.
+   - `spokenMeasureTimes` is `spokenMeasurePlan` for measures of any length: "one beat ahead" is a
+     beat of the measure before, where the words are heard. `spokenMeasurePlan` now calls it, with
+     the same answers for chord practice, except that a chord with no recording no longer leaves
+     its "at 3" said on its own.
+   - A name the library spells another way is said the library's way: a printed G#m is said "A
+     flat minor", the recordings having no G sharp. Joel chose that the same day over leaving it
+     unsaid until it has a recording of its own.
+   - Failing that, case is ignored, as Joel suggested: the one file printing AM and EM also prints
+     Am and Em, and its AM diagram is A and C, so they are A minor and E minor. No two library
+     names differ only in case. A capital M followed by a number is read as maj first, so CM7 is
+     C major 7, as that is usually written, and not C minor 7.
+   - Over the 33 Guitar Pro files in Joel's Guitar folder, 26 tracks print chords, and 1,700 of
+     their 2,032 measures have a harmony. 1,961 of 1,972 chord mentions can be said. Not said:
+     Gadd5 (6), Dsus4/A (4), B4 (1).
+   Checked by `scripts/songs/check-spoken-song-chords.mjs`.
 6. **Strumming pattern and Swing, changed while playing.** Chord practice only, and they stay
    progression settings. On one player, a change rebuilds the `Score` and carries on from the same
    place, as a tempo change does. To confirm that is fast enough to feel the same.

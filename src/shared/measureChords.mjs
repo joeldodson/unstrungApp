@@ -17,6 +17,8 @@
 // the checks and in the renderer for real.
 
 import { chordDisplayName } from './chordProgressions.mjs';
+import { spokenChordName } from './spokenPhrases.mjs';
+import { PITCH_CLASS_NAMES, PITCH_CLASSES } from './musicTheory.mjs';
 
 // A chord may start a quarter of a beat into one, and no finer: sixteenths in 4/4, the finest grid
 // a strumming pattern has.
@@ -172,56 +174,135 @@ export const SPOKEN_WORD_GAP_SECONDS = 0.08;
 // How long before the downbeat a list of names finishes, so the last name is not on the beat.
 const FINISH_BEFORE_SECONDS = 0.1;
 
-const sameMeasure = (a, b) => a.length === b.length &&
-    a.every((chord, index) => chord.name === b[index].name && chord.beat === b[index].beat);
+// Two measures are the same harmony when their chords are, by `key` where one is given (a song's
+// printed name, which may have no recording) and otherwise by the spoken name.
+const sameMeasure = (a, b) => a.length > 0 && a.length === b.length &&
+    a.every((chord, index) => (chord.key ?? chord.name) === (b[index].key ?? b[index].name) && chord.beat === b[index].beat);
+
+/**
+ * spokenMeasureWords, keeping only phrases with a recording, and leaving out a chord's "at 3" along
+ * with its name when the name has none, so a position is never said on its own.
+ */
+function recordedWords(chords, speechSeconds) {
+    return chords.flatMap((chord, index) => {
+        if (speechSeconds(chord.name) === undefined) return [];
+        const own = startsWhereExpected(chords, index) ? [chord.name] : [chord.name, spokenBeat(chord.beat)];
+        return own.filter(word => speechSeconds(word) !== undefined);
+    });
+}
+
+/**
+ * When to speak each measure's chords, and what to say, for measures all of one length: chord
+ * practice's progressions. `measures` holds each measure's chords; see spokenMeasureTimes.
+ */
+export function spokenMeasurePlan(measures, { secondsPerBeat, beatsPerBar, speechSeconds }) {
+    return spokenMeasureTimes(
+        measures.map(chords => ({ chords, seconds: secondsPerBeat * beatsPerBar, beatSeconds: secondsPerBeat })),
+        { speechSeconds });
+}
 
 /**
  * When to speak each measure's chords, and what to say.
  *
- * `measures` holds each measure's chords as [{ name, beat }], `name` being the spoken phrase.
- * `speechSeconds(phrase)` is how long its recording lasts, or undefined where there is none.
+ * `measures` holds each measure as { chords, seconds, beatSeconds }: its chords as
+ * [{ name, beat, key }], `name` being the spoken phrase and `key`, optional, what makes two chords
+ * the same; how long the measure lasts; and how long one of its beats is. Measures may differ in
+ * both, as a song's do across time signatures, pickups and tempo changes. `speechSeconds(phrase)`
+ * is how long its recording lasts, or undefined where there is none.
  *
  * - A measure the same as the one before it is announced as "repeat".
- * - One chord is said one beat before the measure, as chord names always were.
+ * - One chord is said one beat before the measure, as chord names always were: a beat of the
+ *   measure before, being heard there.
  * - Several are said together, one after the other, as the editor writes them: a chord written
  *   with an @ is followed by where it starts, "at 3". They finish just before the measure starts:
  *   one beat ahead, or earlier if the list needs longer.
  * - Never before the measure before has begun, nor over the names said before it. Where the
  *   whole list does not fit, only the first chord is said, so the downbeat is still announced.
- * - A phrase with no recording is left out.
+ *   The first measure is given a measure of its own length before it, which a count-in fills.
+ * - A phrase with no recording is left out, and a measure with no chords says nothing.
  *
  * Returns, for each measure, null or { words, offsetSeconds }, the offset from the measure's
- * start, negative: when the first word begins.
+ * start, negative: when the first word begins. Generalised on 2026-11-12 from a plan for measures
+ * of one length, for songs (docs/one-player.md, decision 5); for those it gives the same answers.
  */
-export function spokenMeasurePlan(measures, { secondsPerBeat, beatsPerBar, speechSeconds }) {
-    const measureSeconds = secondsPerBeat * beatsPerBar;
+export function spokenMeasureTimes(measures, { speechSeconds }) {
     const lengthOf = words => words.reduce((sum, word) => sum + speechSeconds(word), 0) +
         SPOKEN_WORD_GAP_SECONDS * (words.length - 1);
 
     const plan = [];
     // Where the words before the previous measure finished, relative to the measure being planned.
     let previousEnd = -Infinity;
-    for (const [index, chords] of measures.entries()) {
+    for (const [index, measure] of measures.entries()) {
+        const { chords } = measure;
         const previous = measures[index - 1];
-        let words = previous && sameMeasure(previous, chords) && speechSeconds(SPOKEN_REPEAT) !== undefined
+        // The time before this measure that the words fall in: the measure before, if any.
+        const before = previous ?? measure;
+        let words = previous && sameMeasure(previous.chords, chords) && speechSeconds(SPOKEN_REPEAT) !== undefined
             ? [SPOKEN_REPEAT]
-            : spokenMeasureWords(chords).filter(word => speechSeconds(word) !== undefined);
+            : recordedWords(chords, speechSeconds);
         if (words.length === 0) {
             plan.push(null);
             previousEnd = -Infinity;
             continue;
         }
 
-        const earliest = Math.max(-measureSeconds, previousEnd + SPOKEN_WORD_GAP_SECONDS);
-        let offset = Math.min(-secondsPerBeat, -(lengthOf(words) + FINISH_BEFORE_SECONDS));
+        const earliest = Math.max(-before.seconds, previousEnd + SPOKEN_WORD_GAP_SECONDS);
+        let offset = Math.min(-before.beatSeconds, -(lengthOf(words) + FINISH_BEFORE_SECONDS));
         if (words.length > 1 && offset < earliest) {
             words = [words[0]];
-            offset = -secondsPerBeat;
+            offset = -before.beatSeconds;
         }
         offset = Math.max(offset, earliest);
 
         plan.push({ words, offsetSeconds: offset });
-        previousEnd = offset + lengthOf(words) - measureSeconds;
+        previousEnd = offset + lengthOf(words) - measure.seconds;
     }
     return plan;
+}
+
+/**
+ * A song's measures as spokenMeasureTimes takes their chords: each measure's printed harmony
+ * ([{ name, beat }], from extractScoreMetadata's `harmony`) with each name turned into the phrase
+ * said for it, and the printed name kept as `key`.
+ *
+ * `chordByName(name)` gives a printed name's { root, suffix }, or null for one unstrung does not
+ * know; that chord is then not said, though it still counts in deciding "repeat". `names` lists
+ * every name it knows, for looking one up whatever its case. A chord printed
+ * between the quarters of a beat is said at the quarter it falls in, the finest the recordings go.
+ *
+ * A name is looked up as it would be typed: the sharp and flat signs some files print (♯, ♭) as #
+ * and b, and a name in parentheses, which marks a chord as optional, without them. One the library
+ * spells another way is looked up as the library spells its root and any bass note after a slash,
+ * and said that way: a printed G#m is said "A flat minor", the recordings having no G sharp. Joel
+ * chose that on 2026-11-12 over leaving it unsaid until it has a recording of its own.
+ *
+ * Failing that, the case of the name is ignored, as Joel suggested the same day: a file printing
+ * AM and EM beside Am and Em means A minor and E minor, and one of them, AM, has a diagram of A and
+ * C. No two names in the library differ only in case. A capital M followed by a number is the
+ * usual way of writing major, CM7 being C major 7, so it is read as maj first and not as minor.
+ */
+export function songSpokenChords(harmony, { chordByName, names = [] }) {
+    names = [...names];
+    const typed = name => name.trim().replace(/♯/g, '#').replace(/♭/g, 'b').replace(/^\((.+)\)$/, '$1');
+    const respelled = name => name
+        .replace(/^([A-G][#b]?)/, root => PITCH_CLASS_NAMES[PITCH_CLASSES[root]] ?? root)
+        .replace(/\/([A-G][#b]?)$/, (_, bass) => `/${PITCH_CLASS_NAMES[PITCH_CLASSES[bass]] ?? bass}`)
+        .replace(/^([A-G][#b]?)M(?=\d)/, '$1maj');
+    const lookUp = name => chordByName(name) ?? chordByName(respelled(name)) ?? chordByNameIgnoringCase(respelled(name));
+    // Built on first use, from `names`, every name chordByName knows.
+    let lower = null;
+    const chordByNameIgnoringCase = name => {
+        lower ??= new Map(names.map(known => [known.toLowerCase(), known]));
+        const known = lower.get(name.toLowerCase());
+        return known ? chordByName(known) : null;
+    };
+    return harmony.map(chord => {
+        const known = lookUp(typed(chord.name));
+        const beat = Math.floor((chord.beat - 1) * BEAT_DIVISIONS) / BEAT_DIVISIONS + 1;
+        return {
+            name: known ? spokenChordName(known.root, known.suffix) : null,
+            key: chord.name,
+            beat
+        };
+    });
 }

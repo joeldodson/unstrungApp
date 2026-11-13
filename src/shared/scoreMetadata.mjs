@@ -507,6 +507,25 @@ function describeMeasureChords(bar, masterBar, held) {
     return { text: parts.join(', '), held: found[found.length - 1].name };
 }
 
+/**
+ * The harmony of a measure from the chords the file prints, as [{ name, beat }]: the chord carried
+ * in from before, at beat 1, unless the measure prints one there, then each it prints, `beat`
+ * counted from 1 in the time signature's beats and fractional between them. Empty before the
+ * first printed chord, and after a section that prints none, by the same rule as the heading
+ * (describeMeasureChords): `held` is the chord in force coming in, null at a section.
+ *
+ * What a song's player speaks before each measure, and what Where Am I names. Never worked out
+ * from the notes. docs/one-player.md, decision 5.
+ */
+function printedHarmony(bar, masterBar, held) {
+    const found = printedChords(bar);
+    const denominator = masterBar ? masterBar.timeSignatureDenominator || 4 : 4;
+    const ticksPerBeat = 960 * (4 / denominator);
+    const harmony = found.map(symbol => ({ name: symbol.name, beat: 1 + symbol.start / ticksPerBeat }));
+    if (held && !(found[0]?.start === 0)) harmony.unshift({ name: held, beat: 1 });
+    return harmony;
+}
+
 /** The chords printed over a measure, in order: { name, start, chord }. */
 function printedChords(bar) {
     const found = [];
@@ -884,6 +903,7 @@ function extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
         // fills a bar that has none. See `extractPromotedSections`.
         const section = describeSection(masterBars[index]) ?? promotedSections.byMeasure[index] ?? null;
         if (section) held = null;
+        const harmony = printedHarmony(bar, masterBars[index], held);
         const chords = describeMeasureChords(bar, masterBars[index], held);
         held = chords.held;
 
@@ -891,6 +911,7 @@ function extractMeasures(track, terse, masterBars, songLyrics, promotedSections)
             section,
             repeat: describeRepeat(masterBars[index]),
             chords: chords.text,
+            harmony,
             lyrics: songLyrics[index] ?? [],
             voices: describeOtherVoices(bar, masterBars[index], stringCount, terse, capo, percussion),
             beats: beats.map((beat, i) =>
