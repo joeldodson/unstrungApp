@@ -156,6 +156,16 @@ differently from today, and the entry says how.
      their 2,032 measures have a harmony. 1,961 of 1,972 chord mentions can be said. Not said:
      Gadd5 (6), Dsus4/A (4), B4 (1).
    Checked by `scripts/songs/check-spoken-song-chords.mjs`.
+
+   **Speaking built 2026-11-12,** stage 2's seventh step. A track's Playback Settings has Speak the
+   next measure after the tempo, as chord practice has it before the metronome, off by default and
+   unavailable with a note when the file prints no chords over the track or the recordings are
+   missing. Turning it on loads the recordings for the track's chords in the voice set in Settings
+   and carries on from where playback is; chord practice instead starts again from the first
+   measure, which the track has no need to do, since it schedules the names as it goes. The names
+   of each measure are scheduled with it (`scheduleAudioTrackSpeech`), the plan made over the
+   measures that play, so the first of a selection is always named. Checked by
+   `scripts/songs/verify-song-speech.mjs`.
 6. **Strumming pattern and Swing, changed while playing.** Chord practice only, and they stay
    progression settings. On one player, a change rebuilds the `Score` and carries on from the same
    place, as a tempo change does. To confirm that is fast enough to feel the same.

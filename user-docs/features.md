@@ -237,6 +237,15 @@ To collapse the section, go to Playback Settings and then up one line.
 - **Tempo in beats per minute,** from 15 to 300.
   It starts at the tempo the file gives, or 60 if the file gives none.
   A tempo you set stays until the song is closed.
+- **Speak the next measure,** off to begin with.
+  Before each measure, unstrung says its chords, as chord practice does: one beat ahead for a single chord, all of them together before a measure that changes chord partway, and "repeat" for a measure with the same chords as the one before.
+  The chords are the ones the file prints over the track, as the measure headings name them, never worked out from the notes.
+  A chord printed once carries on until the next, so measures that print none are "repeat".
+  Measures before the first printed chord, and a section that prints none, say nothing.
+  A chord unstrung does not know is not said; one it spells another way is said its way, so G#m is said "A flat minor".
+  The voice and its volume are set in Settings.
+  When the file prints no chords over the track, the checkbox is unavailable and says why.
+  Turning it on or off while playing carries on from where it is.
 - **Metronome,** clicks while the music plays.
   Each note is timed so that its attack sounds with the click, and the pick noise recorded before it comes just ahead.
   A song that starts with a pickup, a short first measure, clicks only on the beats the pickup holds: a two-beat pickup in 4/4 clicks on 3 and 4.

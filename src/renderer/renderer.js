@@ -18,7 +18,7 @@ import {
     keyPitchClasses, isChordInKey, degreeChords, MAX_MEASURES, MAX_BEATS
 } from '../shared/keyChords.mjs';
 import {
-    songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, alphaTexError
+    songFromProgression, songToAlphaTex, readSongFromScore, progressionFromSong, alphaTexError, chordIndex
 } from '../shared/songScore.mjs';
 import {
     everyBeatDown, formatStrummingPattern, patternsFor, namedPatternLike, parseStrummingPattern, fitPattern,
@@ -28,7 +28,7 @@ import {
 import { trimSilence, spokenChordName } from '../shared/spokenPhrases.mjs';
 import {
     chordsInMeasure, parseMeasureChords, formatMeasureChords, formatBeat, chordsStruckLate, spokenMeasurePlan,
-    spokenMeasureWords, SPOKEN_REPEAT, SPOKEN_WORD_GAP_SECONDS
+    spokenMeasureWords, spokenMeasureTimes, songSpokenChords, SPOKEN_REPEAT, SPOKEN_WORD_GAP_SECONDS
 } from '../shared/measureChords.mjs';
 import { attackSeconds, attackAlignedStart } from '../shared/sampleAttack.mjs';
 import { DEFAULT_TEMPO, scoreTempo } from '../shared/tempo.mjs';
@@ -3024,6 +3024,8 @@ function scheduleAudioTrackChunk(state, { fromSeconds, toSeconds, baseContext, h
         source.stop(ends + 0.01);
         audioTrackSources.push({ source, endsAt: ends + 0.01 });
     }
+
+    if (state.speak && state.speech) scheduleAudioTrackSpeech(state, { fromSeconds, toSeconds, baseContext });
 }
 
 /**
@@ -3437,6 +3439,124 @@ function setAudioTrackLoop(state, loop, { announce = false } = {}) {
     state.ui.loopCheckbox.checked = loop;
     if (wasPlaying) startAudioTrackPlayback(state, state.anchorSeconds);
     if (announce) announceAudioTrack(state, loop ? 'Loop on' : 'Loop off');
+}
+
+// --- Speaking the next measure -------------------------------------------------------------
+// A song's player says each measure's chords before it, as chord practice does, from the chords
+// the file prints and never from its notes: docs/one-player.md, decision 5. Which chords each
+// measure carries, what is said for each, and when, are worked out in src/shared (the measure's
+// `harmony`, songSpokenChords, spokenMeasureTimes); this loads the recordings and schedules them.
+
+// The chord library's names, for turning printed names into the phrases recorded for them.
+let songChordNames = null;
+
+async function ensureSongChordNames() {
+    if (songChordNames) return songChordNames;
+    chordLibrary ??= await window.unstrung.getChordLibrary();
+    const index = chordIndex(chordLibrary);
+    songChordNames = { chordByName: name => index.byName.get(name) ?? null, names: [...index.byName.keys()] };
+    return songChordNames;
+}
+
+/** The checkbox unavailable, unchecked, and described by the reason. */
+function showAudioTrackSpeakUnavailable(state, reason) {
+    state.speak = false;
+    const { speakCheckbox, speakNote } = state.ui;
+    speakCheckbox.checked = false;
+    speakCheckbox.disabled = true;
+    speakNote.textContent = reason;
+    speakNote.hidden = false;
+    speakCheckbox.setAttribute('aria-describedby', speakNote.id);
+}
+
+/** Each measure's chords as spokenMeasureTimes takes them, worked out once per track. */
+function audioTrackSpokenChords(state) {
+    state.spokenChords ??= state.harmonies.map(harmony => songSpokenChords(harmony, songChordNames));
+    return state.spokenChords;
+}
+
+/**
+ * Speak the next measure on or off.
+ *
+ * Turned on, the recordings for every chord the track prints are loaded, in the voice set in
+ * Settings, and playback carries on from where it is, as the metronome does. Chord practice instead
+ * starts again from the first measure, its names being laid out with its strums; a song's player
+ * schedules them as it goes, so nothing needs to start again. Turned off, it carries on without.
+ */
+async function setAudioTrackSpeak(state, enabled) {
+    state.speak = enabled;
+    state.ui.speakCheckbox.checked = enabled;
+    if (enabled && !state.speech) {
+        const supported = await window.unstrung.listSpokenVoices().catch(() => null);
+        if (!supported?.supported || supported.voices.length === 0) {
+            showAudioTrackSpeakUnavailable(state, 'The chord name recordings are missing from this build.');
+            return;
+        }
+        await ensureSongChordNames();
+        const words = new Set([SPOKEN_REPEAT]);
+        for (const chords of audioTrackSpokenChords(state)) {
+            for (const word of spokenMeasureWords(chords)) if (word) words.add(word);
+        }
+        const voice = chordVoiceSettings.chordVoice;
+        const speech = await loadSpokenPhrases(voice, [...words]);
+        // Turned off again while the recordings loaded.
+        if (!state.speak) return;
+        state.speech = speech;
+        state.speechPlan = null;
+    }
+    replayFromHere(state);
+}
+
+/**
+ * When to say each measure's chords for the measures that play, as offsets from each measure's
+ * start, kept until the tempo or the measures change. The first measure of the selection is
+ * planned as having none before it, so it is always named, on every time through.
+ */
+function audioTrackSpeechPlan(state) {
+    const range = audioTrackRange(state);
+    const key = `${state.targetTempo}:${range.firstIndex}:${range.lastIndex}`;
+    if (state.speechPlan?.key === key) return state.speechPlan;
+    const bars = state.audioTrack.bars;
+    const chords = audioTrackSpokenChords(state);
+    const measures = [];
+    for (let index = range.firstIndex; index <= range.lastIndex; index++) {
+        const bar = bars[index];
+        measures.push({ chords: chords[index] ?? [], seconds: bar.endSeconds - bar.startSeconds, beatSeconds: bar.beatSeconds });
+    }
+    const times = spokenMeasureTimes(measures, { speechSeconds: word => state.speech.get(word)?.speechSeconds });
+    state.speechPlan = {
+        key,
+        entries: times.map((spoken, i) => spoken && { startSeconds: bars[range.firstIndex + i].startSeconds, ...spoken })
+            .filter(Boolean)
+    };
+    return state.speechPlan;
+}
+
+/**
+ * Schedules the names of each measure starting in [fromSeconds, toSeconds), with the measure they
+ * belong to, as chord practice does. They fall before it, up to a measure ahead, which for the first
+ * measure of the selection is the count-in, or the end of the time through before; words that a
+ * start or a move has already put in the past are left out.
+ */
+function scheduleAudioTrackSpeech(state, { fromSeconds, toSeconds, baseContext }) {
+    const context = getSharedAudioContext();
+    const volume = Math.min(1, Math.max(0, chordVoiceSettings.chordVoicePercent / 100));
+    for (const entry of audioTrackSpeechPlan(state).entries) {
+        if (entry.startSeconds < fromSeconds - 1e-6 || entry.startSeconds >= toSeconds - 1e-6) continue;
+        let when = baseContext + (entry.startSeconds + entry.offsetSeconds - fromSeconds);
+        if (when < context.currentTime) continue;
+        for (const word of entry.words) {
+            const phrase = state.speech.get(word);
+            const source = context.createBufferSource();
+            source.buffer = phrase.buffer;
+            const gain = context.createGain();
+            gain.gain.value = volume;
+            source.connect(gain).connect(audioTrackMasterGain);
+            source.start(when, phrase.startSeconds, phrase.speechSeconds);
+            audioTrackSources.push({ source, endsAt: when + phrase.speechSeconds });
+            when += phrase.speechSeconds + SPOKEN_WORD_GAP_SECONDS;
+        }
+    }
 }
 
 /**
@@ -4042,6 +4162,14 @@ function buildAudioTrackPanel(state) {
         { min: AUDIO_TRACK_MIN_BPM, max: AUDIO_TRACK_MAX_BPM, value: state.targetTempo });
     container.append(tempo.paragraph);
 
+    // Where chord practice has it, before the metronome. Unavailable, with a note saying why, for a
+    // track over which the file prints no chords, or a build without the recordings.
+    const speak = buildCheckboxParagraph('audio-track-speak-checkbox', 'Speak the next measure', state.speak);
+    const speakNote = document.createElement('p');
+    speakNote.id = uniqueControlId('audio-track-speak-note');
+    speakNote.hidden = true;
+    container.append(speak.paragraph, speakNote);
+
     const metronome = buildCheckboxParagraph('audio-track-metronome-checkbox',
         'Metronome', state.metronome);
     const countIn = buildCheckboxParagraph('audio-track-count-in-checkbox',
@@ -4159,6 +4287,7 @@ function buildAudioTrackPanel(state) {
 
     state.ui = {
         tempoInput: tempo.input, metronomeCheckbox: metronome.checkbox, countInCheckbox: countIn.checkbox,
+        speakCheckbox: speak.checkbox, speakNote,
         timesInput: times.input, loopCheckbox: loop.checkbox, countInEachPassCheckbox: countInEachPass.checkbox,
         countInBeatsParagraph: countInBeats.paragraph, countInBeatsInput: countInBeats.input, sectionSelect,
         firstInput: first.input, lastInput: last.input, measuresSummary,
@@ -4172,6 +4301,10 @@ function buildAudioTrackPanel(state) {
         setAudioTrackMetronome(state, metronome.checkbox.checked));
     countIn.checkbox.addEventListener('change', () => { state.countIn = countIn.checkbox.checked; });
     loop.checkbox.addEventListener('change', () => setAudioTrackLoop(state, loop.checkbox.checked));
+    speak.checkbox.addEventListener('change', () => setAudioTrackSpeak(state, speak.checkbox.checked));
+    if (!state.harmonies.some(harmony => harmony.length > 0)) {
+        showAudioTrackSpeakUnavailable(state, 'The file prints no chord names over this part, so there is nothing to speak.');
+    }
     // On change, as the tempo is, so typing 12 does not restart at 1 on the way.
     times.input.addEventListener('change', () => setAudioTrackTimesToPlay(state, Number(times.input.value)));
     // Re-anchors while playing, the same way the metronome does. Repeats are already scheduled
@@ -4384,7 +4517,14 @@ function buildAudioTrackContent(score, track, songItemId, details) {
         anchorPass: 1,
         sections: trackSections(track),
         rangeCache: null,
-        failedSampleKeys: null
+        failedSampleKeys: null,
+        // Speaking the next measure's chords, from the chords the file prints: each measure's
+        // harmony, carried forward (extractScoreMetadata). Off by default for songs. `speech` holds
+        // the recordings once loaded, in the voice of the moment, and `speechPlan` when to say them.
+        harmonies: track.measures.map(measure => measure.harmony ?? []),
+        speak: false,
+        speech: null,
+        speechPlan: null
     };
     state.audioTrack = deriveAudioTrack(state);
 
@@ -4826,9 +4966,17 @@ async function loadPracticeNoteBuffers(wanted, cancelled) {
  */
 async function chordPracticeLoadSpeech(state, myToken) {
     const names = [...new Set(chordPracticeSpokenMeasures(state).flatMap(spokenMeasureWords)), SPOKEN_REPEAT];
-    const rendered = await window.unstrung.getSpokenPhrases(state.voice, names);
-    if (myToken !== chordPracticeToken) return null;
+    const byName = await loadSpokenPhrases(state.voice, names);
+    return myToken === chordPracticeToken ? byName : null;
+}
 
+/**
+ * The recordings of some phrases in a voice, decoded, as a Map from each phrase to
+ * { buffer, startSeconds, speechSeconds }. A phrase with no recording is not in it. Shared by chord
+ * practice and a song's tracks.
+ */
+async function loadSpokenPhrases(voice, names) {
+    const rendered = await window.unstrung.getSpokenPhrases(voice, names);
     const byName = new Map();
     for (const entry of rendered) {
         const arrayBuffer = entry.bytes.buffer.slice(
