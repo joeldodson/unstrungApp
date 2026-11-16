@@ -106,17 +106,3 @@ Each one opens as an item in the list of open items, just like a song.
 The last entry in Help, About unstrung, opens a dialog with the version.
 
 You can always go directly to [the unstrung online documentation (opens in new tab)](https://eyesunstrung.vip/unstrung/docs/).
-
-## Videos
-
-There is a [YouTube channel for unstrung (opens in new tab)](https://youtube.com/@unstrungApp) where videos are posted.
-These are supposed to be "short" videos introducing features with some example use cases.
-They are intended to be heard; there is not a whole lot going on visually.
-The videos were made with screen sharing, including the ability to hear the screen reader.
-
-You can watch the same videos from the [videos page on the unstrung website (opens in new tab)](https://eyesunstrung.vip/unstrung/videos/).
-The page uses YouTube's embedded player, so you can stream each video there or click through to watch it on YouTube.
-If you're familiar with YouTube's keyboard shortcuts, you have probably used shift+. (period) to speed up playback.
-That does not work in the embedded player.
-To change playback speed, there is a Playback speed dropdown above each video.
-The speed you choose applies to every video on the page, and your browser remembers it for your next visit.

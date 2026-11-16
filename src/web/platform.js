@@ -67,7 +67,7 @@ const isCancel = error => error?.name === 'AbortError';
 // Decided 2026-10-04, after trying both a dialog of Unstrung's own before the browser's question
 // and avoiding the question altogether: each was more confusing, above all for a sighted user, than
 // the ordinary flow. NVDA does not announce the browser's question and it is hard to reach; Joel
-// covers finding it in notes and a video for screen reader users, rather than the page working
+// covers finding it in notes for screen reader users, rather than the page working
 // around it. The one addition is the line below in the status bar, which a screen reader reads as
 // it appears, so that waiting on the question is never silent.
 

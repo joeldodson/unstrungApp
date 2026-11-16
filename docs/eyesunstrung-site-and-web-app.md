@@ -184,7 +184,7 @@ Built 2026-10-02 for unstrungApp 0.6.1.
   Unstrung's own before the question, and using only the Windows Open and Save dialogs so the
   question never comes up (no folder tree, a Save dialog on the first save of each visit, recent
   songs reopened from a kept copy). Both were judged more confusing than the ordinary flow,
-  especially for sighted users. Joel will cover finding the question in notes and a video for
+  especially for sighted users. Joel will cover finding the question in notes for
   screen reader users. What remains: while the question is waiting, the status bar says so ("The
   browser is asking for permission to use ... Its question is beside the address bar."), and a
   refusal is said plainly, for example in Open Saved Progression. Saving a new progression opens
@@ -254,7 +254,7 @@ Decided with Joel on 2026-10-06, when the documentation was reorganised into `us
   reader time on every visit. Joel chose items so a document can stay open beside what it
   describes; the same material is reachable in different ways.
 - **On the site.** `/unstrung/` is the introduction, with a contents panel and a panel linking to
-  the app, the documentation and the videos. `/unstrung/docs/` is the About document, with a
+  the app and the documentation. `/unstrung/docs/` is the About document, with a
   contents panel and a panel listing every document, each of which has its own page. Both follow
   the layout of `/articles/`.
 - **How they get there.** `npm run build:web` puts the documents and an `index.json` in the web
@@ -273,3 +273,11 @@ Decided with Joel on 2026-10-06, when the documentation was reorganised into `us
   works, and the site reads the files unchanged. In the app, a link to /unstrung/docs/<name>/
   opens that document as an item, and /unstrung/docs/ opens About unstrung, in both versions,
   unless the link's text says "(opens in new tab)", which goes to the browser as before.
+
+## The videos, removed 2026-11-16
+
+The YouTube videos of unstrung were withdrawn on 2026-11-16. The Videos section of
+`user-docs/introduction.md`, which linked to the YouTube channel and the site's videos page, was
+removed, and so were the videos page and everything that built it in eyesunstrung. How the page
+worked, what the introduction said, and which commits to restore from are in eyesunstrung's
+`docs/videos-page.md`.
