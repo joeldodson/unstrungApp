@@ -10,6 +10,24 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.10.4 - What Is unstrung?
+
+Published 2026-11-17.
+
+0.10.4 changes only the documentation: a new document, What Is unstrung?, and the end of the videos.
+
+### What Is unstrung?
+
+A new document, second in the Help menu after Introduction, says why unstrung was built, who it is for, and what its main parts are for: reading song files, playing measures to practice along with, chord progressions, the Chord Library and the articles on eyesunstrung.vip. Joel wrote it, and it is meant to change rarely. The Features document is the one that keeps up with each release.
+
+### No More Videos
+
+The YouTube videos about unstrung have been withdrawn, and the Introduction no longer links to them or to the videos page on eyesunstrung.vip. It says instead why they were dropped, and points to What Is unstrung? and Features.
+
+### Help Menu Order
+
+Resources now comes before Third Party Components, in the Help menu and in the documentation on eyesunstrung.vip.
+
 ## unstrung 0.10.3 - One player
 
 Published 2026-11-13.
