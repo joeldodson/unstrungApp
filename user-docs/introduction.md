@@ -23,7 +23,7 @@ unstrung can run within your browser, or you can install it on Windows and run i
 
 Initially I had videos on YouTube to introduce unstrung and explain some of its features.
 Those videos were too long and quickly became outdated as I iterated with Claude.
-Instead, there is now a [what is unstrung page](/unstrung/docs/what-is-unstrung/) in the documentation.
+Instead, there is now a [What Is unstrung? page](/unstrung/docs/what-is-unstrung/) in the documentation.
 That page is written by me, a real person, and should not change often.
 There is also a [features page](/unstrung/docs/features/) maintained by Claude which changes frequently as we add, remove, and modify the feature set.
 
