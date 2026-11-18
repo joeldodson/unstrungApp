@@ -1,7 +1,5 @@
 # What Is unstrung?
 
-This document exists to set expectations of what unstrung is and how a user might find value in it.
-
 I started unstrung as an experiment to access the contents of files containing guitar tabs using a screen reader.
 I also wanted to build features to help blind people learning to play guitar.
 I had two core goals:
@@ -22,7 +20,7 @@ If you want more details, that's the place.
 ## Reading Music Files
 
 The initial motivation for unstrung was a desire to access guitar tab files using a screen reader.
-The first prompt to Claude was: "Create an Electron app that lets me select a file and access its data using fully accessible, semantic HTML.
+The first prompt to Claude was along the lines of: "Create an Electron app that lets me select a file and access its data using fully accessible, semantic HTML.
 The HTML document you create must be well structured using headings, lists, and any other elements you think make sense.
 You choose the structure based on file contents and we'll iterate from there."
 
@@ -102,12 +100,13 @@ YouTube lessons are part of why the chord library exists.
 Not all YouTubers will describe how a chord is played.
 Often you'll hear, "you can follow along with the tabs at the bottom of the screen."
 Well, no, I cannot.
-I can though look up how a chord is likely played in the song then play along with the video.
+In the chord library, though, I can look up how a chord is likely played in the song, then play along with the video.
 
 Also, chord progressions might contain chords you're not familiar with.
 This is the other use of the chord library.
 Each chord progression has a list of chords it uses.
 Each chord in the list is an expandable element containing details of that chord, including how to play it.
+That information is pulled from the chord library automatically, so you don't need to look it up.
 
 You can look up a chord in the library, read the various ways it can be played, and hear it strummed.
 You can compare chords as well.
@@ -125,12 +124,12 @@ That's not technically part of the unstrung app, but if you're using the web hos
 
 I said at the beginning there would be no assumptions about a musical background.
 Then I throw around terms like "key" and "timing" and "chord."
-I plan to write articles on the very basics of Western music that explain those terms.
+I plan to write (by that I mean prompt Claude) articles on the very basics of Western music that explain those terms.
 I also plan articles going into greater depth to satisfy my own curiosity, and hopefully yours as well.
 
 ## Should You Use unstrung?
 
-If you're a blind guitar player who wants to read tabs and practice without learning standard notation first, unstrung is for you.
+If you're a blind guitar player who wants to read tabs and practice without learning standard notation first, you might find some value in unstrung.
 
 It's certainly a good idea to understand music notation and be able to read sheet music.
 I'd argue that is less relevant for the casual guitar player, especially a blind one.
