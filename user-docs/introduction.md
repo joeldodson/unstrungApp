@@ -21,6 +21,12 @@ There is an elegantly simplified and usable world out there if you could only ki
 
 unstrung can run within your browser, or you can install it on Windows and run it as a desktop application.
 
+Initially I had videos on YouTube to introduce unstrung and explain some of its features.
+Those videos were too long and quickly became outdated as I iterated with Claude.
+Instead, there is now a [what is unstrung page](/unstrung/docs/what-is-unstrung/) in the documentation.
+That page is written by me, a real person, and should not change often.
+There is also a [features page](/unstrung/docs/features/) maintained by Claude which changes frequently as we add, remove, and modify the feature set.
+
 ### Running from the Browser
 
 Go to the [unstrung app on eyesunstrung (opens in new tab)](https://eyesunstrung.vip/unstrung/app/) to run unstrung within your browser.

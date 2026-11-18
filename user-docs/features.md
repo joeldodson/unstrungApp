@@ -843,7 +843,7 @@ The dialog has three tabs.
 
 ## Help
 
-The Help submenu opens each help document as an item in the list of open items: Introduction, Screen Reader Users, Features (this document), Third Party Components and Resources.
+The Help submenu opens each help document as an item in the list of open items: Introduction, What Is unstrung?, Screen Reader Users, Features (this document), Resources and Third Party Components.
 The last entry, About unstrung, opens a dialog with the version and the file formats supported.
 
 ## The Desktop App and the Web Version

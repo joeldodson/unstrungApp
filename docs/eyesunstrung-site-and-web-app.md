@@ -247,8 +247,9 @@ Decided with Joel on 2026-10-06, when the documentation was reorganised into `us
   `scripts/help-documents.mjs` lists them in order. `README.md` is about the repository only and
   is no longer used for help; the What is Unstrung and Feedback dialogs are gone. Feedback goes to
   the email in the site's footer.
-- **In the app.** The Help menu is the same in both versions: Introduction, Screen Reader Users,
-  Features, Third Party Components and Resources, each opening as an item in the list of open
+- **In the app.** The Help menu is the same in both versions: Introduction, What Is
+  unstrung? (added 2026-11-17), Screen Reader Users, Features, Resources and Third Party
+  Components (moved below Resources the same day), each opening as an item in the list of open
   items, then About unstrung, a dialog whose text is `about.md` with the version added. Earlier the
   documents were dialogs, on the reasoning that an item holding a whole document costs a screen
   reader time on every visit. Joel chose items so a document can stay open beside what it

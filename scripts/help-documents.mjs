@@ -8,10 +8,11 @@
 
 export const HELP_DOCUMENTS = [
     { id: 'introduction', menuLabel: 'Introduction' },
+    { id: 'what-is-unstrung', menuLabel: 'What Is unstrung?' },
     { id: 'screen-reader-users', menuLabel: 'Screen Reader Users' },
     { id: 'features', menuLabel: 'Features' },
-    { id: 'third-parties', menuLabel: 'Third Party Components' },
-    { id: 'resources', menuLabel: 'Resources' }
+    { id: 'resources', menuLabel: 'Resources' },
+    { id: 'third-parties', menuLabel: 'Third Party Components' }
 ];
 
 export const ABOUT_DOCUMENT = 'about';
