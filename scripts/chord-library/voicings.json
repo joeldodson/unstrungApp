@@ -3246,6 +3246,12 @@
             ]
         },
         {
+            "root": "F", "suffix": "maj7/C",
+            "voicings": [
+                {"frets":[-1,3,3,2,1,0],"fingers":[0,3,4,2,1,0],"barres":[],"from":"unstrung","note":"Joel's voicing: F/C x33211 with string 1 left open for the E"}
+            ]
+        },
+        {
             "root": "F", "suffix": "maj7b5",
             "voicings": [
                 {"frets":[1,0,2,2,0,0],"fingers":[1,0,2,3,0,0],"barres":[],"from":"tabsy-gr/chords-db","id":"guitar/F/maj7b5/1"},

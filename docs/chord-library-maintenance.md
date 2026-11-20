@@ -389,3 +389,15 @@ checked, so it needs no record of versions, and the notice, a dialog listing eac
 appears only when something changed. The desktop keeps your items in its settings file and a
 browser in local storage, each saved through calls that exist already (`saveStrummingPatterns`), so
 the two differ only in that each browser and device runs the check on its own next load.
+
+## Joel's Fmaj7/C (2026-11-20)
+
+Joel found Fmaj7/C missing. He plays it as the F/C x33211 with the index finger on string 2 alone,
+leaving string 1 open for the E: x33210, fingered 3 4 2 1 0. It spells C F A C E, the major
+seventh over its fifth. It ships under F, suffix maj7/C, with `"from":"unstrung"`. The Fmaj7 entry
+already had xx3210, the same shape without the bass C.
+
+The chord name recordings were rebuilt for "F major 7 slash C". Only that phrase is new audio, one
+file per voice; the files after it in order were renumbered.
+
+The library is 855 chords and 3,317 voicings.
