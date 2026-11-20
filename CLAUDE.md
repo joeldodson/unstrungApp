@@ -106,6 +106,17 @@ same change. How these files are written:
   installer download, the source code in About). The repos' own READMEs
   carry the rest. Feedback goes to the email in the site's footer.
 
+Before writing or revising a file in `user-docs/`, read the article
+instructions in the eyesunstrung repository,
+`../eyesunstrung/docs/article-instructions.md`. They describe Joel's
+writing style, and it applies to these documents too. Follow the
+sections on readers, voice, spelling and punctuation, accessibility,
+describing physical things, and working with Joel on a draft. Skip
+what is about articles alone: the articlesWorkspace workflow, file
+names, front matter, Prompter's Notes, and the no-h1 rule. Edit
+`user-docs/` files in place. Where the instructions and this section
+differ, this section wins.
+
 # Releases
 
 Every release's notes are kept in `docs/release-notes-history.md`, newest
