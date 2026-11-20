@@ -401,3 +401,17 @@ The chord name recordings were rebuilt for "F major 7 slash C". Only that phrase
 file per voice; the files after it in order were renumbered.
 
 The library is 855 chords and 3,317 voicings.
+
+Two more voicings were added the same day, found by taking each F/C shape and lowering an F to E
+while keeping at least one F:
+
+- x33555, from F/C x33565. Fingered 1 1 3 3 3, with the index across strings 5 and 4 at fret 3 and
+  the ring finger barring strings 3 to 1 at fret 5, as the library fingers Fmaj7 xx3555, which
+  this is with C added in the bass. Joel chose that over 1 1 2 3 4.
+- 8 8 10 9 10 8, from F/C 8 8 10 10 10 8. Fingered 1 1 3 2 4 1: Fmaj7 x8 10 9 10 8 with the barre
+  taken to string 6 for the C. The build calls it the A shape major 7th barred at fret 8 and ranks
+  it canonical, so it is voicing option 1, ahead of x33210, as F/C's barre shape is ahead of x33211.
+
+The fourth F/C shape, xx 10 10 10 8, has its only F on string 3; lowering it gives C E A C, A minor
+over C. No new name was spoken, so the recordings did not change. The library is 855 chords and
+3,319 voicings.
