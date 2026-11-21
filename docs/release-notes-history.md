@@ -10,6 +10,22 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.10.5 - Fmaj7/C
+
+Published 2026-11-21.
+
+0.10.5 adds one chord to the Chord Library.
+
+### Fmaj7/C
+
+The Chord Library now has Fmaj7/C, F major 7 over C, with three voicings:
+
+- 8 8 10 9 10 8, fingered 1 1 3 2 4 1: the A shape major 7th barred at fret 8, listed first.
+- x33210, fingered 3 4 2 1: the F/C x33211 with the index finger on string 2 alone, leaving string 1 open for the E.
+- x33555, fingered 1 1 3 3 3: Fmaj7 xx3555 with C added in the bass.
+
+Its name is spoken in both voices. The library now has 855 chords and 3,319 voicings.
+
 ## unstrung 0.10.4 - What Is unstrung?
 
 Published 2026-11-17.
