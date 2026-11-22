@@ -23,15 +23,18 @@
         <!-- No h1 for the application's name. Each open item is an h1 instead, so an item's own
              content can start at h2 and keep every level below that. -->
         <div class="side-panel">
-            <!-- The Menu button and its menu, with submenus. ARIA menu roles, driven by menu.js:
-                 NVDA switches to focus mode in a menu, so arrowing stays inside it and loops at
-                 either end. Each item's data-command names what renderer.js runs for it. A
-                 navigation landmark, so moving by landmark reaches the Menu button.
+            <!-- The unstrung menu button and its menu, with submenus. ARIA menu roles, driven by
+                 menu.js: NVDA switches to focus mode in a menu, so arrowing stays inside it and
+                 loops at either end. Each item's data-command names what renderer.js runs for it.
+                 A navigation landmark, so moving by landmark reaches the button. The landmark has
+                 no label, like the site's, and the button no aria-haspopup: with both, and the
+                 button named Menu, NVDA said "unstrung menu menu button collapsed submenu".
+                 aria-haspopup changed only what NVDA said; menu.js finds the menu by aria-controls.
                  data-needs-file-access, here and on buttons elsewhere, marks what is disabled in
                  a browser without the File System Access API; see requireFileAccess. -->
-            <nav id="app-menu" class="app-menu" aria-label="unstrung">
-                <button type="button" id="app-menu-button" aria-haspopup="menu" aria-expanded="false"
-                    aria-controls="app-menu-list">Menu</button>
+            <nav id="app-menu" class="app-menu">
+                <button type="button" id="app-menu-button" aria-expanded="false"
+                    aria-controls="app-menu-list">unstrung menu</button>
                 <ul id="app-menu-list" role="menu" aria-labelledby="app-menu-button" hidden>
                     <li role="none"><div role="menuitem" tabindex="-1" id="menu-open-file" data-command="open-file"
                         aria-keyshortcuts="Control+O">Open File…</div></li>

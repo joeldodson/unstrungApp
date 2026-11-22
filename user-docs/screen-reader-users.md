@@ -24,7 +24,8 @@ Many of the helpful hints have been moved into expandable elements partly so the
 You'll need to expand the element of course to read the information.
 
 On the pages of eyesunstrung.vip, the only places that do not have labels are nav elements.
-In the unstrung app itself, the nav elements do have labels: the Menu button is in one named unstrung, and the open items are in one named Open items.
+In the unstrung app itself, only the open items nav element has a label, Open items.
+The nav element holding the unstrung menu button has none.
 On the site, I left them out intentionally due to the label being read then the immediately following element.
 It led to either duplicate announcements or verbose confusion.
 I made sure when navigating by landmarks (d in NVDA), there is a useful announcement when you land on a nav element.

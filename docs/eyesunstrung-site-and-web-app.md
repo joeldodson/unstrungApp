@@ -196,8 +196,9 @@ Built 2026-10-02 for unstrungApp 0.6.1.
   Main navigation bar after the app's banner when it writes `/unstrung/app/`, so the bar always
   matches the rest of the site. The app's page has to keep exactly one `<header>`, the banner, for
   the site to place the bar after; its build stops otherwise. `docs/site-structure.md` in
-  eyesunstrung has the details. The app's own Menu button is in a navigation landmark named
-  unstrung, in both versions, so NVDA's d reaches the site's bar and then the app's Menu.
+  eyesunstrung has the details. The app's own menu button, named unstrung, is in a navigation
+  landmark, in both versions, so NVDA's d reaches the site's bar and then the app's menu. The
+  landmark has no label, as on the site (2026-11-21).
 - **Without the File System Access API, file commands are disabled (2026-10-08).** Joel ran the
   web app in Chrome on iOS, which is WebKit underneath and has no `showOpenFilePicker`,
   `showSaveFilePicker` or `showDirectoryPicker`. `capabilities.fileAccess` is true when all three

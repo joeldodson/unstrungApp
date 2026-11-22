@@ -61,8 +61,8 @@ From the top, the window has:
 
 - The eyesunstrung banner with a link to the main site.
 - The web app has the eyesunstrung.vip main menu bar.
-- **The Menu button,** through which all features are accessed.
-  It is in a navigation landmark named unstrung, so in browse mode d and shift+d move to it.
+- **The unstrung menu button,** through which all features are accessed.
+  It is in a navigation landmark, so in browse mode d and shift+d move to it.
 - **Open items.** Every song, chord progression, chord library and help document you open is listed here, newest first.
   Each is a level 1 heading holding a button, followed by a Close button.
   Pressing an item's button shows it in the main area of the window and moves you to the start of it.
@@ -95,7 +95,7 @@ escape closes a dialog.
 
 As noted below, some menu items are not available if your browser does not support the File System Access API.
 
-Press enter, spaceBar or downArrow on the Menu button to open the menu.
+Press enter, spaceBar or downArrow on the unstrung menu button to open the menu.
 It works like a desktop application's menu:
 
 - upArrow and downArrow move through it, wrapping around at either end.
@@ -363,7 +363,7 @@ The tempo stays as you set it.
 ### Keys
 
 While your screen reader is in focus mode, these keys control playback.
-They work while focus is anywhere in the song, on a button as well, but not on the Menu button or in the list of open items, where spaceBar and the arrows do what they do there.
+They work while focus is anywhere in the song, on a button as well, but not on the unstrung menu button or in the list of open items, where spaceBar and the arrows do what they do there.
 ? lists them in the Playback Keys dialog.
 The dialog has a link to this document, which closes the dialog and opens this document.
 
@@ -469,7 +469,7 @@ Playback Controls has a track's buttons: Play and Where Am I; Slower, Faster and
 Default Tempo goes back to the tempo the progression opened with, until you type another into the Tempo field.
 
 The keys are a track's, l for Loop included.
-Like a track's, they work while focus is in the progression, and not on the Menu button or in the list of open items.
+Like a track's, they work while focus is in the progression, and not on the unstrung menu button or in the list of open items.
 ? lists them in the Playback Keys dialog.
 
 The media keys on your keyboard and headphone buttons control a progression as they do an audio track; see Media Controls Integration, before Playing a Track.

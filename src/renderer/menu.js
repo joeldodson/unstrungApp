@@ -27,7 +27,8 @@
  * screen reader's focus and its cursor are always the same place. Only one chain of menus is open
  * at a time, and a closed menu is hidden, so it is out of the accessibility tree.
  *
- * Markup: the button has aria-haspopup="menu" and aria-controls naming the menu. A menu is a
+ * Markup: the button has aria-expanded and aria-controls naming the menu, and no aria-haspopup,
+ * which made NVDA say "menu button" and "submenu" on top of the button's own name. A menu is a
  * <ul role="menu">; each entry is <li role="none"> holding the element with role="menuitem", and a
  * submenu is a further <ul role="menu" hidden> inside that same <li>, named by the item's
  * aria-controls. Separators are <li role="separator">. Items with a submenu carry aria-haspopup,

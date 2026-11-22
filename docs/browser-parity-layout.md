@@ -113,7 +113,16 @@ How it behaves, following the ARIA Authoring Practices Guide's menu button patte
 - Focus moves from item to item, so NVDA's focus and cursor never part. Only one chain of menus is
   open, and closed menus are hidden, so out of the accessibility tree.
 - Items with a submenu carry `aria-haspopup="menu"`, which NVDA reads as "submenu", and no
-  `aria-expanded`, so it does not say "collapsed". The Menu button does carry `aria-expanded`.
+  `aria-expanded`, so it does not say "collapsed". The menu button does carry `aria-expanded`.
+- **The button is named unstrung menu, with no `aria-haspopup`, and its landmark has no label
+  (2026-11-21).** It was named Menu, with `aria-haspopup="menu"`, in a navigation landmark
+  labelled unstrung. Joel heard "menu menu button collapsed submenu" when arrowing to it, and
+  "unstrung menu menu button collapsed submenu" when d, b or f landed on it: the landmark's label,
+  the button's text, the role a button with `aria-haspopup="menu"` has, and NVDA's word for
+  `aria-haspopup`. The label went, as it had from the site's nav elements. The button was named
+  unstrung first, then lost `aria-haspopup` and became unstrung menu, to be tried by ear.
+  `aria-haspopup` changed only what the screen reader is told; `menu.js` finds the menu by
+  `aria-controls`, and the submenu items keep theirs.
 - Keys used by the menu do not reach the page's own shortcuts, so Space in the menu never pauses
   playback.
 - Open File and Open Saved Progression carry `aria-keyshortcuts`. Whether NVDA reads it on a menu

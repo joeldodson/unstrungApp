@@ -7,6 +7,7 @@ eyesunstrung.vip.
 - `saved-progressions-design.md` -- saving, opening, editing and creating chord progressions, and
   why the seed was removed. Built in 0.5.0.
 - `screen-reader-findings.md` -- how NVDA reads parts of Unstrung, and the fixes that came from it.
+  Records that unstrung is tuned for NVDA, at Narrator's expense, by Joel's choice.
 - `web-deployment-and-guitar-input.md` -- running Unstrung in a browser, sample size and
   compression, SoundFonts, and a plan for a tuner, timing feedback and chord checking. Not built.
 - `browser-parity-layout.md` -- replacing tabs and the native menu with a left column of open

@@ -3,6 +3,25 @@
 Things learned about how NVDA reads Unstrung that apply beyond the feature where they came up.
 Each was reported by Joel in real use; the explanations are what the fixes were based on.
 
+## Tuned for NVDA, at Narrator's expense
+
+Decided 2026-11-22. Joel makes these choices on purpose, and mostly informed: where NVDA and
+another screen reader pull different ways, unstrung is tuned for clarity and less verbosity in
+NVDA, even when that makes it less clear in Narrator. Do not undo such a choice to suit Narrator
+without asking him.
+
+The case that settled it was the menu button and its navigation landmark, the record of which is
+in `browser-parity-layout.md`. The landmark lost its label and the button lost `aria-haspopup`, so
+NVDA says "unstrung menu button collapsed" instead of "unstrung menu menu button collapsed
+submenu". Joel then tried Narrator, which comes with Windows:
+
+- Moving by landmark, d, Narrator names the landmark but does not read the element after it,
+  its first child, and does not move focus there.
+- Pressing Enter on the landmark does nothing; Narrator says there is no item to act on.
+
+Whether the landmark's old label would have helped Narrator was not tried. NVDA lands on the
+button and reads it, and NVDA is what Joel uses.
+
 ## Buttons sharing a paragraph are read as one line
 
 Found 2026-09-19 in the chord practice tab: Ctrl+Down from the last chord onto the Edit, Save and
