@@ -10,6 +10,24 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.10.6 - The unstrung Menu Button
+
+Published 2026-11-22.
+
+0.10.6 makes the menu button quicker to hear with NVDA, and describes the banner's picture.
+
+### The unstrung Menu Button
+
+The Menu button is now named "unstrung menu". It no longer tells the screen reader it opens a menu, and its navigation landmark no longer has a label. Moving to it by landmark, NVDA used to say "unstrung menu menu button collapsed submenu", and now says "unstrung menu button collapsed". It opens and works exactly as before, and the items in it that open submenus still say so.
+
+### Banner
+
+The banner's alternative text now describes the picture, as on eyesunstrung.vip: an unstrung guitar on its side on a table, with sunglasses below the neck.
+
+### Screen Reader Users
+
+A new section, Verbosity, Clarity, and Intentional Tradeoffs, explains why most nav elements in unstrung and on eyesunstrung.vip have no label. unstrung is tuned for NVDA, and moving by landmark in Narrator is less clear as a result.
+
 ## unstrung 0.10.5 - Fmaj7/C
 
 Published 2026-11-21.
