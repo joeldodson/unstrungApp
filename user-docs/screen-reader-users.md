@@ -23,12 +23,27 @@ Navigating by tabs or specific elements will skip over text intended to provide 
 Many of the helpful hints have been moved into expandable elements partly so they are not skipped when tabbing.
 You'll need to expand the element of course to read the information.
 
-On the pages of eyesunstrung.vip, the only places that do not have labels are nav elements.
-In the unstrung app itself, only the open items nav element has a label, Open items.
-The nav element holding the unstrung menu button has none.
-On the site, I left them out intentionally due to the label being read then the immediately following element.
-It led to either duplicate announcements or verbose confusion.
-I made sure when navigating by landmarks (d in NVDA), there is a useful announcement when you land on a nav element.
+## Verbosity, Clarity, and Intentional Tradeoffs
+
+On NVDA, when landing on a landmark, the landmark's label is read.
+If the first HTML element inside that landmark has a label, it is also announced.
+When the landmark label and its child element have similar labels, it sounds very chatty and redundant.
+I decided then to not have labels in most "nav" HTML elements.
+I ensure the first HTML element inside every nav element (e.g., "button", "ul") does have a label.
+
+When I navigate by landmarks in Narrator, d, Narrator does not announce the label of the first HTML element inside the landmark.
+It also does not invoke that element when I hit enter or spaceBar.
+In NVDA, even if I have landed on the landmark with d, enter or spaceBar still invokes the first element inside it, such as the unstrung menu button.
+
+I have decided to optimize the eyesunstrung site and unstrung application UX assuming NVDA behavior.
+This makes the Narrator behavior worse.
+It sounds as though there are missing labels, because there are.
+Navigating by form elements, lists, headings, and other elements works fine and I'd argue is a better experience in Narrator as well.
+
+I can understand disagreement with this approach.
+If unstrung becomes very popular and this approach also affects JAWS (I have not tried unstrung on JAWS), maybe I will change the decision.
+Please feel free to disagree and offer alternatives if you know of any.
+The footer of every page on eyesunstrung.vip has contact information.
 
 ## Settings for Screen Reader Users
 
