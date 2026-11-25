@@ -10,6 +10,26 @@ no longer work for the deleted releases.
 When a new release is published, add a copy of its notes at the top of this file, under a level 2
 heading with the release's title and the date it was published.
 
+## unstrung 0.11.0 - Guitar Tuner
+
+Published 2026-11-24.
+
+0.11.0 adds a guitar tuner, and regroups the Features document to follow the unstrung menu.
+
+### Guitar Tuner
+
+Tuner, a new item in the unstrung menu, listens to your guitar through a microphone or an audio interface. It answers with a sound that follows the string as you turn the tuning machine. Once the string settles after each pluck, it says the note and how far off it is, such as "E2, 5 cents flat". It says one thing for each pluck, so pluck again to hear where the string is now.
+
+Chromatic mode names the nearest note. String mode measures against the nearest string of a tuning you choose, such as standard, drop D or DADGAD. The feedback sound is a rising and falling tone, pulses that slow down, both, or none, and a chime sounds when the string is in tune. Check Headphones or a plugged-in guitar for a gentler tone when the tuner's sound can't reach its input.
+
+In focus mode, spaceBar starts and stops, r says the reading, l says the input level, and upArrow and downArrow change the volume of the tuner's sound.
+
+This is a first version. Some of its settings are there so the sounds can be compared, and some will go once one way is settled on. On Windows, the desktop app needs permission to use the microphone: in Windows Settings, under Privacy and security, Microphone, turn on letting desktop apps use the microphone. In a browser, allow the microphone when the browser asks.
+
+### Features
+
+The Features document now has a section for each item or submenu of the unstrung menu, in the same order. It's rewritten in the style of the articles on eyesunstrung.vip, with music terms explained where they first come up, and it describes the tuner.
+
 ## unstrung 0.10.6 - The unstrung Menu Button
 
 Published 2026-11-22.
