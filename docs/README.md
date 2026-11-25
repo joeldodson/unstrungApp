@@ -64,6 +64,9 @@ eyesunstrung.vip.
   Solo's gain is analogue, Focusrite Control 2's MIDI control and mobile remote, what an
   Electron-only feature could reach, and announcing the input level from the audio. Notes from
   2026-11-08 and 2026-11-09, nothing built.
+- `guitar-tuner.md` -- the tuner: chromatic and string modes, a continuous sound instead of speech,
+  keeping that sound out of the microphone, and the testing options Joel is trying. First version
+  built 2026-11-23; which options stay is not decided.
 - `project-review-2026-11.md` -- a full review of 0.10.2 by Fable 5.2 on 2026-11-10: nineteen
   findings by severity, then architecture, security, build and code quality, nothing changed.
 - `project-review-2026-11-assessment.md` -- each of those findings checked against the code and

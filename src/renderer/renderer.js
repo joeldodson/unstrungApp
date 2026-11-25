@@ -42,6 +42,14 @@ import {
     metronomeFeelDelay,
     metronomeSlotInMeasure, describeMetronomeClicks
 } from '../shared/metronome.mjs';
+import {
+    detectPitch, frequencyToMidi, midiToFrequency, nearestNote, nearestString, describeReading, tunerNoteName,
+    rmsToDecibels, createPitchSmoother, IN_TUNE_CENTS, TUNER_MIN_CLARITY
+} from '../shared/pitchDetection.mjs';
+import { createTunerSpeech, createPluckDetector, LEAVE_TUNE_CENTS } from '../shared/tunerSpeech.mjs';
+import {
+    TUNER_LOG_MAX_SECONDS, floatToInt16, encodeWav16, tunerLogText, tunerReadingsCsv, tunerLogBaseName
+} from '../shared/tunerLog.mjs';
 import { createMenuButton } from './menu.js';
 
 const statusElement = document.getElementById('status');
@@ -6996,6 +7004,960 @@ function openMetronomeItem() {
     signatureSelect.focus();
 }
 
+// --- Tuner -----------------------------------------------------------------------------------
+// The guitar tuner: an input, read about every 15 ms by the pitch detector in
+// src/shared/pitchDetection.mjs, a continuous sound that follows the string, and spoken readings
+// from src/shared/tunerSpeech.mjs: the note and how far off, then the number as it changes.
+// docs/guitar-tuner.md has the reasoning, including how the sound is kept out of a microphone.
+//
+// Most of the choices below are testing options, so Joel can compare by ear: radio buttons where
+// they exclude each other, checkboxes where they combine. They last until unstrung is closed and
+// are not saved.
+//
+// The tuner has its own AudioContext, made on Start and closed on Stop, so it never touches the
+// shared one, which playback replaces when its clock goes wrong.
+
+const TUNER_TICK_MS = 15;
+// How long the sound carries on after the last clear reading, so a brief dropout is not a gap.
+const TUNER_HOLD_MS = 200;
+// A note is spoken once it has held this long, so a pluck's first instant is not named.
+const TUNER_SPEAK_AFTER_MS = 200;
+// In tune for this long before the chime.
+const TUNER_CHIME_AFTER_MS = 300;
+// Quieter than this is not read: about -55 dBFS.
+const TUNER_MIN_RMS = 0.0018;
+// The level that tells a new pluck is taken over the last this many samples, about 21 ms, so it
+// rises as soon as the string is struck rather than over a whole analysis window.
+const TUNER_PLUCK_SAMPLES = 1024;
+const TUNER_FILTER_HZ = 1000;
+const TUNER_MIN_VOLUME = 1;
+const TUNER_MAX_VOLUME = 10;
+// The feedback tone moves six cents for every cent the string is off, so 50 cents is a minor third.
+const TUNER_PITCH_SPREAD = 6;
+// Pulses that slow down: a whole tone below the centre when flat, above when sharp.
+const TUNER_PULSE_OFFSET_CENTS = 200;
+
+const TUNER_OPTIONS = {
+    mode: [
+        ['chromatic', 'Chromatic: the nearest note'],
+        ['string', 'String: the nearest string of the tuning chosen below']
+    ],
+    sound: [
+        ['pitch', 'Rising and falling tone'],
+        ['pulse', 'Pulses that slow down'],
+        ['both', 'Both: a moving tone that pulses'],
+        ['none', 'None']
+    ],
+    speechStyle: [
+        ['every', 'Every change'],
+        ['settled', 'Once it settles, then only on a real change']
+    ],
+    speechInTune: [
+        ['2', 'Within 2 cents'],
+        ['3', 'Within 3 cents']
+    ],
+    pace: [
+        ['quick', 'Quick: 0.4 seconds'],
+        ['medium', 'Medium: 0.7 seconds'],
+        ['slow', 'Slow: 1 second']
+    ],
+    register: [
+        ['high', 'High, around 2,000 Hz, kept out of a microphone\'s way'],
+        ['middle', 'Middle, around 660 Hz, for headphones or an instrument input']
+    ],
+    response: [
+        ['fast', 'Fast'],
+        ['medium', 'Medium'],
+        ['steady', 'Steady']
+    ],
+    channel: [
+        ['louder', 'Louder of the two'],
+        ['first', 'First'],
+        ['second', 'Second']
+    ]
+};
+
+const TUNER_REGISTER_HZ = { high: 2000, middle: 660 };
+
+// The least time between spoken readings. NVDA says a live region after whatever it is saying, so
+// readings faster than it speaks pile up and fall behind the string.
+const TUNER_PACE_MS = { quick: 400, medium: 700, slow: 1000 };
+
+// Readings smoothed, window analysed, and how much of each new reading the sound takes.
+const TUNER_RESPONSE = {
+    fast: { readings: 3, window: 2048, follow: 1 },
+    medium: { readings: 5, window: 2048, follow: 0.5 },
+    steady: { readings: 9, window: 4096, follow: 0.3 }
+};
+
+const tuner = {
+    itemId: null,
+    ui: null,
+    running: false,
+    starting: false,
+    // Options, kept while unstrung is open.
+    deviceId: 'default',
+    mode: 'chromatic',
+    tuningId: 'standard',
+    sound: 'pitch',
+    register: 'high',
+    response: 'medium',
+    channel: 'louder',
+    pan: false,
+    chime: true,
+    speak: true,
+    speechStyle: 'settled',
+    speechInTune: '2',
+    pace: 'medium',
+    record: false,
+    filter: true,
+    echoCancellation: false,
+    volume: 5,
+    // While running.
+    audio: null,
+    timer: null,
+    smoother: null,
+    target: null,
+    cents: 0,
+    lastHeardAt: 0,
+    sounding: false,
+    toneOn: false,
+    speech: null,
+    plucks: null,
+    inTune: false,
+    inTuneSince: 0,
+    chimed: false,
+    peaks: [],
+    readoutText: '',
+    readoutAt: 0,
+    // The log, while one is being kept: see startTunerLog.
+    log: null
+};
+
+function announceTuner(text) {
+    if (tuner.ui) announceLiveRegion(tuner.ui.announce, text);
+    logTunerEvent(`Said: ${text}`);
+}
+
+// --- The log
+// Kept while Record a log is checked, across Stop and Start, until it is saved: the input as
+// audio, the settings whenever they change, what happened, everything said, and every reading.
+// Times are seconds into the recorded audio, so the three line up. src/shared/tunerLog.mjs makes
+// the files.
+
+function tunerLogSeconds() {
+    return tuner.log ? tuner.log.frames / tuner.log.sampleRate : 0;
+}
+
+function startTunerLog(sampleRate) {
+    const log = {
+        begun: new Date(), sampleRate, chunks: [], frames: 0, events: [], readings: [], full: false, version: ''
+    };
+    tuner.log = log;
+    window.unstrung.getAppVersion().then(version => { log.version = version; }).catch(() => {});
+    logTunerSettings();
+}
+
+/** Whether the log takes anything now: there is one, it is not full, and recording is on. */
+function tunerLogTaking() {
+    return Boolean(tuner.log && !tuner.log.full && tuner.record);
+}
+
+function logTunerEvent(text) {
+    if (tunerLogTaking()) tuner.log.events.push({ seconds: tunerLogSeconds(), text });
+}
+
+function logTunerReading(row) {
+    if (tunerLogTaking() && tuner.running) tuner.log.readings.push({ seconds: tunerLogSeconds(), ...row });
+}
+
+/** Every setting in one line. Labels can hold commas, so semicolons separate them. */
+function logTunerSettings() {
+    const on = value => (value ? 'on' : 'off');
+    const label = (group, value) => TUNER_OPTIONS[group].find(([option]) => option === value)?.[1] ?? value;
+    const input = tuner.ui?.deviceSelect.selectedOptions[0]?.textContent ?? tuner.deviceId;
+    const tuning = (TUNINGS.find(t => t.id === tuner.tuningId) ?? TUNINGS[0]).name;
+    logTunerEvent('Settings: ' + [
+        `input ${input}`,
+        `input channel ${label('channel', tuner.channel)}`,
+        `filter ${on(tuner.filter)}`,
+        `echo cancellation ${on(tuner.echoCancellation)}`,
+        `mode ${label('mode', tuner.mode)}`,
+        `tuning ${tuning}`,
+        `feedback sound ${label('sound', tuner.sound)}`,
+        `tone register ${label('register', tuner.register)}`,
+        `response ${label('response', tuner.response)}`,
+        `pan ${on(tuner.pan)}`,
+        `chime ${on(tuner.chime)}`,
+        `speak ${on(tuner.speak)}`,
+        `when to speak ${label('speechStyle', tuner.speechStyle)}`,
+        `in tune for speech ${label('speechInTune', tuner.speechInTune)}`,
+        `time between spoken readings ${label('pace', tuner.pace)}`,
+        `volume ${tuner.volume}`
+    ].join('; ') + '.');
+}
+
+/** One block of input from the recorder, both channels, kept as 16-bit. */
+function captureTunerAudio(buffer) {
+    const log = tuner.log;
+    if (!tunerLogTaking() || !tuner.running) return;
+    if (buffer.sampleRate !== log.sampleRate) {
+        logTunerEvent(`The input's sample rate changed to ${buffer.sampleRate} Hz. Nothing more is recorded.`);
+        log.full = true;
+        announceTuner('The log stopped because the input changed. Save it to keep it.');
+        return;
+    }
+    const left = buffer.getChannelData(0);
+    const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
+    log.chunks.push([floatToInt16(left), floatToInt16(right)]);
+    log.frames += left.length;
+    if (log.frames >= TUNER_LOG_MAX_SECONDS * log.sampleRate) {
+        logTunerEvent('The log is full.');
+        log.full = true;
+        announceTuner(`The log is full at ${TUNER_LOG_MAX_SECONDS / 60} minutes. Save it to keep it.`);
+    }
+}
+
+/** Record a log checked or unchecked. */
+function setTunerRecord(record) {
+    if (!record) logTunerEvent('Recording stopped.');
+    tuner.record = record;
+    if (record && tuner.log) logTunerEvent('Recording again.');
+    if (record && tuner.running && !tuner.log) startTunerLog(tuner.audio.context.sampleRate);
+}
+
+/**
+ * Saves the log: the audio in a save dialog, the text log and the readings beside it. Stops the
+ * tuner first, since a log still growing while it is saved would lose what came in meanwhile.
+ */
+async function saveTunerLog() {
+    const log = tuner.log;
+    if (!log || (log.frames === 0 && log.readings.length === 0)) {
+        announceTuner('Nothing has been recorded. Check Record a log, then start the tuner.');
+        return;
+    }
+    if (tuner.running || tuner.starting) stopTuner({ quiet: true });
+    logTunerEvent('Saved.');
+    const header = { version: log.version || 'unknown', begun: log.begun, sampleRate: log.sampleRate, channels: 2 };
+    let result;
+    try {
+        result = await window.unstrung.saveTunerLog({
+            suggestedName: tunerLogBaseName(log.begun),
+            wav: encodeWav16(log.chunks, log.sampleRate),
+            text: tunerLogText(header, log.events),
+            csv: tunerReadingsCsv(log.readings)
+        });
+    } catch (error) {
+        announceTuner(`The log could not be saved: ${error?.message || error}`);
+        return;
+    }
+    if (!result) return;
+    if (tuner.log === log) tuner.log = null;
+    announceTuner(`Saved ${result.name} in ${result.folder}: the audio, the log and the readings.`);
+    tuner.ui?.saveLogButton.focus();
+}
+
+/** The feedback's loudness for a volume from 1 to 10: about -45 dBFS to -14. */
+function tunerVolumeGain(volume) {
+    return 0.2 * (volume / TUNER_MAX_VOLUME) ** 2;
+}
+
+/** A group of radio buttons under a legend, one per option. Returns the fieldset. */
+function buildRadioGroup(name, legendText, options, value, onChange) {
+    const fieldset = document.createElement('fieldset');
+    const legend = document.createElement('legend');
+    legend.textContent = legendText;
+    fieldset.append(legend);
+    const groupName = uniqueControlId(name);
+    for (const [optionValue, labelText] of options) {
+        const paragraph = document.createElement('p');
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = groupName;
+        radio.id = uniqueControlId(`${name}-${optionValue}`);
+        radio.value = optionValue;
+        radio.checked = optionValue === value;
+        radio.addEventListener('change', () => {
+            if (radio.checked) onChange(optionValue);
+        });
+        const label = document.createElement('label');
+        label.htmlFor = radio.id;
+        label.textContent = labelText;
+        paragraph.append(radio, label);
+        fieldset.append(paragraph);
+    }
+    return fieldset;
+}
+
+function openTunerItem() {
+    // Only ever one: there is one input to listen to.
+    const existing = openItems.find(item => item.id === tuner.itemId);
+    if (existing) {
+        showItem(existing.id);
+        tuner.ui?.startButton.focus();
+        return;
+    }
+
+    const container = document.createElement('div');
+    const heading = document.createElement('h2');
+    heading.textContent = 'Tuner';
+    container.append(heading);
+
+    // What the tuner hears, as text. Not a live region: it changes several times a second. The
+    // live region after the buttons gives the spoken readings, and r says this on demand.
+    const readout = document.createElement('p');
+    readout.textContent = 'Stopped.';
+    container.append(readout);
+
+    const makeButton = (row, label) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        row.append(button);
+        return button;
+    };
+    const startRow = createButtonRow();
+    const startButton = makeButton(startRow, 'Start');
+    startButton.setAttribute('aria-pressed', 'false');
+    const sayRow = createButtonRow();
+    const sayReadingButton = makeButton(sayRow, 'Say Reading');
+    const sayLevelButton = makeButton(sayRow, 'Say Input Level');
+    const volumeRow = createButtonRow();
+    const quieterButton = makeButton(volumeRow, 'Quieter');
+    const louderButton = makeButton(volumeRow, 'Louder');
+    container.append(startRow, sayRow, volumeRow);
+
+    // Not role="status", which maps to a status bar on Windows.
+    const announce = document.createElement('p');
+    announce.setAttribute('aria-live', 'polite');
+    announce.setAttribute('aria-atomic', 'true');
+    container.append(announce);
+
+    // --- Input
+    const inputHeading = document.createElement('h3');
+    inputHeading.textContent = 'Input';
+    container.append(inputHeading);
+    const deviceParagraph = document.createElement('p');
+    const deviceSelect = document.createElement('select');
+    deviceSelect.id = uniqueControlId('tuner-input');
+    const deviceLabel = document.createElement('label');
+    deviceLabel.htmlFor = deviceSelect.id;
+    deviceLabel.textContent = 'Input';
+    deviceParagraph.append(deviceLabel, deviceSelect);
+    container.append(deviceParagraph);
+    container.append(buildRadioGroup('tuner-channel', 'Input channel', TUNER_OPTIONS.channel, tuner.channel,
+        value => { tuner.channel = value; }));
+    const filter = buildCheckboxParagraph('tuner-filter', 'Filter the input for a microphone', tuner.filter);
+    const echo = buildCheckboxParagraph('tuner-echo', 'Echo cancellation', tuner.echoCancellation);
+    container.append(filter.paragraph, echo.paragraph);
+
+    // --- What it measures against
+    const modeHeading = document.createElement('h3');
+    modeHeading.textContent = 'Mode';
+    container.append(modeHeading);
+    container.append(buildRadioGroup('tuner-mode', 'Mode', TUNER_OPTIONS.mode, tuner.mode,
+        value => setTunerMode(value)));
+    const tuningParagraph = document.createElement('p');
+    const tuningSelect = document.createElement('select');
+    tuningSelect.id = uniqueControlId('tuner-tuning');
+    for (const tuning of TUNINGS) {
+        const option = document.createElement('option');
+        option.value = tuning.id;
+        option.textContent = tuning.name;
+        tuningSelect.append(option);
+    }
+    tuningSelect.value = tuner.tuningId;
+    const tuningLabel = document.createElement('label');
+    tuningLabel.htmlFor = tuningSelect.id;
+    tuningLabel.textContent = 'Tuning';
+    tuningParagraph.append(tuningLabel, tuningSelect);
+    container.append(tuningParagraph);
+
+    // --- The sound
+    const soundHeading = document.createElement('h3');
+    soundHeading.textContent = 'Feedback';
+    container.append(soundHeading);
+    container.append(buildRadioGroup('tuner-sound', 'Feedback sound', TUNER_OPTIONS.sound, tuner.sound,
+        value => { tuner.sound = value; }));
+    container.append(buildRadioGroup('tuner-register', 'Tone register', TUNER_OPTIONS.register, tuner.register,
+        value => { tuner.register = value; }));
+    container.append(buildRadioGroup('tuner-response', 'Response', TUNER_OPTIONS.response, tuner.response,
+        value => setTunerResponse(value)));
+    const pan = buildCheckboxParagraph('tuner-pan', 'Pan left when flat and right when sharp', tuner.pan);
+    const chime = buildCheckboxParagraph('tuner-chime', 'Chime when in tune', tuner.chime);
+    container.append(pan.paragraph, chime.paragraph);
+
+    // --- Speech
+    const speechHeading = document.createElement('h3');
+    speechHeading.textContent = 'Spoken Readings';
+    container.append(speechHeading);
+    const speak = buildCheckboxParagraph('tuner-speak', 'Speak the note and how far off', tuner.speak);
+    container.append(speak.paragraph);
+    container.append(buildRadioGroup('tuner-speech-style', 'When to speak', TUNER_OPTIONS.speechStyle, tuner.speechStyle,
+        value => { tuner.speechStyle = value; makeTunerSpeech(); }));
+    container.append(buildRadioGroup('tuner-in-tune', 'In tune for speech', TUNER_OPTIONS.speechInTune, tuner.speechInTune,
+        value => { tuner.speechInTune = value; makeTunerSpeech(); }));
+    container.append(buildRadioGroup('tuner-pace', 'Time between spoken readings', TUNER_OPTIONS.pace, tuner.pace,
+        value => { tuner.pace = value; makeTunerSpeech(); }));
+
+    // --- The log: a tool for tuning the tuner, in the desktop app only. Saving goes through the
+    // main process, and the web build has no way to save it.
+    let record = null;
+    let saveLogButton = null;
+    if (window.unstrung.platform === 'electron') {
+        const logHeading = document.createElement('h3');
+        logHeading.textContent = 'Log';
+        container.append(logHeading);
+        const logNote = document.createElement('p');
+        logNote.textContent =
+            'While Record a log is checked, the tuner keeps what it hears as audio, the settings, everything' +
+            ` it says and every reading, up to ${TUNER_LOG_MAX_SECONDS / 60} minutes, across Stop and Start.` +
+            ' Save Log stops the tuner and saves the audio as a WAV file, with a text log and a CSV file of' +
+            ' the readings beside it under the same name.';
+        container.append(logNote);
+        record = buildCheckboxParagraph('tuner-record', 'Record a log', tuner.record);
+        container.append(record.paragraph);
+        const logRow = createButtonRow();
+        saveLogButton = makeButton(logRow, 'Save Log');
+        container.append(logRow);
+    }
+
+    const keysHeading = document.createElement('h3');
+    keysHeading.textContent = 'Keyboard Control';
+    container.append(keysHeading);
+    const keysNote = document.createElement('p');
+    keysNote.textContent =
+        'These keys work while focus is in the tuner and your screen reader is passing keystrokes' +
+        ' straight through to unstrung, which is focus mode in NVDA. Outside that, use the buttons' +
+        ' after the reading, which do the same things. In a group of radio buttons the arrows move' +
+        ' through the group.';
+    container.append(keysNote);
+    const keysList = document.createElement('ul');
+    appendTextItems(keysList, [
+        'spaceBar: start and stop.',
+        'r: say the reading.',
+        'l: say the input level.',
+        'upArrow: louder.',
+        'downArrow: quieter.'
+    ]);
+    container.append(keysList);
+
+    const item = createOpenItem('Tuner', container, {
+        kind: 'tuner',
+        onClose: () => {
+            stopTuner();
+            tuner.ui = null;
+            tuner.itemId = null;
+        }
+    });
+    tuner.itemId = item.id;
+    tuner.ui = { readout, startButton, announce, deviceSelect, tuningSelect, saveLogButton };
+
+    startButton.addEventListener('click', () => toggleTuner());
+    sayReadingButton.addEventListener('click', () => sayTunerReading());
+    sayLevelButton.addEventListener('click', () => sayTunerLevel());
+    louderButton.addEventListener('click', () => stepTunerVolume(1));
+    quieterButton.addEventListener('click', () => stepTunerVolume(-1));
+    deviceSelect.addEventListener('change', () => {
+        tuner.deviceId = deviceSelect.value;
+        restartTunerInput();
+    });
+    tuningSelect.addEventListener('change', () => {
+        tuner.tuningId = tuningSelect.value;
+        resetTunerReading();
+    });
+    filter.checkbox.addEventListener('change', () => {
+        tuner.filter = filter.checkbox.checked;
+        applyTunerFilter();
+    });
+    echo.checkbox.addEventListener('change', () => {
+        tuner.echoCancellation = echo.checkbox.checked;
+        restartTunerInput();
+    });
+    pan.checkbox.addEventListener('change', () => { tuner.pan = pan.checkbox.checked; });
+    chime.checkbox.addEventListener('change', () => { tuner.chime = chime.checkbox.checked; });
+    record?.checkbox.addEventListener('change', () => setTunerRecord(record.checkbox.checked));
+    saveLogButton?.addEventListener('click', () => saveTunerLog());
+    // Any setting changed goes in the log. Bubbles up after each control's own handler has run.
+    container.addEventListener('change', event => {
+        if (event.target !== record?.checkbox) logTunerSettings();
+    });
+    speak.checkbox.addEventListener('change', () => {
+        tuner.speak = speak.checkbox.checked;
+        // Turned back on, it starts with the full reading.
+        tuner.speech?.restart();
+    });
+
+    fillTunerDevices();
+    showItem(item.id);
+    startButton.focus();
+}
+
+// Inputs come and go, a Scarlett plugged in for example. Listened for once, used while the item is open.
+if (navigator.mediaDevices?.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', () => {
+        if (tuner.ui) fillTunerDevices();
+    });
+}
+
+/**
+ * Fills the Input list with the audio inputs the system has, the system default first and chosen
+ * unless another was. A browser gives the names only once the page may use an input, so the list
+ * is filled again after Start.
+ */
+async function fillTunerDevices() {
+    const select = tuner.ui?.deviceSelect;
+    if (!select) return;
+    let inputs = [];
+    try {
+        inputs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+    } catch {
+        inputs = [];
+    }
+    // Windows's communications device is the default for calls; it is in the list in its own right.
+    inputs = inputs.filter(d => d.deviceId !== 'communications');
+    if (!inputs.some(d => d.deviceId === 'default')) {
+        inputs.unshift({ deviceId: 'default', label: 'System default' });
+    }
+    if (!tuner.ui) return;
+    select.replaceChildren();
+    inputs.forEach((input, index) => {
+        const option = document.createElement('option');
+        option.value = input.deviceId;
+        option.textContent = input.label || (input.deviceId === 'default' ? 'System default' : `Input ${index}`);
+        select.append(option);
+    });
+    if (!inputs.some(d => d.deviceId === tuner.deviceId)) tuner.deviceId = 'default';
+    select.value = tuner.deviceId;
+}
+
+function toggleTuner() {
+    if (tuner.running || tuner.starting) stopTuner();
+    else startTuner();
+}
+
+function setTunerStartButton() {
+    if (!tuner.ui) return;
+    const on = tuner.running || tuner.starting;
+    tuner.ui.startButton.textContent = on ? 'Stop' : 'Start';
+    tuner.ui.startButton.setAttribute('aria-pressed', String(on));
+}
+
+/** Why the input could not be opened, in words that say what to do. */
+function tunerInputError(error) {
+    switch (error?.name) {
+        case 'NotAllowedError':
+        case 'SecurityError':
+            return window.unstrung.platform === 'electron'
+                ? 'unstrung was not allowed to use the input. In Windows Settings, under Privacy and security,' +
+                  ' Microphone, turn on letting desktop apps use the microphone.'
+                : 'The browser did not allow this page to use the input. Allow the microphone in the site\'s settings.';
+        case 'NotFoundError':
+        case 'OverconstrainedError':
+            return 'No input was found. Plug in a microphone or an audio interface, or choose another input.';
+        case 'NotReadableError':
+            return 'The input could not be opened. Another app may be using it.';
+        default:
+            return `The input could not be opened: ${error?.message || error}`;
+    }
+}
+
+async function startTuner() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        announceTuner('Audio input is not available here.');
+        return;
+    }
+    tuner.starting = true;
+    setTunerStartButton();
+    try {
+        const audio = await openTunerAudio();
+        if (!tuner.starting) {
+            closeTunerAudio(audio);
+            return;
+        }
+        tuner.audio = audio;
+    } catch (error) {
+        tuner.starting = false;
+        setTunerStartButton();
+        announceTuner(tunerInputError(error));
+        return;
+    }
+    tuner.starting = false;
+    tuner.running = true;
+    resetTunerReading();
+    // The new audio graph starts silent.
+    tuner.sounding = false;
+    tuner.toneOn = false;
+    tuner.peaks = [];
+    if (tuner.record && !tuner.log) startTunerLog(tuner.audio.context.sampleRate);
+    tuner.timer = setInterval(tunerTick, TUNER_TICK_MS);
+    setTunerStartButton();
+    setTunerReadout('Listening.');
+    announceTuner('Listening.');
+    // Names may only now be available.
+    fillTunerDevices();
+}
+
+function stopTuner({ quiet = false } = {}) {
+    const wasOn = tuner.running || tuner.starting;
+    tuner.starting = false;
+    tuner.running = false;
+    clearInterval(tuner.timer);
+    tuner.timer = null;
+    if (tuner.audio) closeTunerAudio(tuner.audio);
+    tuner.audio = null;
+    setTunerStartButton();
+    setTunerReadout('Stopped.');
+    if (wasOn && !quiet) announceTuner('Stopped.');
+    if (wasOn && quiet) logTunerEvent('Stopped.');
+}
+
+/** Opens the chosen input and builds the analysis and feedback graph. */
+async function openTunerAudio() {
+    const constraints = {
+        audio: {
+            echoCancellation: tuner.echoCancellation,
+            noiseSuppression: false,
+            autoGainControl: false,
+            // Two where there are two: a Scarlett Solo has the guitar on the first, a microphone
+            // socket on the second.
+            channelCount: { ideal: 2 }
+        }
+    };
+    if (tuner.deviceId && tuner.deviceId !== 'default') constraints.audio.deviceId = { exact: tuner.deviceId };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const context = new AudioContext({ latencyHint: 'interactive' });
+    if (context.state === 'suspended') await context.resume().catch(() => {});
+
+    // Input: each channel through two low-pass stages into an analyser.
+    const source = context.createMediaStreamSource(stream);
+    const splitter = context.createChannelSplitter(2);
+    source.connect(splitter);
+    // Analysers are only run when something downstream pulls on them, in some browsers.
+    const sink = context.createGain();
+    sink.gain.value = 0;
+    sink.connect(context.destination);
+    const filters = [];
+    const analysers = [0, 1].map(channel => {
+        const first = context.createBiquadFilter();
+        const second = context.createBiquadFilter();
+        filters.push(first, second);
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 4096;
+        splitter.connect(first, channel);
+        first.connect(second).connect(analyser).connect(sink);
+        return analyser;
+    });
+
+    // Feedback: a tone, a tremolo for the pulses, an envelope, a panner and the volume.
+    const tone = context.createOscillator();
+    tone.type = 'sine';
+    tone.frequency.value = TUNER_REGISTER_HZ[tuner.register];
+    const tremolo = context.createGain();
+    tremolo.gain.value = 1;
+    const pulse = context.createOscillator();
+    pulse.frequency.value = 4;
+    const pulseDepth = context.createGain();
+    pulseDepth.gain.value = 0;
+    pulse.connect(pulseDepth).connect(tremolo.gain);
+    const envelope = context.createGain();
+    envelope.gain.value = 0;
+    const panner = context.createStereoPanner();
+    const master = context.createGain();
+    master.gain.value = tunerVolumeGain(tuner.volume);
+    tone.connect(tremolo).connect(envelope).connect(panner).connect(master).connect(context.destination);
+    tone.start();
+    pulse.start();
+
+    // The log's recorder: both channels, as they come in. A ScriptProcessorNode is deprecated, but
+    // unlike an AudioWorklet it needs no module loaded from a file, which file:// may refuse.
+    const recorder = context.createScriptProcessor(4096, 2, 1);
+    recorder.onaudioprocess = event => captureTunerAudio(event.inputBuffer);
+    source.connect(recorder);
+    recorder.connect(sink);
+
+    const audio = {
+        stream, context, analysers, filters, tone, tremolo, pulse, pulseDepth, envelope, panner, master, recorder,
+        buffers: [new Float32Array(4096), new Float32Array(4096)]
+    };
+    applyTunerFilter(audio);
+    return audio;
+}
+
+function closeTunerAudio(audio) {
+    audio.recorder.onaudioprocess = null;
+    for (const track of audio.stream.getTracks()) track.stop();
+    audio.context.close().catch(() => {});
+}
+
+/** Opens the input again, after the device or echo cancellation changes, if the tuner is on. */
+async function restartTunerInput() {
+    if (!tuner.running) return;
+    stopTuner({ quiet: true });
+    await startTuner();
+}
+
+function applyTunerFilter(audio = tuner.audio) {
+    if (!audio) return;
+    for (const filter of audio.filters) {
+        // An all-pass leaves every frequency at its level: the same graph, unfiltered.
+        filter.type = tuner.filter ? 'lowpass' : 'allpass';
+        filter.frequency.value = TUNER_FILTER_HZ;
+        filter.Q.value = Math.SQRT1_2;
+    }
+}
+
+function setTunerMode(mode) {
+    tuner.mode = mode;
+    resetTunerReading();
+}
+
+function setTunerResponse(response) {
+    tuner.response = response;
+    tuner.smoother = createPitchSmoother(TUNER_RESPONSE[response].readings);
+}
+
+/** Spoken readings as the options set them, starting fresh. */
+function makeTunerSpeech() {
+    tuner.speech = createTunerSpeech({
+        style: tuner.speechStyle,
+        inTuneCents: Number(tuner.speechInTune),
+        speakAfterMs: TUNER_SPEAK_AFTER_MS,
+        gapMs: TUNER_PACE_MS[tuner.pace]
+    });
+}
+
+/** Forgets the current note, so the next reading starts fresh and is said in full. */
+function resetTunerReading() {
+    tuner.smoother = createPitchSmoother(TUNER_RESPONSE[tuner.response].readings);
+    makeTunerSpeech();
+    tuner.plucks = createPluckDetector({ floor: TUNER_MIN_RMS });
+    tuner.target = null;
+    tuner.inTune = false;
+    tuner.chimed = false;
+}
+
+/** A silence or a new pluck: the next reading is a new sound, named in full and chimed again. */
+function restartTunerSound() {
+    tuner.smoother.clear();
+    tuner.speech.restart();
+    tuner.target = null;
+    tuner.inTune = false;
+    tuner.chimed = false;
+}
+
+function rmsOf(samples) {
+    let sum = 0;
+    for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+    return Math.sqrt(sum / samples.length);
+}
+
+function peakOf(samples) {
+    let peak = 0;
+    for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
+    return peak;
+}
+
+/** One reading: analyse, smooth, and move the sound, the readout and what is said. */
+function tunerTick() {
+    const audio = tuner.audio;
+    if (!audio) return;
+    const now = performance.now();
+    const [first, second] = audio.buffers;
+    audio.analysers[0].getFloatTimeDomainData(first);
+    audio.analysers[1].getFloatTimeDomainData(second);
+    let samples = first;
+    if (tuner.channel === 'second') samples = second;
+    else if (tuner.channel === 'louder' && rmsOf(second) > rmsOf(first)) samples = second;
+
+    // The input level, for Say Input Level: the peak of each tick, kept for a second.
+    tuner.peaks.push({ at: now, peak: peakOf(samples) });
+    while (tuner.peaks.length && now - tuner.peaks[0].at > 1000) tuner.peaks.shift();
+
+    // A new pluck starts the reading over, even while the string before it is still ringing.
+    const level = rmsOf(samples.subarray(samples.length - TUNER_PLUCK_SAMPLES));
+    const pluck = tuner.plucks.add(level);
+    if (pluck && tuner.target) restartTunerSound();
+    if (pluck) logTunerEvent('Pluck.');
+
+    const { window, follow } = TUNER_RESPONSE[tuner.response];
+    const reading = detectPitch(samples.subarray(samples.length - window), audio.context.sampleRate,
+        { minRms: TUNER_MIN_RMS });
+    const clear = Boolean(reading && reading.clarity >= TUNER_MIN_CLARITY);
+    // What was heard, before the target below changes it, for the log's readings.
+    const logRow = {
+        channel: samples === second ? 2 : 1, level, hz: reading?.frequency ?? null,
+        clarity: reading?.clarity ?? null, note: null, cents: null, pluck
+    };
+
+    if (clear) {
+        tuner.lastHeardAt = now;
+        const midi = tuner.smoother.add(frequencyToMidi(reading.frequency));
+        const frequency = midiToFrequency(midi);
+        const tuning = TUNINGS.find(t => t.id === tuner.tuningId) ?? TUNINGS[0];
+        const target = tuner.mode === 'string' ? nearestString(frequency, tuning.midi) : nearestNote(frequency);
+        const sameNote = tuner.target && tuner.target.midi === target.midi && tuner.target.string === target.string;
+        if (!sameNote) {
+            tuner.inTune = false;
+            tuner.chimed = false;
+        }
+        // The sound eases toward each reading, except on a new note, where it goes straight there.
+        tuner.cents = sameNote ? tuner.cents + follow * (target.cents - tuner.cents) : target.cents;
+        tuner.target = { ...target, cents: tuner.cents };
+        logRow.note = (target.string ? `string ${target.string} ` : '') + tunerNoteName(target.midi);
+        logRow.cents = tuner.cents;
+        logTunerReading(logRow);
+        // Followed even when not spoken, so turning speech on does not say something stale.
+        const words = tuner.speech.heard(tuner.target, now);
+        if (words && tuner.speak) announceTuner(words);
+        setTunerSound(tuner.cents, now);
+        setTunerReadout(describeReading(tuner.target), now);
+        return;
+    }
+
+    logTunerReading(logRow);
+    if (tuner.sounding && now - tuner.lastHeardAt > TUNER_HOLD_MS) {
+        tuner.sounding = false;
+        tuner.toneOn = false;
+        restartTunerSound();
+        audio.envelope.gain.setTargetAtTime(0, audio.context.currentTime, 0.05);
+        setTunerReadout('Nothing heard.', now);
+        logTunerEvent('Nothing heard for 0.2 seconds.');
+    }
+}
+
+/** Moves the feedback sound to say how far off the string is: negative cents are flat. */
+function setTunerSound(cents, now) {
+    const audio = tuner.audio;
+    const t = audio.context.currentTime;
+    const size = Math.abs(cents);
+    const wasInTune = tuner.inTune;
+    tuner.inTune = wasInTune ? size <= LEAVE_TUNE_CENTS : size <= IN_TUNE_CENTS;
+    if (tuner.inTune && !wasInTune) tuner.inTuneSince = now;
+    if (!tuner.inTune) tuner.chimed = false;
+
+    const clamped = Math.max(-50, Math.min(50, cents));
+    const centre = TUNER_REGISTER_HZ[tuner.register];
+    let toneCents = 0;
+    if (!tuner.inTune) {
+        if (tuner.sound === 'pulse') toneCents = Math.sign(clamped) * TUNER_PULSE_OFFSET_CENTS;
+        else toneCents = clamped * TUNER_PITCH_SPREAD;
+    } else if (tuner.sound !== 'pulse') {
+        toneCents = clamped * TUNER_PITCH_SPREAD;
+    }
+    audio.tone.frequency.setTargetAtTime(centre * 2 ** (toneCents / 1200), t, 0.02);
+
+    // Pulses: faster the further off, like beating, and none once in tune.
+    const pulsing = tuner.sound !== 'pitch' && !tuner.inTune;
+    audio.pulse.frequency.setTargetAtTime(1.5 + Math.abs(clamped) * 0.25, t, 0.03);
+    audio.pulseDepth.gain.setTargetAtTime(pulsing ? 0.5 : 0, t, 0.02);
+    audio.tremolo.gain.setTargetAtTime(pulsing ? 0.5 : 1, t, 0.02);
+
+    audio.panner.pan.setTargetAtTime(tuner.pan && !tuner.inTune ? Math.max(-1, Math.min(1, clamped / 30)) : 0, t, 0.03);
+    tuner.sounding = true;
+    // None: the tone stays silent and only the chime and speech are heard. Checked on every
+    // reading so changing the sound takes effect at once.
+    const toneOn = tuner.sound !== 'none';
+    if (toneOn !== tuner.toneOn) {
+        tuner.toneOn = toneOn;
+        audio.envelope.gain.setTargetAtTime(toneOn ? 1 : 0, t, toneOn ? 0.01 : 0.05);
+    }
+
+    if (tuner.inTune && tuner.chime && !tuner.chimed && now - tuner.inTuneSince >= TUNER_CHIME_AFTER_MS) {
+        tuner.chimed = true;
+        playTunerChime();
+    }
+}
+
+/** Two short notes, rising a fifth, in the register of the feedback tone. */
+function playTunerChime() {
+    const audio = tuner.audio;
+    const context = audio.context;
+    const centre = TUNER_REGISTER_HZ[tuner.register];
+    [[centre, 0], [centre * 1.5, 0.09]].forEach(([frequency, delay]) => {
+        const start = context.currentTime + delay;
+        const oscillator = context.createOscillator();
+        oscillator.frequency.value = frequency;
+        const gain = context.createGain();
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(1.5, start + 0.005);
+        gain.gain.setTargetAtTime(0, start + 0.01, 0.05);
+        oscillator.connect(gain).connect(audio.master);
+        oscillator.start(start);
+        oscillator.stop(start + 0.4);
+    });
+}
+
+/** The reading as text, changed at most four times a second so the page is not constantly redrawn. */
+function setTunerReadout(text, now = performance.now()) {
+    if (!tuner.ui || text === tuner.readoutText) return;
+    if (now - tuner.readoutAt < 250 && tuner.readoutText !== 'Stopped.' && text !== 'Stopped.') return;
+    tuner.readoutText = text;
+    tuner.readoutAt = now;
+    tuner.ui.readout.textContent = text;
+}
+
+function sayTunerReading() {
+    if (!tuner.running) {
+        announceTuner('The tuner is stopped.');
+        return;
+    }
+    announceTuner(tuner.target ? describeReading(tuner.target) : 'Nothing heard.');
+}
+
+/** The loudest the input has been in the last second, in dB below full scale. */
+function sayTunerLevel() {
+    if (!tuner.running) {
+        announceTuner('The tuner is stopped.');
+        return;
+    }
+    const peak = tuner.peaks.reduce((highest, entry) => Math.max(highest, entry.peak), 0);
+    const decibels = rmsToDecibels(peak);
+    if (decibels < -60) {
+        announceTuner('Input peak below -60 dB: almost nothing is coming in.');
+    } else if (decibels > -1) {
+        announceTuner(`Input peak ${Math.round(decibels)} dB: clipping. Turn the input gain down.`);
+    } else {
+        announceTuner(`Input peak ${Math.round(decibels)} dB.`);
+    }
+}
+
+function stepTunerVolume(delta) {
+    const volume = Math.max(TUNER_MIN_VOLUME, Math.min(TUNER_MAX_VOLUME, tuner.volume + delta));
+    if (volume === tuner.volume) {
+        announceTuner(`Volume ${volume} is the ${delta > 0 ? 'loudest' : 'quietest'}.`);
+        return;
+    }
+    tuner.volume = volume;
+    if (tuner.audio) {
+        tuner.audio.master.gain.setTargetAtTime(tunerVolumeGain(volume), tuner.audio.context.currentTime, 0.03);
+    }
+    announceTuner(`Volume ${volume}`);
+}
+
+// Keys while focus is in the Tuner item, bare as for the metronome, so they need focus mode in
+// NVDA; the buttons do the same outside it. A radio group keeps its arrows, a list everything.
+const TUNER_SHORTCUTS = {
+    ' ': () => toggleTuner(),
+    r: () => sayTunerReading(),
+    l: () => sayTunerLevel(),
+    ArrowUp: () => stepTunerVolume(1),
+    ArrowDown: () => stepTunerVolume(-1)
+};
+
+document.addEventListener('keydown', event => {
+    const shortcut = TUNER_SHORTCUTS[event.key];
+    if (!shortcut || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    if (document.querySelector('dialog[open]')) return;
+    const item = openItems.find(i => i.id === tuner.itemId);
+    if (!item || currentItemId !== item.id || !item.panelEl.contains(event.target)) return;
+    const target = event.target;
+    if (target.type === 'radio' && event.key.startsWith('Arrow')) return;
+    if (eventTargetSwallowsKey(target, event.key)) return;
+    event.preventDefault();
+    shortcut();
+});
+
 // --- Unsaved changes -------------------------------------------------------------------------
 //
 // One question, asked on closing a tab or quitting with a progression that has changed since it
@@ -8393,6 +9355,7 @@ const MENU_COMMANDS = {
     'open-progression': () => openProgressionOpenDialog(),
     'strumming-patterns': () => openStrummingPatternsItem(),
     metronome: () => openMetronomeItem(),
+    tuner: () => openTunerItem(),
     'chord-library': () => openChordLibraryTab(),
     'frets-to-chord': () => openFretsToChordDialog(),
     'guitar-samples': () => openGuitarSamplesDialog(),

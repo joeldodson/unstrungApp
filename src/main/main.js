@@ -266,6 +266,37 @@ ipcMain.handle('patterns:export', async (event, { text, suggestedName }) => {
     return { filePath: result.filePath, name: path.basename(result.filePath) };
 });
 
+// The tuner's log: the input as a WAV, chosen in a save dialog, with the text log and the readings
+// written beside it under the same name. Returns null when the dialog is cancelled.
+// Where the save dialog starts. Run from the repository, as Joel runs it, that is logs/ in the
+// repository, which .gitignore leaves out. An installed copy has no repository, and a verify
+// script's scratch profile should not write into it, so those use unstrung\logs in Documents.
+// Made if it is not there, since the dialog cannot start in a folder that does not exist.
+async function tunerLogFolder() {
+    const folder = app.isPackaged || process.env.UNSTRUNG_TEST_PROFILE
+        ? path.join(app.getPath('documents'), 'unstrung', 'logs')
+        : path.join(app.getAppPath(), 'logs');
+    await fs.mkdir(folder, { recursive: true });
+    return folder;
+}
+
+ipcMain.handle('tuner:save-log', async (event, { suggestedName, wav, text, csv }) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = await dialog.showSaveDialog(window, {
+        title: 'Save tuner log',
+        defaultPath: path.join(await tunerLogFolder(), `${safeFileName(suggestedName)}.wav`),
+        filters: [{ name: 'WAV audio', extensions: ['wav'] }],
+        properties: ['createDirectory', 'showOverwriteConfirmation']
+    });
+    if (result.canceled || !result.filePath) return null;
+    const wavPath = result.filePath.toLowerCase().endsWith('.wav') ? result.filePath : `${result.filePath}.wav`;
+    const base = wavPath.slice(0, -'.wav'.length);
+    await fs.writeFile(wavPath, Buffer.from(wav));
+    await writeFileAtomically(`${base}.txt`, String(text));
+    await writeFileAtomically(`${base}.csv`, String(csv));
+    return { name: path.basename(base), folder: path.dirname(wavPath) };
+});
+
 ipcMain.handle('patterns:import', async event => {
     const window = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showOpenDialog(window, {

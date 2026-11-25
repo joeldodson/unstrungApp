@@ -85,6 +85,7 @@ Run each with `node <script>`; the comment at the top of each says what it takes
 - `scripts/songs/verify-where-am-i.mjs`
 - `scripts/speech/verify-chord-voice-settings.mjs`
 - `scripts/speech/verify-prerendered-speech.mjs`, against the packaged app
+- `scripts/tuner/verify-tuner.mjs`, with Chromium's fake input device playing generated recordings
 
 These drive the web version in Edge, after `npm run build:web` and `npm run serve:web`.
 The first two drive the Electron app instead when not given `--web` and an address:
