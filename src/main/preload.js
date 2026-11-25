@@ -60,9 +60,5 @@ contextBridge.exposeInMainWorld('unstrung', {
     // Export and import return null when the dialog is cancelled.
     saveStrummingPatterns: (patterns) => ipcRenderer.invoke('settings:save-strumming-patterns', patterns),
     exportStrummingPatterns: (request) => ipcRenderer.invoke('patterns:export', request),
-    importStrummingPatterns: () => ipcRenderer.invoke('patterns:import'),
-
-    // The tuner's log, a development tool with no web version: { suggestedName, wav (bytes), text,
-    // csv }. Returns { name, folder }, or null when the dialog is cancelled.
-    saveTunerLog: (request) => ipcRenderer.invoke('tuner:save-log', request)
+    importStrummingPatterns: () => ipcRenderer.invoke('patterns:import')
 });

@@ -99,3 +99,12 @@ Before treating missing speech as a bug, check the screen reader's echo settings
 Found earlier, in the chord practice transport: pressing B twice on the same measure spoke once.
 Clearing a live region and setting the same text in one task is coalesced into no change.
 `announceLiveRegion()` clears it, then sets the text on the next tick.
+
+On 2026-11-24 that was not enough in the tuner. Its log showed "G3, 5 cents sharp" put in the
+region four times running, a few seconds apart, and Joel heard nothing for the repeats. The likely
+reason: Chromium seems to send the accessibility tree at once after a key press and in batches
+otherwise, so with no key pressed the emptying and the refill go out together as no change. Two
+regions taking turns worked but were odd to read. The tuner now empties its one region on a pluck
+or a silence, a second or more before the next reading. Joel confirmed with NVDA that this speaks
+every repeat; see `docs/guitar-tuner.md`, Joel's second log. Anything else that repeats a message
+without a key press may need the same.

@@ -750,26 +750,18 @@ The arrows and the other keys move through the list.
 Choose Tuner from the menu.
 It opens as an item in the list of open items, with you on the Start button.
 The tuner listens to your guitar through a microphone or an audio interface, and answers with a sound that follows the string as you turn the tuning machine.
-It doesn't wait to speak a reading, so you hear the string move toward its note as you tune it.
-It also speaks the note and how far off the string is, then just the number as it changes.
+Once the string settles after each pluck, it also says the note and how far off it is, such as "E2, 5 cents flat".
 
 This is a first version.
-Many of its settings are there so the different sounds and behaviors can be compared, and some will go once one way is settled on.
+Some of its settings are there so the different sounds can be compared, and some will go once one way is settled on.
 The settings stay as you set them until unstrung is closed.
 
 After the Tuner heading comes the reading, such as "E2, 8 cents flat" or "E2, in tune".
 A cent is a hundredth of a semitone, the distance from one fret to the next.
-Within 2 cents counts as in tune.
-The reading changes too often to be spoken in full each time, so Say Reading, or r, says all of it whenever you ask.
-
-The buttons:
-
-- **Start:** starts listening, and reads Stop while it listens.
-  It is a toggle button, pressed while the tuner listens.
-- **Say Reading:** says the reading.
-- **Say Input Level:** says the loudest the input has been in the last second, in decibels below the most it can take, such as "Input peak -18 dB".
-  It warns when the input is clipping, so you can turn the gain down on an interface.
-- **Quieter** and **Louder:** change the volume of the tuner's sound, from 1 to 10, 5 to begin with.
+In words, within 3 cents either side of the note counts as in tune.
+The chime and the feedback tone are stricter and count within 2 cents.
+The reading changes several times a second as the string rings, so Say Reading, or r, says it whenever you ask.
+The buttons come after the settings, under the Controls heading.
 
 ### Input
 
@@ -778,6 +770,9 @@ The buttons:
   In a browser the names may only appear after you start the tuner and allow the microphone.
 - **Input channel:** an audio interface such as the Scarlett Solo has two inputs, the guitar in the first and a microphone in the second.
   Louder of the two, to begin with, listens to whichever is louder; First and Second choose one.
+  This group appears only after you start the tuner, and only if the input has two channels.
+  Most USB microphones and phones have one, and then there is nothing to choose.
+  Some laptop microphones report two, with the same sound in both, and Louder of the two is right for them.
 - **Filter the input for a microphone,** on to begin with, cuts the input above 1,000 Hz before the tuner reads it.
   The open strings are all well below that, and the tuner's own high sound is well above it, so a microphone doesn't confuse the tuner's sound with your guitar.
 - **Echo cancellation,** off to begin with, asks the computer to take its own sound out of the microphone.
@@ -785,6 +780,7 @@ The buttons:
 
 With a guitar plugged into an interface, the tuner's sound never reaches the input, so none of this matters.
 With a microphone, headphones keep the tuner's sound away from it altogether.
+Either way, check **Headphones or a plugged-in guitar** under the Feedback heading, and the tuner uses a gentler tone.
 
 On Windows, the desktop app needs permission to use the microphone: in Settings, under Privacy and security, Microphone, turn on letting desktop apps use the microphone.
 The tuner says so if it can't open the input.
@@ -805,58 +801,43 @@ The tuner says so if it can't open the input.
     In tune, it stops pulsing and sits on the center.
   - **Both:** the moving tone, pulsing.
   - **None:** no tone, so you hear only the spoken readings, and the chime if it is on.
-- **Tone register:** **High,** to begin with, around 2,000 Hz, keeps the tone away from what a microphone needs to hear.
-  **Middle,** around 660 Hz, is gentler, for headphones or a guitar plugged into an interface.
-- **Response:** **Fast,** **Medium** to begin with, or **Steady**.
-  Fast follows the string most closely, and Steady smooths out more of the wobble.
-- **Pan left when flat and right when sharp,** off to begin with, for headphones.
-- **Chime when in tune,** on to begin with: two short rising notes once the string has stayed in tune for a third of a second.
+- **Headphones or a plugged-in guitar, so the tuner's sounds can't reach its input,** off to begin with.
+  Off, the tuner expects a microphone and speakers in the same device, such as a laptop or a phone, and keeps its tone around 2,000 Hz, well above the guitar, so the microphone doesn't mistake the tone for the string.
+  Checked, the tone sits around 660 Hz, which is easier to listen to.
+- **Chime when in tune,** on to begin with: two short rising notes once the string has stayed within 2 cents for a third of a second.
+- **Speak the note and how far off once it settles,** on to begin with, speaks through your screen reader.
 
 The sound fades a fifth of a second after the string stops sounding clearly.
 Closing the item stops the tuner and lets go of the input.
 
-### Spoken Readings
+A plucked string doesn't hold one pitch.
+It starts sharp, more so the harder you pluck, then slides flat for a second or so before it settles, a low E by 4 or 5 cents.
+On some guitars it holds near the first pitch for half a second before the slide, which can sound like in tune when it isn't.
+So the tuner waits until the string has settled, at least a second after you pluck and at most two, and says where it settled, such as "E2, 5 cents flat".
+It says one thing for each pluck, and nothing more while that pluck rings, even if you turn the tuning machine.
+Pluck again to hear where the string is now.
+The same reading is said again if nothing has changed.
 
-**Speak the note and how far off,** on to begin with, speaks through your screen reader as you tune.
-**When to speak** decides how much it says:
-
-- **Once it settles, then only on a real change,** to begin with, says less.
-- **Every change** says each change of about a cent.
-
-Either way:
-
-- When the tuner first hears a string, it says the note, how far off it is and which way, such as "E2, 10 cents flat".
-- As you turn the tuning machine, it says just the number as it changes, such as "7", then "4".
-- When the string reaches the note, it says "in tune".
-- If you go past the note, it says the direction again, such as "3 cents sharp", then goes back to numbers.
-- If you go so far that another note is closer, it names that note in full, as at the start.
-- When the string stops sounding, or you pluck it again, it starts over with the note and how far off.
-
+If you turn the string so far that another note is nearer, the tuner names that note once it settles.
 In String mode the string comes first, as in "string 6, E2, 10 cents flat".
 The tuner tells a new pluck by the string suddenly getting louder.
-A new note is named only once it has held for a fifth of a second.
-With **Every change**, a number is said only once the reading has moved by most of a cent, so a string sitting between two numbers doesn't keep repeating itself.
-
-A plucked string doesn't hold one pitch.
-It starts sharp, more so the harder you pluck, and slides flat for a second or two as it rings, a low E by as much as 10 cents.
-With **Every change** you hear all of that slide.
-**Once it settles** waits until the string slows down, between half a second and two seconds after you pluck, and says the note and how far off it is.
-After that it speaks only when the reading moves more than 4 cents, or crosses to the other side of the note, and stays there for about a third of a second, as it does when you turn the tuning machine.
-It uses the same words: the number alone, or the direction again when it crosses the note.
-A gentle pluck settles sooner than a hard one.
-
-**In tune for speech:** **Within 2 cents,** to begin with, or **Within 3 cents.**
-This is how close the string must be for the tuner to say "in tune".
-The reading on the page and the chime stay at 2 cents.
-Changing any of the speech settings starts the speech over with the full reading.
-
-**Time between spoken readings** is the least time from one spoken reading to the next: **Quick,** 0.4 seconds, **Medium,** 0.7 seconds to begin with, or **Slow,** 1 second.
-Your screen reader says each reading after the one before, so readings that come faster than it can say them fall behind the string.
-When the time is up, the tuner says where the string is then, not the readings in between.
-If you hear numbers the string has already left, choose a slower setting or speed up your screen reader's voice.
+It also starts over when the string stops sounding.
 
 With a microphone and speakers, the tuner may also hear your screen reader's voice, which is in the same range as a guitar.
 Headphones avoid that.
+
+### Controls
+
+The buttons are in a region of their own, so in browse mode d and shift+d move to it.
+
+- **Start:** starts listening, and reads Stop while it listens.
+  It is a toggle button, pressed while the tuner listens.
+- **Say Reading:** says the reading.
+- **Say Input Level:** says the loudest the input has been in the last second, in decibels below the most it can take, such as "Input peak -18 dB".
+  It warns when the input is clipping, so you can turn the gain down on an interface.
+- **Quieter** and **Louder:** change the volume of the tuner's sound, from 1 to 10, 5 to begin with.
+
+The spoken readings come from just after these buttons.
 
 ### Tuner Keys
 

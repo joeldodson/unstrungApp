@@ -195,7 +195,8 @@ check('reading wording', describeReading({ midi: 40, cents: -8.4 }) === 'E2, 8 c
     describeReading({ midi: 40, cents: -8.4 }));
 check('string wording', describeReading({ string: 1, midi: 64, cents: 1.2 }) === 'string 1, E4, in tune',
     describeReading({ string: 1, midi: 64, cents: 1.2 }));
-check('one cent', describeCents(3) === '3 cents sharp' && describeCents(-1) === 'in tune');
+check('in tune within 3 cents in words, or as asked',
+    describeCents(3.2) === '3 cents sharp' && describeCents(-2.9) === 'in tune' && describeCents(2.5, 2) === '3 cents sharp');
 {
     const smoother = createPitchSmoother(5);
     [40, 40.1, 47, 40.05, 39.95].forEach(v => smoother.add(v));

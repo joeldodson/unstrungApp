@@ -96,10 +96,19 @@ The Scarlett Solo gives two channels: the guitar on input 1 and the microphone s
 Mixed together the guitar would be mixed with hiss. The input is opened asking for two channels and
 split; the Input channel option picks the louder channel, the first or the second.
 
+Since 2026-11-24 the Input channel group is hidden until an input is opened, and shown only if the
+track's `getSettings().channelCount` is more than one, or not given. Joel asked for it: most people
+will use a built-in or USB microphone, with one channel and nothing to choose. With one channel the
+first is used whatever the group says, since the splitter's second output is silent. Laptop
+microphone arrays may report two channels carrying the same sound; the group then shows, and its
+default is right for them. Chromium's fake input always reports two, so `verify-tuner.mjs` makes
+the track say one to check the hidden case.
+
 ## Testing options
 
 Joel asked for radio buttons where options exclude each other and checkboxes where they combine.
-They last until unstrung is closed and are not saved, since most will go once a design is chosen.
+They last until unstrung is closed and are not saved. On 2026-11-24 he trimmed the ones he had
+decided; see The trim. What is left:
 
 Radio groups:
 
@@ -113,28 +122,18 @@ Radio groups:
   - Both: the moving tone, pulsing.
   - None, added 2026-11-24: no tone, so the spoken readings can be tried on their own. The chime
     still plays if it is on.
-- **When to speak**, added 2026-11-24: Every change, or Once it settles, then only on a real
-  change (default). See Speaking once it settles.
-- **In tune for speech**, added 2026-11-24: Within 2 cents (default) or Within 3 cents. Speech
-  only: the reading on the page and the chime keep 2.
-- **Time between spoken readings**: Quick, 0.4 seconds; Medium, 0.7 (default); Slow, 1. See
-  Spoken Readings.
-- **Tone register**: High, around 2,000 Hz, kept out of the microphone's way (default); or Middle,
-  around 660 Hz, gentler, for headphones or the Scarlett.
-- **Response**: Fast, Medium (default) or Steady: how many readings are smoothed and how long a
-  window is analysed.
-- **Input channel**: Louder of the two (default), First, Second.
+- **Input channel**: Louder of the two (default), First, Second. Shown only for an input with two
+  channels; see Which channel.
 
-Checkboxes:
+Checkboxes, the first three under the Feedback heading:
 
-- **Pan left when flat and right when sharp**, for headphones. Off.
+- **Headphones or a plugged-in guitar, so the tuner's sounds can't reach its input**: off, the tone
+  and chime sit around 2,000 Hz, out of a microphone's way; checked, around 660 Hz. Off.
 - **Chime when in tune**: a short rising pair of notes once the string has been within 2 cents for
   a third of a second. On.
-- **Speak the note and how far off**: the spoken readings, in a live region. On. Until 2026-11-24
-  this was Speak the note when it changes, which said only the note name.
+- **Speak the note and how far off once it settles**: the spoken readings, in a live region. On.
 - **Filter the input for a microphone**: the 1,000 Hz low-pass. On.
 - **Echo cancellation**: reopens the input. Off.
-- **Record a log**, added 2026-11-24. Off. See The log.
 
 ## Spoken readings
 
@@ -152,6 +151,10 @@ string is above or below the note. The rules he gave:
 
 He asked to keep the sounds, so the speech can be tried with the tone, the pulses or both, and for
 a None sound so it can be tried alone. Speech is a checkbox of its own.
+
+Rules 2 and 3 were dropped the same day: the tuner now says one thing per pluck, once the string
+settles. Rules 1, 4 and 5 stand. The rest of this section describes the first version; see
+Speaking once it settles and The trim.
 
 ### How the rules are applied
 
@@ -231,31 +234,145 @@ tune" taking half a second, only half a second of quiet was left.
 
 ### The rules
 
-Chosen by When to speak; Every change is the style before this.
+The only way the tuner speaks since The trim:
 
-- Wait until the reading moves less than 4 cents a second, judged over the last 0.3 seconds: the
-  middle of its last third against the middle of its first third. At least half a second after
-  the pluck, at most two seconds.
-- Say the middle, the median, of the last 0.3 seconds of readings, in full.
-- Then speak again only on a real change, held for 0.3 seconds: more than 4 cents from what was
-  last said, or to the other side of the note, in tune included. Then Joel's rules decide the
-  words: the number alone on the same side, the direction when the side changes.
-- A new note, a pluck or a silence starts over, as before.
+- Wait until the reading moves less than 3 cents a second, judged over the last half second: the
+  middle of its last third against the middle of its first third. At least a second after the
+  pluck, at most two seconds.
+- Say the middle, the median, of the last half second of readings, in full, in tune within 3
+  cents.
+- Say nothing more for that sound. A pluck or a silence starts over, and the same words are said
+  again if nothing changed. Another note that settles is named in full.
+
+How it got there: at first this was an option beside Every change, and after the first reading it
+spoke again on a real change, more than 4 cents from what was said or to the other side of the
+note, held 0.3 seconds. The wait was at least half a second and the test 4 cents a second over
+0.3 seconds until Joel's first logs, described in the next section. The trim dropped the second
+reading.
 
 A fixed wait of half a second was tried first. Two thirds of the low E recordings were still
 sliding then and were said twice, first sharp and then in tune. Waiting for the slide to slow
-does better, but not perfectly: across the 60 open-string recordings, low E to high E, it says one
-thing for 44 and two for the rest, 72 things in all against 184 for the every style. The ones said
-twice are low E recordings that keep sliding 5 to 7 cents for two seconds. The rules were not fitted
-any closer to these recordings, since Joel's guitar is the one that matters: the log is for that.
+does better, but not perfectly: across the 60 open-string recordings, low E to high E, the first
+rules said one thing for 44 and two for the rest, 72 things in all against 184 for the every style.
+The ones said twice were low E recordings that keep sliding 5 to 7 cents for two seconds. The rules
+were not fitted any closer to these recordings, since Joel's guitar is the one that matters: the
+log is for that.
 
-The numbers, 4 cents a second, 4 cents of change and 0.3 seconds held, are constants at the top
-of `src/shared/tunerSpeech.mjs`, to be set from Joel's logs.
+The numbers are `SETTLE` at the top of `src/shared/tunerSpeech.mjs`.
 
 Talking Tuner's wait of several seconds is likely the same problem solved by waiting for the
-string to stop sliding. Half a second to two seconds is enough here.
+string to stop sliding.
+
+### Joel's first logs
+
+Joel recorded two logs on 2026-11-24 through the laptop microphone, one tuning the low E, one the B,
+G and high E strings, with the settings right: Once it settles, within 2 cents, Steady, 0.7 seconds.
+He still heard "E2, in tune", then "4 cents flat" about 0.7 seconds later, on most low E plucks.
+
+The readings show why. His low E reads about 1 cent sharp for the first 0.2 seconds, then holds
+near 0 to 1 cent flat from 0.4 to 0.6 seconds, then slides on to 4 or 5 cents flat by 1.25
+seconds, where it stays. The half second of holding still passed the old test, so the tuner said
+in tune, then flat once the slide went past 2.75 cents. His B string moves about a cent and is
+still by 0.6 seconds, like the sample packs.
+
+`scripts/tuner/replay-tuner-log.mjs`, removed with the log and never committed, replayed a log's
+readings through the spoken readings, and could change the `SETTLE` numbers from the command line. Replaying the low E log with the old numbers
+said exactly the 37 things the log records, so it is a faithful model. Three changes were tried:
+
+| Numbers | Low E log | B, G, high E log |
+|---|---|---|
+| As logged | 37 things | 31 things |
+| At least 1.2 seconds | 27 | 28 |
+| At least 1 second, 3 cents a second over half a second | 27 | 24 |
+| At least 1.25 seconds, 3 cents a second over half a second | 26 | 25 |
+
+The second of those was chosen. The plucks that said "E2, in tune", "4 cents flat" now say
+"E2, 4 cents flat" once, about 1.5 seconds after the pluck. Where two things are still said, the
+reading really moved 5 cents or more, mostly while the peg was turned, which is what Joel wants to
+hear. The B string is said about half a second later than before.
+
+Across the sample packs' open strings, 52 of 60 are now said once, 62 things in all. Three soft
+twangs on the B and high E strings die out in under a second and say nothing. A real tuning pluck
+rings longer, but should a short note need saying, the reading could be said when the sound
+ends, if nothing was said for it.
+
+The logs also show many plucks counted in silence, before playing and after, from the laptop
+microphone's noise rising and falling just over the floor of 0.0018. They cost nothing while no
+note is heard, since nothing has been said to start over.
+
+
+### Joel's second log
+
+Joel recorded a third log on 2026-11-24 with the one-second wait, tuning all six strings through the
+laptop microphone, within 3 cents. He found it a little better, but heard nothing when he plucked a
+string again after a silence without turning the peg enough to change the reading. He took it for
+the "only on a real change" part of the settled style, and asked that the settled style always speak
+once it has found where most of the note sits: a string that passes through in tune for half a
+second and then sits at 5 cents flat for 1.2 seconds is 5 cents flat.
+
+The log shows the second part is what the one-second wait already does. The low E plucks that pass
+through in tune and settle 5 cents flat were said as "E2, 6 cents flat" or "E2, 4 cents flat".
+
+It also shows the tuner did speak on those repeated plucks. Every pluck that rang for a second or
+more was named in full, including the same words four times running: "G3, 5 cents sharp" at 107,
+110, 113 and 116 seconds, "E2, 4 cents flat" at 11, 15, 17 and 20, "D3, 9 cents sharp" three
+times. "Only on a real change" applies within one pluck; a pluck or a silence always starts over.
+The sounds that said nothing were under a second long. Nearly all were the end of a ringing string,
+where the second harmonic takes over, the clarity drops under 0.9, and the reading comes and goes.
+One was a real G pluck stopped after 0.7 seconds.
+
+So the words reached the page, and were lost on the way to NVDA. First the tuner was given two
+live regions taking turns, so a repeat arrived as new text in a new place. Joel then heard every
+reading, but found two regions odd, and pointed out that clearing a single region works elsewhere
+in unstrung: perhaps it was not really being cleared.
+
+That fits. `announceLiveRegion()` empties the region and refills it on the next tick. In chord
+practice that follows a key press, and Chromium seems to send its accessibility tree at once after
+a key press but in batches otherwise. While tuning nobody presses a key, so the emptying and the
+refill went out in one batch, as no change. The tuner is back to one region, and a pluck or a
+silence now empties it. A pluck comes at least a second before its reading, so the region has long
+been empty when the same words come again. `verify-tuner.mjs` checks that the region empties at the
+second pluck, a second before the reading. Joel confirmed with NVDA the same day that the one
+region now speaks every repeat. The batching is inferred from what Joel heard, not read in Chromium's source.
+
+### The trim
+
+Asked for by Joel on 2026-11-24, after the third log, to tidy the item now the experiments had
+answers:
+
+- **Once it settles, without the real-change part**: he found the second reading confusing. He
+  had heard "in tune" and then "4 cents flat" on a few more low E plucks, where the string drifted
+  slowly after the first reading. When to speak is gone; settled is the only way.
+- **Pan** is gone: not useful.
+- **Tone register** became a checkbox, Headphones or a plugged-in guitar, so the tuner's sounds
+  can't reach its input. Unchecked, the tuner assumes a microphone and speakers in one device, a
+  laptop or a phone, and keeps the tone around 2,000 Hz; checked, around 660 Hz.
+- **Response** is gone: always Steady, nine readings over a 4,096-sample window, the sound easing
+  30% of the way to each reading.
+- **Spoken Readings** lost its heading. Its checkbox moved under Feedback, after the chime.
+- **In tune for speech** is gone: words, spoken or written, say in tune within 3 cents either side;
+  the chime and the tone keep 2. `SAID_IN_TUNE_CENTS` and `IN_TUNE_CENTS` in
+  `src/shared/pitchDetection.mjs`.
+- **Time between spoken readings** is gone. Joel asked whether it still mattered, since speech now
+  waits for the string to settle. It does not: one reading per sound, at least a second after the
+  sound begins, is never closer than that to the one before, and a restart forgets the last one
+  anyway. The gap is no longer in `src/shared/tunerSpeech.mjs` at all.
+
+Replayed through the new rules, the third log says 37 things where 45 were said, one per pluck,
+each the same first reading as before.
+
+Later the same day Joel asked for the buttons to move from after the reading to the end, under a
+Controls heading before Keyboard Control, in a `section` labelled by that heading so NVDA lists it
+as a region landmark. The live region went with them, after the buttons. Focus still starts on
+Start when the item opens.
 
 ## The log
+
+Removed on 2026-11-24, before the tuner's first release, once the spoken readings were settled.
+Joel had asked for it as a debugging tool only. The UI, `src/shared/tunerLog.mjs`, its check, the
+`tuner:save-log` handler and the replay script went; the description stays as a record. The
+version first committed, in 546b812, can be brought back from git if logs are wanted again. Joel's
+logs are still in `logs/` on his machine, out of git.
 
 Asked for by Joel on 2026-11-24, to record the settings, what is spoken, and the guitar as he plays,
 so the tuner can be tuned from his own strings rather than the sample packs.
@@ -302,19 +419,18 @@ radio groups keep their arrows.
 - `scripts/tuner/check-pitch-detection.mjs`: synthetic tones at known detuning, with harmonics
   and noise, and every Green Gretsch sample, read against the pitch in its file name.
 - `scripts/tuner/check-tuner-speech.mjs`: the spoken readings, fed by hand with their times,
-  including Joel's example, in both styles and both in-tune ranges; the pluck detector on made-up
-  levels and on every recording in the sample packs; and every open-string recording read the
-  way the tuner reads it, through to the words, in both styles.
-- `scripts/tuner/check-tuner-log.mjs`: the WAV read back, the text log and the CSV.
+  including Joel's case of a string that passes through in tune and settles 5 cents flat; the
+  pluck detector on made-up levels and on every recording in the sample packs; and every
+  open-string recording read the way the tuner reads it, through to the words: one thing for 57
+  of the 60, nothing for three soft twangs that die out within a second, never two.
 - `scripts/tuner/verify-tuner.mjs`: drives the app with Chromium's fake input device playing a
   generated WAV, and checks the item's structure, labels, the reading, and that the feedback
-  sound follows it. Since 2026-11-24 also a string gliding from 15 cents flat to 6 sharp, which
-  was said as "E2, 15 cents flat", "12", "8", "4", "in tune", "5 cents sharp", "6"; a string
-  plucked again while ringing, which was named in full both times; and that None silences the
-  tone. Once it settles, the same glide was said as "E2, 15 cents flat", "9", "3", "in tune",
-  "5 cents sharp". In the desktop app a log is recorded and saved, with the save dialog answered
-  by the script, and the three files are read back.
+  sound follows it. Since 2026-11-24 also a string gliding from 15 cents flat to 6 sharp, said
+  once, at two seconds, and not again; a string plucked again while ringing, named in full both
+  times, with the live region emptied at the second pluck; the headphones checkbox moving the
+  tone; that None silences the tone; the Controls region; and the Input channel group, hidden
+  for an input with one channel.
 
 What only Joel can judge: how each sound feels, whether it is fast enough, how the built-in
 microphone behaves with the speakers on, and whether speaking once it settles says the right
-amount on his own strings. His logs can answer the last one.
+amount on his own strings.

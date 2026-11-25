@@ -5,13 +5,13 @@
 //   A2 12 cents flat, steady: the reading in chromatic and string mode, the full reading spoken,
 //   the feedback tone moved down by six times the error, in the pulse sound a whole tone down and
 //   pulsing, and with no sound, the tone silent.
-//   E2 in tune, steady: the reading, the tone resting on its centre, and the chime.
-//   E2 gliding from 15 cents flat to 6 sharp: in the every style, the full reading, then numbers,
-//   then in tune, then the direction again once it is sharp; in the settled style, fewer things.
-//   E2 12 cents flat, plucked and plucked again 2.5 seconds later while still ringing: the full
-//   reading said again for the second pluck. Then, in the Electron app, a log recorded over it
-//   and saved, with the save dialog answered by the script: the WAV, the text log and the CSV.
-// Also the item's place on the menu, its headings, groups and labels, Start and Stop with
+//   E2 in tune, steady, from an input that says it has one channel: the Input channel group stays
+//   hidden, the reading, the tone resting on its centre, and the chime.
+//   E2 gliding from 15 cents flat to 6 sharp: said once, in full, however far it goes.
+//   E2 12 cents flat, plucked and plucked again 2.5 seconds later while still ringing: the same
+//   full reading said again for the second pluck, the live region emptied at the pluck.
+// Also the item's place on the menu, its headings, groups and labels, the Controls region before
+// the keys, the Input channel group hidden until a two-channel input is opened, Start and Stop with
 // aria-pressed, the keys and where they leave the arrows alone, and opening the input again when
 // echo cancellation changes.
 //
@@ -23,7 +23,7 @@
 //                                                  http://localhost:8090/unstrung/app/
 //                                                  after npm run build:web and serve:web
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -92,7 +92,7 @@ const PANEL = '#item-panels > section:not([hidden])';
 async function withRecording(name, wav, body) {
     const file = path.join(folder, `${name}.wav`);
     await writeFile(file, wav);
-    const { app, page, close } = await launch(file);
+    const { page, close } = await launch(file);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -116,11 +116,14 @@ async function withRecording(name, wav, body) {
             };
             // Everything the live region says, in order.
             window.__said = [];
+            // Every change to a live region with its time, emptying included.
+            window.__liveEvents = [];
             // Only changes to a live region count: other text on the page changes all the time.
             new MutationObserver(mutations => {
                 for (const mutation of mutations) {
                     const region = mutation.target.closest?.('p[aria-live]') ?? mutation.target.parentElement?.closest('p[aria-live]');
                     const text = region?.textContent.trim();
+                    if (region) window.__liveEvents.push({ text, at: performance.now() });
                     if (text) window.__said.push(text);
                 }
             }).observe(document.body, { subtree: true, childList: true, characterData: true });
@@ -129,6 +132,13 @@ async function withRecording(name, wav, body) {
             navigator.mediaDevices.getUserMedia = async constraints => {
                 const stream = await getUserMedia(constraints);
                 window.__streams.push(stream);
+                // The fake input always has two channels. This makes it say it has one, as most
+                // microphones do.
+                if (window.__oneChannel) {
+                    const track = stream.getAudioTracks()[0];
+                    const getSettings = track.getSettings.bind(track);
+                    track.getSettings = () => ({ ...getSettings(), channelCount: 1 });
+                }
                 return stream;
             };
         });
@@ -136,7 +146,7 @@ async function withRecording(name, wav, body) {
         await page.waitForSelector(`${PANEL} h2`);
         // The Input list is filled once the inputs have been asked for.
         await page.waitForFunction(selector => document.querySelector(`${selector} select`)?.options.length > 0, PANEL);
-        await body(page, app);
+        await body(page);
     } finally {
         check(`${name}: no errors on the page`, errors.length === 0, errors.slice(0, 3).join(' | '));
         await close();
@@ -152,6 +162,7 @@ const oscillatorHz = (page, index) => page.evaluate(i => window.__oscillators[i]
 const wait = (page, ms) => page.waitForTimeout(ms);
 const said = page => page.evaluate(() => window.__said);
 const steady = frequency => stringWav(frequency);
+const HEADPHONES = 'Headphones or a plugged-in guitar, so the tuner\'s sounds can\'t reach its input';
 
 console.log(webUrl ? `Web build in Edge: ${webUrl}` : 'Electron app');
 console.log('=== A2, 12 cents flat ===');
@@ -168,17 +179,40 @@ await withRecording('a2-flat', steady(midiHz(45 - 0.12)), async page => {
             unlabelled: [...panel.querySelectorAll('input, select')].filter(c => !c.labels?.length).length,
             focused: document.activeElement?.textContent,
             current: document.querySelector('#open-items-list button[aria-current="true"]')?.textContent,
-            inputs: [...panel.querySelectorAll('select')][0].options.length
+            inputs: [...panel.querySelectorAll('select')][0].options.length,
+            controls: (() => {
+                const region = panel.querySelector('section[aria-labelledby]');
+                const heading = region && document.getElementById(region.getAttribute('aria-labelledby'));
+                return region && {
+                    name: heading?.textContent,
+                    headingInside: heading?.parentElement === region,
+                    buttons: [...region.querySelectorAll('button')].map(b => b.textContent),
+                    liveInside: Boolean(region.querySelector('p[aria-live]')),
+                    nextHeading: region.nextElementSibling?.textContent
+                };
+            })(),
+            channelHidden: [...panel.querySelectorAll('fieldset')]
+                .find(f => f.querySelector('legend').textContent === 'Input channel')?.hidden
         };
     }, PANEL);
     check('Tuner is on the menu after Metronome', structure.menuItem === 'Tuner' && structure.afterMetronome === 'menu-tuner');
     check('the item is called Tuner', structure.heading === 'Tuner' && structure.current === 'Tuner');
-    // The log is in the desktop app only.
-    const sections = ['Input', 'Mode', 'Feedback', 'Spoken Readings', ...(webUrl ? [] : ['Log']), 'Keyboard Control'];
+    const sections = ['Input', 'Mode', 'Feedback', 'Controls', 'Keyboard Control'];
     check('sections', JSON.stringify(structure.sections) === JSON.stringify(sections),
         structure.sections.join(', '));
     check('radio groups', JSON.stringify(structure.legends) ===
-        JSON.stringify(['Input channel', 'Mode', 'Feedback sound', 'Tone register', 'Response', 'When to speak', 'In tune for speech', 'Time between spoken readings']), structure.legends.join(', '));
+        JSON.stringify(['Input channel', 'Mode', 'Feedback sound']), structure.legends.join(', '));
+    const feedbackBoxes = await page.evaluate(selector => [...document.querySelectorAll(`${selector} input[type="checkbox"]`)]
+        .map(box => box.labels[0].textContent).filter(label => !/filter|echo/i.test(label)), PANEL);
+    check('the feedback checkboxes', JSON.stringify(feedbackBoxes) === JSON.stringify([HEADPHONES, 'Chime when in tune',
+        'Speak the note and how far off once it settles']), feedbackBoxes.join(', '));
+    const controls = structure.controls;
+    check('the buttons are in a region named Controls by its heading, before the keys',
+        controls?.name === 'Controls' && controls.headingInside && controls.nextHeading === 'Keyboard Control'
+            && JSON.stringify(controls.buttons) === JSON.stringify(['Start', 'Say Reading', 'Say Input Level', 'Quieter', 'Louder']),
+        JSON.stringify(controls));
+    check('with the live region after the buttons', controls?.liveInside);
+    check('the Input channel group is hidden until an input is opened', structure.channelHidden === true);
     check('every control has a label', structure.unlabelled === 0, `${structure.unlabelled} without`);
     check('focus starts on Start', structure.focused === 'Start');
     check('the Input list has inputs', structure.inputs >= 1, `${structure.inputs}`);
@@ -187,7 +221,16 @@ await withRecording('a2-flat', steady(midiHz(45 - 0.12)), async page => {
     await page.keyboard.press('Space');
     await page.waitForFunction(selector => document.querySelector(`${selector} h2 + p`).textContent !== 'Stopped.', PANEL);
     check('spaceBar starts it', await button(page, 'Stop').getAttribute('aria-pressed') === 'true');
-    await wait(page, 1200);
+    const inputChannels = await page.evaluate(selector => {
+        const group = [...document.querySelectorAll(`${selector} fieldset`)]
+            .find(f => f.querySelector('legend').textContent === 'Input channel');
+        return { hidden: group.hidden };
+    }, PANEL);
+    // What the tuner's own input says it has.
+    const reported = await page.evaluate(() => window.__streams[0].getAudioTracks()[0].getSettings().channelCount ?? null);
+    check('the Input channel group shows only for an input with more than one channel',
+        inputChannels.hidden === (reported === 1), `the fake input has ${reported} channels, group hidden ${inputChannels.hidden}`);
+    await wait(page, 1800);
     const chromatic = await readout(page);
     const cents = Number(chromatic.match(/(\d+) cents flat/)?.[1]);
     check('reads A2, about 12 cents flat', chromatic.startsWith('A2, ') && Math.abs(cents - 12) <= 2, chromatic);
@@ -211,7 +254,7 @@ await withRecording('a2-flat', steady(midiHz(45 - 0.12)), async page => {
 
     // String mode, from its radio button; the arrows there move through the group, not the volume.
     await radio(page, 'String: the nearest string of the tuning chosen below').check();
-    await wait(page, 1000);
+    await wait(page, 1600);
     check('string mode reads string 5', /^string 5, A2, \d+ cents flat$/.test(await readout(page)), await readout(page));
     check('string mode speaks the string in full', /^string 5, A2, 1[0-4] cents flat$/.test(await liveRegion(page)),
         await liveRegion(page));
@@ -229,9 +272,9 @@ await withRecording('a2-flat', steady(midiHz(45 - 0.12)), async page => {
         `${pulseTone?.toFixed(1)} Hz`);
     check('pulses: about 4.5 a second at 12 cents', Math.abs(pulseRate - 4.5) < 0.6, `${pulseRate?.toFixed(2)}`);
 
-    await radio(page, 'Middle, around 660 Hz, for headphones or an instrument input').check();
+    await page.getByLabel(HEADPHONES, { exact: true }).check();
     await wait(page, 400);
-    check('the middle register moves the tone near 660 Hz', Math.abs(await oscillatorHz(page, 0) - 660 * 2 ** (-200 / 1200)) < 5,
+    check('with headphones the tone moves down near 660 Hz', Math.abs(await oscillatorHz(page, 0) - 660 * 2 ** (-200 / 1200)) < 5,
         `${(await oscillatorHz(page, 0))?.toFixed(1)} Hz`);
 
     // No sound: the envelope, the fourth gain, goes silent, and the reading goes on.
@@ -259,8 +302,13 @@ await withRecording('a2-flat', steady(midiHz(45 - 0.12)), async page => {
 
 console.log('=== E2, in tune ===');
 await withRecording('e2-in-tune', steady(midiHz(40)), async page => {
+    // As an input with one channel.
+    await page.evaluate(() => { window.__oneChannel = true; });
     await button(page, 'Start').click();
     await wait(page, 1500);
+    const channelHidden = await page.evaluate(selector => [...document.querySelectorAll(`${selector} fieldset`)]
+        .find(f => f.querySelector('legend').textContent === 'Input channel').hidden, PANEL);
+    check('an input with one channel leaves the Input channel group hidden', channelHidden === true);
     check('reads E2, in tune', await readout(page) === 'E2, in tune', await readout(page));
     const toneHz = await oscillatorHz(page, 0);
     check('the tone rests on its centre', Math.abs(toneHz - 2000) < 10, `${toneHz?.toFixed(1)} Hz`);
@@ -276,32 +324,12 @@ console.log('=== E2, gliding from 15 cents flat to 6 sharp ===');
 // Half a second at 15 flat, three and a half seconds to 6 sharp, then a second there.
 const glideCents = t => (t < 0.5 ? -15 : t < 4 ? -15 + 21 * (t - 0.5) / 3.5 : 6);
 await withRecording('e2-glide', stringWav(t => midiHz(40 + glideCents(t) / 100), { seconds: 5 }), async page => {
-    check('speaking once it settles is chosen to begin with',
-        await radio(page, 'Once it settles, then only on a real change').isChecked());
-    await radio(page, 'Every change').check();
     await button(page, 'Start').click();
     await wait(page, 4800);
     await button(page, 'Stop').click();
     const words = (await said(page)).filter(t => t !== 'Listening.' && t !== 'Stopped.');
-    const inTuneAt = words.indexOf('in tune');
-    check('first the full reading', /^E2, 1[2-5] cents flat$/.test(words[0] ?? ''), words[0]);
-    check('then numbers only, getting smaller',
-        inTuneAt > 2 && words.slice(1, inTuneAt).every((w, i, all) => /^\d+$/.test(w) && (i === 0 || Number(w) < Number(all[i - 1]))),
-        words.join(' | '));
-    check('then in tune, then the direction again once sharp',
-        inTuneAt > 0 && /^[3-6] cents sharp$/.test(words[inTuneAt + 1] ?? ''), words.join(' | '));
-
-    // The same glide, spoken once it settles.
-    await radio(page, 'Once it settles, then only on a real change').check();
-    await page.evaluate(() => { window.__said = []; });
-    await button(page, 'Start').click();
-    await wait(page, 4800);
-    await button(page, 'Stop').click();
-    const settledWords = (await said(page)).filter(t => t !== 'Listening.' && t !== 'Stopped.');
-    check('once it settles says less', settledWords.length >= 1 && settledWords.length < words.length,
-        settledWords.join(' | '));
-    check('and begins with a full reading', /^E2, \d+ cents (flat|sharp)$|^E2, in tune$/.test(settledWords[0] ?? ''),
-        settledWords[0]);
+    check('a string still moving is said once, in full, and not again however far it goes',
+        words.length === 1 && /^E2, (\d+ cents (flat|sharp)|in tune)$/.test(words[0]), words.join(' | '));
 });
 
 console.log('=== E2, 12 cents flat, plucked twice ===');
@@ -314,71 +342,13 @@ await withRecording('e2-plucks', stringWav(midiHz(40 - 0.12), { seconds: 5, leve
     const full = words.filter(w => /^E2, 1[0-4] cents flat$/.test(w));
     check('the full reading for each pluck', full.length >= 2, words.join(' | '));
     check('and nothing in between while it rings steady', words.every(w => full.includes(w)), words.join(' | '));
+    // The second pluck empties the live region, well before the same words come again.
+    const events = await page.evaluate(() => window.__liveEvents);
+    const readings = events.filter(e => /^E2, /.test(e.text));
+    const emptied = events.filter(e => e.text === '' && e.at > readings[0]?.at && e.at < readings[1]?.at - 500);
+    check('the second pluck empties the live region before the reading comes again', emptied.length >= 1,
+        events.map(e => `${e.text || '(empty)'} ${Math.round(e.at)}`).join(' | '));
 });
-
-if (!webUrl) {
-    console.log('=== The log ===');
-    await withRecording('e2-log', stringWav(midiHz(40 - 0.12), { seconds: 5, level: pluckLevel }), async (page, app) => {
-        // The save dialog, answered: the WAV goes in the scratch folder. Where it would have started
-        // is kept to check.
-        const wavPath = path.join(folder, 'saved-log.wav');
-        await app.evaluate(({ dialog }, filePath) => {
-            dialog.showSaveDialog = async (_window, options) => {
-                globalThis.__tunerLogDefaultPath = options.defaultPath;
-                return { canceled: false, filePath };
-            };
-        }, wavPath);
-
-        await button(page, 'Save Log').click();
-        await wait(page, 100);
-        check('Save Log with nothing recorded says so', /^Nothing has been recorded/.test(await liveRegion(page)), await liveRegion(page));
-
-        await page.getByLabel('Record a log', { exact: true }).check();
-        await button(page, 'Start').click();
-        await wait(page, 1500);
-        await radio(page, 'Within 3 cents').check();
-        await wait(page, 1500);
-        await button(page, 'Save Log').click();
-        await page.waitForFunction(selector => /^Saved /.test(document.querySelector(`${selector} p[aria-live]`).textContent), PANEL);
-        check('saving says where', /^Saved saved-log in .+: the audio, the log and the readings\.$/.test(await liveRegion(page)),
-            await liveRegion(page));
-        const defaultPath = await app.evaluate(() => globalThis.__tunerLogDefaultPath);
-        // A verify script's scratch profile uses Documents; run from the repository it is logs/.
-        const forward = (defaultPath ?? '').split(path.sep).join('/');
-        check('the dialog starts in Documents/unstrung/logs, named for when the log began',
-            /\/Documents\/unstrung\/logs\/tuner-\d{4}-\d\d-\d\d-\d{6}\.wav$/.test(forward), defaultPath);
-        check('saving stopped the tuner', await button(page, 'Start').getAttribute('aria-pressed') === 'false');
-        check('focus is back on Save Log', await page.evaluate(() => document.activeElement?.textContent) === 'Save Log');
-
-        const wav = await readFile(wavPath);
-        const seconds = wav.readUInt32LE(40) / 4 / wav.readUInt32LE(24);
-        check('the WAV has two channels and about the three seconds listened to',
-            wav.readUInt16LE(22) === 2 && seconds > 2.4 && seconds < 3.6, `${seconds.toFixed(2)} s`);
-        const text = await readFile(path.join(folder, 'saved-log.txt'), 'utf8');
-        const lines = text.trimEnd().split('\n');
-        const settings = lines.filter(line => / Settings: /.test(line));
-        check('the log begins with the settings', /^unstrung tuner log$/.test(lines[0]) && settings.length === 2
-            && /in tune for speech Within 2 cents/.test(settings[0]) && /in tune for speech Within 3 cents/.test(settings[1]),
-            settings.map(line => line.slice(0, 60)).join(' / '));
-        check('and the settings change at the time it was made',
-            Number(settings[1].split(' ')[0]) > 1 && Number(settings[1].split(' ')[0]) < 2.2, settings[1].split(' ')[0]);
-        check('it has what was said', lines.some(line => / Said: E2, 1[0-4] cents flat$/.test(line))
-            && lines.some(line => / Said: Listening\.$/.test(line)), lines.filter(l => /Said/.test(l)).join(' / '));
-        check('it has the pluck', lines.some(line => / Pluck\.$/.test(line)));
-        check('and that it was saved', / Saved\.$/.test(lines.at(-1)), lines.at(-1));
-        const csv = (await readFile(path.join(folder, 'saved-log.csv'), 'utf8')).trimEnd().split('\n');
-        const heard = csv.slice(1).filter(row => row.split(',')[5] === 'E2');
-        check('the CSV has a reading about every 15 ms', csv[0] === 'seconds,channel,level,hz,clarity,note,cents,pluck'
-            && csv.length > 120, `${csv.length - 1} rows`);
-        const cents = heard.map(row => Number(row.split(',')[6]));
-        check('its readings are E2 about 12 cents flat', heard.length > 100 && cents.every(c => c < -9 && c > -15),
-            `${heard.length} rows, ${Math.min(...cents).toFixed(1)} to ${Math.max(...cents).toFixed(1)}`);
-
-        await button(page, 'Save Log').click();
-        await wait(page, 100);
-        check('once saved, the log is gone', /^Nothing has been recorded/.test(await liveRegion(page)), await liveRegion(page));
-    });
-}
 
 await rm(folder, { recursive: true, force: true });
 console.log(failures ? `${failures} FAILED` : 'All passed');

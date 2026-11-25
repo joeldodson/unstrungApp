@@ -1,56 +1,37 @@
 // What the tuner says as a string is tuned, and when.
 //
-// Joel's rules, 2026-11-24 (docs/guitar-tuner.md, Spoken Readings):
-//   - A new sound is named in full: "E2, 10 cents flat".
-//   - While it carries on, only the number is said as it changes: "7", "4".
-//   - When it crosses to the other side of the note, or into tune, the direction is said again:
-//     "3 cents sharp", "in tune".
-//   - Closer to another note, that note is named in full.
-//   - After a silence, or when the string is plucked again, it starts over with the full reading.
+// Once per sound: it waits until the string has settled, says where it settled in full, "E2,
+// 5 cents flat", and says nothing more until the string is plucked again, falls silent, or moves
+// closer to another note, which is named in full the same way. Decided by Joel on 2026-11-24
+// after trying his guitar through the logs (docs/guitar-tuner.md, Speaking once it settles):
 //
-// Two styles, both following those rules (docs/guitar-tuner.md, Speaking once it settles):
-//   - every: every change of about a cent, from a fifth of a second after the pluck.
-//   - settled: added 2026-11-24 when "every" proved too talkative on a low E, whose pitch really
-//     moves by several cents after a pluck. A plucked string starts sharp and slides flat, fast at
-//     first, for a second or two. This waits until the reading moves less than 4 cents a second,
-//     at least half a second and at most two, says the middle of the readings, then speaks again
-//     only on a real change: past 4 cents from what was said, or to the other side of the note,
-//     held for 0.3 seconds.
+//   - A plucked string starts sharp and slides flat for a second or two, a low E by 4 or 5 cents
+//     on his guitar, and holds near its first pitch for about half a second before it slides.
+//     What the string settles at is its tuning, not the pitch it passed through.
+//   - Speaking every change, and later speaking again on a change of more than 4 cents, both
+//     reported that slide as "in tune", then "4 cents flat", which was confusing.
+//
+// Settled means at least a second after the pluck, and the reading moving less than 3 cents a
+// second over the last half second, or two seconds whatever it is doing. What is said is the
+// middle, the median, of that last half second.
 //
 // Kept free of the DOM and of timers, so it can be checked in Node: the tuner hands it each reading
 // and the time, and it returns the words to say, or null.
 
-import { IN_TUNE_CENTS, describeCents, tunerNoteName } from './pitchDetection.mjs';
+import { SAID_IN_TUNE_CENTS, describeCents, tunerNoteName } from './pitchDetection.mjs';
 
-// Out of tune again only this far past the in-tune range, so a string sitting at the edge does
-// not flip back and forth. Past it the reading rounds up, so from in tune within 2 cents to
-// "3 cents sharp" is said.
-const LEAVE_TUNE_MARGIN = 0.75;
-
-// For the chime, which keeps the 2 cent range whatever speech uses.
-export const LEAVE_TUNE_CENTS = IN_TUNE_CENTS + LEAVE_TUNE_MARGIN;
-
-// A new number is said only once the reading is this far from the last one said, so a reading
-// sitting between two whole cents does not alternate.
-const NUMBER_HYSTERESIS_CENTS = 0.75;
-
-// The settled style's timings and sizes.
-export const SETTLE_MS = 500;
-export const SETTLE_MAX_MS = 2000;
-const SETTLE_WINDOW_MS = 300;
-const SETTLED_CENTS_PER_SECOND = 4;
-const CHANGE_CENTS = 4;
-const CHANGE_HOLD_MS = 300;
-
-/**
- * Which side of the note: -1 flat, 0 in tune, 1 sharp. `previous` is the side last said, and
- * `inTuneCents` how close counts as in tune.
- */
-export function tuneSide(cents, previous = null, inTuneCents = IN_TUNE_CENTS) {
-    const limit = previous === 0 ? inTuneCents + LEAVE_TUNE_MARGIN : inTuneCents;
-    if (Math.abs(cents) <= limit) return 0;
-    return cents < 0 ? -1 : 1;
-}
+// How long to wait and what counts as settled. createTunerSpeech takes others in `settle`, so a
+// check can try other timings.
+export const SETTLE = Object.freeze({
+    // Nothing is said sooner than this after a pluck, however steady the reading looks. Joel's low
+    // E holds still for about half a second, then slides 4 or 5 cents flat by 1.25 seconds.
+    minMs: 1000,
+    // Said by this time even if the reading is still moving.
+    maxMs: 2000,
+    // Steady means the reading moved at most centsPerSecond over the last windowMs.
+    windowMs: 500,
+    centsPerSecond: 3
+});
 
 function median(values) {
     const sorted = [...values].sort((a, b) => a - b);
@@ -61,97 +42,30 @@ function median(values) {
 /**
  * The spoken readings for one tuner.
  *
- * `style`: 'every' or 'settled', as described at the top.
- * `inTuneCents`: how close is said as in tune, 2 or 3.
- * `speakAfterMs`: in the every style, how long a note must hold before it is named, so a pluck's
- * first instant, which can read as a neighbouring note, is not. The settled style waits SETTLE_MS.
- * `gapMs`: the least time between two things said. A screen reader says a live region's text after
- * what it is already saying, so anything faster than it can speak piles up and falls behind.
+ * `inTuneCents`: how close is said as in tune.
+ * `settle`: other values for SETTLE.
  *
  * heard(target, now): target is { midi, cents, string? }, as nearestNote or nearestString gives,
  * with the cents smoothed. Returns the words to say now, or null.
- * restart(): forget what has been said, so the next reading is named in full. For a silence or a
+ * restart(): forget what has been said, so the next reading is named again. For a silence or a
  * new pluck.
  */
-export function createTunerSpeech({ style = 'every', inTuneCents = IN_TUNE_CENTS, speakAfterMs = 200, gapMs = 700 } = {}) {
+export function createTunerSpeech({ inTuneCents = SAID_IN_TUNE_CENTS, settle = {} } = {}) {
+    const { minMs, maxMs, windowMs, centsPerSecond } = { ...SETTLE, ...settle };
     let candidate = null;
     let candidateSince = 0;
     let recent = [];
     let spokenKey = null;
-    let spokenCents = 0;
-    let spokenSide = null;
-    let spokeAt = -Infinity;
-    let changeSince = null;
-
-    const say = (text, key, cents, side, now) => {
-        spokenKey = key;
-        spokenCents = style === 'settled' ? cents : Math.round(cents);
-        spokenSide = side;
-        spokeAt = now;
-        changeSince = null;
-        return text;
-    };
-
-    const full = (target, key, cents, now) => {
-        const where = target.string ? `string ${target.string}, ` : '';
-        const text = `${where}${tunerNoteName(target.midi)}, ${describeCents(cents, inTuneCents)}`;
-        return say(text, key, cents, tuneSide(cents, null, inTuneCents), now);
-    };
-
-    // The same side named again with its direction, or just the number.
-    const change = (key, cents, side, now) => {
-        if (side !== spokenSide) {
-            return say(side === 0 ? 'in tune' : describeCents(cents, inTuneCents), key, cents, side, now);
-        }
-        if (side === 0) {
-            // Still in tune, only moved within it: nothing to say.
-            spokenCents = cents;
-            changeSince = null;
-            return null;
-        }
-        return say(String(Math.abs(Math.round(cents))), key, cents, side, now);
-    };
-
-    function every(target, key, now) {
-        if (now - candidateSince < speakAfterMs || now - spokeAt < gapMs) return null;
-        const { cents } = target;
-        if (key !== spokenKey) return full(target, key, cents, now);
-        const side = tuneSide(cents, spokenSide, inTuneCents);
-        if (side !== spokenSide) return change(key, cents, side, now);
-        if (side === 0) return null;
-        const rounded = Math.round(cents);
-        if (rounded === spokenCents || Math.abs(cents - spokenCents) < NUMBER_HYSTERESIS_CENTS) return null;
-        return change(key, cents, side, now);
-    }
 
     // Whether the reading has slowed down: the middle of its last third against the middle of its
-    // first third, over the last 0.3 seconds.
+    // first third, over the last windowMs.
     function steady(now) {
         const span = now - recent[0].at;
-        if (span < SETTLE_WINDOW_MS * 0.8) return false;
+        if (span < windowMs * 0.8) return false;
         const third = span / 3;
         const early = median(recent.filter(r => r.at <= recent[0].at + third).map(r => r.cents));
         const late = median(recent.filter(r => r.at >= now - third).map(r => r.cents));
-        return Math.abs(late - early) / ((span - third) / 1000) <= SETTLED_CENTS_PER_SECOND;
-    }
-
-    function settled(target, key, now) {
-        const elapsed = now - candidateSince;
-        if (elapsed < SETTLE_MS) return null;
-        const middle = median(recent.map(r => r.cents));
-        if (key !== spokenKey) {
-            if (now - spokeAt < gapMs || (elapsed < SETTLE_MAX_MS && !steady(now))) return null;
-            return full(target, key, middle, now);
-        }
-        const side = tuneSide(middle, spokenSide, inTuneCents);
-        const moved = side !== spokenSide || Math.abs(middle - spokenCents) > CHANGE_CENTS;
-        if (!moved) {
-            changeSince = null;
-            return null;
-        }
-        changeSince ??= now;
-        if (now - changeSince < CHANGE_HOLD_MS || now - spokeAt < gapMs) return null;
-        return change(key, middle, side, now);
+        return Math.abs(late - early) / ((span - third) / 1000) <= centsPerSecond;
     }
 
     return {
@@ -161,21 +75,21 @@ export function createTunerSpeech({ style = 'every', inTuneCents = IN_TUNE_CENTS
                 candidate = key;
                 candidateSince = now;
                 recent = [];
-                changeSince = null;
             }
             recent.push({ at: now, cents: target.cents });
-            while (now - recent[0].at > SETTLE_WINDOW_MS) recent.shift();
-            if (now === candidateSince) return null;
-            return style === 'settled' ? settled(target, key, now) : every(target, key, now);
+            while (now - recent[0].at > windowMs) recent.shift();
+            if (key === spokenKey) return null;
+            const elapsed = now - candidateSince;
+            if (elapsed < minMs || (elapsed < maxMs && !steady(now))) return null;
+            spokenKey = key;
+            const where = target.string ? `string ${target.string}, ` : '';
+            return `${where}${tunerNoteName(target.midi)}, ${describeCents(median(recent.map(r => r.cents)), inTuneCents)}`;
         },
 
         restart() {
             candidate = null;
             recent = [];
             spokenKey = null;
-            spokenSide = null;
-            spokeAt = -Infinity;
-            changeSince = null;
         }
     };
 }

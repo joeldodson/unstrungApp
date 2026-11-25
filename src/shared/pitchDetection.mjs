@@ -7,8 +7,20 @@
 /** Concert A, the reference every note is measured from. */
 export const A4_HZ = 440;
 
-/** Within this many cents a string is said to be in tune. */
+/** Within this many cents the chime plays and the feedback tone counts the string in tune. */
 export const IN_TUNE_CENTS = 2;
+
+/**
+ * Out of tune again for the chime and tone only this far out, so a string sitting at the edge does
+ * not flip back and forth.
+ */
+export const LEAVE_TUNE_CENTS = IN_TUNE_CENTS + 0.75;
+
+/**
+ * Within this many cents a string is said, and written, to be in tune: wider than the chime's, so
+ * a string a hair off is not read out as off. Joel's choice, 2026-11-24.
+ */
+export const SAID_IN_TUNE_CENTS = 3;
 
 /** The lowest and highest pitches the tuner reads. Drop C's low C is 65 Hz. */
 export const TUNER_MIN_HZ = 60;
@@ -213,7 +225,7 @@ export function nearestString(frequency, tuning, a4 = A4_HZ) {
 }
 
 /** "8 cents flat", "1 cent sharp", or "in tune" when within `inTuneCents`. */
-export function describeCents(cents, inTuneCents = IN_TUNE_CENTS) {
+export function describeCents(cents, inTuneCents = SAID_IN_TUNE_CENTS) {
     const rounded = Math.round(cents);
     if (Math.abs(cents) <= inTuneCents) return 'in tune';
     const size = Math.abs(rounded);
